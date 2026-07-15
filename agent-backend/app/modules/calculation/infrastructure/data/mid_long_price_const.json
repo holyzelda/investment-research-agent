@@ -1,0 +1,18 @@
+{
+  "_meta": {
+    "purpose": "中长期充/放电均价常量表（底稿 D32/D33）。",
+    "rule": "PRD US-1.3 规则4：系统不写飞书、页面只读展示。stub 阶段按省从本常量表注入；当前仅宁夏参与中长期市场（表2 mid_long=1）。",
+    "unit": "元/MWh",
+    "fields": {
+      "mid_long_charge_avg": "中长期充电均价 · 底稿 输入1-基础参数!D32",
+      "mid_long_discharge_avg": "中长期放电均价 · 底稿 输入1-基础参数!D33"
+    },
+    "todo": "宁夏实际数值待业务给定；此处先留占位 null，Batch3 从底稿/飞书回读或业务补录。"
+  },
+  "provinces": {
+    "宁夏": {
+      "mid_long_charge_avg": null,
+      "mid_long_discharge_avg": null
+    }
+  }
+}

@@ -1,0 +1,22 @@
+# 朱雀投研智能体后端依赖（团队统一栈：FastAPI + 异步 SQLAlchemy + Nacos）
+fastapi>=0.115,<0.116
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pydantic-settings>=2.3
+SQLAlchemy[asyncio]>=2.0
+aiosqlite>=0.20          # 本地/单测异步驱动（纯 Python，安装无门槛）
+aiomysql>=0.2.0          # MySQL 异步驱动（纯 Python，Windows 免编译）；url 前缀 mysql+aiomysql://
+# 备选高性能驱动 asyncmy 需 C++ 编译环境（Windows 可能装不上），如需再单独装：pip install asyncmy
+httpx>=0.27
+tenacity>=8.5
+APScheduler>=3.10
+PyYAML>=6.0
+loguru>=0.7
+nacos-sdk-python>=2.0.0  # Nacos 配置/服务发现（未启用时不强依赖）
+# 飞书
+lark-oapi>=1.0.0
+
+# dev / test
+pytest>=8.2
+pytest-asyncio>=0.23
+openpyxl>=3.1          # 提参/构建工具：离线读取飞书导出的 xlsx（映射表/表2）生成 param_dict.json，应用运行时不依赖

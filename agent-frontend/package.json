@@ -1,0 +1,47 @@
+{
+  "name": "ir-agent-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "朱雀投研智能体 ZRA-3 前端（平台子应用，无独立登录）",
+  "type": "module",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "pnpm": ">=9",
+    "node": ">=18"
+  },
+  "scripts": {
+    "preinstall": "npx only-allow pnpm",
+    "dev": "vite",
+    "build": "vite build",
+    "build:staging": "vite build --mode staging",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dayjs": "^1.11.13",
+    "echarts": "^5.5.1",
+    "element-plus": "^2.4.4",
+    "@element-plus/icons-vue": "^2.3.1",
+    "lodash-es": "^4.17.21",
+    "nprogress": "^0.2.0",
+    "pinia": "^2.2.6",
+    "vue": "^3.4.38",
+    "vue-echarts": "^7.0.3",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.4",
+    "@vue/test-utils": "^2.4.6",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.47",
+    "sass": "^1.79.4",
+    "tailwindcss": "^3.4.13",
+    "unplugin-auto-import": "^0.18.3",
+    "unplugin-vue-components": "^0.27.4",
+    "vite": "^5.4.8",
+    "vitest": "^2.1.2"
+  }
+}

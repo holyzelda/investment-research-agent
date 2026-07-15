@@ -1,0 +1,969 @@
+{
+  "_meta": {
+    "source": "各省电力市场及收益结构1.xlsx · 各省收益结构 sheet",
+    "note": "stub 数据源；Batch3 切飞书真读。switch: 1参与/0不参与/null未知(空)。*_tier 为两档收益 100/200(t2) 与 100/400(t4) 基准列，供 domain 按项目时长插值。",
+    "columns": {
+      "mid_long": "B",
+      "spot": "E",
+      "frequency": "F",
+      "capacity": "I",
+      "subsidy": "J",
+      "lease": "K",
+      "intervention": "N",
+      "collect_grid_fee": "R",
+      "return_grid_fee": "S",
+      "mid_long_tier": "C/D",
+      "frequency_tier": "G/H",
+      "intervention_tier": "O/P",
+      "lease_unit_price": "L",
+      "lease_achievement_rate": "M"
+    }
+  },
+  "provinces": {
+    "浙江": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "上海": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "广东": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 1,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "江苏": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "湖南": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 1,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "深圳": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": null,
+        "return_grid_fee": null
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "海南": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 0,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "重庆": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "河南": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "安徽": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 1,
+        "lease": 1,
+        "intervention": null,
+        "collect_grid_fee": 0,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": 175,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "湖北": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": 150,
+        "t4": 220
+      },
+      "lease_unit_price": 0,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "天津": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 0,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": 800,
+        "t4": 1200
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "四川": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": 4000,
+        "t4": 4500
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "陕西": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "贵州": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "辽宁": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "吉林": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "山东": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "黑龙江": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "山西": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": 2000,
+        "t4": 2700
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "福建": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 0,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "江西": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "新疆": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "冀北": {
+      "switch": {
+        "mid_long": 1,
+        "spot": 0,
+        "frequency": 0,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "河北": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": null,
+        "intervention": 0,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": 0,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "蒙东": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 0,
+        "subsidy": 1,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "青海": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "云南": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "北京": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 0,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "广西": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "宁夏": {
+      "switch": {
+        "mid_long": 1,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 1,
+        "intervention": 1,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": 240,
+        "t4": 480
+      },
+      "frequency_tier": {
+        "t2": 700,
+        "t4": 960
+      },
+      "lease_unit_price": 20,
+      "lease_achievement_rate": 0.9,
+      "intervention_tier": {
+        "t2": 330,
+        "t4": 540
+      }
+    },
+    "蒙西": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 0,
+        "subsidy": 1,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 0,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "甘肃": {
+      "switch": {
+        "mid_long": 0,
+        "spot": 1,
+        "frequency": 1,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "西藏": {
+      "switch": {
+        "mid_long": null,
+        "spot": null,
+        "frequency": null,
+        "capacity": null,
+        "subsidy": null,
+        "lease": null,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 0
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    },
+    "冀南": {
+      "switch": {
+        "mid_long": 1,
+        "spot": 1,
+        "frequency": 0,
+        "capacity": 1,
+        "subsidy": 0,
+        "lease": 0,
+        "intervention": null,
+        "collect_grid_fee": 1,
+        "return_grid_fee": 1
+      },
+      "mid_long_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "frequency_tier": {
+        "t2": null,
+        "t4": null
+      },
+      "lease_unit_price": null,
+      "lease_achievement_rate": null,
+      "intervention_tier": {
+        "t2": null,
+        "t4": null
+      }
+    }
+  }
+}

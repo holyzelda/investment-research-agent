@@ -1,0 +1,41 @@
+/* 全局样式：引入玄策 token + 深色基线 */
+@import '@/design-system/tokens.css';
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--xc-font-zh);
+  font-size: var(--xc-fs-md);
+  line-height: var(--xc-lh-normal);
+  color: var(--xc-text-default);
+  background: var(--xc-surface-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+.xc-app {
+  min-height: 100%;
+  background: var(--xc-surface-base);
+  color: var(--xc-text-default);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* 基础滚动条（深色） */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--xc-border-soft);
+  border-radius: var(--xc-radius-full);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}

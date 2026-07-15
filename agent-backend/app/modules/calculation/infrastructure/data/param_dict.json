@@ -1,0 +1,100 @@
+{
+  "_meta": {
+    "title": "参数字典与飞书映射（数据契约） · PRD-001 US-1.1",
+    "version": "0.2.0-stub",
+    "source_mapping": "Excel单元格映射表_业务填写清单_20260630.xlsx · 副本 sheet（F=1 输入 + 各省收益结构开关及下游明细 + 输出）",
+    "scheme": "方案A · 独立接口区：系统只读写 API_INPUT/API_OUTPUT/API_META，绝不直读写模型单元格；模型侧由业务桥接公式连接。",
+    "corrections_applied": [
+      "维保成本 D72→D75；运营成本 D74→D77",
+      "现货开关底稿位置 D38→D37",
+      "『营业收入、税金及附加』sheet 输出列 D→C（如 D6→C6）",
+      "租赁单价单位以各省收益结构表头为准：元/kW·年（映射表旧写 元/kWh·年）",
+      "中长期均价 D32/D33：来源后端常量表(仅宁夏有值)，写入 API_INPUT!B32/B33（原只读展示改为入参）",
+      "地区成本三项：由测算表『地区』sheet 按省份 XLOOKUP 算出(充电成本=Z列/放电返还=AA列/损耗=Y列,电压选列由底稿内置)，经 API_OUTPUT!B14/B15/B16 读回展示"
+    ],
+    "field_dict": {
+      "id": "参数英文ID",
+      "cn": "参数中文名",
+      "category": "参数类别",
+      "source": "dialog=对话抽取 | default=系统默认 | spot_algo=电价库二次计算 | revenue_structure=各省收益结构 | const_table=常量表 | output=读结果",
+      "model_cell": "底稿模型单元格（业务桥接公式所连位置；系统不直接读写）",
+      "f": "是否页面展示（1/0）",
+      "g": "用户是否可调（1/0，可调交互属 Batch5）",
+      "writable": "后端是否写入 API_INPUT（true/false）——F 列只管展示，不决定写入",
+      "direction": "input=写入 | output=读取 | readonly=只读展示不写",
+      "api_cell": "接口区单元格（本系统实际读写位置；行号由本系统分配，交业务建桥接公式，挂账#2）",
+      "default": "系统默认值",
+      "unit": "单位",
+      "dtype": "数据类型"
+    }
+  },
+
+  "feishu_interface": {
+    "API_INPUT": "系统写全部入参；模型侧桥接公式如 输入1-基础参数!D3 = API_INPUT!B2",
+    "API_OUTPUT": "系统读结果；桥接公式如 API_OUTPUT!B2 = 输出-财务指标汇总表!D15",
+    "API_META": "request_id / 模板版本 / 参数hash / 计算状态（done 时回写本次 request_id）"
+  },
+
+  "parameters": [
+    { "id": "power_mw", "cn": "储能装机功率", "category": "基础信息", "source": "dialog", "model_cell": "输入1-基础参数!D3", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B2", "default": null, "unit": "MW", "dtype": "float" },
+    { "id": "capacity_mwh", "cn": "装机容量", "category": "基础信息", "source": "dialog", "model_cell": "输入1-基础参数!D4", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B3", "default": null, "unit": "MWh", "dtype": "float" },
+    { "id": "province", "cn": "所在省份", "category": "基础信息", "source": "dialog", "model_cell": "输入1-基础参数!D27", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B4", "default": null, "unit": "—", "dtype": "string" },
+    { "id": "node_name", "cn": "节点名称", "category": "基础信息", "source": "dialog", "model_cell": null, "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B5", "default": null, "unit": "—", "dtype": "string", "note": "用户没提则不展示、不写入" },
+    { "id": "voltage_kv", "cn": "并网电压等级", "category": "基础信息", "source": "dialog", "model_cell": "输入1-基础参数!D7", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B6", "default": 220, "unit": "kV", "dtype": "int" },
+
+    { "id": "daily_cycles", "cn": "日均充放电次数", "category": "基础信息", "source": "default", "model_cell": "输入1-基础参数!D11", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B7", "default": 1, "unit": "次/天", "dtype": "float" },
+    { "id": "epc_unit_price", "cn": "EPC单价", "category": "基础信息", "source": "default", "model_cell": "输入1-基础参数!D16", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B8", "default": 0.75, "unit": "元/Wh", "dtype": "float" },
+    { "id": "strategy_achievement_rate", "cn": "策略达成率", "category": "电能量收益", "source": "default", "model_cell": "输入1-基础参数!D47", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B9", "default": 0.9, "unit": "—", "dtype": "float(0~1)" },
+    { "id": "capacity_achievement_rate", "cn": "容量市场达成率", "category": "容量收益", "source": "default", "model_cell": "输入1-基础参数!D50", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B10", "default": 0.9, "unit": "—", "dtype": "float(0~1)" },
+    { "id": "operation_years", "cn": "项目运营期", "category": "运营期与换电", "source": "default", "model_cell": "输入1-基础参数!D90", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B11", "default": 15, "unit": "年", "dtype": "int" },
+    { "id": "battery_replace_cost", "cn": "换电成本", "category": "运营期与换电", "source": "default", "model_cell": "输入3-工程估算!C23", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B12", "default": 0, "unit": "元/Wh", "dtype": "float" },
+    { "id": "loan_rate", "cn": "贷款利率", "category": "贷款信息", "source": "default", "model_cell": "输入1-基础参数!D86", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B13", "default": 0.04, "unit": "—", "dtype": "float" },
+    { "id": "maint_cost", "cn": "维保成本", "category": "运维成本", "source": "default", "model_cell": "输入1-基础参数!D75", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B14", "default": 0.005, "unit": "元/Wh", "dtype": "float", "note": "订正 D72→D75" },
+    { "id": "opex_cost", "cn": "运营成本", "category": "运营成本", "source": "default", "model_cell": "输入1-基础参数!D77", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B15", "default": 0.005, "unit": "元/Wh", "dtype": "float", "note": "订正 D74→D77" },
+
+    { "id": "spot_charge_avg", "cn": "现货充电均价", "category": "电能量收益", "source": "spot_algo", "model_cell": "输入1-基础参数!D39", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B16", "default": null, "unit": "元/MWh", "dtype": "float", "note": "电价库96点+日均次数+充放时长(容量/功率)→近一年均价，已有算法(挂账#6)，stub 返回固定值" },
+    { "id": "spot_discharge_avg", "cn": "现货放电均价", "category": "电能量收益", "source": "spot_algo", "model_cell": "输入1-基础参数!D40", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B17", "default": null, "unit": "元/MWh", "dtype": "float", "note": "同上" },
+
+    { "id": "switch_mid_long", "cn": "中长期市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D29", "revenue_col": "B", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B18", "default": null, "unit": "0/1", "dtype": "int", "note": "1参与/0不参与/null未知" },
+    { "id": "switch_spot", "cn": "现货市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D37", "revenue_col": "E", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B19", "default": null, "unit": "0/1", "dtype": "int", "note": "订正 D38→D37；现货始终展示(PRD US-1.3 规则5)" },
+    { "id": "switch_frequency", "cn": "调频市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D62", "revenue_col": "F", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B20", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_capacity", "cn": "容量补偿市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D49", "revenue_col": "I", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B21", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_subsidy", "cn": "补贴市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D65", "revenue_col": "J", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B22", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_lease", "cn": "租赁市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D58", "revenue_col": "K", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B23", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_intervention", "cn": "干预补偿市场开关", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D70", "revenue_col": "N", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B24", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_collect_grid_fee", "cn": "是否收取过网费", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D43", "revenue_col": "R", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B25", "default": null, "unit": "0/1", "dtype": "int" },
+    { "id": "switch_return_grid_fee", "cn": "是否返还过网费", "category": "各省收益结构开关", "source": "revenue_structure", "model_cell": "输入1-基础参数!D44", "revenue_col": "S", "f": 0, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B26", "default": null, "unit": "0/1", "dtype": "int" },
+
+    { "id": "mid_long_energy_revenue_first_year_tax", "cn": "中长期市场电能量交易收入(首年)-含税", "category": "电能量收益", "source": "revenue_structure", "model_cell": "输入1-基础参数!D35", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B27", "default": null, "unit": "万元", "dtype": "float", "compute": "two_tier_capacity", "tier_cols": "C(100/200) D(100/400)", "note": "switch_mid_long=1 才取；按项目时长t=容量/功率插值×容量系数(各省收益结构 C1·D1公式，挂账#3)" },
+    { "id": "frequency_first_year_revenue", "cn": "首年调频收益", "category": "调频收益", "source": "revenue_structure", "model_cell": "输入1-基础参数!D63", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B28", "default": null, "unit": "万元", "dtype": "float", "compute": "two_tier_power", "tier_cols": "G(100/200) H(100/400)", "note": "switch_frequency=1 才取；基准×功率系数(功率/100)(各省收益结构 G1·H1公式)" },
+    { "id": "intervention_first_year_revenue", "cn": "首年干预补偿收益", "category": "干预补偿收益", "source": "revenue_structure", "model_cell": "输入1-基础参数!D71", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B29", "default": null, "unit": "万元", "dtype": "float", "compute": "two_tier_capacity", "tier_cols": "O(100/200) P(100/400)", "note": "switch_intervention=1 才取；按容量系数插值(各省收益结构 O1·P1公式)" },
+    { "id": "lease_unit_price", "cn": "租赁单价", "category": "容量租赁", "source": "revenue_structure", "model_cell": "输入1-基础参数!D60", "revenue_col": "L", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B30", "default": null, "unit": "元/kW·年", "dtype": "float", "note": "switch_lease=1 才取 L 列" },
+    { "id": "lease_achievement_rate", "cn": "租赁达成率", "category": "容量租赁", "source": "revenue_structure", "model_cell": "输入1-基础参数!D61", "revenue_col": "M", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B31", "default": 0.9, "unit": "—", "dtype": "float(0~1)" },
+
+    { "id": "mid_long_charge_avg", "cn": "中长期充电均价", "category": "电能量收益", "source": "const_table", "model_cell": "输入1-基础参数!D32", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B32", "default": null, "unit": "元/MWh", "dtype": "float", "note": "来源后端常量表(仅宁夏有值,其余省 null)；写入 API_INPUT 由模型消费" },
+    { "id": "mid_long_discharge_avg", "cn": "中长期放电均价", "category": "电能量收益", "source": "const_table", "model_cell": "输入1-基础参数!D33", "f": 1, "g": 0, "writable": true, "direction": "input", "api_cell": "API_INPUT!B33", "default": null, "unit": "元/MWh", "dtype": "float", "note": "同上" },
+
+    { "id": "charge_cost", "cn": "充电成本", "category": "基本信息(地区)", "source": "output", "model_cell": "地区!Z", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B14", "default": null, "unit": "元/kWh", "dtype": "float", "note": "『地区』sheet 按省份(D27)XLOOKUP;Z列=过网费,已按电压 D7 选列(110→T,220→W);经 API_OUTPUT 读回展示" },
+    { "id": "discharge_return", "cn": "放电返还", "category": "基本信息(地区)", "source": "output", "model_cell": "地区!AA", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B15", "default": null, "unit": "元/kWh", "dtype": "float", "note": "AA列=返还费,已按电压 D7 选列(110→U,220→X)" },
+    { "id": "loss_cost", "cn": "损耗费用", "category": "基本信息(地区)", "source": "output", "model_cell": "地区!Y", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B16", "default": null, "unit": "元/kWh", "dtype": "float", "note": "Y列=过网费损耗,底稿公式内置电压 D7 判断" },
+
+    { "id": "project_irr", "cn": "项目全投资IRR", "category": "输出-财务指标", "source": "output", "model_cell": "输出-财务指标汇总表!D15", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B2", "default": null, "unit": "%", "dtype": "float" },
+    { "id": "project_static_payback", "cn": "项目全投资静态回收期", "category": "输出-财务指标", "source": "output", "model_cell": "输出-财务指标汇总表!D17", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B3", "default": null, "unit": "年", "dtype": "float" },
+    { "id": "capital_irr", "cn": "资本金IRR", "category": "输出-财务指标", "source": "output", "model_cell": "输出-财务指标汇总表!D19", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B4", "default": null, "unit": "%", "dtype": "float" },
+    { "id": "capital_static_payback", "cn": "资本金静态回收期", "category": "输出-财务指标", "source": "output", "model_cell": "输出-财务指标汇总表!D21", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B5", "default": null, "unit": "年", "dtype": "float" },
+    { "id": "average_profit", "cn": "年均利润", "category": "输出-财务指标", "source": "output", "model_cell": "输出-财务指标汇总表!D14", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B6", "default": null, "unit": "万元", "dtype": "float" },
+
+    { "id": "first_year_total_revenue", "cn": "首年总收入", "category": "输出-首年收入", "source": "output", "model_cell": "营业收入、税金及附加!C4", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B7", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D4→C4" },
+    { "id": "first_year_energy_revenue", "cn": "首年电能量收益", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C6", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B8", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D6→C6" },
+    { "id": "first_year_capacity_revenue", "cn": "首年容量市场收益", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C17", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B9", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D17→C17" },
+    { "id": "first_year_frequency_revenue", "cn": "首年调频市场收益", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C11", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B10", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D11→C11" },
+    { "id": "first_year_lease_revenue", "cn": "首年租赁市场收益", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C10", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B11", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D10→C10" },
+    { "id": "first_year_intervention_revenue", "cn": "首年干预补偿收益", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C15", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B12", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D15→C15" },
+    { "id": "first_year_subsidy_revenue", "cn": "首年补贴收入", "category": "输出-首年收入(环形图)", "source": "output", "model_cell": "营业收入、税金及附加!C12", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!B13", "default": null, "unit": "万元", "dtype": "float", "note": "订正 D12→C12" },
+
+    { "id": "main_business_cost", "cn": "主营业务成本(15年序列)", "category": "输出-成本费用(折线图)", "source": "output", "model_cell": "成本费用表!D4~R4", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!C2:Q2", "default": null, "unit": "万元", "dtype": "float[]" },
+    { "id": "current_principal_interest", "cn": "当期还本付息(15年序列)", "category": "输出-还本付息(折线图)", "source": "output", "model_cell": "还本付息!D6~R6", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!C3:Q3", "default": null, "unit": "万元", "dtype": "float[]" },
+    { "id": "capital_net_cashflow", "cn": "资本金净现金流(15年序列)", "category": "输出-资本金净现金流(折线图)", "source": "output", "model_cell": "资本金现金流量表!E18~S18", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!C4:Q4", "default": null, "unit": "万元", "dtype": "float[]" },
+    { "id": "total_invest_net_cashflow_after_tax", "cn": "全投资所得税后净现金流量(15年序列)", "category": "输出-全投资净现金流(折线图)", "source": "output", "model_cell": "全投资净现金流量!D22~R22", "f": 1, "g": 0, "writable": false, "direction": "output", "api_cell": "API_OUTPUT!C5:Q5", "default": null, "unit": "万元", "dtype": "float[]" }
+  ]
+}

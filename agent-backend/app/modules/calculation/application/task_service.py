@@ -1,0 +1,186 @@
+"""calculation 应用层 · 测算任务编排（发起→执行→快照→版本）。
+
+一次 POST /ir/calc/tasks 的用例：
+1. 会话：无 conversation_id 则新建（V1）；有则在其下追加（版本递增，不覆盖）。
+2. 组装四来源入参，生成 request_id 与 param_hash。
+3. 引擎 + 智能重试执行（复用同副本）；成功→映射结果 DTO + 落 7 类快照；失败→落 failed 任务。
+4. 返回 {conversationId, taskId, version, status}。
+
+状态/结果查询是纯读快照，不再触飞书（脱离飞书可用）。
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import uuid
+from datetime import datetime
+from typing import Optional
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundException
+from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
+from app.modules.calculation.application.output_mapper import map_output_to_result
+from app.modules.calculation.application.param_assembler import ParamAssembler
+from app.modules.calculation.application.retry_policy import RetryPolicy
+from app.modules.calculation.application.snapshot_service import SnapshotService
+from app.modules.calculation.domain.execution import CalcError
+from app.modules.calculation.domain.models import ProjectBasics
+from app.modules.calculation.domain.ports import FeishuGateway
+from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationTaskORM,
+    ConversationORM,
+)
+
+
+def _param_hash(api_input: dict) -> str:
+    canon = json.dumps(api_input, sort_keys=True, ensure_ascii=False, default=str)
+    return hashlib.sha256(canon.encode("utf-8")).hexdigest()
+
+
+def _min_input(basics: ProjectBasics) -> dict:
+    return {
+        "province": basics.province,
+        "capacityMwh": basics.capacity_mwh,
+        "powerMw": basics.power_mw,
+        "nodeName": basics.node_name,
+        "voltageKv": basics.voltage_kv,
+    }
+
+
+def _fmt_num(x) -> str:
+    """副本名里的数字：200.0→'200'，800.5→'800.5'（避免出现 .0）。"""
+    if isinstance(x, float) and x.is_integer():
+        return str(int(x))
+    return str(x)
+
+
+def build_copy_name(basics: ProjectBasics, *, now: Optional[datetime] = None) -> str:
+    """飞书副本命名：城市-节点(有则加)-功率/容量-时间(到秒)。
+
+    例：宁夏-200/400-20260710091435；带节点：宁夏-东站-200/400-20260710091435。
+    now 可注入，便于测试固定时间戳。
+    """
+    ts = (now or datetime.now()).strftime("%Y%m%d%H%M%S")
+    parts = [basics.province]
+    if basics.node_name:
+        parts.append(basics.node_name)
+    parts.append(f"{_fmt_num(basics.power_mw)}/{_fmt_num(basics.capacity_mwh)}")
+    parts.append(ts)
+    return "-".join(parts)
+
+
+class CalculationTaskService:
+    def __init__(
+        self,
+        assembler: ParamAssembler,
+        gateway: FeishuGateway,
+        engine: FeishuCalcEngine,
+        retry: RetryPolicy,
+        snapshot: SnapshotService,
+    ):
+        self._assembler = assembler
+        self._gateway = gateway
+        self._engine = engine
+        self._retry = retry
+        self._snapshot = snapshot
+
+    async def create_and_run(
+        self,
+        session: AsyncSession,
+        *,
+        user_id: str,
+        username: str,
+        basics: ProjectBasics,
+        conversation_id: Optional[int] = None,
+    ) -> dict:
+        conversation_id, version = await self._resolve_version(
+            session, conversation_id, user_id, username, basics
+        )
+
+        assembled = self._assembler.assemble(basics)
+        request_id = uuid.uuid4().hex
+        param_hash = _param_hash(assembled.api_input)
+        copy_name = build_copy_name(basics)  # 城市-节点-功率/容量-时间，副本创建时定格
+
+        try:
+            engine_result = await self._retry.run_with_retry(
+                lambda doc_token: self._engine.run(
+                    api_input=assembled.api_input,
+                    request_id=request_id,
+                    param_hash=param_hash,
+                    doc_token=doc_token,
+                ),
+                request_id=request_id,
+                copy_template=lambda: self._gateway.copy_template(copy_name),
+            )
+        except CalcError as e:
+            task = CalculationTaskORM(
+                conversation_id=conversation_id,
+                version=version,
+                status="failed",
+                request_id=request_id,
+                param_hash=param_hash,
+                error_code=e.code,
+                error_message=str(e)[:500],
+            )
+            session.add(task)
+            await session.commit()
+            return {
+                "conversationId": conversation_id,
+                "taskId": task.id,
+                "version": version,
+                "status": "failed",
+                "error": {"code": e.code, "message": str(e), "requestId": e.request_id},
+            }
+
+        result_dto = map_output_to_result(
+            basics, assembled, engine_result.api_output,
+            version=version, request_id=request_id,
+        )
+        task_id = await self._snapshot.persist_success(
+            session,
+            conversation_id=conversation_id,
+            version=version,
+            request_id=request_id,
+            param_hash=param_hash,
+            doc_token=engine_result.doc_token,
+            assembled=assembled,
+            api_output=engine_result.api_output,
+            api_meta=engine_result.meta,
+            result=result_dto,
+            min_input=_min_input(basics),
+            user_message=f"测算{basics.province} {basics.power_mw}MW/{basics.capacity_mwh}MWh",
+            assistant_message=f"{version} 测算完成",
+        )
+        return {
+            "conversationId": conversation_id,
+            "taskId": task_id,
+            "version": version,
+            "status": "completed",
+        }
+
+    async def _resolve_version(
+        self, session, conversation_id, user_id, username, basics
+    ) -> tuple[int, str]:
+        if conversation_id is None:
+            conversation_id = await self._snapshot.create_conversation(
+                session, user_id=user_id, username=username,
+                title=f"{basics.province} 储能测算",
+            )
+            return conversation_id, "V1"
+        conversation = (await session.execute(
+            select(ConversationORM).where(
+                ConversationORM.id == conversation_id,
+                ConversationORM.user_id == user_id,
+                ConversationORM.deleted_at.is_(None),
+            )
+        )).scalar_one_or_none()
+        if conversation is None:
+            raise NotFoundException("会话不存在")
+        n = await session.scalar(
+            select(func.count()).select_from(CalculationTaskORM)
+            .where(CalculationTaskORM.conversation_id == conversation_id)
+        )
+        return conversation_id, f"V{(n or 0) + 1}"

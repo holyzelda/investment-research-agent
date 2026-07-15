@@ -1,0 +1,42 @@
+# .spec-superflow.yaml — lightweight state machine
+# Derived data. Always rebuildable from artifacts. Lost/corrupt → fall back to content-level detection.
+
+# === Core state ===
+state: exploring
+workflow: full
+
+# === Hashes (fast staleness detection) ===
+artifacts_hash: sha256:57342645c810afaf369c31355f901f980dc882c0a23e8535965d368daad1cb29
+contract_hash: sha256:2d438ab15c057a51127215aee8101bbc24eb65bc41725ec88ef95f5f53d0a051
+
+# === Execution progress ===
+execution_mode: null
+batches_completed: 0
+test_result: null
+spec_merged: false
+
+# === Metadata ===
+change_name: PRD-001-login-calc-mainflow
+last_transition: 2026-07-04T04:17:18.152Z
+last_transition_from: null
+last_transition_to: null
+
+# === Decision points ===
+dp_0_decisions: 范围=PRD-001登录与访问+测算主链路(报告本体/中台Tool/地图模块占位);允许纳入相邻必要优化(通用组件抽取、脚手架级基建)。前端基座=拷贝etrader-agent-nx/agent-frontend脚手架再裁剪,保留XC玄策设计体系与登录框架,品牌换朱雀投研智能体。后端=FastAPI+SQLAlchemy(异步MySQL ir_agent)+Alembic+Nacos对齐trader。协作节奏=起草全部制品后整体评审。飞书方案A独立接口区API_INPUT/OUTPUT/META。
+dp_0_result: null
+dp_0_confirmed: true
+dp_0_timestamp: 2026-07-04T04:17:19Z
+dp_1_result: confirmed: Batch4.6历史会话位于投资分析工作台功能项之后；欢迎页手动打开；回放消息/版本/结果；更多菜单二次确认软删除；全链路用户归属校验；报告历史本轮不实现
+dp_1_timestamp: 2026-07-15T00:00:00Z
+dp_2_result: approved: Batch4.6 proposal/spec/design/tasks，含左侧历史布局、手动回放、软删除和归属校验
+dp_2_timestamp: 2026-07-15T00:00:00Z
+dp_3_result: approved: Batch4.6左侧历史列表、欢迎页手动回放、更多菜单软删除、全链路用户归属404、报告历史仅预留关联
+dp_3_timestamp: 2026-07-15T00:00:00Z
+dp_4_result: batch-inline: 用户明确授权跳过Git隔离，在当前目录恢复并完成单一前端Batch 4
+dp_4_timestamp: 2026-07-14T00:00:00Z
+dp_5_result: null
+dp_5_timestamp: null
+dp_6_result: null
+dp_6_timestamp: null
+dp_7_result: null
+dp_7_timestamp: null

@@ -1,0 +1,232 @@
+/* ============================================================
+ * 玄策 Design System · Tokens
+ * Source: 玄策首页 standalone (1920×1080 trading workstation)
+ * Use:  @import url("./tokens.css");  then use var(--xc-*)
+ * Naming: --xc-<category>-<role>-<weight?>
+ *   xc      = 玄策 namespace (avoid collisions with host apps)
+ *   category= color | font | size | space | radius | shadow | dur | z
+ * 说明：本文件从 etrader-agent-nx/agent-frontend/src/design-system/tokens.css 移植，
+ *      作为朱雀投研智能体的视觉基线，与统一平台观感保持一致。
+ * ============================================================ */
+
+:root {
+  /* ---------- 1. SURFACE / NEUTRALS (dark-first) ---------- */
+  --xc-surface-void:    #000000;
+  --xc-surface-base:    rgb(36, 36, 36);
+  --xc-surface-1:       rgb(48, 48, 48);
+  --xc-surface-2:       rgb(63, 63, 63);
+  --xc-surface-3:       rgba(88, 88, 88, 0.5);
+  --xc-surface-glass:   rgba(63, 63, 63, 0.85);
+  --xc-surface-frosted: rgba(255, 255, 255, 0.06);
+  --xc-surface-tinted:  rgba(221, 235, 255, 0.05);
+  --xc-surface-overlay: rgba(0, 0, 0, 0.55);
+
+  /* ---------- 2. TEXT (on dark surface) ---------- */
+  --xc-text-strong:  #ffffff;
+  --xc-text-default: rgba(255, 255, 255, 0.86);
+  --xc-text-soft:    rgba(255, 255, 255, 0.76);
+  --xc-text-mute:    rgba(255, 255, 255, 0.50);
+  --xc-text-faint:   rgba(255, 255, 255, 0.38);
+  --xc-text-inverse: #1a1a1a;
+
+  /* ---------- 3. BORDERS / DIVIDERS ---------- */
+  --xc-border-line:   rgba(212, 217, 229, 0.50);
+  --xc-border-soft:   rgba(255, 255, 255, 0.13);
+  --xc-border-strong: rgba(255, 255, 255, 0.24);
+  --xc-border-accent: rgba(34, 177, 253, 0.45);
+  --xc-border-tinted: rgba(38, 85, 241, 0.25);
+
+  /* ---------- 4. BRAND / ACCENT ---------- */
+  --xc-brand-cyan:    rgb(0, 240, 253);
+  --xc-brand-cyan-2:  rgb(0, 176, 185);
+  --xc-brand-violet:  rgb(110, 42, 255);
+  --xc-brand-violet-2: rgb(154, 100, 255);
+  --xc-accent-blue:   rgb(34, 177, 253);
+  --xc-accent-blue-2: rgb(64, 103, 252);
+  --xc-accent-blue-soft: rgba(34, 177, 253, 0.18);
+
+  /* ---------- 5. SEMANTIC / TRADING ----------
+   * China convention: red = up/long/gain, green = down/short/loss. */
+  --xc-status-ok:     rgb(11, 194, 51);
+  --xc-status-warn:   rgb(255, 170, 0);
+  --xc-status-danger: rgb(228, 88, 88);
+  --xc-status-info:   rgb(34, 177, 253);
+
+  --xc-status-ok-soft:     rgba(11, 194, 51, 0.10);
+  --xc-status-warn-soft:   rgba(255, 170, 0, 0.10);
+  --xc-status-danger-soft: rgba(228, 88, 88, 0.10);
+  --xc-status-info-soft:   rgba(34, 177, 253, 0.20);
+
+  /* Trading P&L — CN equity convention: 涨红跌绿 */
+  --xc-trade-up:    var(--xc-status-danger);
+  --xc-trade-down:  var(--xc-status-ok);
+  --xc-trade-flat:  var(--xc-text-mute);
+
+  /* ---------- 6. GRADIENTS (named) ---------- */
+  --xc-grad-brand:    linear-gradient(135deg, var(--xc-brand-cyan)   0%, var(--xc-brand-violet) 100%);
+  --xc-grad-brand-h:  linear-gradient(92deg,  #00f0fd 0%, #54aaff 38%, #b58bff 70%, #6e2aff 100%);
+  --xc-grad-send:     linear-gradient(135deg, #2cd0ff 0%, #4067fc 60%, #6e2aff 100%);
+  --xc-grad-feature:  linear-gradient(135deg, var(--xc-brand-cyan-2) 0%, var(--xc-brand-violet) 100%);
+  --xc-grad-logo:     linear-gradient(180deg, var(--xc-brand-cyan)   0%, var(--xc-brand-violet) 100%);
+  --xc-grad-avatar:   linear-gradient(135deg, #c5cfde 0%, #6c7686 100%);
+
+  /* ---------- 7. TYPOGRAPHY ---------- */
+  --xc-font-zh:    "HarmonyOS Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --xc-font-en:    "Gotham", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --xc-font-num:   "Gotham", "Inter", "SF Pro Display", system-ui, sans-serif;
+  --xc-font-mono:  "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
+
+  --xc-fs-display:  clamp(40px, 2.92vw, 56px);
+  --xc-fs-h1:       clamp(28px, 1.67vw, 32px);
+  --xc-fs-h2:       clamp(22px, 1.25vw, 24px);
+  --xc-fs-h3:       20px;
+  --xc-fs-lg:       18px;
+  --xc-fs-md:       16px;
+  --xc-fs-sm:       14px;
+  --xc-fs-xs:       13px;
+  --xc-fs-2xs:      12px;
+  --xc-fs-3xs:      10px;
+
+  --xc-fs-kpi-lg:   40px;
+  --xc-fs-kpi-md:   28px;
+  --xc-fs-kpi-sm:   18px;
+
+  --xc-lh-tight:    1.15;
+  --xc-lh-snug:     1.30;
+  --xc-lh-normal:   1.50;
+  --xc-lh-loose:    1.70;
+
+  --xc-fw-regular:  400;
+  --xc-fw-medium:   500;
+  --xc-fw-semi:     600;
+  --xc-fw-bold:     700;
+
+  /* ---------- 8. SPACING ---------- */
+  --xc-space-0:   0;
+  --xc-space-1:   4px;
+  --xc-space-2:   6px;
+  --xc-space-3:   8px;
+  --xc-space-4:   12px;
+  --xc-space-5:   16px;
+  --xc-space-6:   20px;
+  --xc-space-7:   24px;
+  --xc-space-8:   32px;
+  --xc-space-9:   40px;
+  --xc-space-10:  48px;
+  --xc-space-11:  64px;
+  --xc-space-12:  80px;
+
+  /* ---------- 9. RADIUS ---------- */
+  --xc-radius-xs:   4px;
+  --xc-radius-sm:   8px;
+  --xc-radius-md:   12px;
+  --xc-radius-lg:   15px;
+  --xc-radius-xl:   20px;
+  --xc-radius-2xl:  30px;
+  --xc-radius-full: 999px;
+
+  /* ---------- 10. SHADOW / GLOW ---------- */
+  --xc-shadow-sm:    0 2px 8px rgba(0, 0, 0, 0.25);
+  --xc-shadow-md:    0 4px 20px rgba(0, 0, 0, 0.30);
+  --xc-shadow-lg:    0 16px 64px rgba(0, 0, 0, 0.40);
+  --xc-shadow-xl:    0 24px 80px rgba(0, 0, 0, 0.50);
+
+  --xc-glow-cyan:    0 0 24px rgba(0, 240, 253, 0.45);
+  --xc-glow-violet:  0 0 24px rgba(110, 42, 255, 0.45);
+  --xc-glow-blue:    0 6px 22px rgba(34, 177, 253, 0.45);
+  --xc-glow-ok:      0 0 6px rgba(11, 194, 51, 0.70);
+  --xc-glow-danger:  0 0 6px rgba(228, 88, 88, 0.60);
+
+  --xc-shadow-glass: inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+                     0 4px 30px rgba(0, 0, 0, 0.25),
+                     0 0 60px rgba(110, 42, 255, 0.08);
+
+  /* ---------- 11. BLUR ---------- */
+  --xc-blur-sm:   8px;
+  --xc-blur-md:   16px;
+  --xc-blur-lg:   20px;
+  --xc-blur-xl:   32px;
+
+  /* ---------- 12. MOTION ---------- */
+  --xc-dur-fast:    120ms;
+  --xc-dur-base:    180ms;
+  --xc-dur-slow:    320ms;
+  --xc-dur-slower:  600ms;
+  --xc-ease-out:    cubic-bezier(0.16, 1, 0.30, 1);
+  --xc-ease-in:     cubic-bezier(0.4, 0, 1, 1);
+  --xc-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* ---------- 13. Z-INDEX scale ---------- */
+  --xc-z-base:    0;
+  --xc-z-raised:  10;
+  --xc-z-nav:     50;
+  --xc-z-overlay: 800;
+  --xc-z-modal:   900;
+  --xc-z-toast:   950;
+  --xc-z-tooltip: 980;
+
+  /* ---------- 14. FORM CONTROLS ---------- */
+  --xc-control-sm:        16px;
+  --xc-control-md:        18px;
+  --xc-control-lg:        20px;
+  --xc-control-stroke:    1.5px;
+  --xc-control-radius-cb: 4px;
+  --xc-fs-counter:        12px;
+
+  --xc-inline-bg:        rgba(255, 255, 255, 0.04);
+  --xc-inline-border:    var(--xc-border-soft);
+  --xc-inline-radius:    var(--xc-radius-md);
+  --xc-inline-pad-x:     var(--xc-space-5);
+  --xc-inline-pad-y:     var(--xc-space-4);
+  --xc-inline-gap:       var(--xc-space-4);
+
+  /* ---------- 15. LAYOUT CONSTANTS ---------- */
+  --xc-canvas-w:    1920px;
+  --xc-canvas-h:    1080px;
+  --xc-topbar-h:    88px;
+  --xc-rail-w:      46px;
+  --xc-sidebar-w:   300px;
+  --xc-gutter-x:    24px;
+  --xc-gutter-y:    20px;
+
+  /* Chart palette — categorical series on dark bg. Charts default to --xc-chart-1 then cycle. */
+  --xc-chart-1: rgb(34, 177, 253);
+  --xc-chart-2: rgb(110, 42, 255);
+  --xc-chart-3: rgb(0, 240, 253);
+  --xc-chart-4: rgb(11, 194, 51);
+  --xc-chart-5: rgb(228, 88, 88);
+  --xc-chart-6: rgb(255, 170, 0);
+  --xc-chart-7: rgb(178, 132, 255);
+  --xc-chart-8: rgb(120, 198, 255);
+}
+
+/* Optional LIGHT theme — for printable reports / executive views. */
+:root[data-theme="light"] {
+  --xc-surface-void:    #e8ebf0;
+  --xc-surface-base:    #f5f7fb;
+  --xc-surface-1:       #ffffff;
+  --xc-surface-2:       #f0f3f8;
+  --xc-surface-3:       rgba(0, 0, 0, 0.04);
+  --xc-surface-glass:   rgba(255, 255, 255, 0.80);
+  --xc-surface-frosted: rgba(0, 0, 0, 0.03);
+  --xc-surface-tinted:  rgba(34, 177, 253, 0.06);
+  --xc-surface-overlay: rgba(20, 20, 30, 0.45);
+
+  --xc-text-strong:  #0d1220;
+  --xc-text-default: rgba(13, 18, 32, 0.88);
+  --xc-text-soft:    rgba(13, 18, 32, 0.72);
+  --xc-text-mute:    rgba(13, 18, 32, 0.50);
+  --xc-text-faint:   rgba(13, 18, 32, 0.36);
+
+  --xc-border-line:   rgba(13, 18, 32, 0.12);
+  --xc-border-soft:   rgba(13, 18, 32, 0.08);
+  --xc-border-strong: rgba(13, 18, 32, 0.18);
+
+  --xc-inline-bg:     rgba(13, 18, 32, 0.03);
+}
+
+/* Utility resets used across the system. */
+.xc-reset-button { border: 0; background: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.xc-reset-button:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+.xc-num { font-family: var(--xc-font-num); font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+.xc-mono { font-family: var(--xc-font-mono); font-variant-numeric: tabular-nums; }

@@ -1,0 +1,84 @@
+# 朱雀投研智能体后端本地配置（application.yml）
+# 敏感/环境相关配置走 Nacos 与环境变量；此文件仅本地开发默认值。
+
+app:
+  name: ir-agent
+  version: 0.1.0
+  debug: true
+  host: 0.0.0.0
+  port: 9089
+
+database:
+  # Python 异步 SQLAlchemy 连接串格式：mysql+aiomysql://example_user:example_password@database.example.invalid/库名
+  # 正式环境该项走 Nacos，不写在此文件。
+  url: mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent
+  echo: false
+
+nacos:
+  enabled: false
+  server_addr: http://internal-2-58.example.invalid:8848/
+  namespace: test
+  group: DEFAULT_GROUP
+  profile: test
+  service_name: ir-agent
+
+platform:
+  # 平台/网关注入身份的请求头字段名（待与统一平台约定，PRD 挂账 #8）
+  header_user_id: X-User-Id
+  header_username: X-User-Name
+  allow_anonymous: true
+
+cors:
+  allow_origins: [ "*" ]
+  allow_credentials: true
+  allow_methods: [ "*" ]
+  allow_headers: [ "*" ]
+
+feishu:
+  # 飞书电子表格集成（方案A）。enabled=false 时用 MockFeishuGateway（默认，不连真飞书）。
+  # 测试环境：凭据（app_id/app_secret）+ template_token/target_folder_token 可直接填本文件；
+  # 生产环境改走 Nacos/环境变量注入，勿把生产凭据提交进仓库。
+  # api_cell 见 param_dict.json（挂账 #2/#5/#7）；META 单元格地址见下方 meta_*。
+  enabled: true
+  base_url: https://open.feishu.cn      # 仅到 host；代码请求路径已含 /open-apis 前缀，勿在此重复加
+  app_id: "example-value-0062"                  # 测试环境自建应用 App ID（cli_xxx）
+  app_secret: "example-value-0049"              # 测试环境自建应用 App Secret
+  template_token: "exampleToken000000000000050"          # 模板电子表格 token（被复制的源）
+  target_folder_token: "exampleToken000000000000051"     # 副本目标文件夹 token
+  meta_status_cell: "API_META!B1"
+  meta_request_id_cell: "API_META!B2"
+  meta_param_hash_cell: "API_META!B3"
+  meta_done_value: "done"     # status 单元格表示"算完"的取值（业务约定）
+  # 表2《各省收益结构》——独立电子表格（稳定 token，非底稿副本）；空 token 则回退本地 json
+  revenue_structure_token: "exampleToken000000000000052"              # 表2 电子表格 token
+  revenue_structure_sheet: "各省收益结构"    # 表2 sheet 名（title）
+  revenue_structure_range: "A4:S40"        # 数据区：表头在第2行，省份数据行4起，列 A:S
+
+spot_price:
+  # 现货电价库（多循环 DP，离线预计算）。enabled=true → 测算查 ir_agent 预计算表(PrecomputeSpotPriceAlgo)；
+  # enabled=false → NullSpotPriceAlgo（不连库、返回 None）。下列 DSN 供预计算脚本 tools/spot_precompute.py 读源库。
+  # 测试期 DSN 明文，正式改 Nacos。两个独立 MySQL：省级 lamda_data、节点级 dlsc_mengxi（当前仅蒙西）。
+  enabled: true
+  province_dsn: "mysql+pymysql://example_user:example_password@database.example.invalid:3306/lamda_data"
+  province_table: "market_curve_points_current"
+  province_market: "省内市场"
+  node_dsn: "mysql+pymysql://example_user:example_password@database.example.invalid:3306/dlsc_mengxi"
+  node_table: "real_time_spot_price"
+  node_price_type: 1
+  min_action_minutes: 30
+  switch_gap_minutes: 15
+  # 应用内日更：每天固定时刻触发，默认关闭；仅部署机显式开启。
+  daily_update_enabled: false
+  daily_update_hour: 3
+  daily_update_minute: 30
+  daily_update_workers: 4
+  # 省级交易限制修正系数：未配置省份默认 charge/discharge 均为 1.0。
+  # 每个已配置省份必须同时填写 charge、discharge，均须大于 0。
+  province_price_coefficients:
+    宁夏:
+      charge: 0.8
+      discharge: 0.8
+    蒙西:
+      charge: 0.5
+      discharge: 0.5
+
