@@ -36,7 +36,7 @@ describe('conversation history sidebar and replay', () => {
     vi.clearAllMocks()
   })
 
-  it('renders 投资分析工作台 nav items before history conversations', () => {
+  it('renders brand header, new-chat action and history conversations (nav moved to AppRail)', () => {
     const store = useCalculationStore()
     store.history = [
       { conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2' },
@@ -47,10 +47,11 @@ describe('conversation history sidebar and replay', () => {
       global: { stubs: { teleport: true } },
     })
 
-    expect(wrapper.text()).toContain('投资分析工作台')
+    expect(wrapper.text()).toContain('朱雀投研智能体')
+    expect(wrapper.text()).toContain('新建会话')
     expect(wrapper.text()).toContain('历史会话')
-    const navLabels = wrapper.findAll('.ir-sider__label').map((n) => n.text())
-    expect(navLabels[0]).toBe('测算对话')
+    // 投资分析工作台四项（首页/全国指数地图/联络线地图/政策与市场）已迁出至 AppRail，侧栏不再渲染
+    expect(wrapper.find('.ir-sider__item').exists()).toBe(false)
     const histTitles = wrapper.findAll('.ir-sider__hist-title').map((n) => n.text())
     expect(histTitles).toEqual(['甘肃 200MW/800MWh', '宁夏 100MW/400MWh'])
   })

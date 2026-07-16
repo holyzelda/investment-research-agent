@@ -4,7 +4,7 @@
       <el-input
         v-model="text"
         type="textarea"
-        :autosize="{ minRows: 3, maxRows: 8 }"
+        :autosize="{ minRows: 1, maxRows: 6 }"
         resize="none"
         class="ir-composer__input"
         :placeholder="placeholder"
@@ -59,13 +59,13 @@ function onSend() {
 }
 .ir-composer__frame {
   position: relative;
-  min-height: 150px;
+  min-height: 112px;
   display: flex;
   flex-direction: column;
   border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 28px;
+  border-radius: 24px;
   background: var(--xc-surface-frosted);
-  padding: 26px 28px 20px;
+  padding: 18px 20px 14px;
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);

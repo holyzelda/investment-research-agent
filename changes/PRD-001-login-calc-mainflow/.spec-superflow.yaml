@@ -30,7 +30,7 @@ dp_1_result: confirmed: Batch4.6历史会话位于投资分析工作台功能项
 dp_1_timestamp: 2026-07-15T00:00:00Z
 dp_2_result: approved: Batch4.6 proposal/spec/design/tasks，含左侧历史布局、手动回放、软删除和归属校验
 dp_2_timestamp: 2026-07-15T00:00:00Z
-dp_3_result: approved: Batch4.6左侧历史列表、欢迎页手动回放、更多菜单软删除、全链路用户归属404、报告历史仅预留关联
+dp_3_result: approved: Batch5按省字典、受控参数覆盖、版本输入回放、永久省份锁、市场开关显隐、现货依赖重查/继承与元每kWh口径
 dp_3_timestamp: 2026-07-15T00:00:00Z
 dp_4_result: batch-inline: 用户明确授权跳过Git隔离，在当前目录恢复并完成单一前端Batch 4
 dp_4_timestamp: 2026-07-14T00:00:00Z

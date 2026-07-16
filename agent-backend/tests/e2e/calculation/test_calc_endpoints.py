@@ -30,6 +30,68 @@ async def test_param_dict_display_only(client):
 
 
 @pytest.mark.asyncio
+async def test_param_dict_with_province_returns_switches(client):
+    """Batch5：?province= 附带该省表2市场开关，供收益类统一显隐（现货同样受开关约束）。"""
+    resp = await client.get("/ir/calc/param-dict", params={"province": "甘肃"})
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["switches"]["switch_spot"] == 1
+    assert data["switches"]["switch_mid_long"] == 0
+    assert data["switches"]["switch_lease"] == 0
+
+
+@pytest.mark.asyncio
+async def test_param_dict_without_province_has_no_switches(client):
+    resp = await client.get("/ir/calc/param-dict")
+    assert "switches" not in resp.json()["data"]
+
+
+@pytest.mark.asyncio
+async def test_param_dict_adjustable_params_carry_zone_and_range(client):
+    """Batch5：可调参数字典附带 zone 分区与控件范围元数据。"""
+    resp = await client.get("/ir/calc/param-dict")
+    params = {p["id"]: p for p in resp.json()["data"]["parameters"]}
+
+    daily_cycles = params["daily_cycles"]
+    assert daily_cycles["zone"] == "revenue_boundary"
+    assert daily_cycles["control"] == "slider"
+    assert daily_cycles["min"] == 1.0 and daily_cycles["max"] == 2.0 and daily_cycles["step"] == 0.1
+
+    loan_rate = params["loan_rate"]
+    assert loan_rate["zone"] == "financial_boundary"
+    assert loan_rate["min"] == 0.035 and loan_rate["max"] == 0.045 and loan_rate["step"] == 0.001
+
+    epc = params["epc_unit_price"]
+    assert epc["min"] == 0.70 and epc["max"] == 0.85 and epc["step"] == 0.01
+
+    maint = params["maint_cost"]
+    assert maint["zone"] == "cost_boundary"
+    assert maint["min"] == 0 and maint["max"] == 0.1000 and maint["step"] == 0.0001
+
+    operation_years = params["operation_years"]
+    assert operation_years["control"] == "fixed"
+    assert operation_years["zone"] == "financial_boundary"
+
+    battery = params["battery_replace_cost"]
+    assert battery["control"] == "fixed"
+    assert battery["zone"] == "cost_boundary"
+
+    spot_c = params["spot_charge_avg"]
+    assert spot_c["control"] == "dynamic_slider"
+    assert spot_c["step"] == 0.0001
+    assert spot_c["zone"] == "revenue_boundary"
+
+    lease_price = params["lease_unit_price"]
+    assert lease_price["control"] == "dynamic_slider"
+    assert lease_price["step"] == 0.01
+
+    province = params["province"]
+    assert province["zone"] == "project_definition"
+    node = params["node_name"]
+    assert node["zone"] == "project_definition"
+
+
+@pytest.mark.asyncio
 async def test_assemble_preview_gansu(client):
     resp = await client.post("/ir/calc/assemble-preview", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,

@@ -95,3 +95,168 @@ class TestCommon:
         assert any("火星省" in w for w in r.warnings)
         # 对话抽取与默认值仍应组装
         assert r.api_input["power_mw"] == 200
+
+
+class _CountingSpot:
+    """记录调用参数的假现货算法，供 override/依赖判断测试断言是否真的查了库。"""
+
+    def __init__(self, charge=0.2, discharge=0.6):
+        self.calls = []
+        self._charge = charge
+        self._discharge = discharge
+
+    def compute(self, province, node_name, capacity_mwh, power_mw, daily_cycles):
+        self.calls.append({
+            "province": province, "node_name": node_name,
+            "capacity_mwh": capacity_mwh, "power_mw": power_mw, "daily_cycles": daily_cycles,
+        })
+        return self._charge, self._discharge
+
+
+class TestParamOverrides:
+    """Batch5：受控 param_overrides + 现货依赖重查/继承（用户 2026-07-15 确认规则）。"""
+
+    def _basics(self, node="祥泰站", cap=800, pwr=200):
+        return ProjectBasics(province="甘肃", capacity_mwh=cap, power_mw=pwr, node_name=node)
+
+    def test_first_calc_always_queries_spot_ignoring_any_override(self):
+        """无上一版本基线（previous_input=None）时，始终查库；忽略任何现货 override（防御性）。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"spot_charge_avg": 9.9})
+        assert len(spot.calls) == 1
+        assert r.api_input["spot_charge_avg"] == 0.2  # 查库结果，非 override 的 9.9
+
+    def test_dependencies_unchanged_no_override_inherits_previous_prices(self):
+        """节点/容量/功率/日循环均未变，且本次未改电价 → 不查库，沿用上一版本价格对。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        r = asm.assemble(self._basics(), previous_input=previous)
+        assert spot.calls == []
+        assert r.api_input["spot_charge_avg"] == 0.22
+        assert r.api_input["spot_discharge_avg"] == 0.61
+
+    def test_dependencies_unchanged_single_side_override_keeps_other_inherited(self):
+        """只改充电价：不查库；放电价继续沿用上一版本。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        r = asm.assemble(self._basics(), overrides={"spot_charge_avg": 0.30}, previous_input=previous)
+        assert spot.calls == []
+        assert r.api_input["spot_charge_avg"] == 0.30
+        assert r.api_input["spot_discharge_avg"] == 0.61
+
+    def test_third_version_inherits_second_versions_manual_price(self):
+        """V3 相对 V2 依赖未变、V3 本身未再修改电价 → 继承 V2 的手工电价（而非 V1 的库查值）。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        v2_frozen = {  # V2 的冻结输入：用户在 V2 手工把充电价改成了 0.30
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.30, "spot_discharge_avg": 0.61,
+        }
+        r = asm.assemble(self._basics(), previous_input=v2_frozen)  # V3：无 override
+        assert spot.calls == []
+        assert r.api_input["spot_charge_avg"] == 0.30
+        assert r.api_input["spot_discharge_avg"] == 0.61
+
+    def test_node_change_requeries_and_ignores_stale_panel_price(self):
+        """节点变化 → 依赖变化，重新查库并覆盖，忽略本次提交的旧电价 override。"""
+        spot = _CountingSpot(charge=0.5, discharge=0.9)
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        r = asm.assemble(
+            self._basics(node="新节点"),
+            overrides={"spot_charge_avg": 0.22, "spot_discharge_avg": 0.61},  # 面板里的旧值
+            previous_input=previous,
+        )
+        assert len(spot.calls) == 1
+        assert spot.calls[0]["node_name"] == "新节点"
+        assert r.api_input["spot_charge_avg"] == 0.5
+        assert r.api_input["spot_discharge_avg"] == 0.9
+
+    def test_capacity_change_requeries(self):
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        asm.assemble(self._basics(cap=400), previous_input=previous)
+        assert len(spot.calls) == 1
+
+    def test_power_change_requeries(self):
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        asm.assemble(self._basics(pwr=100), previous_input=previous)
+        assert len(spot.calls) == 1
+
+    def test_daily_cycles_override_changes_dependency_and_is_passed_to_spot_query(self):
+        """日循环通过 override 修改 → 依赖变化，重新查库，且以 override 值参与查询。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200, "daily_cycles": 1,
+            "spot_charge_avg": 0.22, "spot_discharge_avg": 0.61,
+        }
+        r = asm.assemble(self._basics(), overrides={"daily_cycles": 1.5}, previous_input=previous)
+        assert len(spot.calls) == 1
+        assert spot.calls[0]["daily_cycles"] == 1.5
+        assert r.api_input["daily_cycles"] == 1.5
+
+    def test_non_spot_override_applies_regardless_of_dependency_state(self):
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"epc_unit_price": 0.80, "loan_rate": 0.039})
+        assert r.api_input["epc_unit_price"] == 0.80
+        assert r.api_input["loan_rate"] == 0.039
+
+    def test_province_cannot_be_overridden(self):
+        """省份 g=0，不在受控白名单内；即便传入 override 也不生效。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"province": "宁夏"})
+        assert r.api_input["province"] == "甘肃"
+
+    def test_unknown_override_key_ignored(self):
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"not_a_real_param": 1})
+        assert "not_a_real_param" not in r.api_input
+
+    def test_output_only_param_cannot_be_overridden(self):
+        """输出项（direction=output）不可写入，即便传了 override。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"project_irr": 99})
+        assert "project_irr" not in r.api_input
+
+    def test_null_override_treated_as_not_overridden(self):
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics(), overrides={"epc_unit_price": None})
+        assert r.api_input["epc_unit_price"] == 0.75  # 默认值未被 null 覆盖
+
+    def test_lease_override_applies_after_revenue_structure_computation(self):
+        """宁夏租赁开关=1，正常算出 20；override 应覆盖计算结果，而非被计算结果覆盖回去。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=800, power_mw=200),
+            overrides={"lease_unit_price": 33.0},
+        )
+        assert r.api_input["lease_unit_price"] == 33.0
+

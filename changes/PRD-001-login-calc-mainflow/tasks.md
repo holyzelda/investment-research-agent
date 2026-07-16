@@ -226,17 +226,22 @@
   - **5.1.2**→**5.1.4** 运行失败 → 实现 `components/ParamAdjustPanel.vue`（消费 `GET /ir/calc/param-dict`）→ 通过。
   - **5.1.5** 提交 `feat(frontend): inline parameter adjustment panel`。
 
-- [ ] **5.2 锁项规则（首次锁/二次解锁）**
-  - **5.2.1** 编写测试：首次省份/节点/功率/容量只读、其余按 G 列；二次解锁四项。
-  - **5.2.2**→**5.2.5** 运行失败 → 实现锁项逻辑 → 通过 → 提交 `feat(frontend): first-calc lock / re-calc unlock rules`。
+- [ ] **5.2 锁项规则（省份永久锁 / 首次锁 / 二次解锁）**
+  - **5.2.1** 编写测试：省份在所有版本中只读；首次节点/功率/容量只读、其余按 G 列；二次节点/功率/容量解锁；项目运营期固定15年、换电成本固定0、贷款年限不展示。
+  - **5.2.2**→**5.2.5** 运行失败 → 实现锁项逻辑 → 通过 → 提交 `feat(frontend): province permanent lock / first-calc lock / re-calc unlock rules`。
 
-- [ ] **5.3 收益类按表2显隐 + 改省重拉**
-  - **5.3.1** 编写测试：甘肃展示现货/调频、不展示中长期/租赁；改省触发重拉 `param-dict?province=` 更新显隐。
-  - **5.3.2**→**5.3.5** 运行失败 → 实现显隐与重拉 → 通过 → 提交 `feat(frontend): revenue-type conditional visibility by table2`。
+- [ ] **5.3 收益类按表2显隐**
+  - **5.3.1** 编写测试：表2现货1/调频1/中长期0/租赁0时展示现货/调频、不展示中长期/租赁；`switch_spot=0` 时现货也不展示；换省必须新建会话。
+  - **5.3.2**→**5.3.5** 运行失败 → 扩展 `GET /ir/calc/param-dict?province=` 返回市场开关并实现统一显隐 → 通过 → 提交 `feat(frontend): revenue-type conditional visibility by table2`。
 
-- [ ] **5.4 重新测算生成新版本（不覆盖）**
-  - **5.4.1** 编写测试：改参数点"重新测算"→ 冻结入参 → 发起新任务 → 得 V2，V1 保留，版本列表追加。
-  - **5.4.2**→**5.4.5** 运行失败 → 实现重算触发（冻结入参调用 `POST /ir/calc/tasks`）→ 通过 → 提交 `feat(frontend): re-calc creates new version without overwrite`。
+- [ ] **5.4 受控参数覆盖 + 现货依赖判断 + 新版本**
+  - **5.4.1** 编写后端测试：`param_overrides` 仅接受 G=1可写输入；省份不可覆盖；节点/容量/功率/日循环任一变化时重新调用 spot 查表并覆盖价格对；依赖不变时不调用 spot，继承上一 input_snapshot 价格对并应用单边/双边手工价格；V3 在依赖不变时继承 V2 手工价；`switch_spot=0` 不查库。
+  - **5.4.2** 运行后端测试，Expected: FAIL（当前 task 请求无 overrides、历史详情不暴露 input snapshot）。
+  - **5.4.3** 扩展 `TaskCreateReq.param_overrides`、ParamAssembler/TaskService 的受控覆盖与现货依赖策略；会话详情版本返回本次 input_snapshot `apiInput`，供历史回放面板作为版本基线。
+  - **5.4.4** 运行后端测试，Expected: PASS；断言 hash 与 input_snapshot 使用最终冻结值，现有单位/换算代码无改动。
+  - **5.4.5** 编写前端测试：调整面板提交当前完整值和 `conversation_id`，得到 V2 后保留V1并追加版本；V3从V2 input基线初始化。
+  - **5.4.6** 实现 store `recalculate` 复用任务轮询/拉结果编排，运行 Batch5 与历史回归测试，Expected: PASS。
+  - **Interfaces**: Extends `POST /ir/calc/tasks` with optional `param_overrides`; consumes previous version `input_snapshot.payload.apiInput`; produces frozen V2/V3 input and report snapshot.
 
 ---
 
@@ -244,8 +249,9 @@
 - 电价库"96点→均价"算法：以接口 stub 注入，PoC 后接真实实现（PRD 挂账 #6）。
 - 表2 两档收益（2h/4h）公式：`param_assembler` 留占位与开关，业务确认后补齐（挂账 #3）。
 - 底稿 sheet 命名、接口区单元格地址：`param_dict.json` 标注"待业务校对"，冻结后再开发写入（挂账 #5/#7）。
-- 报告本体：仅"生成报告"占位入口与版本记录。
-
+- 报告本体：仅“生成报告”占位入口与版本记录。
+- 历史会话回放消息与结果的稳健关联：当前按 assistant 消息位置配对版本；若未来持久化非结果 assistant 消息，需改为 message/task 显式关联（挂账 #14）。
+- 现货电价单位契约（已于2026-07-15确认）：预计算表以元/MWh存储，`PrecomputeSpotPriceAlgo` `/1000` 后输出元/kWh，飞书底稿 D39/D40 与参数字典现货字段均为元/kWh；无需改代码。
 ### 代码评审新增（2026-07-06，Batch3 回顾）
 - **平台身份 `allow_anonymous=False` 当前不拦截（挂账 #9）**：`PlatformIdentityMiddleware` 在"禁匿名且无身份 header"时仍放行（`user_id=None`），未返回 401/403。当前默认 `allow_anonymous=true`（联调态）故不暴露；接平台/网关真实鉴权（并绑挂账 #8）前，需补：禁匿名分支显式返回 401。
 - **Nacos 装载结果未被消费（挂账 #10）**：`init_nacos_config` 把远端配置写入 `_nacos_cache`，但 `get_settings()` 从不合并该缓存 —— 启用 Nacos 等于静默空操作。接 Nacos 真配前，需补：`get_settings` 合并 `_nacos_cache`（或删除未用的缓存装载路径）。

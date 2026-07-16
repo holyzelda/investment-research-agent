@@ -1,92 +1,92 @@
 <template>
-  <aside class="ir-sider" :class="{ 'ir-sider--collapsed': collapsed }">
-    <!-- 品牌头 + 折叠按钮 -->
-    <div class="ir-sider__head">
-      <span class="ir-sider__logo" aria-hidden="true" v-html="logoSvg" />
-      <span v-show="!collapsed" class="ir-sider__brand">朱雀投研智能体</span>
-      <button
-        class="ir-sider__toggle"
-        :aria-label="collapsed ? '展开侧栏' : '折叠侧栏'"
-        @click="$emit('toggle')"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="16" rx="3" />
-          <path d="M9 4v16" stroke-linecap="round" />
+  <!-- 固定定位上下文：折叠态悬浮预览以此为锚点展开，而非相对整页居中 -->
+  <div class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : '300px' }">
+  <aside
+    class="ir-sider"
+    :class="{ 'ir-sider--collapsed': isCollapsed, 'ir-sider--hover-expand': isHoverExpand }"
+    @mouseenter="handleMouseEnter"
+    @mouseleave="handleMouseLeave"
+    @click="handleClick"
+  >
+    <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
+      <!-- 品牌头 + 折叠按钮 -->
+      <div class="ir-sider__head">
+        <span class="ir-sider__logo" aria-hidden="true" v-html="logoSvg" />
+        <span class="ir-sider__brand">朱雀投研智能体</span>
+        <button
+          class="ir-sider__toggle"
+          aria-label="折叠侧栏"
+          @click.stop="toggleCollapse"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="16" rx="3" />
+            <path d="M9 4v16" stroke-linecap="round" />
+          </svg>
+        </button>
+      </div>
+
+      <!-- 新建会话：青→紫渐变胶囊 -->
+      <button class="ir-sider__new" @click.stop="$emit('new-chat')">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+          <path d="M8 3.33V12.67M3.33 8h9.34" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
         </svg>
+        <span>新建会话</span>
       </button>
+
+      <!-- 历史会话 -->
+      <div class="ir-sider__hist">
+        <div class="ir-sider__divider" />
+        <div class="ir-sider__hist-label">历史会话</div>
+        <p v-if="!history.length" class="ir-sider__hist-empty">暂无历史，发起测算后自动记录</p>
+        <ul v-else class="ir-sider__hist-list">
+          <li
+            v-for="h in history"
+            :key="h.conversationId"
+            class="ir-sider__hist-item"
+            :class="{ 'is-current': h.conversationId === current }"
+            :title="h.title || '未命名会话'"
+            @click.stop="$emit('open-history', h.conversationId)"
+          >
+            <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
+            <span class="ir-sider__hist-actions" @click.stop>
+              <button
+                class="ir-sider__hist-more"
+                aria-label="更多"
+                @click.stop="toggleMenu(h.conversationId)"
+              >
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+                </svg>
+              </button>
+              <div v-show="openMenu === h.conversationId" class="ir-sider__hist-menu">
+                <button class="ir-sider__hist-del" @click.stop="onDelete(h.conversationId)">删除</button>
+              </div>
+            </span>
+          </li>
+        </ul>
+      </div>
     </div>
 
-    <!-- 新建会话：青→紫渐变胶囊 -->
-    <button class="ir-sider__new" @click="$emit('new-chat')">
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-        <path d="M8 3.33V12.67M3.33 8h9.34" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+    <!-- 折叠态：只保留一个折叠图标；悬浮时上方内容以浮层预览展开，移开即收起 -->
+    <div v-show="isCollapsed && !isHoverExpand" class="ir-sider__collapsed-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+        <rect x="3" y="4" width="18" height="16" rx="3" />
+        <path d="M9 4v16" stroke-linecap="round" />
       </svg>
-      <span v-show="!collapsed">新建会话</span>
-    </button>
-
-    <!-- 导航项：投资分析工作台 -->
-    <nav class="ir-sider__nav">
-      <div v-show="!collapsed" class="ir-sider__group">投资分析工作台</div>
-      <button
-        v-for="it in items"
-        :key="it.key"
-        class="ir-sider__item"
-        :class="{ 'is-active': it.key === active, 'is-disabled': it.disabled }"
-        :disabled="it.disabled"
-        :title="it.disabled ? it.label + '（后续 PRD）' : it.label"
-        @click="onNav(it)"
-      >
-        <span class="ir-sider__icon" v-html="it.icon" />
-        <span v-show="!collapsed" class="ir-sider__label">{{ it.label }}</span>
-        <span v-if="it.disabled && !collapsed" class="ir-sider__soon">待建</span>
-      </button>
-    </nav>
-
-    <!-- 历史会话：位于全部功能项之后 -->
-    <div v-show="!collapsed" class="ir-sider__hist">
-      <div class="ir-sider__divider" />
-      <div class="ir-sider__hist-label">历史会话</div>
-      <p v-if="!history.length" class="ir-sider__hist-empty">暂无历史，发起测算后自动记录</p>
-      <ul v-else class="ir-sider__hist-list">
-        <li
-          v-for="h in history"
-          :key="h.conversationId"
-          class="ir-sider__hist-item"
-          :class="{ 'is-current': h.conversationId === current }"
-          :title="h.title || '未命名会话'"
-          @click="$emit('open-history', h.conversationId)"
-        >
-          <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
-          <span class="ir-sider__hist-actions" @click.stop>
-            <button
-              class="ir-sider__hist-more"
-              aria-label="更多"
-              @click.stop="toggleMenu(h.conversationId)"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
-              </svg>
-            </button>
-            <div v-show="openMenu === h.conversationId" class="ir-sider__hist-menu">
-              <button class="ir-sider__hist-del" @click.stop="onDelete(h.conversationId)">删除</button>
-            </div>
-          </span>
-        </li>
-      </ul>
     </div>
   </aside>
+  </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
 import logoSvg from '@/assets/logo.svg?raw'
+
 defineProps({
-  collapsed: { type: Boolean, default: false },
-  active: { type: String, default: 'calc' },
   history: { type: Array, default: () => [] },
   current: { type: [Number, String], default: null },
 })
-const emit = defineEmits(['toggle', 'new-chat', 'nav', 'open-history', 'delete-history'])
+const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'collapse-change'])
 
 const openMenu = ref(null)
 function toggleMenu(id) {
@@ -97,45 +97,119 @@ function onDelete(id) {
   emit('delete-history', id)
 }
 
-// 图标用内联 SVG，避免引额外图标库依赖
-const ICON = {
-  calc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z"/></svg>',
-  index: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  line: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="6" cy="7" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 8l8 8" stroke-linecap="round"/></svg>',
-  policy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4" stroke-linecap="round"/></svg>',
+// ---------- 折叠 / 悬浮预览 / 点击展开 ----------
+// 对齐 trader（etrader-agent-nx）fullscreen-chat 历史栏的交互：
+// 折叠后只剩一个圆形图标；鼠标悬浮短暂延迟后以浮层预览折叠前的内容，移开即收起；
+// 只有点击（无论是折叠图标还是浮层内的折叠按钮）才会真正恢复为展开状态。
+const isCollapsed = ref(false)
+const isHoverExpand = ref(false)
+let hoverTimer = null
+
+function toggleCollapse() {
+  isCollapsed.value = !isCollapsed.value
+  isHoverExpand.value = false
+  emit('collapse-change', isCollapsed.value)
 }
 
-// 三大模块命名以 PRD 为准（全国指数地图 / 联络线地图 / 政策与市场），后三占位
-const items = [
-  { key: 'calc', label: '测算对话', icon: ICON.calc, disabled: false },
-  { key: 'index', label: '全国指数地图', icon: ICON.index, disabled: true },
-  { key: 'line', label: '联络线地图', icon: ICON.line, disabled: true },
-  { key: 'policy', label: '政策与市场', icon: ICON.policy, disabled: true },
-]
+function handleMouseEnter() {
+  if (!isCollapsed.value) return
+  clearTimeout(hoverTimer)
+  hoverTimer = setTimeout(() => {
+    isHoverExpand.value = true
+  }, 200)
+}
 
-function onNav(it) {
-  if (it.disabled) return
-  emit('nav', it.key)
+function handleMouseLeave() {
+  if (!isCollapsed.value) return
+  clearTimeout(hoverTimer)
+  hoverTimer = setTimeout(() => {
+    isHoverExpand.value = false
+  }, 300)
+}
+
+function handleClick() {
+  if (isCollapsed.value && !isHoverExpand.value) {
+    isCollapsed.value = false
+    emit('collapse-change', false)
+  }
 }
 </script>
 
 <style scoped>
+/* 悬浮玻璃面板：与外层图标 rail 一起构成两层左侧导航，不再使用直角分割线。
+   尺寸对齐 trader（etrader-agent-nx）fullscreen-chat 历史栏：300px 宽、上下 30px 浮空边距。 */
+.ir-sider-wrap {
+  position: relative;
+  flex-shrink: 0;
+  height: 100%;
+  transition: width var(--xc-dur-base) var(--xc-ease-out);
+}
+
 .ir-sider {
-  width: 232px;
-  flex: 0 0 auto;
+  width: 300px;
+  height: calc(100% - 60px);
+  margin: 30px 0;
   display: flex;
   flex-direction: column;
   gap: var(--xc-space-3);
   padding: var(--xc-space-5) var(--xc-space-4);
   background: var(--xc-surface-glass);
-  backdrop-filter: blur(var(--xc-blur-md));
-  border-right: 1px solid var(--xc-border-soft);
-  transition: width var(--xc-dur-base) var(--xc-ease-out);
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-xl);
+  backdrop-filter: blur(var(--xc-blur-lg));
+  -webkit-backdrop-filter: blur(var(--xc-blur-lg));
+  box-shadow: var(--xc-shadow-lg);
+  overflow: hidden;
+  transition: width var(--xc-dur-base) var(--xc-ease-out),
+              height var(--xc-dur-base) var(--xc-ease-out),
+              margin var(--xc-dur-base) var(--xc-ease-out),
+              border-radius var(--xc-dur-base) var(--xc-ease-out);
 }
+
+/* 折叠态：收缩为单一圆形图标 */
 .ir-sider--collapsed {
-  width: 64px;
-  align-items: stretch;
+  width: 56px;
+  height: 56px;
+  margin: 100px 0 0;
+  padding: 0;
+  border-radius: var(--xc-radius-full);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
+
+/* 悬浮预览态：以浮层形式在折叠图标所在位置展开折叠前的内容，不影响主内容布局、也不居中于整页 */
+.ir-sider--hover-expand {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 300px;
+  height: calc(100% - 130px);
+  margin: 100px 0 0;
+  padding: var(--xc-space-5) var(--xc-space-4);
+  border-radius: var(--xc-radius-xl);
+  cursor: default;
+  background: rgba(28, 28, 28, 0.95);
+  box-shadow: var(--xc-shadow-xl);
+  z-index: var(--xc-z-overlay);
+}
+
+.ir-sider__content {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--xc-space-3);
+}
+
+.ir-sider__collapsed-icon {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  color: var(--xc-text-strong);
+}
+.ir-sider__collapsed-icon svg { width: 22px; height: 22px; }
 
 .ir-sider__head {
   display: flex;
@@ -143,6 +217,7 @@ function onNav(it) {
   gap: var(--xc-space-3);
   height: 44px;
   padding-left: var(--xc-space-2);
+  flex: 0 0 auto;
 }
 .ir-sider__logo {
   width: 28px;
@@ -181,14 +256,6 @@ function onNav(it) {
 }
 .ir-sider__toggle:hover { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
 .ir-sider__toggle svg { width: 18px; height: 18px; }
-/* 折叠态：头部竖排，logo 在上、折叠按钮在下且始终可见 */
-.ir-sider--collapsed .ir-sider__head {
-  flex-direction: column;
-  height: auto;
-  gap: var(--xc-space-3);
-  padding-left: 0;
-  align-items: center;
-}
 
 .ir-sider__new {
   display: flex;
@@ -196,6 +263,7 @@ function onNav(it) {
   justify-content: center;
   gap: var(--xc-space-3);
   height: 42px;
+  flex: 0 0 auto;
   border: 0;
   border-radius: var(--xc-radius-md);
   background: var(--xc-grad-brand);
@@ -208,61 +276,12 @@ function onNav(it) {
 }
 .ir-sider__new svg { width: 16px; height: 16px; flex: 0 0 auto; }
 
-.ir-sider__nav {
-  display: flex;
-  flex-direction: column;
-  gap: var(--xc-space-2);
-  margin-top: var(--xc-space-4);
-}
-.ir-sider__group {
-  font-size: var(--xc-fs-3xs);
-  font-weight: var(--xc-fw-semi);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--xc-text-faint);
-  padding: 0 var(--xc-space-4);
-  margin-bottom: var(--xc-space-1);
-}
-.ir-sider__item {
-  display: flex;
-  align-items: center;
-  gap: var(--xc-space-4);
-  height: 42px;
-  padding: 0 var(--xc-space-4);
-  border: 0;
-  border-radius: var(--xc-radius-md);
-  background: transparent;
-  color: var(--xc-text-soft);
-  font-size: var(--xc-fs-sm);
-  cursor: pointer;
-  transition: background var(--xc-dur-fast);
-}
-.ir-sider__item:hover:not(.is-disabled) { background: var(--xc-surface-frosted); }
-.ir-sider__item.is-active {
-  background: var(--xc-accent-blue-soft);
-  color: var(--xc-text-strong);
-}
-.ir-sider__item.is-disabled { color: var(--xc-text-faint); cursor: not-allowed; }
-.ir-sider__icon { width: 18px; height: 18px; flex: 0 0 auto; display: grid; place-items: center; }
-.ir-sider__icon :deep(svg) { width: 18px; height: 18px; }
-.ir-sider__label { flex: 1 1 auto; text-align: left; }
-.ir-sider__soon {
-  font-size: var(--xc-fs-3xs);
-  color: var(--xc-text-faint);
-  border: 1px solid var(--xc-border-soft);
-  border-radius: var(--xc-radius-xs);
-  padding: 0 var(--xc-space-2);
-}
-.ir-sider--collapsed .ir-sider__item { justify-content: center; padding: 0; }
-.ir-sider--collapsed .ir-sider__new { padding: 0; }
-
 /* ---------- 历史会话 ---------- */
 .ir-sider__hist {
   display: flex;
   flex-direction: column;
   min-height: 0;
   flex: 1 1 auto;
-  margin-top: var(--xc-space-3);
 }
 .ir-sider__divider {
   height: 1px;

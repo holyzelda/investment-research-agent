@@ -51,12 +51,26 @@
             ]"
             :data-version="m.kind === 'result' ? m.version : undefined"
           >
+            <img
+              v-if="m.role === 'assistant'"
+              class="ir-msg__avatar ir-msg__avatar--ai"
+              :src="agentAvatar"
+              alt=""
+              aria-hidden="true"
+            />
             <div v-if="m.kind === 'text'" class="ir-msg__bubble">
               <span :class="{ 'ir-msg__pending': m.text === '测算中…' }">{{ m.text }}</span>
             </div>
             <div v-else-if="m.kind === 'result'" class="ir-msg__result">
               <ResultCard :result="m.result" :version="m.version" />
             </div>
+            <img
+              v-if="m.role === 'user'"
+              class="ir-msg__avatar ir-msg__avatar--user"
+              :src="userAvatar"
+              alt=""
+              aria-hidden="true"
+            />
           </div>
         </div>
 
@@ -104,6 +118,8 @@ import { useCalculationStore } from '@/store/modules/calculation'
 import ResultCard from './components/ResultCard.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import orbSrc from '@/assets/ai-sphere.png'
+import agentAvatar from '@/assets/agent.png'
+import userAvatar from '@/assets/user.png'
 import { formatNumber } from '@/utils/formatNumber'
 
 const session = useSessionStore()
@@ -231,15 +247,27 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--xc-space-8) var(--xc-space-6) var(--xc-space-6);
+  /* 左右留出足够空间容纳对话框外侧的头像，不被裁切 */
+  padding: var(--xc-space-8) 56px var(--xc-space-6);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--xc-space-6);
 }
-.ir-msg { display: flex; width: 100%; max-width: 860px; }
+/* 对话框本身的宽度 = 输入框宽度，头像绝对定位在框外，不占用/挤压对话框宽度 */
+.ir-msg { position: relative; display: flex; width: 100%; max-width: 900px; }
 .ir-msg--user { justify-content: flex-end; }
 .ir-msg--assistant { justify-content: flex-start; }
+.ir-msg__avatar {
+  position: absolute;
+  top: 2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.ir-msg__avatar--ai { left: -44px; }
+.ir-msg__avatar--user { right: -44px; }
 /* 用户气泡：右对齐、灰底、克制 */
 .ir-msg--user .ir-msg__bubble {
   max-width: 78%;
@@ -251,7 +279,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   background: var(--xc-surface-2);
   word-break: break-word;
 }
-/* AI 消息：满宽、极淡底、无边框、无头像（对齐 trader ai-bubble） */
+/* AI 消息：满宽、极淡底、无边框，头像在框外左侧（对齐 trader ai-bubble） */
 .ir-msg--assistant .ir-msg__bubble {
   width: 100%;
   padding: var(--xc-space-6);
@@ -270,7 +298,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
 /* 对话态底部输入框：居中收窄，与消息流同宽 */
 .ir-home__composer {
   width: 100%;
-  max-width: 908px; /* 860 内容 + 左右 padding */
+  max-width: 940px; /* 900 内容 + 左右各 20px（ir-composer 自身 padding），与消息气泡（900px）实际视觉宽度对齐 */
   margin: 0 auto;
 }
 

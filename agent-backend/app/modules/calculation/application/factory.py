@@ -22,6 +22,19 @@ from app.modules.calculation.infrastructure.revenue_structure_reader import (
 )
 
 
+def build_revenue_structure_reader():
+    """装配表2《各省收益结构》读取器（feishu.enabled 且已配置 token → 飞书真读，否则本地 json）。
+
+    独立导出：`build_param_assembler` 与 `GET /ir/calc/param-dict?province=` 共用同一装配逻辑。
+    """
+    from app.core.config.settings import get_settings
+
+    s = get_settings()
+    if s.feishu.enabled and s.feishu.revenue_structure_token:
+        return FeishuRevenueStructureReader(config=s.feishu)
+    return JsonRevenueStructureReader()
+
+
 def build_param_assembler(spot=None) -> ParamAssembler:
     """装配参数组装器。表2《各省收益结构》读取源按配置切换：
 
@@ -33,10 +46,7 @@ def build_param_assembler(spot=None) -> ParamAssembler:
     from app.core.config.settings import get_settings
 
     s = get_settings()
-    if s.feishu.enabled and s.feishu.revenue_structure_token:
-        revenue = FeishuRevenueStructureReader(config=s.feishu)
-    else:
-        revenue = JsonRevenueStructureReader()
+    revenue = build_revenue_structure_reader()
     if spot is None:
         if s.spot_price.enabled:
             from app.modules.calculation.infrastructure.spot_price_algo import PrecomputeSpotPriceAlgo

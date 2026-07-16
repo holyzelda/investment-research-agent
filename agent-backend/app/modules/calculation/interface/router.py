@@ -16,11 +16,13 @@ from app.infrastructure.database.session import get_db_session
 from app.modules.calculation.application.factory import (
     build_calculation_service,
     build_param_assembler,
+    build_revenue_structure_reader,
     build_task_service,
 )
 from app.modules.calculation.application.conversation_history_service import (
     ConversationHistoryService,
 )
+from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
 from app.modules.calculation.infrastructure.persistence.orm import ReportSnapshotORM
@@ -32,14 +34,24 @@ router = APIRouter(prefix="/ir/calc", tags=["calculation"])
 
 
 @router.get("/param-dict")
-async def get_param_dict(display_only: bool = Query(False, description="仅返回 F=1 展示项")):
-    """参数字典（数据契约）。display_only=true 仅返回页面展示项。"""
+async def get_param_dict(
+    display_only: bool = Query(False, description="仅返回 F=1 展示项"),
+    province: Optional[str] = Query(None, description="按省返回表2市场开关，供收益类统一显隐"),
+):
+    """参数字典（数据契约）。display_only=true 仅返回页面展示项；province= 附带该省表2开关。"""
     d = JsonParamDictRepository().load()
     specs = d.displayable() if display_only else d.all()
-    return ok({
+    data = {
         "total": len(specs),
         "parameters": [s.__dict__ for s in specs],
-    })
+    }
+    if province:
+        profile = build_revenue_structure_reader().get_profile(province)
+        if profile is not None:
+            data["switches"] = {
+                pid: getattr(profile, attr) for pid, attr in _SWITCH_ATTR_MAP.items()
+            }
+    return ok(data)
 
 
 class AssembleReq(BaseModel):
