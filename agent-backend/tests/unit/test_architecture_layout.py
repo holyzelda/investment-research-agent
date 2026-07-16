@@ -40,6 +40,7 @@ EXPECTED_IMPORTS = [
     "app.modules.calculation.infrastructure.persistence.orm",
     "app.modules.calculation.interface.router",
     "app.modules.calculation.interface.serializers",
+    "app.modules.tie_line_map.infrastructure.persistence.orm",
 ]
 
 

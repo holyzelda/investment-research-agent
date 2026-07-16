@@ -89,6 +89,31 @@ CREATE TABLE ir_calculation_result_snapshot (
     FOREIGN KEY (task_id) REFERENCES ir_calculation_task (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+CREATE TABLE ir_tie_line_map (
+	name VARCHAR(128) NOT NULL,
+	start_point VARCHAR(128) NOT NULL,
+	end_point VARCHAR(128) NOT NULL,
+	length_text VARCHAR(64),
+	voltage_text VARCHAR(64),
+	start_region VARCHAR(64) NOT NULL,
+	end_region VARCHAR(64) NOT NULL,
+	start_longitude DECIMAL(10,6) NOT NULL,
+	start_latitude DECIMAL(10,6) NOT NULL,
+	end_longitude DECIMAL(10,6) NOT NULL,
+	end_latitude DECIMAL(10,6) NOT NULL,
+	rated_capacity_mw INT,
+	operation_year INT,
+	coordinate_basis VARCHAR(255),
+	data_basis_note VARCHAR(512),
+	source_note TEXT,
+	id BIGINT NOT NULL AUTO_INCREMENT,
+	created_at DATETIME NOT NULL DEFAULT now(),
+	PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX ix_ir_tie_line_map_start_region ON ir_tie_line_map (start_region);
+CREATE INDEX ix_ir_tie_line_map_end_region ON ir_tie_line_map (end_region);
+CREATE INDEX ix_ir_tie_line_map_name ON ir_tie_line_map (name);
+
 CREATE TABLE ir_report_snapshot (
     report_id VARCHAR(64) NOT NULL,
     task_id BIGINT NOT NULL,
