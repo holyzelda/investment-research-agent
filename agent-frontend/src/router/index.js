@@ -22,6 +22,12 @@ const routes = [
         component: () => import('@/views/home/index.vue'),
         meta: { title: '对话首页' },
       },
+      {
+        path: 'tie-line',
+        name: 'TieLineMap',
+        component: () => import('@/views/tie-line/index.vue'),
+        meta: { title: '联络线地图' },
+      },
     ],
   },
   // 兜底：任何未知路径回到对话首页

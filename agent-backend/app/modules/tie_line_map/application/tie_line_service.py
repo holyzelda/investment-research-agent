@@ -1,0 +1,57 @@
+"""tie_line_map 应用层 · 联络线取数用例（只读）。
+
+与 conversation_history_service 一致：application 直接用 SQLAlchemy select
+读取 ORM，装配为 domain 值对象返回；表现层聚合（统计/筛选项）由 interface
+serializer 派生。联络线为公共基础数据，不做用户归属过滤。
+"""
+from __future__ import annotations
+
+from decimal import Decimal
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundException
+from app.modules.tie_line_map.domain.models import TieLine
+from app.modules.tie_line_map.infrastructure.persistence.orm import TieLineMapORM
+
+
+def _to_float(value: Decimal | float | None) -> float:
+    """经纬度存为 Numeric（Decimal），转 float 供前端/地图直接消费。"""
+    return float(value) if value is not None else 0.0
+
+
+def _to_domain(row: TieLineMapORM) -> TieLine:
+    return TieLine(
+        id=row.id,
+        name=row.name,
+        start_point=row.start_point,
+        end_point=row.end_point,
+        start_region=row.start_region,
+        end_region=row.end_region,
+        start_longitude=_to_float(row.start_longitude),
+        start_latitude=_to_float(row.start_latitude),
+        end_longitude=_to_float(row.end_longitude),
+        end_latitude=_to_float(row.end_latitude),
+        length_text=row.length_text,
+        voltage_text=row.voltage_text,
+        rated_capacity_mw=row.rated_capacity_mw,
+        operation_year=row.operation_year,
+        coordinate_basis=row.coordinate_basis,
+        data_basis_note=row.data_basis_note,
+        source_note=row.source_note,
+    )
+
+
+class TieLineService:
+    async def list_lines(self, session: AsyncSession) -> list[TieLine]:
+        rows = (await session.execute(
+            select(TieLineMapORM).order_by(TieLineMapORM.name.asc(), TieLineMapORM.id.asc())
+        )).scalars().all()
+        return [_to_domain(row) for row in rows]
+
+    async def get_line(self, session: AsyncSession, *, line_id: int) -> TieLine:
+        row = await session.get(TieLineMapORM, line_id)
+        if row is None:
+            raise NotFoundException("联络线不存在")
+        return _to_domain(row)

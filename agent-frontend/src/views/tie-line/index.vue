@@ -1,0 +1,121 @@
+<template>
+  <section class="tie-line-page">
+    <header class="tie-line-page__top">
+      <div class="tie-line-page__heading">
+        <h2 class="tie-line-page__title">跨省跨区</h2>
+        <p class="tie-line-page__subtitle">全国跨省跨区联络线分布</p>
+      </div>
+      <TieLineStatsBar :stats="store.stats" />
+    </header>
+
+    <TieLineFilterBar
+      :voltage="store.activeVoltage"
+      :region="store.activeRegion"
+      :voltage-options="store.filters.voltageOptions"
+      :region-options="store.filters.regionOptions"
+      @update:voltage="store.setVoltage"
+      @update:region="store.setRegion"
+    />
+
+    <div class="tie-line-page__body">
+      <div class="tie-line-page__map-wrap">
+        <div v-if="store.loading" class="tie-line-page__state">联络线加载中…</div>
+        <div v-else-if="store.error" class="tie-line-page__state">{{ store.error }}</div>
+        <ChinaTieLineMap
+          v-else
+          :lines="store.visibleLines"
+          :selected-id="store.selectedId"
+          :voltage-colors="voltageColors"
+          @select="store.selectLine"
+        />
+        <TieLineLegend class="tie-line-page__legend" :voltage-colors="voltageColors" />
+      </div>
+      <TieLineDetailPanel class="tie-line-page__detail" :line="store.detail" />
+    </div>
+  </section>
+</template>
+
+<script setup>
+import { computed, onMounted } from 'vue'
+import { useTieLineStore } from '@/store/modules/tieLine'
+import { xcChartColors } from '@/views/home/composables/useEcharts'
+import ChinaTieLineMap from './components/ChinaTieLineMap.vue'
+import TieLineStatsBar from './components/TieLineStatsBar.vue'
+import TieLineFilterBar from './components/TieLineFilterBar.vue'
+import TieLineLegend from './components/TieLineLegend.vue'
+import TieLineDetailPanel from './components/TieLineDetailPanel.vue'
+
+const store = useTieLineStore()
+
+// 电压等级 → 颜色的稳定映射（基于全量筛选项顺序，不随过滤变化），地图与图例共用
+const voltageColors = computed(() => {
+  const palette = xcChartColors()
+  const map = {}
+  ;(store.filters.voltageOptions || []).forEach((v, i) => {
+    map[v] = palette[i % palette.length] || 'var(--xc-chart-1)'
+  })
+  return map
+})
+
+onMounted(() => {
+  store.loadLines()
+})
+</script>
+
+<style scoped>
+.tie-line-page {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--xc-space-4, 16px);
+  padding: var(--xc-space-4, 16px) var(--xc-gutter-x, 24px);
+  box-sizing: border-box;
+}
+.tie-line-page__top {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--xc-space-6, 24px);
+  flex-wrap: wrap;
+}
+.tie-line-page__title {
+  font-size: var(--xc-fs-h2, 24px);
+  font-weight: var(--xc-fw-semi, 600);
+  color: var(--xc-text-strong);
+  margin: 0;
+}
+.tie-line-page__subtitle {
+  font-size: var(--xc-fs-2xs, 12px);
+  color: var(--xc-text-mute);
+  margin: 2px 0 0;
+}
+.tie-line-page__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: var(--xc-space-4, 16px);
+}
+.tie-line-page__map-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--xc-surface-base);
+  border-radius: var(--xc-radius-md, 10px);
+  overflow: hidden;
+}
+.tie-line-page__legend {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+}
+.tie-line-page__detail {
+  flex: 0 0 300px;
+}
+.tie-line-page__state {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--xc-text-mute);
+}
+</style>

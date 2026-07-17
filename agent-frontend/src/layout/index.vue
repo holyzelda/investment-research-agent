@@ -16,7 +16,7 @@
     <div class="ir-layout__body">
       <AppRail
         :items="navItems"
-        :active="router.currentRoute.value.path.replace(/^\//, '')"
+        :active="activeRail"
         @nav="onNav"
       />
       <AppSidebar
@@ -57,10 +57,12 @@ const navItems = computed(() => permission.railRoutes.length
       icon: item.icon,
     }))
   : null)
+const activeRail = computed(() => router.currentRoute.value.path.replace(/^\//, ''))
 
 function onNewChat() {
   calc.resetConversation()
 }
+
 function onNav(path) {
   if (path && router.currentRoute.value.path !== path) router.push(path)
 }

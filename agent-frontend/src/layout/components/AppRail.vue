@@ -35,7 +35,7 @@ const ICON = {
 const fallbackItems = [
   { key: 'home', label: '首页', icon: ICON.home, disabled: false },
   { key: 'index', label: '全国指数地图', icon: ICON.index, disabled: true },
-  { key: 'line', label: '联络线地图', icon: ICON.line, disabled: true },
+  { key: 'line', label: '联络线地图', icon: ICON.line, disabled: false },
   { key: 'policy', label: '政策与市场', icon: ICON.policy, disabled: true },
 ]
 

@@ -41,6 +41,10 @@ EXPECTED_IMPORTS = [
     "app.modules.calculation.interface.router",
     "app.modules.calculation.interface.serializers",
     "app.modules.tie_line_map.infrastructure.persistence.orm",
+    "app.modules.tie_line_map.domain.models",
+    "app.modules.tie_line_map.application.tie_line_service",
+    "app.modules.tie_line_map.interface.serializers",
+    "app.modules.tie_line_map.interface.router",
 ]
 
 
