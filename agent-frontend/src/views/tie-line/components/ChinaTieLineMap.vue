@@ -3,14 +3,17 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import chinaGeo from '@/assets/geo/china.json'
+import majorRivers from '@/assets/geo/china-major-rivers.json'
 import { xcVar } from '@/views/home/composables/useEcharts'
+import { buildVoltagePresentation } from '../voltagePresentation'
+import { buildTieLineMapOption } from './tieLineMapOption'
 
 // 中国省界底图 + 跨省联络线（lines 系列按起讫经纬度直接绘制，不依赖省名匹配）。
 // 点击选中线路的事件需求使通用 useEcharts 封装不够用，故本组件自管理 ECharts 生命周期，
-// 但严格对齐同一套 init / resize / dispose 语义。首版无功率方向数据，不加流动动画。
+// 坐标固定按资料中的起点→终点排列；动态箭头仅提示该静态起讫方向，不代表实时潮流或功率方向。
 //
 // 颜色一律经 xcVar 读取 --xc-* token 的运行时计算值（ECharts canvas 不解析 CSS 变量，
 // 必须传具体色值），不写任何硬编码 hex/rgb 兜底。
@@ -18,9 +21,16 @@ import { xcVar } from '@/views/home/composables/useEcharts'
 const props = defineProps({
   lines: { type: Array, default: () => [] },
   selectedId: { type: [Number, String], default: null },
-  voltageColors: { type: Object, default: () => ({}) },
+  voltageOptions: { type: Array, default: () => [] },
 })
 const emit = defineEmits(['select'])
+
+const voltageColors = computed(() => {
+  const { tokenByText } = buildVoltagePresentation(props.voltageOptions)
+  return Object.fromEntries(
+    Object.entries(tokenByText).map(([text, token]) => [text, xcVar(token)]),
+  )
+})
 
 const el = ref(null)
 let chart = null
@@ -34,114 +44,26 @@ function ensureMap() {
   }
 }
 
-function fmtMw(v) {
-  return v === null || v === undefined ? '—' : `${Number(v).toLocaleString('zh-CN')} MW`
-}
-
-function colorOf(voltageText) {
-  return props.voltageColors[voltageText] || xcVar('--xc-chart-1')
-}
-
-// 线宽随额定容量温和增长（无容量给基础宽度），避免个别大容量线压过全图
-function widthOf(cap) {
-  if (!cap) return 1.6
-  return 1.6 + Math.min(cap / 2000, 4)
-}
-
 function buildOption() {
-  const selected = props.selectedId
-  const hasSelection = selected !== null && selected !== undefined
-
-  const lineData = props.lines.map((l) => {
-    const isSel = hasSelection && l.id === selected
-    return {
-      id: l.id,
-      name: l.name,
-      coords: [
-        [l.startLng, l.startLat],
-        [l.endLng, l.endLat],
-      ],
-      lineStyle: {
-        color: colorOf(l.voltageText),
-        width: isSel ? widthOf(l.ratedCapacityMw) + 1.5 : widthOf(l.ratedCapacityMw),
-        opacity: hasSelection ? (isSel ? 1 : 0.28) : 0.85,
-      },
-      info: l,
-    }
-  })
-
-  // 端点（换流站）去重
-  const pointMap = new Map()
-  props.lines.forEach((l) => {
-    const add = (lng, lat, label) => {
-      const key = `${lng},${lat}`
-      if (!pointMap.has(key)) pointMap.set(key, { value: [lng, lat], label })
-    }
-    add(l.startLng, l.startLat, l.startPoint)
-    add(l.endLng, l.endLat, l.endPoint)
-  })
-  const pointData = Array.from(pointMap.values()).map((p) => ({ value: p.value, label: p.label }))
-
-  return {
-    backgroundColor: 'transparent',
-    tooltip: {
-      trigger: 'item',
-      backgroundColor: xcVar('--xc-surface-2'),
-      borderColor: xcVar('--xc-border-soft'),
-      textStyle: { color: xcVar('--xc-text-strong'), fontSize: 12 },
-      formatter: (p) => {
-        if (p.seriesType === 'lines') {
-          const i = p.data.info
-          return [
-            `<b>${i.name}</b>`,
-            `${i.startPoint} → ${i.endPoint}`,
-            `电压：${i.voltageText || '—'}`,
-            `容量：${fmtMw(i.ratedCapacityMw)}`,
-          ].join('<br/>')
-        }
-        if (p.seriesType === 'scatter') return p.data.label || ''
-        return ''
-      },
+  return buildTieLineMapOption({
+    lines: props.lines,
+    selectedId: props.selectedId,
+    voltageColors: voltageColors.value,
+    unknownColor: xcVar('--xc-map-voltage-unknown'),
+    rivers: majorRivers,
+    theme: {
+      tooltipBackground: xcVar('--xc-surface-2'),
+      tooltipBorder: xcVar('--xc-border-soft'),
+      tooltipText: xcVar('--xc-text-strong'),
+      land: xcVar('--xc-map-land'),
+      boundary: xcVar('--xc-map-boundary'),
+      landHover: xcVar('--xc-map-land-hover'),
+      mapLabel: xcVar('--xc-map-station'),
+      station: xcVar('--xc-map-station'),
+      river: xcVar('--xc-map-river'),
+      riverOpacity: Number(xcVar('--xc-map-river-opacity')),
     },
-    geo: {
-      map: 'china',
-      roam: true,
-      zoom: 1.2,
-      scaleLimit: { min: 1, max: 8 },
-      itemStyle: {
-        areaColor: xcVar('--xc-surface-1'),
-        borderColor: xcVar('--xc-border-soft'),
-        borderWidth: 0.6,
-      },
-      emphasis: {
-        itemStyle: { areaColor: xcVar('--xc-surface-tinted') },
-        label: { show: false },
-      },
-      label: { show: false },
-      regions: [
-        { name: '南海诸岛', itemStyle: { areaColor: 'transparent', borderColor: 'transparent' } },
-      ],
-    },
-    series: [
-      {
-        type: 'lines',
-        coordinateSystem: 'geo',
-        polyline: false,
-        lineStyle: { curveness: 0.18 },
-        emphasis: { lineStyle: { width: 4 }, focus: 'none' },
-        data: lineData,
-        zlevel: 2,
-      },
-      {
-        type: 'scatter',
-        coordinateSystem: 'geo',
-        symbolSize: 4,
-        itemStyle: { color: xcVar('--xc-text-soft'), opacity: 0.7 },
-        data: pointData,
-        zlevel: 3,
-      },
-    ],
-  }
+  })
 }
 
 function onChartClick(p) {
@@ -170,7 +92,7 @@ onBeforeUnmount(() => {
 })
 
 watch(
-  () => [props.lines, props.selectedId, props.voltageColors],
+  () => [props.lines, props.selectedId, props.voltageOptions],
   () => chart && chart.setOption(buildOption(), true),
   { deep: true },
 )

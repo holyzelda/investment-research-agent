@@ -202,6 +202,24 @@
   --xc-content-max: 1100px;
   --xc-content-fluid: min(var(--xc-content-max), 88vw);
 
+  /* ---------- 16. TIE-LINE MAP ----------
+   * 地图采用独立空间层与电压顺序色阶，不复用图表分类色、状态色或涨跌色。 */
+  --xc-map-ocean:          #09182b;
+  --xc-map-land:           #f5efdc;
+  --xc-map-land-hover:     #fff7df;
+  --xc-map-boundary:       #c6c8c4;
+  --xc-map-station:        #51616d;
+  --xc-map-river:          #5e94b0;
+  --xc-map-river-opacity:  0.48;
+  --xc-map-legend-bg:      rgba(9, 24, 43, 0.92);
+  --xc-map-legend-border:  rgba(231, 218, 185, 0.24);
+  --xc-map-voltage-1:      #9d5146;
+  --xc-map-voltage-2:      #b95c3f;
+  --xc-map-voltage-3:      #d66d39;
+  --xc-map-voltage-4:      #ee8036;
+  --xc-map-voltage-5:      #ff9a42;
+  --xc-map-voltage-unknown:#6e7f89;
+
   /* Chart palette — categorical series on dark bg. Charts default to --xc-chart-1 then cycle. */
   --xc-chart-1: rgb(34, 177, 253);
   --xc-chart-2: rgb(110, 42, 255);
@@ -242,6 +260,22 @@
   --xc-border-strong: rgba(13, 18, 32, 0.18);
 
   --xc-inline-bg:     rgba(13, 18, 32, 0.03);
+
+  --xc-map-ocean:          #e9eff5;
+  --xc-map-land:           #fffaf0;
+  --xc-map-land-hover:     #fff2cd;
+  --xc-map-boundary:       #bcc6ce;
+  --xc-map-station:        #50616b;
+  --xc-map-river:          #6f9bb5;
+  --xc-map-river-opacity:  0.50;
+  --xc-map-legend-bg:      rgba(255, 255, 255, 0.92);
+  --xc-map-legend-border:  rgba(26, 54, 84, 0.18);
+  --xc-map-voltage-1:      #8e453d;
+  --xc-map-voltage-2:      #a9553c;
+  --xc-map-voltage-3:      #c86636;
+  --xc-map-voltage-4:      #dc7838;
+  --xc-map-voltage-5:      #e98a3e;
+  --xc-map-voltage-unknown:#697780;
 }
 
 /* Utility resets used across the system. */

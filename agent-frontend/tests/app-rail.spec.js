@@ -10,30 +10,30 @@ describe('AppRail (outer module rail)', () => {
     expect(labels).toEqual(['首页', '全国指数地图', '联络线地图', '政策与市场'])
   })
 
-  it('marks only the active item and leaves the rest clickable-disabled', () => {
+  it('marks the active item and keeps only unbuilt modules disabled', () => {
     const wrapper = mount(AppRail, { props: { active: 'home' } })
 
     const buttons = wrapper.findAll('.ir-rail-btn')
     expect(buttons[0].classes()).toContain('is-active')
     expect(buttons[0].attributes('disabled')).toBeUndefined()
-    for (const btn of buttons.slice(1)) {
-      expect(btn.classes()).not.toContain('is-active')
-      expect(btn.classes()).toContain('is-disabled')
-      expect(btn.attributes('disabled')).toBeDefined()
-    }
+    expect(buttons[1].classes()).toContain('is-disabled')
+    expect(buttons[1].attributes('disabled')).toBeDefined()
+    expect(buttons[2].classes()).not.toContain('is-active')
+    expect(buttons[2].classes()).not.toContain('is-disabled')
+    expect(buttons[2].attributes('disabled')).toBeUndefined()
+    expect(buttons[3].classes()).toContain('is-disabled')
+    expect(buttons[3].attributes('disabled')).toBeDefined()
   })
 
-  it('emits nav only for the enabled item, never for disabled placeholders', async () => {
+  it('emits nav for enabled modules only', async () => {
     const wrapper = mount(AppRail)
     const buttons = wrapper.findAll('.ir-rail-btn')
 
     await buttons[0].trigger('click')
-    expect(wrapper.emitted('nav')?.[0]).toEqual(['home'])
-
     await buttons[1].trigger('click')
     await buttons[2].trigger('click')
     await buttons[3].trigger('click')
-    expect(wrapper.emitted('nav')).toHaveLength(1)
+    expect(wrapper.emitted('nav')).toEqual([['home'], ['line']])
   })
 
   it('tags disabled items with a 待建 hint for the hover tooltip', () => {

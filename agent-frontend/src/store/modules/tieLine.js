@@ -1,32 +1,26 @@
 import { defineStore } from 'pinia'
 import { getTieLines, getTieLineDetail } from '@/api/tieLine'
 
-// 联络线地图状态：线路列表、静态统计、筛选（电压/区域）与选中详情。
+// 联络线地图状态：线路列表、静态统计、起终点区域筛选与选中详情。
 // 首版只做地图展示，不含任何功率时序（底表无时序字段）。
 export const useTieLineStore = defineStore('tieLine', {
   state: () => ({
     lines: [],
     stats: null,
     filters: { voltageOptions: [], regionOptions: [] },
-    activeVoltage: '',
-    activeRegion: '',
+    activeStartRegion: '',
+    activeEndRegion: '',
     selectedId: null,
     detail: null,
     loading: false,
     error: '',
   }),
   getters: {
-    // 按电压/区域筛选后的可见线路（地图与列表共用同一份）
+    // 按起点/终点区域筛选后的可见线路（地图与列表共用同一份）。
     visibleLines(state) {
       return state.lines.filter((line) => {
-        if (state.activeVoltage && line.voltageText !== state.activeVoltage) return false
-        if (
-          state.activeRegion &&
-          line.startRegion !== state.activeRegion &&
-          line.endRegion !== state.activeRegion
-        ) {
-          return false
-        }
+        if (state.activeStartRegion && line.startRegion !== state.activeStartRegion) return false
+        if (state.activeEndRegion && line.endRegion !== state.activeEndRegion) return false
         return true
       })
     },
@@ -61,12 +55,12 @@ export const useTieLineStore = defineStore('tieLine', {
         this.detail = this.selectedLine // 详情接口失败时退回列表里的基础字段
       }
     },
-    setVoltage(value) {
-      this.activeVoltage = value || ''
+    setStartRegion(value) {
+      this.activeStartRegion = value || ''
       this._dropSelectionIfHidden()
     },
-    setRegion(value) {
-      this.activeRegion = value || ''
+    setEndRegion(value) {
+      this.activeEndRegion = value || ''
       this._dropSelectionIfHidden()
     },
     clearSelection() {

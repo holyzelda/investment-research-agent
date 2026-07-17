@@ -9,12 +9,11 @@
     </header>
 
     <TieLineFilterBar
-      :voltage="store.activeVoltage"
-      :region="store.activeRegion"
-      :voltage-options="store.filters.voltageOptions"
+      :start-region="store.activeStartRegion"
+      :end-region="store.activeEndRegion"
       :region-options="store.filters.regionOptions"
-      @update:voltage="store.setVoltage"
-      @update:region="store.setRegion"
+      @update:start-region="store.setStartRegion"
+      @update:end-region="store.setEndRegion"
     />
 
     <div class="tie-line-page__body">
@@ -25,10 +24,10 @@
           v-else
           :lines="store.visibleLines"
           :selected-id="store.selectedId"
-          :voltage-colors="voltageColors"
+          :voltage-options="store.filters.voltageOptions"
           @select="store.selectLine"
         />
-        <TieLineLegend class="tie-line-page__legend" :voltage-colors="voltageColors" />
+        <div class="tie-line-page__map-note">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
       </div>
       <TieLineDetailPanel class="tie-line-page__detail" :line="store.detail" />
     </div>
@@ -36,26 +35,14 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
+import { onMounted } from 'vue'
 import { useTieLineStore } from '@/store/modules/tieLine'
-import { xcChartColors } from '@/views/home/composables/useEcharts'
 import ChinaTieLineMap from './components/ChinaTieLineMap.vue'
 import TieLineStatsBar from './components/TieLineStatsBar.vue'
 import TieLineFilterBar from './components/TieLineFilterBar.vue'
-import TieLineLegend from './components/TieLineLegend.vue'
 import TieLineDetailPanel from './components/TieLineDetailPanel.vue'
 
 const store = useTieLineStore()
-
-// 电压等级 → 颜色的稳定映射（基于全量筛选项顺序，不随过滤变化），地图与图例共用
-const voltageColors = computed(() => {
-  const palette = xcChartColors()
-  const map = {}
-  ;(store.filters.voltageOptions || []).forEach((v, i) => {
-    map[v] = palette[i % palette.length] || 'var(--xc-chart-1)'
-  })
-  return map
-})
 
 onMounted(() => {
   store.loadLines()
@@ -99,14 +86,22 @@ onMounted(() => {
   position: relative;
   flex: 1 1 auto;
   min-width: 0;
-  background: var(--xc-surface-base);
+  background: var(--xc-map-ocean);
   border-radius: var(--xc-radius-md, 10px);
   overflow: hidden;
 }
-.tie-line-page__legend {
+.tie-line-page__map-note {
   position: absolute;
   left: 16px;
   bottom: 16px;
+  max-width: 260px;
+  padding: 6px 10px;
+  border: 1px solid var(--xc-map-legend-border);
+  border-radius: var(--xc-radius-sm, 8px);
+  background: var(--xc-map-legend-bg);
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-3xs, 10px);
+  line-height: var(--xc-lh-snug, 1.3);
 }
 .tie-line-page__detail {
   flex: 0 0 300px;

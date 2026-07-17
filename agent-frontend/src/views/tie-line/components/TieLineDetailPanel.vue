@@ -9,7 +9,7 @@
       <dl class="tl-detail__grid">
         <div class="tl-detail__row"><dt>起点</dt><dd>{{ line.startPoint || '—' }}</dd></div>
         <div class="tl-detail__row"><dt>终点</dt><dd>{{ line.endPoint || '—' }}</dd></div>
-        <div class="tl-detail__row"><dt>起讫区域</dt><dd>{{ regionText }}</dd></div>
+        <div class="tl-detail__row"><dt>起始区域</dt><dd>{{ regionText }}</dd></div>
         <div class="tl-detail__row"><dt>长度</dt><dd>{{ line.lengthText || '—' }}</dd></div>
         <div class="tl-detail__row"><dt>电压</dt><dd>{{ line.voltageText || '—' }}</dd></div>
         <div class="tl-detail__row"><dt>额定容量</dt><dd>{{ capText }}</dd></div>

@@ -1,23 +1,23 @@
 <template>
   <div class="tl-filter">
-    <!-- 电压 / 区域筛选（真实可用） -->
+    <!-- 起点 / 终点区域筛选（真实可用） -->
     <label class="tl-filter__field">
-      <span class="tl-filter__label">电压</span>
+      <span class="tl-filter__label">起点区域</span>
       <select
         class="tl-filter__select"
-        :value="voltage"
-        @change="$emit('update:voltage', $event.target.value)"
+        :value="startRegion"
+        @change="$emit('update:start-region', $event.target.value)"
       >
         <option value="">全部</option>
-        <option v-for="v in voltageOptions" :key="v" :value="v">{{ v }}</option>
+        <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
       </select>
     </label>
     <label class="tl-filter__field">
-      <span class="tl-filter__label">区域</span>
+      <span class="tl-filter__label">终点区域</span>
       <select
         class="tl-filter__select"
-        :value="region"
-        @change="$emit('update:region', $event.target.value)"
+        :value="endRegion"
+        @change="$emit('update:end-region', $event.target.value)"
       >
         <option value="">全部</option>
         <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
@@ -39,12 +39,11 @@
 
 <script setup>
 defineProps({
-  voltage: { type: String, default: '' },
-  region: { type: String, default: '' },
-  voltageOptions: { type: Array, default: () => [] },
+  startRegion: { type: String, default: '' },
+  endRegion: { type: String, default: '' },
   regionOptions: { type: Array, default: () => [] },
 })
-defineEmits(['update:voltage', 'update:region'])
+defineEmits(['update:start-region', 'update:end-region'])
 
 // 时间范围仅占位（灰显不可点），对齐原型但当前无时序数据源
 const rangePlaceholder = ['昨日', '7日', '30日', '90日', '自定义']
