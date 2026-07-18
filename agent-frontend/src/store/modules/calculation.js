@@ -5,6 +5,8 @@ import {
   getCalculationResult,
   getCalculationTask,
   getConversation,
+  getParamDict,
+  getStations,
   listConversations,
 } from '@/api/calc'
 
@@ -56,6 +58,9 @@ export const useCalculationStore = defineStore('calculation', {
     conversationId: null,
     selectedVersion: null,
     responding: false,
+    paramDict: [],
+    switches: {},
+    stationOptions: [],
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -78,6 +83,19 @@ export const useCalculationStore = defineStore('calculation', {
       const response = await listConversations()
       this.history = response.data?.items || []
     },
+    async loadParamMeta(province) {
+      if (!province) return
+      const paramResponse = await getParamDict(province)
+      this.paramDict = paramResponse.data?.parameters || []
+      this.switches = paramResponse.data?.switches || {}
+      try {
+        const stationResponse = await getStations(province)
+        this.stationOptions = stationResponse.data?.items || []
+      } catch (error) {
+        // 节点维表或 stations 接口不可用时，仍可展示和调整其他参数；节点卡片自然隐藏。
+        this.stationOptions = []
+      }
+    },
     async openConversation(conversationId) {
       const response = await getConversation(conversationId)
       const detail = response.data || {}
@@ -89,7 +107,7 @@ export const useCalculationStore = defineStore('calculation', {
           cursor += 1
           return {
             id: nextId(), role: 'assistant', kind: 'result',
-            version: version.version, result: version.result,
+            version: version.version, result: version.result, input: version.input,
           }
         }
         return { id: nextId(), role: message.role, kind: 'text', text: message.content }
@@ -100,12 +118,15 @@ export const useCalculationStore = defineStore('calculation', {
         version: version.version,
         status: version.status,
         result: version.result,
+        input: version.input,
       }))
       this.conversationId = conversationId
       this.selectedVersion = this.versions.length
         ? this.versions[this.versions.length - 1].version
         : null
       this.responding = false
+      const province = completed.length ? completed[completed.length - 1].input?.province : null
+      if (province) this.loadParamMeta(province).catch(() => {})
     },
     async removeConversation(conversationId) {
       await deleteConversation(conversationId)
@@ -146,16 +167,32 @@ export const useCalculationStore = defineStore('calculation', {
         return
       }
 
+      const payload = {
+        province: input.province,
+        capacity_mwh: input.capacity_mwh,
+        power_mw: input.power_mw,
+      }
+      if (this.conversationId) payload.conversation_id = this.conversationId
+      await this._submitAndTrack(payload)
+    },
+    async recalculate({ overrides, basics }) {
+      if (this.responding || !this.conversationId) return
+      // 省份在会话内永久锁定：以任一已成功版本的冻结入参为准，不允许调整面板改动
+      const province = this.versions.find((v) => v.input)?.input?.province
+      if (!province) return
+      await this._submitAndTrack({
+        province,
+        capacity_mwh: basics.capacity_mwh,
+        power_mw: basics.power_mw,
+        node_name: basics.node_name || null,
+        conversation_id: this.conversationId,
+        param_overrides: overrides,
+      })
+    },
+    async _submitAndTrack(payload) {
       this.responding = true
       const pending = this._pushAssistantText('测算中…')
       try {
-        const payload = {
-          province: input.province,
-          capacity_mwh: input.capacity_mwh,
-          power_mw: input.power_mw,
-        }
-        if (this.conversationId) payload.conversation_id = this.conversationId
-
         const createdResponse = await createCalculationTask(payload)
         const created = createdResponse.data || {}
         if (created.conversationId) this.conversationId = created.conversationId
@@ -176,6 +213,7 @@ export const useCalculationStore = defineStore('calculation', {
           version,
           status: 'completed',
           result,
+          input: created.input,
         }
         this.versions.push(entry)
         this.selectedVersion = version
@@ -183,8 +221,10 @@ export const useCalculationStore = defineStore('calculation', {
         pending.text = undefined
         pending.result = result
         pending.version = version
-        // 成功后刷新左侧历史（新会话出现、既有会话最新版本/排序更新）
+        pending.input = created.input
+        // 成功后刷新左侧历史（新会话出现、既有会话最新版本/排序更新）与调整面板元数据
         this.loadHistory().catch(() => {})
+        if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
       } catch (error) {
         pending.text = failureText(error?.response?.data?.msg || error?.message)
       } finally {

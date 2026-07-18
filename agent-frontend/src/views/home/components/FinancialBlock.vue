@@ -1,6 +1,11 @@
 <template>
   <section class="ir-block">
-    <h4 class="ir-block__title">② 财务指标</h4>
+    <h4 class="ir-block__title">
+      <svg class="ir-block__title-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+        <path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      核心投资收益指标
+    </h4>
     <div class="ir-fin">
       <div v-for="kpi in kpis" :key="kpi.label" class="ir-fin__kpi">
         <div class="ir-fin__val xc-num">
@@ -32,10 +37,19 @@ const kpis = computed(() => [
   padding: var(--xc-space-6);
 }
 .ir-block__title {
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-2);
   font-size: var(--xc-fs-md);
   color: var(--xc-text-strong);
   font-weight: var(--xc-fw-semi);
   margin: 0 0 var(--xc-space-5);
+}
+.ir-block__title-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: var(--xc-accent-blue);
 }
 .ir-fin {
   display: grid;

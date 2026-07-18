@@ -10,10 +10,10 @@ investment-research-agent/
 ├── agent-frontend/   # Vue3 + Vite + Element Plus + 玄策(XC)设计体系（无登录页）
 ├── agent-backend/    # FastAPI + 异步 SQLAlchemy(ir_agent) + Nacos；实用 DDD 分层
 ├── changes/          # spec-superflow 规格制品（proposal/specs/design/tasks）
-└── AGENTS.md         # AI 协作入口：硬性规则、目录约定、踩坑记录
+└── CLAUDE.md         # AI 协作入口：硬性规则、目录约定、踩坑记录
 ```
 
-后端当前按 `app/modules/<context>/{domain,application,infrastructure,interface}` 组织限界上下文，主要上下文为 `platform_access` 与 `calculation`。详细目录与协作规则见 `AGENTS.md`，后端命令与配置见 `agent-backend/README.md`。
+后端当前按 `app/modules/<context>/{domain,application,infrastructure,interface}` 组织限界上下文，主要上下文为 `platform_access` 与 `calculation`。详细目录与协作规则见 `CLAUDE.md`，后端命令与配置见 `agent-backend/README.md`。
 
 ## 快速开始
 详见各子应用 README：

@@ -13,9 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.modules.calculation.infrastructure.spot_precompute import run_precompute
 
 # ================= 参数配置区 =================
-RUN_DATE = date(2026, 7, 14)       # 回填窗口右端(不含)；滚动一年 = [RUN_DATE-1年, RUN_DATE)
-NODE_STATIONS = ["祥泰站"]               # ["*"]=全部节点站点；[]=不回填节点
-NODE_PROVINCE = "蒙西"                 # 节点归属省份（现统一蒙西）
+RUN_DATE = date(2025, 12, 31)       # 回填窗口右端(不含)；滚动一年 = [RUN_DATE-1年, RUN_DATE)
+NODE_STATIONS = ["芮城站"]               # ["*"]=全部节点站点；[]=不回填节点
+NODE_PROVINCE = "山西"                 # 节点归属省份（现统一蒙西）
 WORKERS = 10                         # 进程池并发（本机 12 核时留 2 核）
 CLEANUP_OLD = True                   # 删除滚动窗口外旧数据
 # ==============================================

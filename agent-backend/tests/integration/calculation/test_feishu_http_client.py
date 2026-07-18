@@ -31,8 +31,8 @@ def _param_dict() -> ParamDictionary:
          "api_cell": "API_OUTPUT!C5"},
         {"id": "first_year_total_revenue", "cn": "首年总收益", "source": "output",
          "direction": "output", "api_cell": "API_OUTPUT!C6"},
-        {"id": "main_business_cost", "cn": "主营成本(序列)", "source": "output",
-         "direction": "output", "api_cell": "API_OUTPUT!C2:E2"},
+        {"id": "cashflow_debt_service_coverage_ratio", "cn": "现金流口径下偿债倍数(贷款期序列)", "source": "output",
+         "direction": "output", "api_cell": "画图数据!C3:Q3"},
     ]})
 
 
@@ -40,7 +40,7 @@ class FakeFeishu:
     """飞书开放平台打桩：路由各端点、记录请求，支持配置错误响应与读值。"""
 
     def __init__(self, *, update_responses=None, get_values=None):
-        self.sheets = {"API_INPUT": "shtI", "API_OUTPUT": "shtO", "API_META": "shtM"}
+        self.sheets = {"API_INPUT": "shtI", "API_OUTPUT": "shtO", "API_META": "shtM", "画图数据": "shtChart"}
         self.update_responses = list(update_responses or [])   # 队列：(status_code, json)
         self.get_values = get_values                            # 按 range 顺序的二维值
         self.token_calls = 0
@@ -120,14 +120,15 @@ async def test_write_input_maps_api_cells_to_sheet_ranges():
 @pytest.mark.asyncio
 async def test_read_output_maps_cells_to_param_ids():
     # 标量取首格；区间（15 年序列同理）展平为列表
-    fake = FakeFeishu(get_values=[[[8.5]], [[8600]], [[1, 2, 3]]])
+    fake = FakeFeishu(get_values=[[[8.5]], [[8600]], [[1.1, 0, None, 1.3]]])
     gw = _gateway(fake)
     out = await gw.read_output("doc1")
     assert out == {
         "project_irr": 8.5,
         "first_year_total_revenue": 8600,
-        "main_business_cost": [1, 2, 3],
+        "cashflow_debt_service_coverage_ratio": [1.1, 0, None, 1.3],
     }
+    assert "shtChart!C3:Q3" in fake.get_params["ranges"]
     # 读值必须带 valueRenderOption，否则飞书返回公式文本本身（非计算值）
     assert fake.get_params.get("valueRenderOption") == "UnformattedValue"
     await gw._client.aclose()

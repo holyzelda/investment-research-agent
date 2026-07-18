@@ -18,7 +18,7 @@ async def test_param_dict_endpoint(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 200
-    assert body["data"]["total"] == 51
+    assert body["data"]["total"] == 49
 
 
 @pytest.mark.asyncio
@@ -26,7 +26,7 @@ async def test_param_dict_display_only(client):
     resp = await client.get("/ir/calc/param-dict", params={"display_only": True})
     body = resp.json()
     # F=1 展示项应少于全量
-    assert body["data"]["total"] == 42
+    assert body["data"]["total"] == 40
 
 
 @pytest.mark.asyncio
@@ -66,7 +66,13 @@ async def test_param_dict_adjustable_params_carry_zone_and_range(client):
 
     maint = params["maint_cost"]
     assert maint["zone"] == "cost_boundary"
-    assert maint["min"] == 0 and maint["max"] == 0.1000 and maint["step"] == 0.0001
+    assert maint["min"] == 0 and maint["max"] == 0.01 and maint["step"] == 0.0001
+
+    loan_years = params["loan_years"]
+    assert loan_years["zone"] == "financial_boundary"
+    assert loan_years["api_cell"] == "API_INPUT!B34"
+    assert loan_years["default"] == 10
+    assert loan_years["min"] == 1 and loan_years["max"] == 20 and loan_years["step"] == 1
 
     operation_years = params["operation_years"]
     assert operation_years["control"] == "fixed"
@@ -106,6 +112,15 @@ async def test_assemble_preview_gansu(client):
 
 
 @pytest.mark.asyncio
+async def test_assemble_preview_rejects_non_positive_power(client):
+    """Batch5：功率/容量必须为正，否则现货 K 折算会除零；应校验拒绝而非 500。"""
+    resp = await client.post("/ir/calc/assemble-preview", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 0,
+    })
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
 async def test_run_returns_three_modules(client):
     resp = await client.post("/ir/calc/run", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200, "node_name": "兰州东",
@@ -117,4 +132,6 @@ async def test_run_returns_three_modules(client):
     assert data["financial"]["projectIrr"] == 8.5
     assert data["advanced"]["donut"]["totalRevenue"] == 8600.0
     assert data["advanced"]["donut"]["interventionRevenue"] == 200.0
-    assert len(data["advanced"]["lines"]["mainBusinessCost"]) == 15
+    assert data["advanced"]["debtServiceCoverage"]["cashflowRatio"] == [
+        1.12, 1.24, 0.0, None, 1.36, 1.48,
+    ]

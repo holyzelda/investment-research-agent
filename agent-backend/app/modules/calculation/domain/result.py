@@ -7,7 +7,7 @@
 三模块：
 - ① BasicInfo 基本信息：省份/节点/容量/功率 + 充电成本/放电返还/损耗费用（地区表按省算，经 API_OUTPUT 读回）
 - ② FinancialMetrics 财务指标：全投资IRR/全投资静态回收期/资本金IRR/资本金静态回收期/年均利润
-- ③ AdvancedResult 进阶图形：首年总收入 + 环形图(6类首年收益) + 折线图(4条15年序列)
+- ③ AdvancedResult 进阶图形：首年总收入 + 环形图(6类首年收益) + 现金流口径下偿债倍数折线图
 """
 from dataclasses import dataclass, field
 from typing import Optional
@@ -48,19 +48,16 @@ class RevenueDonut:
 
 
 @dataclass(frozen=True)
-class CashflowLines:
-    """③-b 15 年序列折线图（4 条）。列表元素对应第 1..N 年。"""
-    main_business_cost: list = field(default_factory=list)                   # 主营业务成本
-    current_principal_interest: list = field(default_factory=list)           # 当期还本付息
-    capital_net_cashflow: list = field(default_factory=list)                 # 资本金净现金流
-    total_invest_net_cashflow_after_tax: list = field(default_factory=list)  # 全投资所得税后净现金流
+class DebtServiceCoverage:
+    """现金流口径下偿债倍数；元素对应第 1..N 年，None 表示断点。"""
+    cashflow_ratio: list[float | None] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
 class AdvancedResult:
     """③ 进阶图形结果。"""
     donut: RevenueDonut = field(default_factory=RevenueDonut)
-    lines: CashflowLines = field(default_factory=CashflowLines)
+    debt_service_coverage: DebtServiceCoverage = field(default_factory=DebtServiceCoverage)
 
 
 @dataclass(frozen=True)

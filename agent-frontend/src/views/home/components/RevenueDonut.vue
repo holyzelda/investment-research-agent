@@ -27,9 +27,10 @@ const SLICES = [
 
 const buildOption = () => {
   const d = donut.value
+  // 环里为 0 的收益类别在视觉上不存在（0 角度扇区），图例也不应保留这类条目
   const data = SLICES
     .map((s) => ({ name: s.name, value: d[s.key] }))
-    .filter((x) => x.value !== null && x.value !== undefined)
+    .filter((x) => typeof x.value === 'number' && x.value > 0)
   return {
     color: xcChartColors(),
     tooltip: {

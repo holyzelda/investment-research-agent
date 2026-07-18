@@ -40,11 +40,11 @@
 | 任务编排 | 4 | POST task；非终态轮询；完成后拉 result；失败展示原因和 request_id | `calc-flow.spec.js` | 进行中 |
 | 结果三模块 | 4 | 基本信息、5 项财务指标、首年收入环形图、4 条 15 年现金流；电价显示 4 位小数、整数不显示小数点、其他非整数显示 2 位，仅格式化前端展示且不修改快照原值 | `result-cards.spec.js`、`charts.spec.js` | UI 已有，格式化待补 |
 | 多版本 | 4 | 使用后端 version；最新标记；点击切换历史快照；报告仅占位提示 | `version-list.spec.js` | 进行中 |
-| 历史会话 | 4.6 | 左侧“投资分析工作台”全部功能项之后展示当前用户未删除会话；刷新保持欢迎页并手动打开；固定顺序回放消息、版本和 report_snapshot；继续测算复用 conversation_id | 后端 `test_conversation_history_api.py`、前端 `conversation-history.spec.js` | 未开始 |
-| 会话删除与归属 | 4.6 | “…”菜单二次确认；仅写 conversation.deleted_at，保留消息/任务/快照；列表/详情/删除及 task status/result 均按当前 user_id 校验，越权统一 404 | 软删除持久化、快照行数不变、跨用户 404 | 未开始 |
-| 参数调整 | 5 | 默认收起；四区；数值滑块/枚举下拉；不重复展示三项派生电价 | `param-adjust.spec.js` | 未开始 |
-| 锁项与显隐 | 5 | 首次锁省/节点/功率/容量，二次解锁；按省收益结构显隐，现货始终显示 | 锁项、改省重拉测试 | 未开始 |
-| 重新测算 | 5 | 冻结本次入参；同会话创建新任务、新版本，不覆盖旧版本 | V2/V3 追加与历史保留 | 未开始 |
+| 历史会话 | 4.6 | 左侧“投资分析工作台”全部功能项之后展示当前用户未删除会话；刷新保持欢迎页并手动打开；固定顺序回放消息、版本和 report_snapshot；继续测算复用 conversation_id | 后端 `test_conversation_history_api.py`、前端 `conversation-history.spec.js` | 已完成 |
+| 会话删除与归属 | 4.6 | “…”菜单二次确认；仅写 conversation.deleted_at，保留消息/任务/快照；列表/详情/删除及 task status/result 均按当前 user_id 校验，越权统一 404 | 软删除持久化、快照行数不变、跨用户 404 | 已完成 |
+| 参数调整 | 5 | 默认收起；四区（项目定义/金融边界/收益边界/成本边界）；已确认业务范围的滑块+数字框，无范围的成本/金额用数字框；不重复展示三项派生电价 | 后端 `test_param_dictionary.py`/`test_calc_endpoints.py`、前端 `param-adjust-logic.spec.js`/`param-adjust-panel.spec.js` | 已完成 |
+| 锁项与显隐 | 5 | 省份会话内永久锁定（后端校验，改省需新建会话）；节点/容量/功率仅首次（V1）锁定，二次起解锁；全部市场（含现货）统一按省表2开关显隐 | 省份锁定 400、V1/V2 锁项测试、显隐测试 | 已完成 |
+| 重新测算 | 5 | 受控 `param_overrides`（仅 g=1 可写输入白名单生效）；现货依赖（节点/容量/功率/日循环）变化则重查预计算表并忽略陈旧覆盖，未变化则继承上一版本价格对并叠加手工修改；容量/功率变化时两档收益同理重算并忽略陈旧覆盖；冻结本次入参，同会话创建新任务、新版本，不覆盖旧版本 | `test_param_assembler.py::TestParamOverrides`、`test_task_service_overrides.py`、`param-adjust-recalculate.spec.js` | 已完成 |
 
 所有 delta spec 的 SHALL/MUST 均归入上述能力；显式延期项包括报告本体、中台意图分发、业务公式最终确认、生产 header/Nacos 配置。
 

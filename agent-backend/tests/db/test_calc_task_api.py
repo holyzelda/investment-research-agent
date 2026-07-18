@@ -50,7 +50,9 @@ async def test_task_create_status_result_and_versioning(client):
     rep = rr.json()["data"]
     assert rep["basicInfo"]["province"] == "甘肃"
     assert rep["basicInfo"]["nodeName"] == "兰州东"
-    assert len(rep["advanced"]["lines"]["mainBusinessCost"]) == 15
+    assert rep["advanced"]["debtServiceCoverage"]["cashflowRatio"] == [
+        1.12, 1.24, 0.0, None, 1.36, 1.48,
+    ]
 
     # 同会话再发 → V2（不覆盖）
     r2 = await client.post("/ir/calc/tasks", json={

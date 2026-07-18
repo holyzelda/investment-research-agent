@@ -61,7 +61,24 @@ class ParamAssembler:
         self._mid_long = mid_long
         self._spot = spot
 
-    def assemble(self, basics: ProjectBasics) -> AssembledParams:
+    def assemble(
+        self,
+        basics: ProjectBasics,
+        *,
+        overrides: Optional[dict] = None,
+        previous_input: Optional[dict] = None,
+    ) -> AssembledParams:
+        """组装一次测算的完整入参。
+
+        overrides：受控参数覆盖（Batch5 参数调整面板提交的当前值），仅接受参数字典中
+            g=1 + direction=input + writable=true 的参数 id；其余键一律忽略，null 视为未覆盖。
+        previous_input：上一版本冻结的 api_input（同会话重算时传入），用于现货电价依赖判断
+            （PRD 2026-07-15 确认）：节点/容量/功率/日均充放电次数任一变化则重新查预计算表
+            并忽略本次提交的旧现货电价；均未变化则不查库，继承上一版本价格对，再叠加本次
+            用户对现货充/放电价的手工修改（单边/双边均可）。首次测算（previous_input=None）
+            视为依赖必然"变化"，始终查库。
+        """
+        overrides = overrides or {}
         result = AssembledParams()
         cap, pwr = basics.capacity_mwh, basics.power_mw
 
@@ -77,10 +94,19 @@ class ParamAssembler:
         for pid, dv in self._dict.defaults().items():
             result.api_input[pid] = dv
 
-        # ③ 电价库二次计算（现货充/放均价）
-        daily_cycles = result.api_input.get("daily_cycles", 1)
-        spot_c, spot_d = self._spot.compute(
-            basics.province, basics.node_name, cap, pwr, daily_cycles)
+        # 日均充放电次数：override 先生效（影响现货 K 的取值），暂不写回 api_input，
+        # 交由末尾的受控覆盖统一写入，避免重复赋值。
+        override_cycles = overrides.get("daily_cycles")
+        daily_cycles = override_cycles if override_cycles is not None else result.api_input.get("daily_cycles", 1)
+
+        # ③ 电价库二次计算（现货充/放均价）——依赖未变则继承上一版本，不查库
+        deps_changed = self._spot_dependency_changed(previous_input, basics, daily_cycles)
+        if not deps_changed:
+            spot_c = previous_input.get("spot_charge_avg")
+            spot_d = previous_input.get("spot_discharge_avg")
+        else:
+            spot_c, spot_d = self._spot.compute(
+                basics.province, basics.node_name, cap, pwr, daily_cycles)
         result.api_input["spot_charge_avg"] = spot_c
         result.api_input["spot_discharge_avg"] = spot_d
 
@@ -99,7 +125,61 @@ class ParamAssembler:
         # 地区成本三项（充电成本/放电返还/损耗）由模型『地区』sheet 按省算出，
         # 经 API_OUTPUT 读回展示，组装阶段不处理。
 
+        # ⑥ 受控覆盖（末尾统一应用，覆盖默认值/查表结果/收益结构计算值）。
+        # 依赖变化时，重新算出的值不应被面板提交的陈旧 override 覆盖回去：
+        # - 现货依赖（节点/容量/功率/日循环）变化 → 忽略陈旧现货 override，用新查表值；
+        # - 容量/功率变化 → 两档收益（中长期/调频/干预，按 t=容量/功率插值）已用新值重算，
+        #   忽略陈旧的两档收益 override，避免旧数值把新算出的结果覆盖回去。
+        ignore_keys = set()
+        if deps_changed:
+            ignore_keys |= {"spot_charge_avg", "spot_discharge_avg"}
+        if self._capacity_power_changed(previous_input, basics):
+            ignore_keys |= {
+                "mid_long_energy_revenue_first_year_tax",
+                "frequency_first_year_revenue",
+                "intervention_first_year_revenue",
+            }
+        self._apply_overrides(result, overrides, ignore_keys)
+
         return result
+
+    def _capacity_power_changed(self, previous_input: Optional[dict], basics: ProjectBasics) -> bool:
+        """容量/功率相对上一版本是否变化（两档收益按 t=容量/功率插值，随之重算）。
+
+        无上一版本基线（首次测算）视为必然变化，理由同 `_spot_dependency_changed`。
+        """
+        if previous_input is None:
+            return True
+        return (
+            previous_input.get("capacity_mwh") != basics.capacity_mwh
+            or previous_input.get("power_mw") != basics.power_mw
+        )
+
+    def _spot_dependency_changed(
+        self, previous_input: Optional[dict], basics: ProjectBasics, daily_cycles: float,
+    ) -> bool:
+        """现货电价依赖【节点/容量/功率/日均充放电次数】相对上一版本是否发生变化。
+
+        无上一版本基线（首次测算）视为必然变化。
+        """
+        if previous_input is None:
+            return True
+        return (
+            previous_input.get("node_name") != basics.node_name
+            or previous_input.get("capacity_mwh") != basics.capacity_mwh
+            or previous_input.get("power_mw") != basics.power_mw
+            or previous_input.get("daily_cycles") != daily_cycles
+        )
+
+    def _apply_overrides(self, result: AssembledParams, overrides: dict, ignore_keys: set) -> None:
+        """受控覆盖：仅接受 g=1 + writable + direction=input 的白名单参数；null/未知键忽略。"""
+        if not overrides:
+            return
+        writable_g1 = {s.id for s in self._dict.writable_inputs() if s.g == 1}
+        for pid, value in overrides.items():
+            if pid in ignore_keys or pid not in writable_g1 or value is None:
+                continue
+            result.api_input[pid] = value
 
     def _assemble_revenue_structure(
         self, result: AssembledParams, profile: ProvinceRevenueProfile, cap: float, pwr: float

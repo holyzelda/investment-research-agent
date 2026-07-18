@@ -101,7 +101,7 @@ def _process_identifier(ex, ir, repo, identifier, start, end, table, scope_id, m
             else repo.fetch_daily_prices(identifier, start, end)
         )
     except Exception as exc:  # noqa: BLE001
-        log(f"  跳过 {identifier}: {type(exc).__name__}: {str(exc)[:60]}")
+        log(f"  跳过 {identifier}: {type(exc).__name__}: {str(exc)[:200]}")
         return 0
 
     todo = {day: prices for day, prices in daily.items() if day not in done}

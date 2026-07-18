@@ -40,7 +40,7 @@ migrations/                         # Alembic（异步）
 tests/                              # unit / integration / e2e（端点测试用 ASGITransport）
 ```
 
-架构路径由 `tests/unit/test_architecture_layout.py` 守护；调整目录或模块名时同步更新该测试、本文档和根目录 `AGENTS.md`。
+架构路径由 `tests/unit/test_architecture_layout.py` 守护；调整目录或模块名时同步更新该测试、本文档和根目录 `CLAUDE.md`。
 
 ## 命令
 

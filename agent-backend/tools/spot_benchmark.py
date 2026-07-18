@@ -21,13 +21,13 @@ from app.modules.calculation.domain.spot_pricing import k_from_inputs
 
 def main() -> None:
     # ================= 参数配置区 =================
-    province = "蒙西"
-    node = "祥泰站"  # 节点，给 "" 或 "-" 表示无节点（查省级预计算表）
-    capacity = "2000"  # 容量 (MWh)
-    power = "500"  # 功率 (MW)
-    cycles = "2"  # 循环次数
-    start_s = "2026-01-01"  # 起始日 (YYYY-MM-DD)
-    end_s = "2026-06-30"  # 结束日 (YYYY-MM-DD)
+    province = "山西"
+    node = "芮城站"  # 节点，给 "" 或 "-" 表示无节点（查省级预计算表）
+    capacity = "400"  # 容量 (MWh)
+    power = "200"  # 功率 (MW)
+    cycles = "1"  # 循环次数
+    start_s = "2025-01-01"  # 起始日 (YYYY-MM-DD)
+    end_s = "2026-01-01"  # 结束日 (YYYY-MM-DD)
     # ==============================================
     capacity, power, cycles = Decimal(capacity), Decimal(power), Decimal(cycles)
     start = datetime.strptime(start_s, "%Y-%m-%d").date()

@@ -9,7 +9,7 @@ from app.modules.calculation.domain.result import CalculationResult
 
 def to_report_payload(r: CalculationResult) -> dict:
     b, f, adv = r.basic_info, r.financial, r.advanced
-    d, li = adv.donut, adv.lines
+    d, coverage = adv.donut, adv.debt_service_coverage
     return {
         "version": r.version,
         "requestId": r.request_id,
@@ -40,11 +40,8 @@ def to_report_payload(r: CalculationResult) -> dict:
                 "interventionRevenue": d.intervention_revenue,
                 "subsidyRevenue": d.subsidy_revenue,
             },
-            "lines": {
-                "mainBusinessCost": li.main_business_cost,
-                "currentPrincipalInterest": li.current_principal_interest,
-                "capitalNetCashflow": li.capital_net_cashflow,
-                "totalInvestNetCashflowAfterTax": li.total_invest_net_cashflow_after_tax,
+            "debtServiceCoverage": {
+                "cashflowRatio": coverage.cashflow_ratio,
             },
         },
     }

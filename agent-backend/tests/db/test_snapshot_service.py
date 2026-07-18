@@ -92,4 +92,6 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
         }
         donut = p["advanced"]["donut"]
         assert donut["totalRevenue"] == SAMPLE_API_OUTPUT["first_year_total_revenue"]
-        assert len(p["advanced"]["lines"]["mainBusinessCost"]) == 15
+        assert p["advanced"]["debtServiceCoverage"]["cashflowRatio"] == SAMPLE_API_OUTPUT[
+            "cashflow_debt_service_coverage_ratio"
+        ]

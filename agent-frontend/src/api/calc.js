@@ -36,6 +36,22 @@ export function getConversation(conversationId) {
   })
 }
 
+export function getParamDict(province) {
+  return request({
+    url: '/ir/calc/param-dict',
+    method: 'get',
+    params: province ? { province } : undefined,
+  })
+}
+
+export function getStations(province) {
+  return request({
+    url: '/ir/calc/stations',
+    method: 'get',
+    params: { province },
+  })
+}
+
 export function deleteConversation(conversationId) {
   return request({
     url: `/ir/conversations/${conversationId}`,

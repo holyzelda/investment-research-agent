@@ -15,6 +15,7 @@ from app.main import app
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationTaskORM,
     ConversationORM,
+    InputSnapshotORM,
     MessageSnapshotORM,
     ReportSnapshotORM,
 )
@@ -147,6 +148,7 @@ async def history_context():
             ReportSnapshotORM(task_id=v2.id, payload={"marker": "v2"}),
             ReportSnapshotORM(task_id=foreign_task.id, payload={"marker": "foreign"}),
             ReportSnapshotORM(task_id=deleted_task.id, payload={"marker": "deleted"}),
+            InputSnapshotORM(task_id=v2.id, payload={"apiInput": {"spot_charge_avg": 0.22}}),
         ])
         await session.commit()
 
@@ -220,11 +222,13 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
     ]
     assert [version["version"] for version in data["versions"]] == ["V1", "V2"]
     assert data["versions"][0]["result"] is None
+    assert data["versions"][0]["input"] is None
     assert data["versions"][1] == {
         "taskId": ids["v2"],
         "version": "V2",
         "status": "completed",
         "result": {"marker": "v2"},
+        "input": {"spot_charge_avg": 0.22},
     }
     assert "reports" not in data
 

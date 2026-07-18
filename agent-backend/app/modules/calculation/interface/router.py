@@ -6,7 +6,7 @@
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from app.modules.calculation.application.conversation_history_service import (
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
-from app.modules.calculation.infrastructure.persistence.orm import ReportSnapshotORM
+from app.modules.calculation.infrastructure.persistence.orm import ReportSnapshotORM, SpotStationORM
 from app.modules.calculation.interface.serializers import serialize_result
 from app.modules.platform_access.interface.deps import get_current_user
 from app.modules.platform_access.domain.models import CurrentUser
@@ -54,10 +54,27 @@ async def get_param_dict(
     return ok(data)
 
 
+@router.get("/stations")
+async def list_stations(
+    province: str = Query(..., min_length=1, description="项目省份，精确匹配 ir_spot_station.province"),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """按项目省份返回可选节点，供参数调整面板下拉选择。
+
+    当前不做省份别名/区域映射；数据表的 province 值与项目省份精确匹配时才返回。
+    """
+    rows = (await session.execute(
+        select(SpotStationORM.station_name)
+        .where(SpotStationORM.province == province)
+        .order_by(SpotStationORM.station_name.asc())
+    )).scalars().all()
+    return ok({"items": rows})
+
+
 class AssembleReq(BaseModel):
     province: str
-    capacity_mwh: float
-    power_mw: float
+    capacity_mwh: float = Field(gt=0)
+    power_mw: float = Field(gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
 
@@ -95,11 +112,12 @@ async def run_calculation(req: AssembleReq):
 
 class TaskCreateReq(BaseModel):
     province: str
-    capacity_mwh: float
-    power_mw: float
+    capacity_mwh: float = Field(gt=0)
+    power_mw: float = Field(gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
     conversation_id: Optional[int] = None  # 空=新会话(V1)；给定=同会话追加(版本递增)
+    param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
 
 
 @router.post("/tasks")
@@ -119,6 +137,7 @@ async def create_task(
             node_name=req.node_name, voltage_kv=req.voltage_kv,
         ),
         conversation_id=req.conversation_id,
+        param_overrides=req.param_overrides,
     )
     return ok(out)
 

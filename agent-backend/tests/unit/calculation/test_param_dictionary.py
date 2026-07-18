@@ -9,7 +9,7 @@ def _dict():
 
 def test_dictionary_loads():
     d = _dict()
-    assert len(d) == 51  # 5对话+9默认+2现货+9开关+5明细+2中长期均价+3地区+16输出
+    assert len(d) == 49  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+13输出
 
 def test_f_column_only_controls_display_not_write():
     """表2开关 F=0，但仍应写入 API_INPUT（F 列只管展示）。"""
@@ -46,6 +46,7 @@ def test_defaults_present():
     assert defaults["epc_unit_price"] == 0.75
     assert defaults["operation_years"] == 15
     assert defaults["loan_rate"] == 0.04
+    assert defaults["loan_years"] == 10
 
 def test_corrected_cells():
     """位置订正核对。"""
@@ -55,6 +56,17 @@ def test_corrected_cells():
     assert d.get("switch_spot").model_cell == "输入1-基础参数!D37"
     assert d.get("first_year_energy_revenue").model_cell == "营业收入、税金及附加!C6"
 
+
+def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
+    d = _dict()
+    assert d.get("maint_cost").max == 0.01
+    assert d.get("opex_cost").max == 0.01
+    loan_years = d.get("loan_years")
+    assert loan_years.api_cell == "API_INPUT!B34"
+    assert loan_years.default == 10
+    assert loan_years.min == 1 and loan_years.max == 20 and loan_years.step == 1
+
+
 def test_outputs_count():
     d = _dict()
-    assert len(d.outputs()) == 19  # 16 财务/收入/序列 + 3 地区成本(充电成本/放电返还/损耗)
+    assert len(d.outputs()) == 16  # 13 财务/收入/偿债倍数 + 3 地区成本(充电成本/放电返还/损耗)

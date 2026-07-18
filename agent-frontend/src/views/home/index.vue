@@ -62,7 +62,19 @@
               <span :class="{ 'ir-msg__pending': m.text === '测算中…' }">{{ m.text }}</span>
             </div>
             <div v-else-if="m.kind === 'result'" class="ir-msg__result">
-              <ResultCard :result="m.result" :version="m.version" />
+              <!-- 调整参数并重新测算仅在最新版本卡片开放：
+                   现货依赖比较/受控覆盖以“会话最新已完成版本”为基线，
+                   在旧版本卡片上操作会与其自身展示值不一致，因此不提供入口 -->
+              <ResultCard
+                :result="m.result"
+                :version="m.version"
+                :seed-input="m.input || {}"
+                :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
+                :switches="calc.switches"
+                :station-options="calc.stationOptions"
+                :responding="calc.responding"
+                @recalculate="calc.recalculate($event)"
+              />
             </div>
             <img
               v-if="m.role === 'user'"

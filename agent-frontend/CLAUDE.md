@@ -1,5 +1,7 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 本文件为 Claude Code（claude.ai/code）在本仓库中工作时提供指导。
 
 ## 项目概述
@@ -60,8 +62,15 @@ pnpm test:watch            # vitest watch 模式
 ### 视图结构
 - `layout/index.vue` + `layout/components/AppSidebar.vue`：整体外壳 —— 侧边栏（新建会话、4 个导航项中有 3 个是 `disabled` 的占位项，对应后续 PRD 中的三大模块：全国指数地图/联络线地图/政策与市场）、带删除确认的历史会话列表、顶栏（品牌 + 当前用户）。
 - `views/home/index.vue`：唯一的实际页面。同一模板下有两种状态：无会话时的居中"欢迎态"布局（光球图形、引导文案、输入框、示例提示胶囊）；有会话时的对话态布局（可滚动消息流 + 右侧 300px 版本记录栏）。点击版本记录栏中的某一项会把对应结果卡片滚动进视口并切换高亮样式 —— 不会重新拉取数据或重排消息。
-- `views/home/components/ResultCard.vue`：把测算结果组织为文档中约定的三个部分：`①基本信息`（`BasicInfoBlock`）、`②财务指标`（`FinancialBlock`，固定 5 项 KPI）、`③进阶图形结果`（`RevenueDonut` + `CashflowLines`）。全局各处的"生成报告"按钮都是有意的占位（`ElMessage.info('报告功能将在后续开放')`）——在没有对应后端契约前不要接线；同理"调整参数并重新测算"按钮处于 `disabled` 状态，等待"Batch 5"。
+- `views/home/components/ResultCard.vue`：把测算结果组织为文档中约定的三个部分：`①基本信息`（`BasicInfoBlock`）、`②财务指标`（`FinancialBlock`，固定 5 项 KPI）、`③进阶图形结果`（`RevenueDonut` + `DebtServiceCoverage`）。最新版本的结果卡还承载参数重新测算：`ParamAdjustPanel` 维护基础参数临时值，`AdvancedParamDialog` 暂存高级参数草稿；点击基础面板的“重新测算”时合并提交，弹窗自身不创建测算任务。高级参数是否可编辑必须由后端字典的 `control`、`g` 与冻结入参决定，不在前端写入经营年限、换电成本或中长期电价的业务判断。全局各处的“生成报告”按钮仍是有意的占位（`ElMessage.info('报告功能将在后续开放')`），在没有后端契约前不要接线。
+- `views/home/components/DebtServiceCoverage.vue`：偿债倍数折线图，数据契约 `advanced.debtServiceCoverage.cashflowRatio`（`Array<number|null>`，`null` 为断点，取自飞书 `画图数据` 区）。Y 轴不是线性轴，而是把真实倍数映射到“显示坐标”的分段轴（`0–1` 每格 0.5、`>1` 每格 0.2，视觉等高），轴标签与 tooltip 通过反映射函数还原真实值——改这个图前先读组件内 `toDisplayValue`/`toRatioValue`。警戒线固定在真实值 `1.0`（显示坐标 `2`）；蓝色安全余量通过一条静默辅助 `line` series（clamp 到警戒线、`areaStyle.origin` 锚定）实现，只在真实值高于 1.0 时出现在“警戒线到折线之间”，不是整块背景矩形。
 - `views/home/composables/useEcharts.js`：共享的图表生命周期封装（挂载时 `init`，任意响应式依赖变化时通过 `watch(optionFactory, ..., {deep: true})` 触发 `setOption(..., true)`，监听 resize，卸载时 dispose）。图表组件传入的是一个返回 option 的工厂函数，而非静态 option。`xcChartColors()`/`xcVar()` 会从当前计算出的 CSS 自定义属性（`--xc-chart-1..8` 等）实时读取分类色/语义色，使图表跟随主题变化而非写死十六进制颜色。
+
+### 参数调整契约
+- 后端参数字典是参数调整 UI 的唯一元数据来源；前端通过 `paramDict` 的 `zone`、`control`、`step`、`min`、`max`、`g` 以及冻结 `seedInput` 决定展示、精度、范围和可编辑性。
+- `ParamAdjustPanel.vue` 仅保留项目、金融和常规收益边界字段；高级字段由 `AdvancedParamDialog.vue` 按金融/收益/成本区展示。高级参数先保存到当前 `ResultCard` 的草稿，再由基础面板的“重新测算”合并为一次 `calc.recalculate()` 请求。
+- `src/utils/paramAdjust.js` 负责分区、覆盖值组装、动态范围和按 `step` 的精度处理；数值显示仍统一使用 `src/utils/formatNumber.js`，不要在组件中直接 `toFixed`。
+- 项目信息卡的只读/可编辑展示遵循同一左侧强调标记样式；可编辑容量/功率须保留参数字典的单位，且以轻量数字编辑形式展示。
 
 ### 设计体系（玄策/XC）
 `src/design-system/tokens.css` 是**移植而非自有**的文件（从同系列的 `etrader-agent-nx` 项目移植过来，以与平台整体视觉保持一致）——具体已移植/待补充内容见 `src/design-system/README.md`（`element-plus-overrides.scss`、`design-system.md`、`CHARTS.md` 会在"按需"时再引入）。约定：

@@ -14,7 +14,7 @@ from app.modules.calculation.domain.result import (
     AdvancedResult,
     BasicInfo,
     CalculationResult,
-    CashflowLines,
+    DebtServiceCoverage,
     FinancialMetrics,
     RevenueDonut,
 )
@@ -25,9 +25,20 @@ def _f(out: dict, key: str) -> Optional[float]:
     return None if v is None else float(v)
 
 
-def _seq(out: dict, key: str) -> list:
-    v = out.get(key)
-    return list(v) if isinstance(v, (list, tuple)) else []
+def _ratio_sequence(out: dict, key: str) -> list[float | None]:
+    raw = out.get(key)
+    if not isinstance(raw, (list, tuple)):
+        return []
+
+    values: list[float | None] = [
+        None if value is None or value == "" or value == "#DIV/0!" else float(value)
+        for value in raw
+    ]
+    last_value_index = next(
+        (index for index in range(len(values) - 1, -1, -1) if values[index] is not None),
+        None,
+    )
+    return [] if last_value_index is None else values[:last_value_index + 1]
 
 
 def map_output_to_result(
@@ -65,17 +76,17 @@ def map_output_to_result(
         intervention_revenue=_f(api_output, "first_year_intervention_revenue"),
         subsidy_revenue=_f(api_output, "first_year_subsidy_revenue"),
     )
-    lines = CashflowLines(
-        main_business_cost=_seq(api_output, "main_business_cost"),
-        current_principal_interest=_seq(api_output, "current_principal_interest"),
-        capital_net_cashflow=_seq(api_output, "capital_net_cashflow"),
-        total_invest_net_cashflow_after_tax=_seq(api_output, "total_invest_net_cashflow_after_tax"),
+    debt_service_coverage = DebtServiceCoverage(
+        cashflow_ratio=_ratio_sequence(api_output, "cashflow_debt_service_coverage_ratio"),
     )
 
     return CalculationResult(
         basic_info=basic,
         financial=financial,
-        advanced=AdvancedResult(donut=donut, lines=lines),
+        advanced=AdvancedResult(
+            donut=donut,
+            debt_service_coverage=debt_service_coverage,
+        ),
         version=version,
         request_id=request_id,
         warnings=list(assembled.warnings),

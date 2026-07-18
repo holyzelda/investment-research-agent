@@ -10,6 +10,7 @@ from app.core.exceptions import NotFoundException
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationTaskORM,
     ConversationORM,
+    InputSnapshotORM,
     MessageSnapshotORM,
     ReportSnapshotORM,
 )
@@ -85,6 +86,14 @@ class ConversationHistoryService:
                 )
             )).scalars().all()
         } if tasks else {}
+        input_by_task = {
+            snap.task_id: snap.payload.get("apiInput")
+            for snap in (await session.execute(
+                select(InputSnapshotORM).where(
+                    InputSnapshotORM.task_id.in_([task.id for task in tasks])
+                )
+            )).scalars().all()
+        } if tasks else {}
         return {
             "conversationId": conversation.id,
             "title": conversation.title,
@@ -102,6 +111,7 @@ class ConversationHistoryService:
                     "version": task.version,
                     "status": task.status,
                     "result": report_by_task.get(task.id),
+                    "input": input_by_task.get(task.id),
                 }
                 for task in tasks
             ],

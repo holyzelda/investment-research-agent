@@ -43,7 +43,7 @@ feishu:
   base_url: https://open.feishu.cn      # 仅到 host；代码请求路径已含 /open-apis 前缀，勿在此重复加
   app_id: "example-value-0062"                  # 测试环境自建应用 App ID（cli_xxx）
   app_secret: "example-value-0049"              # 测试环境自建应用 App Secret
-  template_token: "exampleToken000000000000050"          # 模板电子表格 token（被复制的源）
+  template_token: "exampleToken000000000000047"          # 模板电子表格 token（被复制的源）
   target_folder_token: "exampleToken000000000000051"     # 副本目标文件夹 token
   meta_status_cell: "API_META!B1"
   meta_request_id_cell: "API_META!B2"
@@ -64,6 +64,8 @@ spot_price:
   province_market: "省内市场"
   node_dsn: "mysql+pymysql://example_user:example_password@database.example.invalid:3306/dlsc_mengxi"
   node_table: "real_time_spot_price"
+#  node_dsn: "mysql+pymysql://example_user:example_password@database.example.invalid:3306/ir_agent"
+#  node_table: "ir_spot_price"
   node_price_type: 1
   min_action_minutes: 30
   switch_gap_minutes: 15

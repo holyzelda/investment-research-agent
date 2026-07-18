@@ -1,0 +1,174 @@
+import { describe, expect, it } from 'vitest'
+import { mount } from '@vue/test-utils'
+import ParamAdjustPanel from '@/views/home/components/ParamAdjustPanel.vue'
+
+const PARAM_DICT = [
+  { id: 'province', cn: '所在省份', zone: 'project_definition', control: 'fixed', default: null },
+  { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
+  { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
+  { id: 'power_mw', cn: '储能装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
+  { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, unit: '元/Wh' },
+  { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
+  { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
+  { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
+]
+
+const SEED = {
+  province: '甘肃', node_name: '祥泰站', capacity_mwh: 800, power_mw: 200,
+  epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
+}
+
+describe('ParamAdjustPanel', () => {
+  it('default collapsed; expanding renders zones', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(true)
+    expect(wrapper.text()).toContain('项目信息')
+    expect(wrapper.text()).toContain('金融边界')
+    expect(wrapper.text()).toContain('收益边界')
+  })
+
+  it('V1（首次测算）锁定省份/节点/容量/功率为只读', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V1' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const roTexts = wrapper.findAll('.ir-adjust__ro').map((n) => n.text())
+    expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true)
+    expect(wrapper.find('.ir-adjust__select').exists()).toBe(false) // 无 stations 数据时节点卡片隐藏
+    expect(roTexts.some((t) => t.includes('800'))).toBe(true)
+    expect(roTexts.some((t) => t.includes('200'))).toBe(true)
+  })
+
+  it('V2（二次及以后）节点/容量/功率解锁为可编辑控件，省份仍只读', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const roTexts = wrapper.findAll('.ir-adjust__ro').map((n) => n.text())
+    expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true) // 省份始终只读
+    expect(wrapper.find('.ir-adjust__select').exists()).toBe(false) // 无 stations 数据时节点卡片隐藏
+    expect(wrapper.findAll('.ir-adjust__number').length).toBeGreaterThan(0) // 容量/功率变为可编辑
+  })
+
+  it('高级参数字段（如换电成本）不在内联调整面板重复展示', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).not.toContain('换电成本')
+  })
+
+  it('已从产品需求中移除的 operation_years 即便仍在字典里返回，也不会渲染在任何分区', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: [...PARAM_DICT, { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'fixed', default: 15, unit: '年' }],
+        switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).not.toContain('项目运营期')
+  })
+
+  it('现货基准缺失时显示"数据待完善"且不渲染滑块', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT, switches: { switch_spot: 1 },
+        seedInput: { ...SEED, spot_charge_avg: null }, version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).toContain('数据待完善')
+  })
+
+  it('switch_spot=0 时不展示现货参数', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 0 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).not.toContain('现货充电均价')
+  })
+
+  it('省份的无单位占位符不渲染在值后方', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const province = wrapper.findAll('.ir-adjust__field')
+      .find((field) => field.text().includes('所在省份'))
+    expect(province?.text()).toContain('甘肃')
+    expect(province?.text()).not.toContain('甘肃 —')
+  })
+
+  it('滑动条卡片不展示默认值，只在有偏移时展示偏移量', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).not.toContain('默认')
+  })
+
+  it('主重新测算将已暂存的高级参数覆盖与普通参数覆盖合并提交', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
+        advancedOverrides: { maint_cost: 0.006, strategy_achievement_rate: 0.85 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')[0][0].overrides).toMatchObject({
+      epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
+      maint_cost: 0.006, strategy_achievement_rate: 0.85,
+    })
+  })
+
+  it('renders 高级参数 beside the primary recalculation action and emits open-advanced', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    const footer = wrapper.find('.ir-adjust__footer')
+    expect(footer.find('.ir-adjust__advanced').exists()).toBe(true)
+    await footer.find('.ir-adjust__advanced').trigger('click')
+    expect(wrapper.emitted('open-advanced')).toHaveLength(1)
+  })
+
+  it('提交时携带面板当前完整值作为 overrides 与基础字段', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    const emitted = wrapper.emitted('recalculate')
+    expect(emitted).toHaveLength(1)
+    expect(emitted[0][0]).toEqual({
+      overrides: { epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61 },
+      basics: { node_name: '祥泰站', capacity_mwh: 800, power_mw: 200 },
+    })
+  })
+
+  it('测算中禁用展开与提交按钮', () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: {}, seedInput: SEED, version: 'V2', responding: true },
+    })
+    expect(wrapper.find('.ir-adjust__toggle').attributes('disabled')).toBeDefined()
+  })
+})

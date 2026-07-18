@@ -20,7 +20,9 @@ async def test_run_produces_three_modules():
     assert r.financial.project_irr == SAMPLE_API_OUTPUT["project_irr"]
     assert r.financial.capital_irr == SAMPLE_API_OUTPUT["capital_irr"]
     assert r.advanced.donut.total_revenue == SAMPLE_API_OUTPUT["first_year_total_revenue"]
-    assert len(r.advanced.lines.main_business_cost) == 15
+    assert r.advanced.debt_service_coverage.cashflow_ratio == SAMPLE_API_OUTPUT[
+        "cashflow_debt_service_coverage_ratio"
+    ]
 
 
 @pytest.mark.asyncio

@@ -260,3 +260,40 @@ class TestParamOverrides:
         )
         assert r.api_input["lease_unit_price"] == 33.0
 
+    def test_capacity_change_recomputes_two_tier_revenue_ignoring_stale_override(self):
+        """容量变化 → 两档收益（中长期/调频/干预）按新 t 重算；面板提交的陈旧值必须被忽略。
+
+        宁夏 800/200（t=4）中长期算出 960.0（既有集成测试锁定的数值）；容量改为 400（t=2）
+        后应按新 t 重算为不同数值，即便本次仍提交了旧的 960.0 作为 override。
+        """
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "province": "宁夏", "node_name": None, "capacity_mwh": 800, "power_mw": 200,
+            "daily_cycles": 1, "spot_charge_avg": 0.2, "spot_discharge_avg": 0.6,
+            "mid_long_energy_revenue_first_year_tax": 960.0,
+        }
+        r = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=400, power_mw=200),
+            overrides={"mid_long_energy_revenue_first_year_tax": 960.0},  # 面板陈旧值
+            previous_input=previous,
+        )
+        # t=800/200=4 时基准为 960.0；t=400/200=2 时应为按两档下限插值的另一数值，不等于 960.0
+        assert r.api_input["mid_long_energy_revenue_first_year_tax"] != 960.0
+
+    def test_capacity_unchanged_honors_two_tier_revenue_override(self):
+        """容量/功率均未变化时，两档收益的手工 override 应正常生效（不被忽略）。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "province": "宁夏", "node_name": None, "capacity_mwh": 800, "power_mw": 200,
+            "daily_cycles": 1, "spot_charge_avg": 0.2, "spot_discharge_avg": 0.6,
+            "mid_long_energy_revenue_first_year_tax": 960.0,
+        }
+        r = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=800, power_mw=200),
+            overrides={"mid_long_energy_revenue_first_year_tax": 1200.0},
+            previous_input=previous,
+        )
+        assert r.api_input["mid_long_energy_revenue_first_year_tax"] == 1200.0
+

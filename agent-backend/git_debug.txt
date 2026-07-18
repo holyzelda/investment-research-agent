@@ -1,0 +1,3 @@
+fatal: write failure on 'stdout': Bad file descriptor
+===diff===
+fatal: write failure on 'stdout': Bad file descriptor

@@ -19,7 +19,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
 from app.modules.calculation.application.output_mapper import map_output_to_result
 from app.modules.calculation.application.param_assembler import ParamAssembler
@@ -31,6 +31,7 @@ from app.modules.calculation.domain.ports import FeishuGateway
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationTaskORM,
     ConversationORM,
+    InputSnapshotORM,
 )
 
 
@@ -94,12 +95,14 @@ class CalculationTaskService:
         username: str,
         basics: ProjectBasics,
         conversation_id: Optional[int] = None,
+        param_overrides: Optional[dict] = None,
     ) -> dict:
-        conversation_id, version = await self._resolve_version(
+        conversation_id, version, previous_input = await self._resolve_version(
             session, conversation_id, user_id, username, basics
         )
 
-        assembled = self._assembler.assemble(basics)
+        assembled = self._assembler.assemble(
+            basics, overrides=param_overrides, previous_input=previous_input)
         request_id = uuid.uuid4().hex
         param_hash = _param_hash(assembled.api_input)
         copy_name = build_copy_name(basics)  # 城市-节点-功率/容量-时间，副本创建时定格
@@ -159,17 +162,18 @@ class CalculationTaskService:
             "taskId": task_id,
             "version": version,
             "status": "completed",
+            "input": assembled.api_input,  # 本次冻结入参，供前端调整面板下次重算时做种子基线
         }
 
     async def _resolve_version(
         self, session, conversation_id, user_id, username, basics
-    ) -> tuple[int, str]:
+    ) -> tuple[int, str, Optional[dict]]:
         if conversation_id is None:
             conversation_id = await self._snapshot.create_conversation(
                 session, user_id=user_id, username=username,
                 title=f"{basics.province} 储能测算",
             )
-            return conversation_id, "V1"
+            return conversation_id, "V1", None
         conversation = (await session.execute(
             select(ConversationORM).where(
                 ConversationORM.id == conversation_id,
@@ -179,8 +183,34 @@ class CalculationTaskService:
         )).scalar_one_or_none()
         if conversation is None:
             raise NotFoundException("会话不存在")
+
+        previous_input = await self._latest_completed_input(session, conversation_id)
+        if previous_input is not None and previous_input.get("province") != basics.province:
+            # 省份在会话内永久锁定（PRD 2026-07-15 确认）：修改省份必须新建会话重新提问
+            raise ValidationException("省份在当前会话中不可修改，请新建会话后重新测算")
+
         n = await session.scalar(
             select(func.count()).select_from(CalculationTaskORM)
             .where(CalculationTaskORM.conversation_id == conversation_id)
         )
-        return conversation_id, f"V{(n or 0) + 1}"
+        return conversation_id, f"V{(n or 0) + 1}", previous_input
+
+    async def _latest_completed_input(self, session, conversation_id: int) -> Optional[dict]:
+        """最近一次成功版本冻结的 api_input（现货依赖比较 + 省份锁定校验的基线）。"""
+        latest_task = (await session.execute(
+            select(CalculationTaskORM)
+            .where(
+                CalculationTaskORM.conversation_id == conversation_id,
+                CalculationTaskORM.status == "completed",
+            )
+            .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        if latest_task is None:
+            return None
+        snapshot = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id == latest_task.id)
+        )).scalar_one_or_none()
+        if snapshot is None:
+            return None
+        return snapshot.payload.get("apiInput")

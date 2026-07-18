@@ -14,7 +14,7 @@ vi.mock('@/views/home/composables/useEcharts', () => ({
 }))
 
 import RevenueDonut from '@/views/home/components/RevenueDonut.vue'
-import CashflowLines from '@/views/home/components/CashflowLines.vue'
+import DebtServiceCoverage from '@/views/home/components/DebtServiceCoverage.vue'
 
 const years = Array.from({ length: 15 }, (_, i) => i + 1)
 
@@ -24,7 +24,7 @@ describe('result chart series contract', () => {
     colors.mockClear()
   })
 
-  it('builds all six revenue categories including zero values', () => {
+  it('excludes zero/absent revenue categories from both the ring and the legend', () => {
     mount(RevenueDonut, {
       props: { donut: {
         totalRevenue: 100, energyRevenue: 40, capacityRevenue: 30,
@@ -33,8 +33,9 @@ describe('result chart series contract', () => {
     })
     const option = captured.factories[0]()
 
+    // 调频市场收益为 0，在环形图上是 0 度扇区（视觉上不存在），图例也不应保留该条目
     expect(option.series[0].data.map((item) => item.name)).toEqual([
-      '电能量', '容量市场', '调频市场', '租赁市场', '干预补偿', '补贴',
+      '电能量', '容量市场', '租赁市场', '干预补偿', '补贴',
     ])
     expect(option.tooltip.formatter({ name: '电能量', value: 12.345, percent: 33.333 })).toBe(
       '电能量: 12.35 万元 (33.33%)',
@@ -42,21 +43,67 @@ describe('result chart series contract', () => {
     expect(option.color).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6'])
   })
 
-  it('builds four 15-year cashflow series', () => {
-    mount(CashflowLines, { props: { lines: {
-      mainBusinessCost: years,
-      currentPrincipalInterest: years,
-      capitalNetCashflow: years,
-      totalInvestNetCashflowAfterTax: years,
-    } } })
+  it('builds a debt-service-coverage line with a threshold and a middle break', () => {
+    mount(DebtServiceCoverage, {
+      props: {
+        coverage: { cashflowRatio: [1.12, 0, null, 1.36] },
+      },
+    })
     const option = captured.factories[0]()
 
-    expect(option.series.map((item) => item.name)).toEqual([
-      '主营业务成本', '当期还本付息', '资本金净现金流', '全投资净现金流',
-    ])
-    expect(option.series.every((item) => item.data.length === 15)).toBe(true)
-    expect(option.xAxis.data).toHaveLength(15)
-    expect(option.yAxis.axisLabel.formatter(12.345)).toBe('12.35')
-    expect(option.yAxis.axisLabel.formatter(12)).toBe('12')
+    expect(option.series).toHaveLength(2)
+    expect(option.xAxis.boundaryGap).toBe(false)
+    expect(option.series[1]).toMatchObject({
+      type: 'line',
+      data: [2.6, 2, null, 3.8],
+      showSymbol: false,
+      lineStyle: { opacity: 0 },
+      areaStyle: { origin: 2 },
+      tooltip: { show: false },
+      silent: true,
+    })
+    expect(option.series[0].data).toEqual([2.6, 0, null, 3.8])
+    expect(option.yAxis.interval).toBe(1)
+    expect(option.yAxis.axisLabel.formatter(0)).toBe('0.0')
+    expect(option.yAxis.axisLabel.formatter(1)).toBe('0.5')
+    expect(option.yAxis.axisLabel.formatter(2)).toBe('1.0')
+    expect(option.yAxis.axisLabel.formatter(3)).toBe('1.2')
+    expect(option.yAxis.axisLabel.formatter(4)).toBe('1.4')
+    expect(option.series[0].markLine.data).toEqual([{ yAxis: 2 }])
+    expect(option.series[0].markArea).toMatchObject({
+      data: [[{ yAxis: 0 }, { yAxis: 2 }]],
+    })
+    expect(option.tooltip.formatter([{ axisValue: '第1年', dataIndex: 0 }])).toContain('1.12 倍')
+    expect(option.series[0]).toMatchObject({
+      name: '偿债倍数',
+      type: 'line',
+      showSymbol: true,
+      symbol: 'circle',
+      symbolSize: 8,
+      connectNulls: false,
+      lineStyle: { width: 2 },
+      color: '#888',
+      itemStyle: { color: '#888', borderWidth: 2 },
+    })
+    expect(option.series[0].markLine).toMatchObject({
+      symbol: 'none',
+      lineStyle: { type: 'dashed', width: 1.5 },
+      label: { show: true, formatter: '警戒线 1.0', position: 'insideEndTop' },
+      data: [{ yAxis: 2 }],
+    })
+    expect(option.series[0].areaStyle).toBeUndefined()
+    expect(option.tooltip.axisPointer).toEqual({ type: 'cross' })
+    expect(option.tooltip.formatter([{ axisValue: '第2年', dataIndex: 1 }])).toContain('第2年')
+    expect(option.tooltip.formatter([{ axisValue: '第2年', dataIndex: 1 }])).toContain('0 倍')
+    expect(option.xAxis.data).toEqual(['第1年', '第2年', '第3年', '第4年'])
+    expect(option.yAxis.name).toBe('偿债倍数')
+  })
+
+  it('does not create a business series for an empty coverage sequence', () => {
+    mount(DebtServiceCoverage, { props: { coverage: { cashflowRatio: [] } } })
+    const option = captured.factories[0]()
+
+    expect(option.series).toEqual([])
+    expect(option.xAxis.data).toEqual([])
   })
 })

@@ -8,10 +8,10 @@ JSON 列用 SQLAlchemy 通用 `JSON` 类型：MySQL 落 JSON 列、sqlite 落 TE
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Optional
 
-from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import JSON, BigInteger, Date, DateTime, ForeignKey, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.base import Base
@@ -104,6 +104,16 @@ class FeishuIoSnapshotORM(_PkTimestamp, Base):
     api_input: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     api_output: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     api_meta: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class SpotStationORM(Base):
+    """节点站点维表：预计算任务维护，调整面板按省份读取为节点下拉选项。"""
+
+    __tablename__ = "ir_spot_station"
+
+    province: Mapped[str] = mapped_column(String(64), primary_key=True)
+    station_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    last_seen: Mapped[date] = mapped_column(Date, nullable=False)
 
 
 class ReportSnapshotORM(_PkTimestamp, Base):

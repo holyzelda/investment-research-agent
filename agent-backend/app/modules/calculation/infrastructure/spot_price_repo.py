@@ -103,7 +103,7 @@ class NodeSpotRepository:
         sql = text(
             f"SELECT `date`, {cols} FROM {self._table} "
             "WHERE price_type=:pt AND station_name=:station "
-            "ORDER BY `date`, node_name"
+            "ORDER BY `date`, station_name"
         )
         rows = 0
         daily: dict = {}
