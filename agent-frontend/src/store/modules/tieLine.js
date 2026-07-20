@@ -9,6 +9,12 @@ export function parseLengthKm(lengthText) {
   return Number.isFinite(value) ? value : null
 }
 
+export function normalizeCapacityMw(value) {
+  if (value === '' || value === null || value === undefined) return null
+  const number = Number(value)
+  return Number.isSafeInteger(number) && number >= 0 ? number : null
+}
+
 // 联络线地图状态：线路列表、静态统计、起终点区域筛选与选中详情。
 // 首版只做地图展示，不含任何功率时序（底表无时序字段）。
 export const useTieLineStore = defineStore('tieLine', {
@@ -18,6 +24,8 @@ export const useTieLineStore = defineStore('tieLine', {
     filters: { voltageOptions: [], regionOptions: [] },
     activeStartRegion: '',
     activeEndRegion: '',
+    activeMinCapacityMw: null,
+    activeMaxCapacityMw: null,
     selectedId: null,
     detail: null,
     loading: false,
@@ -29,6 +37,11 @@ export const useTieLineStore = defineStore('tieLine', {
       return state.lines.filter((line) => {
         if (state.activeStartRegion && line.startRegion !== state.activeStartRegion) return false
         if (state.activeEndRegion && line.endRegion !== state.activeEndRegion) return false
+        if (state.activeMinCapacityMw !== null || state.activeMaxCapacityMw !== null) {
+          if (!Number.isSafeInteger(line.ratedCapacityMw) || line.ratedCapacityMw < 0) return false
+          if (state.activeMinCapacityMw !== null && line.ratedCapacityMw < state.activeMinCapacityMw) return false
+          if (state.activeMaxCapacityMw !== null && line.ratedCapacityMw > state.activeMaxCapacityMw) return false
+        }
         return true
       })
     },
@@ -83,6 +96,33 @@ export const useTieLineStore = defineStore('tieLine', {
     setEndRegion(value) {
       this.activeEndRegion = value || ''
       this._dropSelectionIfHidden()
+    },
+    setCapacityRange(minValue, maxValue) {
+      let min = normalizeCapacityMw(minValue)
+      let max = normalizeCapacityMw(maxValue)
+      if (min !== null && max !== null && min > max) [min, max] = [max, min]
+      this.activeMinCapacityMw = min
+      this.activeMaxCapacityMw = max
+      this._dropSelectionIfHidden()
+    },
+    setMinCapacityMw(value) {
+      this.setCapacityRange(value, this.activeMaxCapacityMw)
+    },
+    setMaxCapacityMw(value) {
+      this.setCapacityRange(this.activeMinCapacityMw, value)
+    },
+    swapRegions() {
+      ;[this.activeStartRegion, this.activeEndRegion] = [
+        this.activeEndRegion,
+        this.activeStartRegion,
+      ]
+      this._dropSelectionIfHidden()
+    },
+    resetFilters() {
+      this.activeStartRegion = ''
+      this.activeEndRegion = ''
+      this.activeMinCapacityMw = null
+      this.activeMaxCapacityMw = null
     },
     clearSelection() {
       this.selectedId = null

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useTieLineStore, parseLengthKm } from '@/store/modules/tieLine'
+import { useTieLineStore, normalizeCapacityMw, parseLengthKm } from '@/store/modules/tieLine'
 
 const lines = [
   { id: 1, startRegion: '西北', endRegion: '华南' },
@@ -44,6 +44,68 @@ describe('联络线地图区域筛选', () => {
     store.setEndRegion('华南')
 
     expect(visibleIds(store)).toEqual([1])
+  })
+
+  it('按额定容量闭区间筛选，并排除空容量线路', () => {
+    const store = useTieLineStore()
+    store.lines = [
+      { id: 1, startRegion: '西北', endRegion: '华南', ratedCapacityMw: 1000 },
+      { id: 2, startRegion: '西北', endRegion: '华东', ratedCapacityMw: 4000 },
+      { id: 3, startRegion: '华北', endRegion: '华南', ratedCapacityMw: 8000 },
+      { id: 4, startRegion: '西北', endRegion: '华南', ratedCapacityMw: null },
+    ]
+
+    expect(visibleIds(store)).toEqual([1, 2, 3, 4])
+    store.setCapacityRange(4000, 8000)
+    expect(visibleIds(store)).toEqual([2, 3])
+    store.setStartRegion('西北')
+    expect(visibleIds(store)).toEqual([2])
+  })
+
+  it('规范化容量输入、自动交换倒置范围并在筛选时清除隐藏选择', () => {
+    expect(normalizeCapacityMw(0)).toBe(0)
+    expect(normalizeCapacityMw(-1)).toBeNull()
+    expect(normalizeCapacityMw(1.5)).toBeNull()
+    expect(normalizeCapacityMw('文本')).toBeNull()
+
+    const store = useTieLineStore()
+    store.lines = [
+      { id: 1, startRegion: '西北', endRegion: '华南', ratedCapacityMw: 1000 },
+      { id: 2, startRegion: '西北', endRegion: '华南', ratedCapacityMw: 8000 },
+    ]
+    store.selectedId = 1
+    store.detail = { id: 1 }
+
+    store.setCapacityRange(8000, 1000)
+    expect(store.activeMinCapacityMw).toBe(1000)
+    expect(store.activeMaxCapacityMw).toBe(8000)
+    expect(store.selectedId).toBe(1)
+
+    store.setMinCapacityMw(4000)
+    expect(store.selectedId).toBeNull()
+    expect(store.detail).toBeNull()
+  })
+
+  it('原子交换区域并重置筛选而保留当前详情', () => {
+    const store = useTieLineStore()
+    store.activeStartRegion = '西北'
+    store.activeEndRegion = ''
+    store.activeMinCapacityMw = 1000
+    store.activeMaxCapacityMw = 8000
+    store.selectedId = 1
+    store.detail = { id: 1 }
+
+    store.swapRegions()
+    expect(store.activeStartRegion).toBe('')
+    expect(store.activeEndRegion).toBe('西北')
+
+    store.resetFilters()
+    expect(store.activeStartRegion).toBe('')
+    expect(store.activeEndRegion).toBe('')
+    expect(store.activeMinCapacityMw).toBeNull()
+    expect(store.activeMaxCapacityMw).toBeNull()
+    expect(store.selectedId).toBe(1)
+    expect(store.detail).toEqual({ id: 1 })
   })
 
   it('按当前可见范围推荐长度最长的线路', () => {

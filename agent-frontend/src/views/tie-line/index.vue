@@ -11,9 +11,15 @@
     <TieLineFilterBar
       :start-region="store.activeStartRegion"
       :end-region="store.activeEndRegion"
+      :min-capacity-mw="store.activeMinCapacityMw"
+      :max-capacity-mw="store.activeMaxCapacityMw"
       :region-options="store.filters.regionOptions"
       @update:start-region="store.setStartRegion"
       @update:end-region="store.setEndRegion"
+      @update:min-capacity-mw="store.setMinCapacityMw"
+      @update:max-capacity-mw="store.setMaxCapacityMw"
+      @swap-regions="store.swapRegions"
+      @reset-filters="store.resetFilters"
     />
 
     <div class="tie-line-page__body">
