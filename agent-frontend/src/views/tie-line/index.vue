@@ -27,12 +27,12 @@
           :voltage-options="store.filters.voltageOptions"
           @select="store.selectLine"
         />
-        <div class="tie-line-page__map-note">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
       </div>
       <TieLineDetailPanel
         class="tie-line-page__detail"
         :line="store.detail"
         :recommended-line="store.recommendedLine"
+        :no-visible-lines="hasNoVisibleLines"
         :accent-token="detailAccentToken"
       />
     </div>
@@ -49,6 +49,10 @@ import TieLineFilterBar from './components/TieLineFilterBar.vue'
 import TieLineDetailPanel from './components/TieLineDetailPanel.vue'
 
 const store = useTieLineStore()
+
+const hasNoVisibleLines = computed(() =>
+  !store.loading && !store.error && store.lines.length > 0 && store.visibleLines.length === 0,
+)
 
 const detailAccentToken = computed(() => {
   const { tokenByText } = buildVoltagePresentation(store.filters.voltageOptions)
@@ -101,19 +105,6 @@ onMounted(() => {
   background: var(--xc-map-ocean);
   border-radius: var(--xc-radius-md, 10px);
   overflow: hidden;
-}
-.tie-line-page__map-note {
-  position: absolute;
-  left: 16px;
-  bottom: 16px;
-  max-width: 260px;
-  padding: 6px 10px;
-  border: 1px solid var(--xc-map-legend-border);
-  border-radius: var(--xc-radius-sm, 8px);
-  background: var(--xc-map-legend-bg);
-  color: var(--xc-text-mute);
-  font-size: var(--xc-fs-3xs, 10px);
-  line-height: var(--xc-lh-snug, 1.3);
 }
 .tie-line-page__detail {
   flex: 0 0 300px;

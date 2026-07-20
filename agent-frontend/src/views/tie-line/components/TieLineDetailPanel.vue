@@ -27,7 +27,9 @@
       </section>
     </template>
 
-    <div v-else class="tl-detail__placeholder">点击地图上的联络线查看线路详情</div>
+    <div v-else class="tl-detail__placeholder">
+      {{ noVisibleLines ? '当前筛选条件下暂无线路' : '点击地图上的联络线查看线路详情' }}
+    </div>
   </aside>
 </template>
 
@@ -37,6 +39,7 @@ import { computed } from 'vue'
 const props = defineProps({
   line: { type: Object, default: null },
   recommendedLine: { type: Object, default: null },
+  noVisibleLines: { type: Boolean, default: false },
   accentToken: { type: String, default: '--xc-map-voltage-unknown' },
 })
 

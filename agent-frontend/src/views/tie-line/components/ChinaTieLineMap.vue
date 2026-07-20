@@ -1,23 +1,46 @@
 <template>
-  <div ref="el" class="china-tie-line-map"></div>
+  <div ref="mapRoot" class="china-tie-line-map">
+    <div ref="el" class="china-tie-line-map__canvas"></div>
+    <MapToolbar
+      class="china-tie-line-map__tools"
+      :is-fullscreen="isFullscreen"
+      :is-list-open="isListOpen"
+      @zoom-in="zoomIn"
+      @zoom-out="zoomOut"
+      @reset="resetView"
+      @toggle-fullscreen="toggleFullscreen"
+      @toggle-list="toggleList"
+    />
+    <TieLineListPanel
+      class="china-tie-line-map__list"
+      :open="isListOpen"
+      :lines="lines"
+      :selected-id="selectedId"
+      :voltage-options="voltageOptions"
+      @select="emit('select', $event)"
+      @close="closeList"
+    />
+    <div class="china-tie-line-map__note">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
+  </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as echarts from 'echarts'
 import chinaGeo from '@/assets/geo/china.json'
 import majorRivers from '@/assets/geo/china-major-rivers.json'
 import { xcVar } from '@/views/home/composables/useEcharts'
 import { buildVoltagePresentation } from '../voltagePresentation'
-import { buildTieLineMapOption } from './tieLineMapOption'
+import MapToolbar from './MapToolbar.vue'
+import TieLineListPanel from './TieLineListPanel.vue'
+import {
+  TIE_LINE_DEFAULT_ZOOM,
+  TIE_LINE_ZOOM_LIMIT,
+  buildTieLineMapOption,
+} from './tieLineMapOption'
 
-// 中国省界底图 + 跨省联络线（lines 系列按起讫经纬度直接绘制，不依赖省名匹配）。
-// 点击选中线路的事件需求使通用 useEcharts 封装不够用，故本组件自管理 ECharts 生命周期，
-// 坐标固定按资料中的起点→终点排列；动态箭头仅提示该静态起讫方向，不代表实时潮流或功率方向。
-//
-// 颜色一律经 xcVar 读取 --xc-* token 的运行时计算值（ECharts canvas 不解析 CSS 变量，
-// 必须传具体色值），不写任何硬编码 hex/rgb 兜底。
-
+// 中国省界底图 + 跨省联络线。透明命中层承接线路 click、pointer 与 tooltip；
+// 视觉线和选中覆盖层均为静默图层，动态箭头仅提示静态起讫方向。
 const props = defineProps({
   lines: { type: Array, default: () => [] },
   selectedId: { type: [Number, String], default: null },
@@ -32,12 +55,14 @@ const voltageColors = computed(() => {
   )
 })
 
+const mapRoot = ref(null)
 const el = ref(null)
+const isListOpen = ref(false)
+const isFullscreen = ref(false)
 let chart = null
 let resizeObserver = null
-
-// registerMap 是进程内全局副作用，注册一次即可
 let mapRegistered = false
+
 function ensureMap() {
   if (!mapRegistered) {
     echarts.registerMap('china', chinaGeo)
@@ -67,7 +92,6 @@ function buildOption() {
   })
 }
 
-// 透明命中层承接线路 click、pointer 与 tooltip；视觉线和选中覆盖层均为静默图层。
 function onChartClick(p) {
   if (
     p.seriesType === 'lines' &&
@@ -81,6 +105,45 @@ function onChartClick(p) {
 function resize() {
   chart && chart.resize()
 }
+function setZoom(factor) {
+  if (!chart) return
+  const current = Number(chart.getOption().geo?.[0]?.zoom) || TIE_LINE_DEFAULT_ZOOM
+  const zoom = Math.min(TIE_LINE_ZOOM_LIMIT.max, Math.max(TIE_LINE_ZOOM_LIMIT.min, current * factor))
+  chart.setOption({ geo: { zoom } })
+}
+function zoomIn() {
+  setZoom(1.25)
+}
+function zoomOut() {
+  setZoom(0.8)
+}
+function resetView() {
+  if (!chart) return
+  chart.setOption(buildOption(), true)
+}
+function focusListToggle() {
+  nextTick(() => mapRoot.value?.querySelector('[data-action="list"]')?.focus())
+}
+function closeList() {
+  isListOpen.value = false
+  focusListToggle()
+}
+function toggleList() {
+  isListOpen.value = !isListOpen.value
+  if (!isListOpen.value) focusListToggle()
+}
+async function toggleFullscreen() {
+  try {
+    if (document.fullscreenElement === mapRoot.value) await document.exitFullscreen()
+    else await mapRoot.value?.requestFullscreen?.()
+  } catch (e) {
+    // 浏览器权限或运行环境不支持全屏时维持实际状态，不伪造按钮状态。
+  }
+}
+function onFullscreenChange() {
+  isFullscreen.value = document.fullscreenElement === mapRoot.value
+  nextTick(resize)
+}
 
 onMounted(() => {
   ensureMap()
@@ -91,10 +154,12 @@ onMounted(() => {
     resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(el.value)
   }
+  document.addEventListener('fullscreenchange', onFullscreenChange)
   window.addEventListener('resize', resize)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
+  document.removeEventListener('fullscreenchange', onFullscreenChange)
   if (resizeObserver) {
     resizeObserver.disconnect()
     resizeObserver = null
@@ -121,9 +186,10 @@ watch(
 </script>
 
 <style scoped>
-.china-tie-line-map {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-}
+.china-tie-line-map { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--xc-map-ocean); }
+.china-tie-line-map:fullscreen { width: 100%; height: 100%; background: var(--xc-map-ocean); }
+.china-tie-line-map__canvas { width: 100%; height: 100%; min-height: 0; }
+.china-tie-line-map__tools { position: absolute; top: 16px; right: 16px; z-index: 4; }
+.china-tie-line-map__list { position: absolute; top: 58px; right: 16px; z-index: 3; }
+.china-tie-line-map__note { position: absolute; left: 16px; bottom: 16px; z-index: 2; max-width: 260px; padding: 6px 10px; border: 1px solid var(--xc-map-legend-border); border-radius: var(--xc-radius-sm, 8px); background: var(--xc-map-legend-bg); color: var(--xc-text-mute); font-size: var(--xc-fs-3xs, 10px); line-height: var(--xc-lh-snug, 1.3); }
 </style>

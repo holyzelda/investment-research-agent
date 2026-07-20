@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { buildTieLineMapOption } from '@/views/tie-line/components/tieLineMapOption'
+import {
+  TIE_LINE_DEFAULT_ZOOM,
+  TIE_LINE_ZOOM_LIMIT,
+  buildTieLineMapOption,
+} from '@/views/tie-line/components/tieLineMapOption'
 
 const theme = {
   tooltipBackground: 'tooltip-bg',
@@ -62,6 +66,13 @@ function hitSeries(chartOption) {
 }
 
 describe('联络线地图 option', () => {
+  it('使用共享的全国视图缩放常量', () => {
+    const chartOption = option()
+
+    expect(chartOption.geo.zoom).toBe(TIE_LINE_DEFAULT_ZOOM)
+    expect(chartOption.geo.scaleLimit).toEqual(TIE_LINE_ZOOM_LIMIT)
+  })
+
   it('保持视觉线宽，同时以透明命中层扩大点击热区并承接悬停', () => {
     const chartOption = option()
     const visual = visualSeries(chartOption).find((series) => series.effect.color === 'runtime-800')

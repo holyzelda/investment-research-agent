@@ -57,6 +57,13 @@ describe('联络线详情面板', () => {
     expect(wrapper.text()).toContain('点击地图上的联络线查看线路详情')
   })
 
+  it('当前筛选条件没有线路时展示筛选空态', () => {
+    const wrapper = mount(TieLineDetailPanel, { props: { noVisibleLines: true } })
+
+    expect(wrapper.text()).toContain('当前筛选条件下暂无线路')
+    expect(wrapper.text()).not.toContain('点击地图上的联络线查看线路详情')
+  })
+
   it('已选线路优先于默认最长线路', () => {
     const wrapper = mount(TieLineDetailPanel, { props: { line, recommendedLine: { ...line, id: 2, name: '乙丙线' } } })
 
