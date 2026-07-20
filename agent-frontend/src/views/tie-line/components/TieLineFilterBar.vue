@@ -23,17 +23,6 @@
         <option v-for="r in regionOptions" :key="r" :value="r">{{ r }}</option>
       </select>
     </label>
-
-    <!-- 时间范围切换：依赖功率时序数据，首版禁用占位 -->
-    <div class="tl-filter__ranges" aria-hidden="true">
-      <span
-        v-for="r in rangePlaceholder"
-        :key="r"
-        class="tl-filter__range is-disabled"
-        :class="{ 'is-active': r === '30日' }"
-        title="功率时序数据接入后可用"
-      >{{ r }}</span>
-    </div>
   </div>
 </template>
 
@@ -44,9 +33,6 @@ defineProps({
   regionOptions: { type: Array, default: () => [] },
 })
 defineEmits(['update:start-region', 'update:end-region'])
-
-// 时间范围仅占位（灰显不可点），对齐原型但当前无时序数据源
-const rangePlaceholder = ['昨日', '7日', '30日', '90日', '自定义']
 </script>
 
 <style scoped>
@@ -76,24 +62,5 @@ const rangePlaceholder = ['昨日', '7日', '30日', '90日', '自定义']
 }
 .tl-filter__select:focus-visible {
   border-color: var(--xc-accent-blue);
-}
-.tl-filter__ranges {
-  display: inline-flex;
-  gap: 4px;
-  margin-left: auto;
-}
-.tl-filter__range {
-  font-size: var(--xc-fs-2xs, 12px);
-  padding: 3px 10px;
-  border-radius: var(--xc-radius-sm, 6px);
-  color: var(--xc-text-mute);
-}
-.tl-filter__range.is-disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
-.tl-filter__range.is-active {
-  background: var(--xc-surface-2);
-  color: var(--xc-text-soft);
 }
 </style>

@@ -97,6 +97,18 @@ describe('联络线地图 option', () => {
     expect(chartOption.tooltip.formatter({ seriesType: 'lines', data: riverSeries.data[0] })).toBe('')
   })
 
+  it('默认显示南海诸岛并继承地图主题样式', () => {
+    const chartOption = option()
+
+    expect(chartOption.geo.itemStyle).toMatchObject({
+      areaColor: 'land',
+      borderColor: 'boundary',
+      borderWidth: 0.6,
+    })
+    expect(chartOption.geo.emphasis.itemStyle).toEqual({ areaColor: 'land-hover' })
+    expect(chartOption.geo.regions?.find((region) => region.name === '南海诸岛')).toBeUndefined()
+  })
+
   it('保留选中高亮、非选中弱化和端点去重', () => {
     const chartOption = option(1)
     const selected = lineSeries(chartOption).find((item) => item.effect.color === 'runtime-800').data[0]

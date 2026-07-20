@@ -145,9 +145,6 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
         color: theme.mapLabel,
         fontSize: 10,
       },
-      regions: [
-        { name: '南海诸岛', itemStyle: { areaColor: 'transparent', borderColor: 'transparent' } },
-      ],
     },
     series: [
       ...(riverSeries ? [riverSeries] : []),
