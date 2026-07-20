@@ -62,18 +62,18 @@ function onSend() {
   min-height: 112px;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  border-radius: 24px;
-  background: var(--xc-surface-frosted);
-  padding: 18px 20px 14px;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-xl);
+  background: var(--xc-surface-raised);
+  padding: var(--xc-space-5) var(--xc-space-6) var(--xc-space-4);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--xc-shadow-raised);
   transition: border-color var(--xc-dur-base), box-shadow var(--xc-dur-base);
 }
 .ir-composer__frame:focus-within {
-  border-color: rgba(255, 255, 255, 0.28);
-  box-shadow: 0 4px 34px rgba(0, 0, 0, 0.32);
+  border-color: var(--xc-border-accent);
+  box-shadow: var(--xc-shadow-raised), var(--xc-glow-blue);
 }
 .ir-composer__input {
   flex: 0 0 auto;

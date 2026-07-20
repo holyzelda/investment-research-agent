@@ -1,5 +1,5 @@
 <template>
-  <div class="ir-chart">
+  <div class="ir-chart ir-chart--report">
     <div class="ir-chart__head">
       <span class="ir-chart__title">首年收入结构</span>
       <span class="ir-chart__total xc-num">首年总收入 {{ formatNumber(donut.totalRevenue) }} 万元</span>
@@ -64,11 +64,12 @@ const { el } = useEcharts(buildOption)
 </script>
 
 <style scoped>
-.ir-chart {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--xc-radius-md);
-  background: rgba(255, 255, 255, 0.04);
-  padding: var(--xc-space-5);
+.ir-chart--report {
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-lg);
+  background: var(--xc-surface-control);
+  box-shadow: var(--xc-shadow-sm);
+  padding: var(--xc-space-7);
 }
 .ir-chart__head {
   display: flex;

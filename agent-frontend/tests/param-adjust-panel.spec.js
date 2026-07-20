@@ -31,6 +31,8 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.text()).toContain('项目信息')
     expect(wrapper.text()).toContain('金融边界')
     expect(wrapper.text()).toContain('收益边界')
+    expect(wrapper.findAll('.ir-adjust__zone-card').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.ir-adjust__info-card').length).toBeGreaterThan(0)
   })
 
   it('V1（首次测算）锁定省份/节点/容量/功率为只读', async () => {

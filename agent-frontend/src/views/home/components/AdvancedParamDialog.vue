@@ -10,7 +10,7 @@
       </header>
 
       <div class="ir-advanced__body">
-        <section v-for="section in sections" :key="section.title" class="ir-advanced__section">
+        <section v-for="section in sections" :key="section.title" class="ir-advanced__section ir-advanced__section-card">
           <h4>{{ section.title }}</h4>
           <div class="ir-advanced__fields" :class="`ir-advanced__fields--${section.key}`">
             <div
@@ -162,14 +162,15 @@ function save() {
 
 <style scoped>
 .ir-advanced__mask { position:fixed; inset:0; z-index:var(--xc-z-modal); display:grid; place-items:center; padding:var(--xc-space-6); background:rgba(0,0,0,.58); backdrop-filter:blur(8px); }
-.ir-advanced { width:min(680px,100%); max-height:min(760px,calc(100vh - 48px)); display:flex; flex-direction:column; overflow:hidden; border:1px solid rgba(255,255,255,.14); border-radius:var(--xc-radius-lg); background:var(--xc-surface-base); box-shadow:var(--xc-shadow-xl); }
+.ir-advanced { width:min(680px,100%); max-height:min(760px,calc(100vh - 48px)); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--xc-border-card); border-radius:var(--xc-radius-xl); background:var(--xc-surface-raised); box-shadow:var(--xc-shadow-raised); }
 .ir-advanced__head { display:flex; justify-content:space-between; gap:var(--xc-space-5); padding:var(--xc-space-6); border-bottom:1px solid var(--xc-border-soft); }
 .ir-advanced__head h3 { margin:0; color:var(--xc-text-strong); font-size:var(--xc-fs-lg); font-weight:var(--xc-fw-semi); }
 .ir-advanced__head p { margin:var(--xc-space-2) 0 0; color:var(--xc-text-mute); font-size:var(--xc-fs-xs); }
 .ir-advanced__close { width:28px; height:28px; border:0; border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-mute); font-size:22px; line-height:1; cursor:pointer; }
 .ir-advanced__close:hover { background:var(--xc-surface-2); color:var(--xc-text-strong); }
-.ir-advanced__body { overflow-y:auto; padding:var(--xc-space-6); }
-.ir-advanced__section + .ir-advanced__section { margin-top:var(--xc-space-7); }
+.ir-advanced__body { overflow-y:auto; display:grid; gap:var(--xc-space-5); padding:var(--xc-space-6); }
+.ir-advanced__section + .ir-advanced__section { margin-top:0; }
+.ir-advanced__section-card { padding:var(--xc-space-5); border:1px solid var(--xc-border-card); border-radius:var(--xc-radius-md); background:var(--xc-surface-card); }
 .ir-advanced__section h4 { display:flex; align-items:center; gap:var(--xc-space-2); margin:0 0 var(--xc-space-4); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); }
 .ir-advanced__section h4::before { content:''; width:4px; height:14px; border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); }
 .ir-advanced__fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--xc-space-6) var(--xc-space-5); }

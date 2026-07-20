@@ -153,12 +153,12 @@ function handleClick() {
   flex-direction: column;
   gap: var(--xc-space-3);
   padding: var(--xc-space-5) var(--xc-space-4);
-  background: var(--xc-surface-glass);
-  border: 1px solid var(--xc-border-soft);
+  background: var(--xc-surface-raised);
+  border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-xl);
   backdrop-filter: blur(var(--xc-blur-lg));
   -webkit-backdrop-filter: blur(var(--xc-blur-lg));
-  box-shadow: var(--xc-shadow-lg);
+  box-shadow: var(--xc-shadow-raised);
   overflow: hidden;
   transition: width var(--xc-dur-base) var(--xc-ease-out),
               height var(--xc-dur-base) var(--xc-ease-out),
@@ -189,7 +189,7 @@ function handleClick() {
   padding: var(--xc-space-5) var(--xc-space-4);
   border-radius: var(--xc-radius-xl);
   cursor: default;
-  background: rgba(28, 28, 28, 0.95);
+  background: var(--xc-surface-raised);
   box-shadow: var(--xc-shadow-xl);
   z-index: var(--xc-z-overlay);
 }

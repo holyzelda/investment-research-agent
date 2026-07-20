@@ -21,6 +21,7 @@ describe('AdvancedParamDialog', () => {
     const sections = wrapper.findAll('.ir-advanced__section')
 
     expect(sections.map((section) => section.find('h4').text())).toEqual(['金融边界', '收益边界', '成本边界'])
+    expect(sections.every((section) => section.classes().includes('ir-advanced__section-card'))).toBe(true)
     expect(sections.map((section) => section.findAll('.ir-advanced__field').map((field) => field.text()))).toEqual([
       [expect.stringContaining('项目运营期')],
       [expect.stringContaining('中长期充电均价'), expect.stringContaining('中长期放电均价'), expect.stringContaining('现货策略达成率'), expect.stringContaining('容量市场达成率')],

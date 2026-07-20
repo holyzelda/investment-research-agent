@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import router from '@/router'
 import request from '@/utils/request'
+
+const projectRoot = resolve(import.meta.dirname, '..')
 
 // Batch 0.1 启动自检：无登录页、默认落地对话首页、请求实例就绪
 describe('frontend scaffold (platform access, no login)', () => {
@@ -21,5 +25,23 @@ describe('frontend scaffold (platform access, no login)', () => {
     expect(paths.some((p) => /login|register|captcha/i.test(p))).toBe(false)
     const names = router.getRoutes().map((r) => String(r.name || ''))
     expect(names.some((n) => /login|auth/i.test(n))).toBe(false)
+  })
+
+  it('defines the XC workspace elevation and responsive-content tokens', () => {
+    const css = readFileSync(resolve(projectRoot, 'src/design-system/tokens.css'), 'utf8')
+
+    for (const token of [
+      '--xc-surface-workspace',
+      '--xc-surface-raised',
+      '--xc-surface-card',
+      '--xc-surface-control',
+      '--xc-border-card',
+      '--xc-shadow-raised',
+      '--xc-grad-atmosphere',
+      '--xc-content-max',
+      '--xc-content-fluid',
+    ]) {
+      expect(css).toContain(token)
+    }
   })
 })

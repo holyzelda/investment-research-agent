@@ -99,6 +99,14 @@ describe('result chart series contract', () => {
     expect(option.yAxis.name).toBe('偿债倍数')
   })
 
+  it('renders both analysis charts as elevated report cards', () => {
+    const donut = mount(RevenueDonut, { props: { donut: { totalRevenue: 100 } } })
+    const coverage = mount(DebtServiceCoverage, { props: { coverage: { cashflowRatio: [1, 1.2] } } })
+
+    expect(donut.find('.ir-chart--report').exists()).toBe(true)
+    expect(coverage.find('.ir-chart--report').exists()).toBe(true)
+  })
+
   it('does not create a business series for an empty coverage sequence', () => {
     mount(DebtServiceCoverage, { props: { coverage: { cashflowRatio: [] } } })
     const option = captured.factories[0]()

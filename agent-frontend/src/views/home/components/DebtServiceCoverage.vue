@@ -1,5 +1,5 @@
 <template>
-  <div class="ir-chart">
+  <div class="ir-chart ir-chart--report">
     <div class="ir-chart__head">
       <span class="ir-chart__title">偿债覆盖倍数</span>
     </div>
@@ -131,12 +131,13 @@ const { el } = useEcharts(buildOption)
 </script>
 
 <style scoped>
-.ir-chart {
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: var(--xc-radius-md);
-  background: rgba(255, 255, 255, 0.04);
-  padding: var(--xc-space-5);
-  margin-top: var(--xc-space-4);
+.ir-chart--report {
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-lg);
+  background: var(--xc-surface-control);
+  box-shadow: var(--xc-shadow-sm);
+  padding: var(--xc-space-7);
+  margin-top: var(--xc-space-5);
 }
 .ir-chart__head { margin-bottom: var(--xc-space-2); }
 .ir-chart__title { font-size: var(--xc-fs-sm); color: var(--xc-text-strong); }

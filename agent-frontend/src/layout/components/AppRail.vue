@@ -73,8 +73,8 @@ function onClick(it) {
   width: 46px;
   height: 46px;
   border-radius: 0 23px 23px 0;
-  background: rgba(88, 88, 88, 0.5);
-  backdrop-filter: blur(20px);
+  background: var(--xc-surface-raised);
+  border: 1px solid var(--xc-border-card);
   -webkit-backdrop-filter: blur(20px);
   display: grid;
   place-items: center;
@@ -86,7 +86,7 @@ function onClick(it) {
   flex-shrink: 0;
 }
 .ir-rail-btn:hover:not(.is-disabled) {
-  background: rgba(120, 120, 120, 0.6);
+  background: var(--xc-surface-control);
 }
 .ir-rail-btn:focus-visible {
   outline: 2px solid var(--xc-accent-blue);

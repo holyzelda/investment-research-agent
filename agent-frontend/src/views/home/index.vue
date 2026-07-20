@@ -113,7 +113,7 @@
             <span v-if="v.version === calc.latestVersion?.version" class="ir-ver__dot">● 最新</span>
           </div>
           <div class="ir-ver__metric xc-num">
-            资本金IRR {{ formatNumber(v.result?.financial?.capitalIrr) }}%
+            项目全投资IRR {{ formatNumber(v.result?.financial?.projectIrr) }}%
           </div>
           <button class="ir-ver__report" @click.stop="showReportPlaceholder">生成报告*</button>
         </li>
@@ -189,7 +189,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--xc-space-9);
+  padding: var(--xc-space-11) var(--xc-space-9);
 }
 .ir-welcome__inner {
   width: min(860px, 100%);
@@ -240,9 +240,9 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   gap: var(--xc-space-2);
   height: 32px;
   padding: 0 var(--xc-space-5);
-  border: 1px solid rgba(255, 255, 255, 0.16);
+  border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-full);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--xc-surface-card);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   color: var(--xc-text-soft);
@@ -260,14 +260,14 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   min-height: 0;
   overflow-y: auto;
   /* 左右留出足够空间容纳对话框外侧的头像，不被裁切 */
-  padding: var(--xc-space-8) 56px var(--xc-space-6);
+  padding: var(--xc-space-8) 72px var(--xc-space-7);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--xc-space-6);
 }
 /* 对话框本身的宽度 = 输入框宽度，头像绝对定位在框外，不占用/挤压对话框宽度 */
-.ir-msg { position: relative; display: flex; width: 100%; max-width: 900px; }
+.ir-msg { position: relative; display: flex; width: 100%; max-width: var(--xc-content-fluid); }
 .ir-msg--user { justify-content: flex-end; }
 .ir-msg--assistant { justify-content: flex-start; }
 .ir-msg__avatar {
@@ -288,7 +288,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   font-size: var(--xc-fs-md);
   line-height: var(--xc-lh-normal);
   color: var(--xc-text-default);
-  background: var(--xc-surface-2);
+  background: var(--xc-surface-control);
   word-break: break-word;
 }
 /* AI 消息：满宽、极淡底、无边框，头像在框外左侧（对齐 trader ai-bubble） */
@@ -299,7 +299,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   font-size: var(--xc-fs-md);
   line-height: var(--xc-lh-loose);
   color: var(--xc-text-default);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--xc-surface-card);
 }
 .ir-msg__pending { color: var(--xc-text-mute); }
 .ir-msg__result { width: 100%; }
@@ -310,7 +310,7 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
 /* 对话态底部输入框：居中收窄，与消息流同宽 */
 .ir-home__composer {
   width: 100%;
-  max-width: 940px; /* 900 内容 + 左右各 20px（ir-composer 自身 padding），与消息气泡（900px）实际视觉宽度对齐 */
+  max-width: var(--xc-content-fluid);
   margin: 0 auto;
 }
 
@@ -333,16 +333,16 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
 }
 .ir-ver { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--xc-space-3); }
 .ir-ver__item {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-md);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--xc-surface-card);
   padding: var(--xc-space-4);
   cursor: pointer;
   transition: border-color var(--xc-dur-fast), background var(--xc-dur-fast);
 }
 .ir-ver__item--selected {
   border-color: var(--xc-border-accent);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--xc-surface-control);
 }
 .ir-ver__row { display: flex; align-items: center; justify-content: space-between; }
 .ir-ver__tag {

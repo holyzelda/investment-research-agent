@@ -21,6 +21,13 @@
   --xc-surface-tinted:  rgba(221, 235, 255, 0.05);
   --xc-surface-overlay: rgba(0, 0, 0, 0.55);
 
+  /* ---------- 1.1 WORKSPACE ELEVATION (derived XC dark surfaces) ---------- */
+  --xc-surface-workspace: rgba(10, 12, 18, 0.96);
+  --xc-surface-raised:    rgba(44, 46, 55, 0.92);
+  --xc-surface-card:      rgba(255, 255, 255, 0.055);
+  --xc-surface-control:   rgba(255, 255, 255, 0.075);
+  --xc-border-card:       rgba(212, 217, 229, 0.16);
+
   /* ---------- 2. TEXT (on dark surface) ---------- */
   --xc-text-strong:  #ffffff;
   --xc-text-default: rgba(255, 255, 255, 0.86);
@@ -69,6 +76,8 @@
   --xc-grad-feature:  linear-gradient(135deg, var(--xc-brand-cyan-2) 0%, var(--xc-brand-violet) 100%);
   --xc-grad-logo:     linear-gradient(180deg, var(--xc-brand-cyan)   0%, var(--xc-brand-violet) 100%);
   --xc-grad-avatar:   linear-gradient(135deg, #c5cfde 0%, #6c7686 100%);
+  --xc-grad-atmosphere: radial-gradient(circle at 8% 90%, rgba(0, 240, 253, 0.075), transparent 32%),
+                        radial-gradient(circle at 92% 8%, rgba(110, 42, 255, 0.09), transparent 34%);
 
   /* ---------- 7. TYPOGRAPHY ---------- */
   --xc-font-zh:    "HarmonyOS Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
@@ -130,6 +139,8 @@
   --xc-shadow-md:    0 4px 20px rgba(0, 0, 0, 0.30);
   --xc-shadow-lg:    0 16px 64px rgba(0, 0, 0, 0.40);
   --xc-shadow-xl:    0 24px 80px rgba(0, 0, 0, 0.50);
+  --xc-shadow-raised: inset 0 1px 0 rgba(255, 255, 255, 0.045),
+                      0 18px 48px rgba(0, 0, 0, 0.34);
 
   --xc-glow-cyan:    0 0 24px rgba(0, 240, 253, 0.45);
   --xc-glow-violet:  0 0 24px rgba(110, 42, 255, 0.45);
@@ -188,6 +199,8 @@
   --xc-sidebar-w:   300px;
   --xc-gutter-x:    24px;
   --xc-gutter-y:    20px;
+  --xc-content-max: 1100px;
+  --xc-content-fluid: min(var(--xc-content-max), 88vw);
 
   /* Chart palette — categorical series on dark bg. Charts default to --xc-chart-1 then cycle. */
   --xc-chart-1: rgb(34, 177, 253);
@@ -211,6 +224,12 @@
   --xc-surface-frosted: rgba(0, 0, 0, 0.03);
   --xc-surface-tinted:  rgba(34, 177, 253, 0.06);
   --xc-surface-overlay: rgba(20, 20, 30, 0.45);
+  --xc-surface-workspace: rgba(232, 235, 240, 0.96);
+  --xc-surface-raised:    rgba(255, 255, 255, 0.94);
+  --xc-surface-card:      rgba(13, 18, 32, 0.025);
+  --xc-surface-control:   rgba(13, 18, 32, 0.045);
+  --xc-border-card:       rgba(13, 18, 32, 0.12);
+  --xc-grad-atmosphere:   transparent;
 
   --xc-text-strong:  #0d1220;
   --xc-text-default: rgba(13, 18, 32, 0.88);

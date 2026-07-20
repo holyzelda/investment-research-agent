@@ -61,7 +61,7 @@ const formatPriceUnit = (value) => (
 
 <style scoped>
 .ir-block {
-  padding: var(--xc-space-6);
+  padding: var(--xc-space-7);
 }
 .ir-block__title {
   display: flex;
@@ -80,10 +80,10 @@ const formatPriceUnit = (value) => (
 }
 /* 卡片化：与②财务指标/进阶图形卡片保持一致的玻璃卡片处理，而非裸文字排布 */
 .ir-basic-card {
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-md);
-  background: rgba(255, 255, 255, 0.04);
-  padding: var(--xc-space-5);
+  background: var(--xc-surface-control);
+  padding: var(--xc-space-6);
 }
 .ir-basic__row {
   display: grid;
@@ -95,7 +95,7 @@ const formatPriceUnit = (value) => (
 .ir-basic__row--3 { grid-template-columns: repeat(3, 1fr); }
 .ir-basic__divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--xc-border-soft);
   margin: var(--xc-space-4) 0;
 }
 .ir-basic__item {
@@ -111,5 +111,13 @@ const formatPriceUnit = (value) => (
 .ir-basic__v {
   font-size: var(--xc-fs-md);
   color: var(--xc-text-default);
+}
+@media (max-width: 760px) {
+  .ir-basic__row--4,
+  .ir-basic__row--3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 480px) {
+  .ir-basic__row--4,
+  .ir-basic__row--3 { grid-template-columns: 1fr; }
 }
 </style>

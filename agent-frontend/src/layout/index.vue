@@ -3,6 +3,7 @@
     <!-- 顶栏融入背景、贯穿整行宽度，与下方 rail/侧栏对齐（对齐 trader AppShell 结构） -->
     <header class="ir-layout__topbar">
       <div class="ir-brand">
+        <span class="ir-brand__mark" aria-hidden="true" />
         <span class="ir-brand__name">{{ title }}</span>
         <span class="ir-brand__sub">ZRA · 储能投资投研助手</span>
       </div>
@@ -83,25 +84,43 @@ onMounted(() => {
 
 <style scoped>
 .ir-layout {
+  position: relative;
+  isolation: isolate;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background: var(--xc-surface-base);
+  background: var(--xc-surface-workspace);
 }
-/* 顶栏融入背景，不再用横线分割 */
+.ir-layout::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--xc-grad-atmosphere);
+}
+/* 顶栏融入背景，保持低调的品牌分量 */
 .ir-layout__topbar {
-  height: 56px;
+  height: 64px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 0 var(--xc-gutter-x);
-  background: var(--xc-surface-base);
+  background: transparent;
 }
 .ir-brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: var(--xc-space-3);
+}
+.ir-brand__mark {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-grad-brand);
+  box-shadow: var(--xc-glow-blue);
 }
 .ir-brand__name {
   font-size: var(--xc-fs-h3);
@@ -116,6 +135,10 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: var(--xc-space-2);
+  padding: var(--xc-space-1) var(--xc-space-3) var(--xc-space-1) var(--xc-space-1);
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-full);
+  background: var(--xc-surface-card);
   color: var(--xc-text-soft);
   font-size: var(--xc-fs-sm);
 }
