@@ -1,19 +1,19 @@
 <template>
   <aside class="tl-detail">
-    <template v-if="line">
+    <template v-if="displayLine">
       <header class="tl-detail__head">
-        <h3 class="tl-detail__title" :style="{ color: `var(${accentToken})` }">{{ line.name }}</h3>
+        <h3 class="tl-detail__title" :style="{ color: `var(${accentToken})` }">{{ displayLine.name }}</h3>
         <span class="tl-detail__tag">跨省跨区</span>
       </header>
 
       <dl class="tl-detail__grid">
-        <div class="tl-detail__row"><dt>起点</dt><dd>{{ line.startPoint || '—' }}</dd></div>
-        <div class="tl-detail__row"><dt>终点</dt><dd>{{ line.endPoint || '—' }}</dd></div>
+        <div class="tl-detail__row"><dt>起点</dt><dd>{{ displayLine.startPoint || '—' }}</dd></div>
+        <div class="tl-detail__row"><dt>终点</dt><dd>{{ displayLine.endPoint || '—' }}</dd></div>
         <div class="tl-detail__row"><dt>起始区域</dt><dd>{{ regionText }}</dd></div>
-        <div class="tl-detail__row"><dt>长度</dt><dd>{{ line.lengthText || '—' }}</dd></div>
-        <div class="tl-detail__row"><dt>电压</dt><dd>{{ line.voltageText || '—' }}</dd></div>
+        <div class="tl-detail__row"><dt>长度</dt><dd>{{ displayLine.lengthText || '—' }}</dd></div>
+        <div class="tl-detail__row"><dt>电压</dt><dd>{{ displayLine.voltageText || '—' }}</dd></div>
         <div class="tl-detail__row"><dt>额定容量</dt><dd>{{ capText }}</dd></div>
-        <div class="tl-detail__row"><dt>投运年份</dt><dd>{{ line.operationYear || '—' }}</dd></div>
+        <div class="tl-detail__row"><dt>投运年份</dt><dd>{{ displayLine.operationYear || '—' }}</dd></div>
       </dl>
 
       <p v-if="noteText" class="tl-detail__note">{{ noteText }}</p>
@@ -36,15 +36,18 @@ import { computed } from 'vue'
 
 const props = defineProps({
   line: { type: Object, default: null },
+  recommendedLine: { type: Object, default: null },
   accentToken: { type: String, default: '--xc-map-voltage-unknown' },
 })
 
+const displayLine = computed(() => props.line || props.recommendedLine)
+
 const regionText = computed(() =>
-  props.line ? `${props.line.startRegion || '—'} → ${props.line.endRegion || '—'}` : '—',
+  displayLine.value ? `${displayLine.value.startRegion || '—'} → ${displayLine.value.endRegion || '—'}` : '—',
 )
 const capText = computed(() =>
-  props.line && props.line.ratedCapacityMw != null
-    ? `${Number(props.line.ratedCapacityMw).toLocaleString('zh-CN')} MW`
+  displayLine.value && displayLine.value.ratedCapacityMw != null
+    ? `${Number(displayLine.value.ratedCapacityMw).toLocaleString('zh-CN')} MW`
     : '—',
 )
 const noteText = computed(() => {

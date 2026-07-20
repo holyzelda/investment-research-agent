@@ -1,6 +1,14 @@
 import { defineStore } from 'pinia'
 import { getTieLines, getTieLineDetail } from '@/api/tieLine'
 
+export function parseLengthKm(lengthText) {
+  if (typeof lengthText !== 'string') return null
+  const match = lengthText.replace(/,/g, '').match(/(\d+(?:\.\d+)?)\s*km\b/i)
+  if (!match) return null
+  const value = Number(match[1])
+  return Number.isFinite(value) ? value : null
+}
+
 // 联络线地图状态：线路列表、静态统计、起终点区域筛选与选中详情。
 // 首版只做地图展示，不含任何功率时序（底表无时序字段）。
 export const useTieLineStore = defineStore('tieLine', {
@@ -26,6 +34,19 @@ export const useTieLineStore = defineStore('tieLine', {
     },
     selectedLine(state) {
       return state.lines.find((line) => line.id === state.selectedId) || null
+    },
+    // 当前地图可见范围内长度最长的线路；无法解析 km 的记录不参与推荐。
+    recommendedLine() {
+      return this.visibleLines.reduce((recommended, line) => {
+        const length = parseLengthKm(line.lengthText)
+        if (length === null) return recommended
+        if (!recommended) return { line, length }
+        if (length > recommended.length) return { line, length }
+        if (length === recommended.length && String(line.id).localeCompare(String(recommended.line.id), 'zh-CN', { numeric: true }) < 0) {
+          return { line, length }
+        }
+        return recommended
+      }, null)?.line || null
     },
   },
   actions: {

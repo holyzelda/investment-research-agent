@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useTieLineStore } from '@/store/modules/tieLine'
+import { useTieLineStore, parseLengthKm } from '@/store/modules/tieLine'
 
 const lines = [
   { id: 1, startRegion: '西北', endRegion: '华南' },
@@ -44,6 +44,36 @@ describe('联络线地图区域筛选', () => {
     store.setEndRegion('华南')
 
     expect(visibleIds(store)).toEqual([1])
+  })
+
+  it('按当前可见范围推荐长度最长的线路', () => {
+    const store = useTieLineStore()
+    store.lines = [
+      { id: 3, startRegion: '西北', endRegion: '华南', lengthText: '1,525.2 km' },
+      { id: 2, startRegion: '西北', endRegion: '华东', lengthText: '2383km' },
+      { id: 1, startRegion: '华北', endRegion: '华南', lengthText: '2383 km' },
+      { id: 4, startRegion: '西北', endRegion: '华南', lengthText: null },
+    ]
+
+    expect(store.recommendedLine.id).toBe(1)
+
+    store.setStartRegion('西北')
+    expect(store.recommendedLine.id).toBe(2)
+
+    store.setEndRegion('华南')
+    expect(store.recommendedLine.id).toBe(3)
+  })
+
+  it('跳过无法解析长度的线路，并在没有有效候选时不推荐', () => {
+    expect(parseLengthKm('1,525.2 km')).toBe(1525.2)
+    expect(parseLengthKm('716 km')).toBe(716)
+    expect(parseLengthKm('2383km')).toBe(2383)
+    expect(parseLengthKm(null)).toBeNull()
+    expect(parseLengthKm('长度未知')).toBeNull()
+
+    const store = useTieLineStore()
+    store.lines = [{ id: 1, startRegion: '西北', endRegion: '华南', lengthText: '长度未知' }]
+    expect(store.recommendedLine).toBeNull()
   })
 
   it('筛选隐藏已选线路时清空详情，仍可见时保留选择', () => {

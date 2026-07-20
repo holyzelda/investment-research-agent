@@ -32,6 +32,7 @@
       <TieLineDetailPanel
         class="tie-line-page__detail"
         :line="store.detail"
+        :recommended-line="store.recommendedLine"
         :accent-token="detailAccentToken"
       />
     </div>
@@ -51,7 +52,8 @@ const store = useTieLineStore()
 
 const detailAccentToken = computed(() => {
   const { tokenByText } = buildVoltagePresentation(store.filters.voltageOptions)
-  return tokenByText[store.detail?.voltageText] || '--xc-map-voltage-unknown'
+  const displayLine = store.detail || store.recommendedLine
+  return tokenByText[displayLine?.voltageText] || '--xc-map-voltage-unknown'
 })
 
 onMounted(() => {

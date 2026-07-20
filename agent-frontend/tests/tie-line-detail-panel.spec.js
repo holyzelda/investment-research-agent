@@ -38,10 +38,28 @@ describe('联络线详情面板', () => {
     )
   })
 
-  it('无线路时保留引导空态', () => {
+  it('无线路时直接展示最长线路详情', () => {
+    const recommendedLine = { ...line, id: 2, name: '乙丙线', lengthText: '2,383 km' }
+    const wrapper = mount(TieLineDetailPanel, { props: { recommendedLine } })
+
+    expect(wrapper.find('.tl-detail__title').text()).toBe('乙丙线')
+    expect(wrapper.text()).toContain('甲站')
+    expect(wrapper.text()).toContain('乙站')
+    expect(wrapper.text()).toContain('2,383 km')
+    expect(wrapper.find('.tl-detail__placeholder').exists()).toBe(false)
+  })
+
+  it('无线路且无推荐时保留引导空态', () => {
     const wrapper = mount(TieLineDetailPanel)
 
     expect(wrapper.find('.tl-detail__title').exists()).toBe(false)
+    expect(wrapper.find('.tl-detail__recommend-card').exists()).toBe(false)
     expect(wrapper.text()).toContain('点击地图上的联络线查看线路详情')
+  })
+
+  it('已选线路优先于默认最长线路', () => {
+    const wrapper = mount(TieLineDetailPanel, { props: { line, recommendedLine: { ...line, id: 2, name: '乙丙线' } } })
+
+    expect(wrapper.find('.tl-detail__title').text()).toBe('甲乙线')
   })
 })
