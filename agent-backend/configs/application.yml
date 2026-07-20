@@ -43,7 +43,8 @@ feishu:
   base_url: https://open.feishu.cn      # 仅到 host；代码请求路径已含 /open-apis 前缀，勿在此重复加
   app_id: "example-value-0062"                  # 测试环境自建应用 App ID（cli_xxx）
   app_secret: "example-value-0049"              # 测试环境自建应用 App Secret
-  template_token: "exampleToken000000000000047"          # 模板电子表格 token（被复制的源）
+  template_token_15_years: "exampleToken000000000000047" # 15年模板电子表格 token（被复制的源）
+  template_token_20_years: "exampleToken000000000000048" # 20年模板电子表格 token（被复制的源）
   target_folder_token: "exampleToken000000000000051"     # 副本目标文件夹 token
   meta_status_cell: "API_META!B1"
   meta_request_id_cell: "API_META!B2"

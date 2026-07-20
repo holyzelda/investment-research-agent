@@ -105,7 +105,8 @@ class FeishuConfig(BaseModel):
     base_url: str = "https://open.feishu.cn"
     app_id: str = ""
     app_secret: str = ""
-    template_token: str = ""           # 模板电子表格 token（被复制的源）
+    template_token_15_years: str = ""  # 15年模板电子表格 token（被复制的源）
+    template_token_20_years: str = ""  # 20年模板电子表格 token（被复制的源）
     target_folder_token: str = ""      # 副本目标文件夹 token
     copy_name_prefix: str = "zra-calc"
     # API_META 接口区单元格（业务冻结后经 Nacos/env 覆盖；格式 title!cell）
@@ -212,7 +213,14 @@ def _build_settings() -> Settings:
         base_url=os.getenv("IR_FEISHU_BASE_URL", _nested(y, ["feishu", "base_url"], _fd.base_url)),
         app_id=os.getenv("IR_FEISHU_APP_ID", _nested(y, ["feishu", "app_id"], "")),
         app_secret=os.getenv("IR_FEISHU_APP_SECRET", _nested(y, ["feishu", "app_secret"], "")),
-        template_token=os.getenv("IR_FEISHU_TEMPLATE_TOKEN", _nested(y, ["feishu", "template_token"], "")),
+        template_token_15_years=os.getenv(
+            "IR_FEISHU_TEMPLATE_TOKEN_15_YEARS",
+            _nested(y, ["feishu", "template_token_15_years"], ""),
+        ),
+        template_token_20_years=os.getenv(
+            "IR_FEISHU_TEMPLATE_TOKEN_20_YEARS",
+            _nested(y, ["feishu", "template_token_20_years"], ""),
+        ),
         target_folder_token=os.getenv("IR_FEISHU_FOLDER_TOKEN", _nested(y, ["feishu", "target_folder_token"], "")),
         copy_name_prefix=_nested(y, ["feishu", "copy_name_prefix"], _fd.copy_name_prefix),
         meta_status_cell=_nested(y, ["feishu", "meta_status_cell"], _fd.meta_status_cell),

@@ -91,3 +91,19 @@ The system SHALL 在同一会话内为多次测算区分 V1/V2/V3…，右侧"�
 
 - **WHEN** 同一会话内完成多次测算
 - **THEN** 右侧版本列表按序展示 V1/V2/V3，最新版标记，点击可查看对应快照结果
+
+### Requirement: 按运营期选择飞书模板
+
+The system SHALL 在参数组装及受控覆盖完成后，根据最终冻结的 `operation_years` 选择复制来源：15 年使用 `template_token_15_years`，20 年使用 `template_token_20_years`。该值 SHALL 保留在任务响应和 `input_snapshot`；同一会话可混合 15 年与 20 年版本。复制后发生重试时 SHALL 复用同一副本，不重新选择模板或复制。
+
+#### Scenario: 20 年模板
+
+- **GIVEN** 最终冻结入参的 `operation_years=20`
+- **WHEN** 发起测算
+- **THEN** 系统使用 `template_token_20_years` 复制副本
+
+#### Scenario: 版本混用
+
+- **GIVEN** 同一会话的 V1 已按 15 年完成
+- **WHEN** 用户以 `operation_years=20` 重新测算
+- **THEN** V2 使用 20 年模板，且 V1/V2 的冻结入参分别保留对应运营期

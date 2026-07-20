@@ -176,10 +176,10 @@ class HttpFeishuGateway(FeishuGateway):
         return f"{await self._sheet_id(doc_token, title)}!{cell}"
 
     # ---- FeishuGateway 端口实现 ----
-    async def copy_template(self, name: Optional[str] = None) -> str:
+    async def copy_template(self, template_token: str, name: Optional[str] = None) -> str:
         name = name or f"{self._cfg.copy_name_prefix}-{uuid.uuid4().hex[:8]}"
         body = await self._authed(
-            "POST", f"/open-apis/drive/v1/files/{self._cfg.template_token}/copy",
+            "POST", f"/open-apis/drive/v1/files/{template_token}/copy",
             json={"name": name, "type": "sheet", "folder_token": self._cfg.target_folder_token},
         )
         return body["data"]["file"]["token"]
@@ -187,6 +187,8 @@ class HttpFeishuGateway(FeishuGateway):
     async def write_input(self, doc_token: str, payload: dict) -> None:
         value_ranges = []
         for pid, val in payload.items():
+            if pid == "operation_years":
+                continue
             spec = self._dict.get(pid)
             if spec is None or not spec.api_cell:
                 continue  # 非接口区参数（如仅展示）不写飞书

@@ -123,6 +123,7 @@ def build_task_service():
     网关按 feishu.enabled 选真实/Mock（build_feishu_gateway）；同一网关既供引擎读写、
     也供重试层复制副本（副本归属在重试层）。
     """
+    from app.core.config.settings import get_settings
     from app.modules.calculation.application.snapshot_service import SnapshotService
     from app.modules.calculation.application.task_service import CalculationTaskService
 
@@ -133,4 +134,5 @@ def build_task_service():
         engine=build_calc_engine(gateway=gateway),
         retry=build_retry_policy(),
         snapshot=SnapshotService(),
+        feishu=get_settings().feishu,
     )

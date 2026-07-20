@@ -56,12 +56,12 @@ export function isFieldLocked(spec, { firstCalc }) {
   return false
 }
 
-// 提交当前完整面板值：仅收集 slider/dynamic_slider 控件的当前值作为受控 overrides，
+// 提交当前完整面板值：仅收集 slider/dynamic_slider/select 控件的当前值作为受控 overrides，
 // 是否真的查库由后端按现货依赖规则决定，前端始终提交面板当前值。
 export function buildOverrides(paramDict, values) {
   const overrides = {}
   for (const spec of paramDict) {
-    if (spec.control !== 'slider' && spec.control !== 'dynamic_slider') continue
+    if (!['slider', 'dynamic_slider', 'select'].includes(spec.control)) continue
     if (!(spec.id in values)) continue
     overrides[spec.id] = values[spec.id]
   }

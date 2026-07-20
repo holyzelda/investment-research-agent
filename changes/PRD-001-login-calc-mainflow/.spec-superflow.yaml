@@ -4,13 +4,16 @@
 # === Core state ===
 state: exploring
 workflow: full
+revision: 1
 
 # === Hashes (fast staleness detection) ===
-artifacts_hash: sha256:57342645c810afaf369c31355f901f980dc882c0a23e8535965d368daad1cb29
-contract_hash: sha256:2d438ab15c057a51127215aee8101bbc24eb65bc41725ec88ef95f5f53d0a051
+artifacts_hash: sha256:3d5ee4162867c4ce38323010585150af72fa09383c778035d56169173817dc1c
+contract_hash: sha256:c1812cc654beab399d515477fe1674a3eaa304bcfe4e4de3703b786c4eb72dcd
 
 # === Execution progress ===
-execution_mode: null
+execution_mode: inline
+execution_plan_hash: sha256:2366337e3cf28e1c9d5d0cdd64bec6d11f5986ee3d5dc4811ad9adcca2193561
+execution_plan_revision: 1
 batches_completed: 0
 test_result: null
 spec_merged: false
@@ -30,10 +33,10 @@ dp_1_result: confirmed: Batch4.6历史会话位于投资分析工作台功能项
 dp_1_timestamp: 2026-07-15T00:00:00Z
 dp_2_result: approved: Batch4.6 proposal/spec/design/tasks，含左侧历史布局、手动回放、软删除和归属校验
 dp_2_timestamp: 2026-07-15T00:00:00Z
-dp_3_result: approved: Batch5按省字典、受控参数覆盖、版本输入回放、永久省份锁、市场开关显隐、现货依赖重查/继承与元每kWh口径
-dp_3_timestamp: 2026-07-15T00:00:00Z
-dp_4_result: batch-inline: 用户明确授权跳过Git隔离，在当前目录恢复并完成单一前端Batch 4
-dp_4_timestamp: 2026-07-14T00:00:00Z
+dp_3_result: approved: Batch 6 20-year template selection; 15/20 only; null override ignored; no API_INPUT B11 write; advanced select and temporary extraction; mixed-version conversations
+dp_3_timestamp: 2026-07-20T00:00:00Z
+dp_4_result: inline: plan revision 1; user-confirmed; user-selected inline execution in the current main workspace
+dp_4_timestamp: 2026-07-20T03:56:13.686Z
 dp_5_result: null
 dp_5_timestamp: null
 dp_6_result: null

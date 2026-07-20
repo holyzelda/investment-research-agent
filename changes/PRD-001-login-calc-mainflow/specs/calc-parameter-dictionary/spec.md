@@ -54,3 +54,22 @@ The system SHALL 定义输出读取映射：财务指标（全投资IRR、全投
 
 - **WHEN** 后端从 API_OUTPUT 读取结果
 - **THEN** 可按映射解析出财务指标、首年各收益、15 年序列三组结构化数据
+
+### Requirement: 项目运营期作为模板选择参数
+
+The system SHALL 将 `operation_years` 维护为系统内模板选择和版本追溯参数，默认值为 `15`，仅允许整数 `15` 或 `20`。参数字典 SHALL 声明其为可编辑枚举控件，选项为“15年”和“20年”。该字段 SHALL 保留在最终组装入参与快照中，但 SHALL 不映射或写入 `API_INPUT`；受控覆盖传入 `null` 时按既有规则忽略。
+
+#### Scenario: 缺省采用 15 年
+
+- **WHEN** 请求未提交 `operation_years` 覆盖
+- **THEN** 组装入参包含 `operation_years=15`
+
+#### Scenario: 非法运营期被拒绝
+
+- **WHEN** 覆盖值为非空且不是整数 15 或 20
+- **THEN** 后端在飞书副本复制前返回参数校验错误
+
+#### Scenario: 运营期不写接口区
+
+- **WHEN** 网关写入组装入参
+- **THEN** 请求中不包含 `API_INPUT!B11` 的更新范围

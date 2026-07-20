@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
+from app.core.config.settings import FeishuConfig
 from app.core.exceptions import NotFoundException, ValidationException
 from app.infrastructure.database.base import Base
 from app.modules.calculation.application.factory import build_param_assembler
@@ -57,10 +58,64 @@ def _service(spot):
         engine=FeishuCalcEngine(gateway=gateway, poll_interval=0, poll_timeout=1),
         retry=RetryPolicy(max_retries=0),
         snapshot=SnapshotService(),
+        feishu=FeishuConfig(template_token_15_years="template-15", template_token_20_years="template-20"),
     )
 
 
+def _service_with_templates(spot):
+    gateway = MockFeishuGateway(output=sample_output())
+    service = CalculationTaskService(
+        assembler=build_param_assembler(spot=spot),
+        gateway=gateway,
+        engine=FeishuCalcEngine(gateway=gateway, poll_interval=0, poll_timeout=1),
+        retry=RetryPolicy(max_retries=0),
+        snapshot=SnapshotService(),
+        feishu=FeishuConfig(template_token_15_years="template-15", template_token_20_years="template-20"),
+    )
+    return service, gateway
+
+
 _BASICS = ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200, node_name="祥泰站")
+
+
+@pytest.mark.asyncio
+async def test_v1_selects_15_year_template_by_default(session_maker):
+    service, gateway = _service_with_templates(_CountingSpot())
+    async with session_maker() as session:
+        await service.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
+    assert gateway.copy_templates == ["template-15"]
+
+
+@pytest.mark.asyncio
+async def test_same_conversation_can_switch_to_20_year_template(session_maker):
+    service, gateway = _service_with_templates(_CountingSpot())
+    async with session_maker() as session:
+        v1 = await service.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
+        v2 = await service.create_and_run(
+            session,
+            user_id="u1",
+            username="U1",
+            basics=_BASICS,
+            conversation_id=v1["conversationId"],
+            param_overrides={"operation_years": 20},
+        )
+    assert v2["input"]["operation_years"] == 20
+    assert gateway.copy_templates == ["template-15", "template-20"]
+
+
+@pytest.mark.asyncio
+async def test_invalid_operation_years_does_not_copy_template(session_maker):
+    service, gateway = _service_with_templates(_CountingSpot())
+    async with session_maker() as session:
+        with pytest.raises(ValidationException, match="项目运营期仅支持15年或20年"):
+            await service.create_and_run(
+                session,
+                user_id="u1",
+                username="U1",
+                basics=_BASICS,
+                param_overrides={"operation_years": 14},
+            )
+    assert gateway.copy_templates == []
 
 
 @pytest.mark.asyncio

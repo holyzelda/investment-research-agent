@@ -32,6 +32,10 @@ export function extractMinInput(text) {
   const capacity = content.match(/(\d+(?:\.\d+)?)\s*MWH/i)
   const powerMw = power ? Number(power[1]) : null
   const capacityMwh = capacity ? Number(capacity[1]) : null
+  const operationYearsMatch = content.match(/(?:运营期|经营年限|按)\s*(15|20)\s*年|(?:15|20)\s*年\s*(?:运营期|经营年限|测算)/)
+  const operationYears = operationYearsMatch
+    ? Number(operationYearsMatch[1] || operationYearsMatch[0].match(/15|20/)[0])
+    : null
   const missing = []
 
   if (!province) missing.push('省份')
@@ -42,6 +46,7 @@ export function extractMinInput(text) {
     province: province || null,
     power_mw: powerMw > 0 ? powerMw : null,
     capacity_mwh: capacityMwh > 0 ? capacityMwh : null,
+    operation_years: operationYears,
     missing,
   }
 }
@@ -171,6 +176,9 @@ export const useCalculationStore = defineStore('calculation', {
         province: input.province,
         capacity_mwh: input.capacity_mwh,
         power_mw: input.power_mw,
+      }
+      if (input.operation_years !== null) {
+        payload.param_overrides = { operation_years: input.operation_years }
       }
       if (this.conversationId) payload.conversation_id = this.conversationId
       await this._submitAndTrack(payload)

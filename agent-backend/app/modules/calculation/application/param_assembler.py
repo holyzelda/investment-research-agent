@@ -15,6 +15,7 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from app.core.exceptions import ValidationException
 from app.modules.calculation.domain import services
 from app.modules.calculation.domain.models import ProjectBasics, ProvinceRevenueProfile
 from app.modules.calculation.domain.param_dictionary import ParamDictionary
@@ -79,6 +80,7 @@ class ParamAssembler:
             视为依赖必然"变化"，始终查库。
         """
         overrides = overrides or {}
+        self._validate_operation_years(overrides)
         result = AssembledParams()
         cap, pwr = basics.capacity_mwh, basics.power_mw
 
@@ -142,6 +144,13 @@ class ParamAssembler:
         self._apply_overrides(result, overrides, ignore_keys)
 
         return result
+
+    def _validate_operation_years(self, overrides: dict) -> None:
+        value = overrides.get("operation_years")
+        if value is None:
+            return
+        if type(value) is not int or value not in {15, 20}:
+            raise ValidationException("项目运营期仅支持15年或20年")
 
     def _capacity_power_changed(self, previous_input: Optional[dict], basics: ProjectBasics) -> bool:
         """容量/功率相对上一版本是否变化（两档收益按 t=容量/功率插值，随之重算）。

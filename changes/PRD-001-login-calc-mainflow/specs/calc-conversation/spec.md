@@ -111,3 +111,12 @@ The system SHALL 在测算失败时按 calc-execution-engine 的错误分类展�
 - **GIVEN** 测算不可重试失败
 - **WHEN** 结果返回对话
 - **THEN** 展示失败原因与"请联系管理员"及 request_id
+
+### Requirement: 临时运营期文本提取
+
+The system SHALL 在当前前端规则解析中仅识别明确的 15 年或 20 年运营期表述；未识别时 SHALL 不提交运营期覆盖，后端默认值为 15。该规则是临时实现，不引入模型调用或新的 API 字段。
+
+#### Scenario: 明确提取 20 年
+
+- **WHEN** 用户输入含“运营期20年”或“按20年测算”的最小项目信息
+- **THEN** 前端通过既有 `param_overrides.operation_years` 提交整数 `20`

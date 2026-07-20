@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { useCalculationStore } from '@/store/modules/calculation'
+import { extractMinInput, useCalculationStore } from '@/store/modules/calculation'
 
 const api = vi.hoisted(() => ({
   createCalculationTask: vi.fn(),
@@ -16,6 +16,20 @@ const result = {
   financial: { capitalIrr: 8.6 },
   advanced: { donut: {}, lines: {} },
 }
+
+describe('operation years extraction', () => {
+  it.each([
+    ['测算甘肃 200MW/800MWh，运营期20年', 20],
+    ['按15年测算甘肃 200MW/800MWh', 15],
+  ])('extracts explicit operation years from %s', (text, operationYears) => {
+    expect(extractMinInput(text).operation_years).toBe(operationYears)
+  })
+
+  it('leaves operation years unset when not mentioned', () => {
+    expect(extractMinInput('测算甘肃 200MW/800MWh').operation_years).toBeNull()
+  })
+})
+
 
 describe('calculation submit-poll-result flow', () => {
   beforeEach(() => {

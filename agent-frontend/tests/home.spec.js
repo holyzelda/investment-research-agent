@@ -21,6 +21,7 @@ describe('home conversation and minimum input extraction', () => {
       province: '甘肃',
       power_mw: 200,
       capacity_mwh: 800,
+      operation_years: null,
       missing: [],
     })
     expect(extractMinInput('宁夏项目容量 400 MWh，功率 100 mw')).toMatchObject({

@@ -79,7 +79,7 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
     from app.modules.calculation.interface import router as calc_router
 
     class FailingGateway(FeishuGateway):
-        async def copy_template(self, name=None):
+        async def copy_template(self, template_token, name=None):
             return "doc-fail"
 
         async def write_input(self, doc_token, payload):
@@ -102,6 +102,7 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
             engine=calc_factory.build_calc_engine(gateway=gw),
             retry=calc_factory.build_retry_policy(),
             snapshot=SnapshotService(),
+            feishu=calc_factory.get_settings().feishu,
         )
 
     monkeypatch.setattr(calc_router, "build_task_service", _failing_task_service)

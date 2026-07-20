@@ -47,8 +47,8 @@ class FeishuGateway(ABC):
     """
 
     @abstractmethod
-    async def copy_template(self, name: Optional[str] = None) -> str:
-        """复制底稿副本，返回新副本的 doc_token（独立文档隔离）。
+    async def copy_template(self, template_token: str, name: Optional[str] = None) -> str:
+        """从指定模板复制副本，返回新副本的 doc_token（独立文档隔离）。
 
         name 为副本显示名（城市-节点-功率/容量-时间，由应用层拼），None 时用实现默认名。
         """

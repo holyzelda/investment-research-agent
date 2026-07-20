@@ -27,6 +27,8 @@ def _param_dict() -> ParamDictionary:
          "api_cell": "API_INPUT!B2", "writable": True},
         {"id": "capacity_mwh", "cn": "容量", "source": "dialog", "direction": "input",
          "api_cell": "API_INPUT!B3", "writable": True},
+        {"id": "operation_years", "cn": "运营期", "source": "default", "direction": "input",
+         "api_cell": "API_INPUT!B11", "writable": True},
         {"id": "project_irr", "cn": "IRR", "source": "output", "direction": "output",
          "api_cell": "API_OUTPUT!C5"},
         {"id": "first_year_total_revenue", "cn": "首年总收益", "source": "output",
@@ -47,6 +49,7 @@ class FakeFeishu:
         self.copy_calls = 0
         self.batch_updates = []     # 捕获的 valueRanges
         self.copy_auth = None
+        self.copy_path = None
         self.copy_body = None
         self.get_params = None      # 捕获最近一次 values_batch_get 的查询参数
 
@@ -59,6 +62,7 @@ class FakeFeishu:
         if p.endswith("/copy"):
             self.copy_calls += 1
             self.copy_auth = request.headers.get("authorization")
+            self.copy_path = request.url.path
             self.copy_body = json.loads(request.content)
             return httpx.Response(200, json={
                 "code": 0, "data": {"file": {"token": "cp-token", "name": "n", "type": "sheet"}}})
@@ -85,7 +89,7 @@ class FakeFeishu:
 def _gateway(fake: FakeFeishu, **cfg) -> HttpFeishuGateway:
     config = FeishuConfig(
         enabled=True, app_id="a", app_secret="s",
-        template_token="tmpl", target_folder_token="fold", **cfg,
+        template_token_15_years="tmpl", target_folder_token="fold", **cfg,
     )
     client = httpx.AsyncClient(transport=httpx.MockTransport(fake.handler), base_url="https://open.feishu.cn")
     return HttpFeishuGateway(config=config, param_dict=_param_dict(), client=client)
@@ -95,10 +99,11 @@ def _gateway(fake: FakeFeishu, **cfg) -> HttpFeishuGateway:
 async def test_copy_carries_token_and_returns_new_doc():
     fake = FakeFeishu()
     gw = _gateway(fake)
-    token = await gw.copy_template("宁夏-200/400-20260710091435")
+    token = await gw.copy_template("tmpl", "宁夏-200/400-20260710091435")
     assert token == "cp-token"
     assert fake.copy_calls == 1
     assert fake.copy_auth == "Bearer t-1"
+    assert fake.copy_path.endswith("/drive/v1/files/tmpl/copy")
     assert fake.copy_body["folder_token"] == "fold"
     assert fake.copy_body["type"] == "sheet"
     assert fake.copy_body["name"] == "宁夏-200/400-20260710091435"  # 副本名透传
@@ -114,6 +119,15 @@ async def test_write_input_maps_api_cells_to_sheet_ranges():
         {"range": "shtI!B2:B2", "values": [[100]]},
         {"range": "shtI!B3:B3", "values": [[200]]},
     ]]
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_write_input_skips_operation_years_even_when_mapping_exists():
+    fake = FakeFeishu()
+    gw = _gateway(fake)
+    await gw.write_input("doc1", {"power_mw": 100, "operation_years": 20})
+    assert fake.batch_updates == [[{"range": "shtI!B2:B2", "values": [[100]]}]]
     await gw._client.aclose()
 
 

@@ -1,4 +1,7 @@
 """参数组装器 · 集成测试（真实 stub 数据源，覆盖 PRD US-1.1 场景）。"""
+import pytest
+
+from app.core.exceptions import ValidationException
 from app.modules.calculation.application.factory import build_param_assembler
 from app.modules.calculation.domain.models import ProjectBasics
 
@@ -95,6 +98,30 @@ class TestCommon:
         assert any("火星省" in w for w in r.warnings)
         # 对话抽取与默认值仍应组装
         assert r.api_input["power_mw"] == 200
+    def test_operation_years_override_is_frozen(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={"operation_years": 20},
+        )
+        assert r.api_input["operation_years"] == 20
+
+    @pytest.mark.parametrize("value", [14, 16, 21, "20"])
+    def test_invalid_non_null_operation_years_override_is_rejected(self, value):
+        asm = build_param_assembler()
+        with pytest.raises(ValidationException, match="项目运营期仅支持15年或20年"):
+            asm.assemble(
+                ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+                overrides={"operation_years": value},
+            )
+
+    def test_null_operation_years_override_is_ignored(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={"operation_years": None},
+        )
+        assert r.api_input["operation_years"] == 15
 
 
 class _CountingSpot:

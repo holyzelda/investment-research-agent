@@ -21,7 +21,17 @@
             >
               <div class="ir-advanced__field-head">
                 <span>{{ spec.cn || spec.id }}</span>
-                <span v-if="isEditable(spec)" class="ir-advanced__value">
+                <select
+                  v-if="spec.control === 'select'"
+                  :data-param-id="spec.id"
+                  v-model.number="values[spec.id]"
+                  class="ir-advanced__select"
+                >
+                  <option v-for="option in spec.options || []" :key="option.value" :value="option.value">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <span v-else-if="isEditable(spec)" class="ir-advanced__value">
                   <input
                     v-model.number="values[spec.id]"
                     class="ir-advanced__number"
@@ -99,7 +109,7 @@ const sections = computed(() => {
 })
 
 function isEditable(spec) {
-  return spec.control === 'slider' || spec.control === 'dynamic_slider'
+  return spec.control === 'slider' || spec.control === 'dynamic_slider' || spec.control === 'select'
 }
 function rangeOf(spec) {
   if (spec.control === 'slider') return { min: spec.min, max: spec.max }
@@ -170,6 +180,8 @@ function save() {
 .ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__readonly { color:var(--xc-text-strong); font-size:var(--xc-fs-xs); }
 .ir-advanced__value { display:inline-flex; align-items:center; gap:2px; }
 .ir-advanced__number { width:62px; height:24px; padding:0 var(--xc-space-2); border:1px solid transparent; border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); text-align:center; appearance:textfield; -moz-appearance:textfield; }
+.ir-advanced__select { min-width:88px; height:28px; padding:0 var(--xc-space-2); border:1px solid var(--xc-border-soft); border-radius:var(--xc-radius-sm); background:var(--xc-surface-2); color:var(--xc-text-strong); font-size:var(--xc-fs-xs); cursor:pointer; }
+.ir-advanced__select:focus { outline:none; border-color:var(--xc-border-accent); }
 .ir-advanced__number:hover,.ir-advanced__number:focus { outline:none; border-color:var(--xc-border-accent); background:rgba(255,255,255,.04); }
 .ir-advanced__number::-webkit-inner-spin-button,.ir-advanced__number::-webkit-outer-spin-button { margin:0; -webkit-appearance:none; }
 .ir-advanced__value small,.ir-advanced__readonly { color:var(--xc-text-mute); font-size:var(--xc-fs-3xs); }

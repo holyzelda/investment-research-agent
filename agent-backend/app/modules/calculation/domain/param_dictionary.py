@@ -30,6 +30,7 @@ class ParamSpec:
     min: Optional[float] = None      # control=slider 的滑块下限
     max: Optional[float] = None      # control=slider 的滑块上限
     step: Optional[float] = None     # control=slider/dynamic_slider 的滑块步长
+    options: Optional[list[dict]] = None  # control=select 的枚举选项
 
     @classmethod
     def from_dict(cls, d: dict) -> "ParamSpec":
@@ -42,6 +43,7 @@ class ParamSpec:
             default=d.get("default"), unit=d.get("unit", ""), dtype=d.get("dtype", ""),
             zone=d.get("zone"), control=d.get("control"),
             min=d.get("min"), max=d.get("max"), step=d.get("step"),
+            options=d.get("options"),
         )
 
 

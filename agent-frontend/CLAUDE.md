@@ -54,7 +54,7 @@ pnpm test:watch            # vitest watch 模式
 - `store/modules/calculation.js` —— 核心业务 store，驱动整个"对话 → 测算"流程：
   - `messages`：有序对话记录（`{id, role, kind: 'text'|'result', text|result, version}`）。消息顺序只增不改，选择不同版本**不会**重排消息流（见 `tests/version-list.spec.js`）。
   - `versions`：某会话下已完成的测算结果（`V1`、`V2`……），可通过 `selectedVersion`/`selectVersion` 独立于对话流选中 —— 选中某版本会在（顺序不变的）消息流中高亮对应卡片，而不是重新排序。
-  - `extractMinInput(text)`：不依赖 NLP，通过正则从自由文本中轻量提取 省份（对照硬编码的 `PROVINCES` 全称/简称表）、功率 MW、容量 MWh。字段缺失时会用中文提示补充，并阻止提交 —— 这就是这个对话式 UI 的全部"表单"逻辑。
+  - `extractMinInput(text)`：不依赖 NLP，通过正则从自由文本中轻量提取省份（对照硬编码的 `PROVINCES` 全称/简称表）、功率 MW、容量 MWh，以及明确的 15/20 年运营期表述。运营期未提及时返回 `operation_years: null`，`sendAndCalculate()` 不提交覆盖、由后端默认 15；命中时沿既有 `param_overrides.operation_years` 提交，不新增请求字段或在前端补默认值。字段缺失时会用中文提示补充，并阻止提交 —— 这就是这个对话式 UI 的全部“表单”逻辑。
   - `sendAndCalculate(text)`：推入用户消息 → 校验提取出的输入 → 创建任务（`POST /ir/calc/tasks`）→ 若未立即终态则每 1 秒轮询一次 `getCalculationTask`，最多 60 次 → 完成后拉取完整结果（`GET /ir/calc/tasks/:id/result`），并**原地修改**那条待定的助手消息（`kind` 从 `'text'` 变为 `'result'`），而不是新推入一条 → 刷新侧边栏历史列表（尽力而为，自行吞掉异常）。
   - 会话延续：一旦存在 `conversationId`，后续 `sendAndCalculate` 调用会在请求体中带上它，使后端能把新版本挂载到同一会话下。
   - 历史侧栏（`listConversations`/`getConversation`/`deleteConversation`）：用户从 `AppSidebar` 重新打开某个历史会话时，会根据拉取到的会话详情重建完整的 `messages`/`versions` 数组。
@@ -68,7 +68,7 @@ pnpm test:watch            # vitest watch 模式
 
 ### 参数调整契约
 - 后端参数字典是参数调整 UI 的唯一元数据来源；前端通过 `paramDict` 的 `zone`、`control`、`step`、`min`、`max`、`g` 以及冻结 `seedInput` 决定展示、精度、范围和可编辑性。
-- `ParamAdjustPanel.vue` 仅保留项目、金融和常规收益边界字段；高级字段由 `AdvancedParamDialog.vue` 按金融/收益/成本区展示。高级参数先保存到当前 `ResultCard` 的草稿，再由基础面板的“重新测算”合并为一次 `calc.recalculate()` 请求。
+- `ParamAdjustPanel.vue` 仅保留项目、金融和常规收益边界字段；高级字段由 `AdvancedParamDialog.vue` 按金融/收益/成本区展示。`operation_years` 只在高级弹窗按字典 `control: 'select'` 和 `options` 渲染为 15/20 年下拉，不要硬编码选项或放回 inline 面板。高级参数先保存到当前 `ResultCard` 的草稿，再由基础面板的“重新测算”合并为一次 `calc.recalculate()` 请求；运营期值保持 number 并走 `param_overrides.operation_years`。
 - `src/utils/paramAdjust.js` 负责分区、覆盖值组装、动态范围和按 `step` 的精度处理；数值显示仍统一使用 `src/utils/formatNumber.js`，不要在组件中直接 `toFixed`。
 - 项目信息卡的只读/可编辑展示遵循同一左侧强调标记样式；可编辑容量/功率须保留参数字典的单位，且以轻量数字编辑形式展示。
 

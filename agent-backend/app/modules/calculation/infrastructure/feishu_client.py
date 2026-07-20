@@ -19,9 +19,11 @@ class MockFeishuGateway(FeishuGateway):
         self._output = output or {}
         self._copy_seq = 0
         self.last_copy_name: Optional[str] = None
+        self.copy_templates: list[str] = []
 
-    async def copy_template(self, name: Optional[str] = None) -> str:
+    async def copy_template(self, template_token: str, name: Optional[str] = None) -> str:
         self._copy_seq += 1
+        self.copy_templates.append(template_token)
         self.last_copy_name = name
         return f"mock-doc-{self._copy_seq}"
 

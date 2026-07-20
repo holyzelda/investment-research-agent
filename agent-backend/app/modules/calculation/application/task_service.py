@@ -19,6 +19,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.settings import FeishuConfig
 from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
 from app.modules.calculation.application.output_mapper import map_output_to_result
@@ -80,12 +81,22 @@ class CalculationTaskService:
         engine: FeishuCalcEngine,
         retry: RetryPolicy,
         snapshot: SnapshotService,
+        feishu: FeishuConfig,
     ):
         self._assembler = assembler
         self._gateway = gateway
         self._engine = engine
         self._retry = retry
         self._snapshot = snapshot
+        self._feishu = feishu
+
+    def _template_token_for(self, api_input: dict) -> str:
+        operation_years = api_input.get("operation_years", 15)
+        if operation_years == 15:
+            return self._feishu.template_token_15_years
+        if operation_years == 20:
+            return self._feishu.template_token_20_years
+        raise ValidationException("项目运营期仅支持15年或20年")
 
     async def create_and_run(
         self,
@@ -105,6 +116,7 @@ class CalculationTaskService:
             basics, overrides=param_overrides, previous_input=previous_input)
         request_id = uuid.uuid4().hex
         param_hash = _param_hash(assembled.api_input)
+        template_token = self._template_token_for(assembled.api_input)
         copy_name = build_copy_name(basics)  # 城市-节点-功率/容量-时间，副本创建时定格
 
         try:
@@ -116,7 +128,7 @@ class CalculationTaskService:
                     doc_token=doc_token,
                 ),
                 request_id=request_id,
-                copy_template=lambda: self._gateway.copy_template(copy_name),
+                copy_template=lambda: self._gateway.copy_template(template_token, copy_name),
             )
         except CalcError as e:
             task = CalculationTaskORM(

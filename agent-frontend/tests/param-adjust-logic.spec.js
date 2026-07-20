@@ -14,13 +14,13 @@ const PARAM_DICT = [
   { id: 'node_name', zone: 'project_definition', control: 'text' },
   { id: 'capacity_mwh', zone: 'project_definition', control: 'number' },
   { id: 'power_mw', zone: 'project_definition', control: 'number' },
-  { id: 'daily_cycles', zone: 'revenue_boundary', control: 'slider', min: 1, max: 2, step: 0.1 },
-  { id: 'epc_unit_price', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01 },
-  { id: 'operation_years', zone: 'financial_boundary', control: 'fixed' },
+  { id: 'daily_cycles', zone: 'revenue_boundary', control: 'slider', g: 1, min: 1, max: 2, step: 0.1 },
+  { id: 'epc_unit_price', zone: 'financial_boundary', control: 'slider', g: 1, min: 0.7, max: 0.85, step: 0.01 },
+  { id: 'operation_years', zone: 'financial_boundary', control: 'select', g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
   { id: 'battery_replace_cost', zone: 'cost_boundary', control: 'fixed' },
-  { id: 'maint_cost', zone: 'cost_boundary', control: 'slider', min: 0, max: 0.1, step: 0.0001 },
-  { id: 'spot_charge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
-  { id: 'spot_discharge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
+  { id: 'maint_cost', zone: 'cost_boundary', control: 'slider', g: 1, min: 0, max: 0.1, step: 0.0001 },
+  { id: 'spot_charge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
+  { id: 'spot_discharge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
   { id: 'frequency_first_year_revenue', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
   { id: 'lease_unit_price', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
   { id: 'mid_long_energy_revenue_first_year_tax', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
@@ -91,10 +91,10 @@ describe('paramAdjust: 锁项规则（省份永久锁 / 首次锁 / 二次解锁
     expect(isFieldLocked(province, { firstCalc: false })).toBe(true)
   })
 
-  it('运营期/换电成本 control=fixed 时始终锁定（本阶段业务范围未开放）', () => {
+  it('运营期 select 可编辑，换电成本仍固定', () => {
     const years = PARAM_DICT.find((p) => p.id === 'operation_years')
     const battery = PARAM_DICT.find((p) => p.id === 'battery_replace_cost')
-    expect(isFieldLocked(years, { firstCalc: false })).toBe(true)
+    expect(isFieldLocked(years, { firstCalc: false })).toBe(false)
     expect(isFieldLocked(battery, { firstCalc: false })).toBe(true)
   })
 
@@ -115,15 +115,15 @@ describe('paramAdjust: 锁项规则（省份永久锁 / 首次锁 / 二次解锁
 })
 
 describe('paramAdjust: 提交当前完整面板值', () => {
-  it('仅收集 slider/dynamic_slider 控件当前值，忽略 fixed/text/number/无control项', () => {
+  it('收集 slider/dynamic_slider/select 控件当前值，忽略 fixed/text/number/无control项', () => {
     const values = {
       province: '甘肃', node_name: '祥泰站', capacity_mwh: 800, power_mw: 200,
-      daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 15, battery_replace_cost: 0,
+      daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, battery_replace_cost: 0,
       maint_cost: 0.006, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
     }
     const overrides = buildOverrides(PARAM_DICT, values)
     expect(overrides).toEqual({
-      daily_cycles: 1.5, epc_unit_price: 0.8, maint_cost: 0.006,
+      daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, maint_cost: 0.006,
       spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
     })
   })

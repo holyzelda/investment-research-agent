@@ -80,8 +80,8 @@ async def main() -> None:
         log("⓪ 表2 跳过：revenue_structure_token 未填")
 
     # ①-④ 底稿全链路需要模板与文件夹
-    if not (fc.template_token and fc.target_folder_token):
-        log("①-④ 底稿全链路跳过：template_token / target_folder_token 未填（表2 部分已可单独验证）")
+    if not (fc.template_token_15_years and fc.target_folder_token):
+        log("①-④ 底稿全链路跳过：template_token_15_years / target_folder_token 未填（表2 部分已可单独验证）")
         _flush()
         return
 
@@ -100,7 +100,7 @@ async def main() -> None:
     try:
         # ① 复制副本
         try:
-            doc = await gw.copy_template(copy_name)
+            doc = await gw.copy_template(fc.template_token_15_years, copy_name)
             log(f"① copy_template OK → doc_token={doc}  name={copy_name}")
         except Exception as e:  # noqa: BLE001
             log(f"① copy_template 失败：{type(e).__name__}: {e}  （查应用是否为模板/文件夹协作者、scope）")

@@ -3,7 +3,7 @@ import { mount } from '@vue/test-utils'
 import AdvancedParamDialog from '@/views/home/components/AdvancedParamDialog.vue'
 
 const PARAM_DICT = [
-  { id: 'operation_years', cn: '经营年限', zone: 'financial_boundary', control: 'fixed', default: 15, unit: '年', g: 1 },
+  { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, unit: '年', g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
   { id: 'mid_long_charge_avg', cn: '中长期充电均价', default: null, unit: '元/kWh', g: 0 },
   { id: 'mid_long_discharge_avg', cn: '中长期放电均价', default: null, unit: '元/kWh', g: 0 },
   { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
@@ -22,7 +22,7 @@ describe('AdvancedParamDialog', () => {
 
     expect(sections.map((section) => section.find('h4').text())).toEqual(['金融边界', '收益边界', '成本边界'])
     expect(sections.map((section) => section.findAll('.ir-advanced__field').map((field) => field.text()))).toEqual([
-      [expect.stringContaining('经营年限')],
+      [expect.stringContaining('项目运营期')],
       [expect.stringContaining('中长期充电均价'), expect.stringContaining('中长期放电均价'), expect.stringContaining('现货策略达成率'), expect.stringContaining('容量市场达成率')],
       [expect.stringContaining('换电成本'), expect.stringContaining('维保成本'), expect.stringContaining('运营成本')],
     ])
@@ -41,8 +41,17 @@ describe('AdvancedParamDialog', () => {
 
     expect(text).toContain('中长期充电均价—')
     expect(text).toContain('中长期放电均价—')
-    expect(text).toContain('经营年限15年')
+    expect(text).toContain('项目运营期')
     expect(text).toContain('换电成本0元/Wh')
+  })
+
+  it('renders operation years as the metadata-defined select and saves 20', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    const select = wrapper.find('select[data-param-id="operation_years"]')
+    expect(select.findAll('option').map((option) => option.text())).toEqual(['15年', '20年'])
+    await select.setValue('20')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 20 })
   })
 
   it('saves only backend-authorized slider values into a draft without submitting a calculation', async () => {
@@ -52,6 +61,7 @@ describe('AdvancedParamDialog', () => {
     await wrapper.find('.ir-advanced__save').trigger('click')
 
     expect(wrapper.emitted('save')).toEqual([[{
+      operation_years: 15,
       strategy_achievement_rate: 0.85,
       capacity_achievement_rate: 0.9,
       maint_cost: 0.005,

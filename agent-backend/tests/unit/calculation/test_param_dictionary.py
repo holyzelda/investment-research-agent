@@ -48,6 +48,16 @@ def test_defaults_present():
     assert defaults["loan_rate"] == 0.04
     assert defaults["loan_years"] == 10
 
+
+def test_operation_years_is_a_template_selection_without_api_input_mapping():
+    spec = _dict().get("operation_years")
+    assert spec.control == "select"
+    assert spec.options == [
+        {"value": 15, "label": "15年"},
+        {"value": 20, "label": "20年"},
+    ]
+    assert spec.api_cell is None
+
 def test_corrected_cells():
     """位置订正核对。"""
     d = _dict()
