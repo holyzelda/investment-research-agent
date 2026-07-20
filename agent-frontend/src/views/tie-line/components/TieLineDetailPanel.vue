@@ -2,7 +2,7 @@
   <aside class="tl-detail">
     <template v-if="line">
       <header class="tl-detail__head">
-        <h3 class="tl-detail__title">{{ line.name }}</h3>
+        <h3 class="tl-detail__title" :style="{ color: `var(${accentToken})` }">{{ line.name }}</h3>
         <span class="tl-detail__tag">跨省跨区</span>
       </header>
 
@@ -36,6 +36,7 @@ import { computed } from 'vue'
 
 const props = defineProps({
   line: { type: Object, default: null },
+  accentToken: { type: String, default: '--xc-map-voltage-unknown' },
 })
 
 const regionText = computed(() =>

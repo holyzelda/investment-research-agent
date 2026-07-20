@@ -66,8 +66,14 @@ function buildOption() {
   })
 }
 
+// 透明命中层承接线路 click、pointer 与 tooltip；视觉线和选中覆盖层均为静默图层。
 function onChartClick(p) {
-  if (p.seriesType === 'lines' && p.data && p.data.id !== undefined) {
+  if (
+    p.seriesType === 'lines' &&
+    typeof p.seriesId === 'string' &&
+    p.seriesId.startsWith('tie-line-hit-') &&
+    p.data?.id !== undefined
+  ) {
     emit('select', p.data.id)
   }
 }
@@ -93,7 +99,14 @@ onBeforeUnmount(() => {
 
 watch(
   () => [props.lines, props.selectedId, props.voltageOptions],
-  () => chart && chart.setOption(buildOption(), true),
+  () => {
+    if (!chart) return
+    // 仅替换业务系列，避免选中/筛选更新时重置用户已缩放或拖拽的地图视角。
+    chart.setOption(
+      { series: buildOption().series },
+      { notMerge: false, replaceMerge: ['series'] },
+    )
+  },
   { deep: true },
 )
 </script>

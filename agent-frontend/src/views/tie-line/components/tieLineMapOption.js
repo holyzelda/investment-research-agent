@@ -7,35 +7,44 @@ function widthOf(capacity) {
   return 1.6 + Math.min(capacity / 2000, 4)
 }
 
-function buildLineGroups(lines, selectedId, voltageColors, unknownColor) {
-  const hasSelection = selectedId !== null && selectedId !== undefined
+function colorOf(line, voltageColors, unknownColor) {
+  return voltageColors[line.voltageText] || unknownColor
+}
+
+function lineData(line, color) {
+  return {
+    id: line.id,
+    name: line.name,
+    coords: [
+      [line.startLng, line.startLat],
+      [line.endLng, line.endLat],
+    ],
+    info: line,
+    color,
+  }
+}
+
+function groupByColor(lines, voltageColors, unknownColor) {
   const groups = new Map()
-
   lines.forEach((line) => {
-    const color = voltageColors[line.voltageText] || unknownColor
+    const color = colorOf(line, voltageColors, unknownColor)
     if (!groups.has(color)) groups.set(color, [])
-
-    const selected = hasSelection && line.id === selectedId
-    groups.get(color).push({
-      id: line.id,
-      name: line.name,
-      coords: [
-        [line.startLng, line.startLat],
-        [line.endLng, line.endLat],
-      ],
-      lineStyle: {
-        color,
-        width: selected ? widthOf(line.ratedCapacityMw) + 1.5 : widthOf(line.ratedCapacityMw),
-        opacity: hasSelection ? (selected ? 1 : 0.28) : 0.85,
-      },
-      info: line,
-    })
+    groups.get(color).push(line)
   })
+  return groups
+}
 
-  return Array.from(groups, ([color, data]) => ({
+function buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColor) {
+  const hasSelection = selectedId !== null && selectedId !== undefined
+  const visibleLines = hasSelection ? lines.filter((line) => line.id !== selectedId) : lines
+
+  return Array.from(groupByColor(visibleLines, voltageColors, unknownColor), ([color, group]) => ({
+    id: `tie-line-visual-${color}`,
     type: 'lines',
     coordinateSystem: 'geo',
     polyline: false,
+    silent: true,
+    tooltip: { show: false },
     lineStyle: { color, curveness: 0.18 },
     effect: {
       show: true,
@@ -45,23 +54,153 @@ function buildLineGroups(lines, selectedId, voltageColors, unknownColor) {
       trailLength: 0,
       color,
     },
-    emphasis: { lineStyle: { width: 4 }, focus: 'none' },
-    data,
+    data: group.map((line) => ({
+      ...lineData(line, color),
+      lineStyle: {
+        color,
+        width: widthOf(line.ratedCapacityMw),
+        opacity: hasSelection ? 0.2 : 0.85,
+      },
+    })),
     zlevel: 2,
+    z: 2,
   }))
 }
 
-function buildPointData(lines) {
+function buildHitLineSeries(lines, voltageColors, unknownColor) {
+  return Array.from(groupByColor(lines, voltageColors, unknownColor), ([color, group]) => ({
+    id: `tie-line-hit-${color}`,
+    type: 'lines',
+    coordinateSystem: 'geo',
+    polyline: false,
+    cursor: 'pointer',
+    lineStyle: {
+      color: 'rgba(0,0,0,0)',
+      width: 12,
+      curveness: 0.18,
+    },
+    emphasis: {
+      focus: 'none',
+      lineStyle: { color, opacity: 1 },
+    },
+    data: group.map((line) => ({
+      ...lineData(line, color),
+      emphasis: {
+        lineStyle: {
+          color,
+          width: widthOf(line.ratedCapacityMw) + 1.5,
+          opacity: 1,
+        },
+      },
+    })),
+    zlevel: 4,
+    z: 1,
+  }))
+}
+
+function buildSelectedLineSeries(lines, selectedId, voltageColors, unknownColor) {
+  const line = lines.find((item) => item.id === selectedId)
+  if (!line) return []
+
+  const color = colorOf(line, voltageColors, unknownColor)
+  return [{
+    id: 'tie-line-selected-overlay',
+    type: 'lines',
+    coordinateSystem: 'geo',
+    polyline: false,
+    silent: true,
+    tooltip: { show: false },
+    lineStyle: { color, curveness: 0.18 },
+    effect: {
+      show: true,
+      symbol: 'arrow',
+      symbolSize: 6,
+      period: 4,
+      trailLength: 0,
+      color,
+    },
+    data: [{
+      ...lineData(line, color),
+      lineStyle: {
+        color,
+        width: widthOf(line.ratedCapacityMw) + 1.5,
+        opacity: 1,
+      },
+    }],
+    zlevel: 5,
+    z: 2,
+  }]
+}
+
+function buildPointData(lines, excludedCoords = new Set()) {
   const pointMap = new Map()
   lines.forEach((line) => {
     const add = (lng, lat, label) => {
       const key = `${lng},${lat}`
-      if (!pointMap.has(key)) pointMap.set(key, { value: [lng, lat], label })
+      if (!excludedCoords.has(key) && !pointMap.has(key)) {
+        pointMap.set(key, { value: [lng, lat], label })
+      }
     }
     add(line.startLng, line.startLat, line.startPoint)
     add(line.endLng, line.endLat, line.endPoint)
   })
-  return Array.from(pointMap.values()).map((point) => ({ value: point.value, label: point.label }))
+  return Array.from(pointMap.values())
+}
+
+function buildRegularMarkerSeries(lines, selectedId, theme) {
+  const selectedLine = lines.find((line) => line.id === selectedId)
+  const excludedCoords = selectedLine
+    ? new Set([
+      `${selectedLine.startLng},${selectedLine.startLat}`,
+      `${selectedLine.endLng},${selectedLine.endLat}`,
+    ])
+    : new Set()
+  const hasSelection = Boolean(selectedLine)
+
+  return {
+    id: 'tie-line-markers-regular',
+    type: 'scatter',
+    coordinateSystem: 'geo',
+    silent: true,
+    tooltip: { show: false },
+    symbolSize: 4,
+    itemStyle: { color: theme.station, opacity: hasSelection ? 0.25 : 0.82 },
+    data: buildPointData(lines, excludedCoords),
+    zlevel: 3,
+    z: 2,
+  }
+}
+
+function buildSelectedMarkerSeries(lines, selectedId, voltageColors, unknownColor) {
+  const line = lines.find((item) => item.id === selectedId)
+  if (!line) return []
+
+  const color = colorOf(line, voltageColors, unknownColor)
+  const common = {
+    type: 'scatter',
+    coordinateSystem: 'geo',
+    silent: true,
+    tooltip: { show: false },
+    itemStyle: { color },
+    zlevel: 7,
+    z: 2,
+  }
+  return [
+    {
+      ...common,
+      id: 'tie-line-selected-start-marker',
+      symbol: 'circle',
+      symbolSize: 10,
+      data: [{ value: [line.startLng, line.startLat], label: line.startPoint }],
+    },
+    {
+      ...common,
+      id: 'tie-line-selected-end-marker',
+      symbol: 'diamond',
+      symbolSize: 11,
+      data: [{ value: [line.endLng, line.endLat], label: line.endPoint }],
+    },
+  ]
 }
 
 function buildRiverSeries(rivers, theme) {
@@ -102,8 +241,11 @@ function buildRiverSeries(rivers, theme) {
 // 动态箭头仅按静态线路资料的起点→终点坐标顺序运动，不表达真实潮流或功率方向。
 export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknownColor, theme, rivers }) {
   const riverSeries = buildRiverSeries(rivers, theme)
-  const lineSeries = buildLineGroups(lines, selectedId, voltageColors, unknownColor)
-  const pointData = buildPointData(lines)
+  const baseVisualSeries = buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColor)
+  const hitSeries = buildHitLineSeries(lines, voltageColors, unknownColor)
+  const selectedLineSeries = buildSelectedLineSeries(lines, selectedId, voltageColors, unknownColor)
+  const regularMarkerSeries = buildRegularMarkerSeries(lines, selectedId, theme)
+  const selectedMarkerSeries = buildSelectedMarkerSeries(lines, selectedId, voltageColors, unknownColor)
 
   return {
     backgroundColor: 'transparent',
@@ -122,7 +264,6 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
             `容量：${fmtMw(line.ratedCapacityMw)}`,
           ].join('<br/>')
         }
-        if (params.seriesType === 'scatter') return params.data.label || ''
         return ''
       },
     },
@@ -131,6 +272,7 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
       roam: true,
       zoom: 1.2,
       scaleLimit: { min: 1, max: 8 },
+      tooltip: { show: false },
       itemStyle: {
         areaColor: theme.land,
         borderColor: theme.boundary,
@@ -148,15 +290,11 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
     },
     series: [
       ...(riverSeries ? [riverSeries] : []),
-      ...lineSeries,
-      {
-        type: 'scatter',
-        coordinateSystem: 'geo',
-        symbolSize: 4,
-        itemStyle: { color: theme.station, opacity: 0.82 },
-        data: pointData,
-        zlevel: 3,
-      },
+      ...baseVisualSeries,
+      regularMarkerSeries,
+      ...hitSeries,
+      ...selectedLineSeries,
+      ...selectedMarkerSeries,
     ],
   }
 }

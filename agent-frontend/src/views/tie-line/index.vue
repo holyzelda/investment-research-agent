@@ -29,20 +29,30 @@
         />
         <div class="tie-line-page__map-note">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
       </div>
-      <TieLineDetailPanel class="tie-line-page__detail" :line="store.detail" />
+      <TieLineDetailPanel
+        class="tie-line-page__detail"
+        :line="store.detail"
+        :accent-token="detailAccentToken"
+      />
     </div>
   </section>
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useTieLineStore } from '@/store/modules/tieLine'
+import { buildVoltagePresentation } from './voltagePresentation'
 import ChinaTieLineMap from './components/ChinaTieLineMap.vue'
 import TieLineStatsBar from './components/TieLineStatsBar.vue'
 import TieLineFilterBar from './components/TieLineFilterBar.vue'
 import TieLineDetailPanel from './components/TieLineDetailPanel.vue'
 
 const store = useTieLineStore()
+
+const detailAccentToken = computed(() => {
+  const { tokenByText } = buildVoltagePresentation(store.filters.voltageOptions)
+  return tokenByText[store.detail?.voltageText] || '--xc-map-voltage-unknown'
+})
 
 onMounted(() => {
   store.loadLines()

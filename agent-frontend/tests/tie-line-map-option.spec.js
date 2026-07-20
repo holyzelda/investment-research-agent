@@ -49,17 +49,30 @@ function option(selectedId = null) {
   })
 }
 
-function lineSeries(chartOption) {
-  return chartOption.series.filter((series) => series.type === 'lines' && series.effect)
+function seriesById(chartOption, id) {
+  return chartOption.series.find((series) => series.id === id)
+}
+
+function visualSeries(chartOption) {
+  return chartOption.series.filter((series) => series.id.startsWith('tie-line-visual-'))
+}
+
+function hitSeries(chartOption) {
+  return chartOption.series.filter((series) => series.id.startsWith('tie-line-hit-'))
 }
 
 describe('联络线地图 option', () => {
-  it('从资料起点到终点绘制动态箭头，并保持线路与箭头同色', () => {
-    const series = lineSeries(option())
-    const first = series.find((item) => item.effect.color === 'runtime-800')
+  it('保持视觉线宽，同时以透明命中层扩大点击热区并承接悬停', () => {
+    const chartOption = option()
+    const visual = visualSeries(chartOption).find((series) => series.effect.color === 'runtime-800')
+    const hit = hitSeries(chartOption).find((series) => series.emphasis.lineStyle.color === 'runtime-800')
 
-    expect(first.data[0].coords).toEqual([[100, 30], [110, 35]])
-    expect(first.effect).toMatchObject({
+    expect(visual.data[0]).toMatchObject({
+      id: 1,
+      coords: [[100, 30], [110, 35]],
+      lineStyle: { width: 3.6, opacity: 0.85 },
+    })
+    expect(visual.effect).toMatchObject({
       show: true,
       symbol: 'arrow',
       symbolSize: 6,
@@ -67,22 +80,33 @@ describe('联络线地图 option', () => {
       trailLength: 0,
       color: 'runtime-800',
     })
-    expect(first.lineStyle.color).toBe(first.effect.color)
-    expect(first.data[0]).toMatchObject({ id: 1, info: lines[0] })
+    expect(hit).not.toHaveProperty('effect')
+    expect(hit).toMatchObject({
+      cursor: 'pointer',
+      lineStyle: { color: 'rgba(0,0,0,0)', width: 12, curveness: 0.18 },
+      emphasis: { focus: 'none', lineStyle: { color: 'runtime-800', opacity: 1 } },
+    })
+    expect(hit.data[0]).toMatchObject({
+      id: 1,
+      coords: visual.data[0].coords,
+      info: lines[0],
+      emphasis: { lineStyle: { color: 'runtime-800', width: 5.1, opacity: 1 } },
+    })
   })
 
   it('按电压运行时颜色分组，并为未知电压采用兜底色', () => {
-    const series = lineSeries(option())
+    const chartOption = option()
 
-    expect(series).toHaveLength(3)
-    expect(series.map((item) => item.effect.color)).toEqual([
+    expect(visualSeries(chartOption)).toHaveLength(3)
+    expect(visualSeries(chartOption).map((series) => series.effect.color)).toEqual([
       'runtime-800', 'runtime-500', 'runtime-unknown',
     ])
+    expect(hitSeries(chartOption)).toHaveLength(3)
   })
 
   it('将主要河流作为静默、无动画的低层背景，并防守无 info 的 tooltip', () => {
     const chartOption = option()
-    const riverSeries = chartOption.series.find((series) => series.id === 'map-natural-rivers')
+    const riverSeries = seriesById(chartOption, 'map-natural-rivers')
 
     expect(riverSeries).toMatchObject({
       type: 'lines',
@@ -106,17 +130,48 @@ describe('联络线地图 option', () => {
       borderWidth: 0.6,
     })
     expect(chartOption.geo.emphasis.itemStyle).toEqual({ areaColor: 'land-hover' })
+    expect(chartOption.geo.tooltip).toEqual({ show: false })
     expect(chartOption.geo.regions?.find((region) => region.name === '南海诸岛')).toBeUndefined()
   })
 
-  it('保留选中高亮、非选中弱化和端点去重', () => {
+  it('选中线路置顶、弱化其他线路并使用差异化端点标记', () => {
     const chartOption = option(1)
-    const selected = lineSeries(chartOption).find((item) => item.effect.color === 'runtime-800').data[0]
-    const unselected = lineSeries(chartOption).find((item) => item.effect.color === 'runtime-500').data[0]
-    const stations = chartOption.series.find((series) => series.type === 'scatter')
+    const base = visualSeries(chartOption)
+    const overlay = seriesById(chartOption, 'tie-line-selected-overlay')
+    const regularMarkers = seriesById(chartOption, 'tie-line-markers-regular')
+    const startMarker = seriesById(chartOption, 'tie-line-selected-start-marker')
+    const endMarker = seriesById(chartOption, 'tie-line-selected-end-marker')
 
-    expect(selected.lineStyle).toMatchObject({ width: 5.1, opacity: 1 })
-    expect(unselected.lineStyle.opacity).toBe(0.28)
-    expect(stations.data).toHaveLength(4)
+    expect(base.flatMap((series) => series.data).map((line) => line.id)).toEqual([2, 3])
+    expect(base.flatMap((series) => series.data).every((line) => line.lineStyle.opacity === 0.2)).toBe(true)
+    expect(overlay).toMatchObject({
+      silent: true,
+      tooltip: { show: false },
+      zlevel: 5,
+      effect: { color: 'runtime-800' },
+      data: [{ id: 1, lineStyle: { width: 5.1, opacity: 1 } }],
+    })
+    expect(regularMarkers).toMatchObject({
+      silent: true,
+      tooltip: { show: false },
+      itemStyle: { opacity: 0.25 },
+    })
+    expect(regularMarkers.data).toHaveLength(2)
+    expect(startMarker).toMatchObject({
+      symbol: 'circle',
+      symbolSize: 10,
+      itemStyle: { color: 'runtime-800' },
+      data: [{ value: [100, 30] }],
+      zlevel: 7,
+      silent: true,
+    })
+    expect(endMarker).toMatchObject({
+      symbol: 'diamond',
+      symbolSize: 11,
+      itemStyle: { color: 'runtime-800' },
+      data: [{ value: [110, 35] }],
+      zlevel: 7,
+      silent: true,
+    })
   })
 })
