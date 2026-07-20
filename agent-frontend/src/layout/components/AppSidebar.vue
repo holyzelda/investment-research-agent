@@ -1,91 +1,102 @@
 <template>
   <!-- 固定定位上下文：折叠态悬浮预览以此为锚点展开，而非相对整页居中 -->
-  <div class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : '300px' }">
-  <aside
-    class="ir-sider"
-    :class="{ 'ir-sider--collapsed': isCollapsed, 'ir-sider--hover-expand': isHoverExpand }"
-    @mouseenter="handleMouseEnter"
-    @mouseleave="handleMouseLeave"
-    @click="handleClick"
-  >
-    <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
-      <!-- 品牌头 + 折叠按钮 -->
-      <div class="ir-sider__head">
-        <img class="ir-sider__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
-        <span class="ir-sider__brand">朱雀投研智能体</span>
-        <button
-          class="ir-sider__toggle"
-          aria-label="折叠侧栏"
-          @click.stop="toggleCollapse"
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-            <rect x="3" y="4" width="18" height="16" rx="3" />
-            <path d="M9 4v16" stroke-linecap="round" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- 新建会话：青→紫渐变胶囊 -->
-      <button class="ir-sider__new" @click.stop="$emit('new-chat')">
-        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-          <path d="M8 3.33V12.67M3.33 8h9.34" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-        </svg>
-        <span>新建会话</span>
-      </button>
-
-      <!-- 历史会话 -->
-      <div class="ir-sider__hist">
-        <div class="ir-sider__divider" />
-        <div class="ir-sider__hist-label">历史会话</div>
-        <p v-if="!history.length" class="ir-sider__hist-empty">暂无历史，发起测算后自动记录</p>
-        <ul v-else class="ir-sider__hist-list">
-          <li
-            v-for="h in history"
-            :key="h.conversationId"
-            class="ir-sider__hist-item"
-            :class="{ 'is-current': h.conversationId === current }"
-            :title="h.title || '未命名会话'"
-            @click.stop="$emit('open-history', h.conversationId)"
+  <div v-if="!hidden" class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : '300px' }">
+    <aside
+      class="ir-sider"
+      :class="{ 'ir-sider--collapsed': isCollapsed, 'ir-sider--hover-expand': isHoverExpand }"
+      @mouseenter="handleMouseEnter"
+      @mouseleave="handleMouseLeave"
+      @click="handleClick"
+    >
+      <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
+        <!-- 品牌头 + 折叠按钮 -->
+        <div class="ir-sider__head">
+          <span class="ir-sider__logo" v-html="logoSvg" aria-hidden="true" />
+          <span class="ir-sider__brand">朱雀投研智能体</span>
+          <button
+            v-if="canHide"
+            class="ir-sider__hide"
+            aria-label="隐藏历史会话栏"
+            @click.stop="$emit('visibility-change', true)"
           >
-            <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
-            <span class="ir-sider__hist-actions" @click.stop>
-              <button
-                class="ir-sider__hist-more"
-                aria-label="更多"
-                @click.stop="toggleMenu(h.conversationId)"
-              >
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
-                </svg>
-              </button>
-              <div v-show="openMenu === h.conversationId" class="ir-sider__hist-menu">
-                <button class="ir-sider__hist-del" @click.stop="onDelete(h.conversationId)">删除</button>
-              </div>
-            </span>
-          </li>
-        </ul>
-      </div>
-    </div>
+            隐藏
+          </button>
+          <button
+            class="ir-sider__toggle"
+            aria-label="折叠侧栏"
+            @click.stop="toggleCollapse"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+              <rect x="3" y="4" width="18" height="16" rx="3" />
+              <path d="M9 4v16" stroke-linecap="round" />
+            </svg>
+          </button>
+        </div>
 
-    <!-- 折叠态：只保留一个折叠图标；悬浮时上方内容以浮层预览展开，移开即收起 -->
-    <div v-show="isCollapsed && !isHoverExpand" class="ir-sider__collapsed-icon" aria-hidden="true">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-        <rect x="3" y="4" width="18" height="16" rx="3" />
-        <path d="M9 4v16" stroke-linecap="round" />
-      </svg>
-    </div>
-  </aside>
+        <!-- 新建会话：青→紫渐变胶囊 -->
+        <button class="ir-sider__new" @click.stop="$emit('new-chat')">
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M8 3.33V12.67M3.33 8h9.34" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          </svg>
+          <span>新建会话</span>
+        </button>
+
+        <!-- 历史会话 -->
+        <div class="ir-sider__hist">
+          <div class="ir-sider__divider" />
+          <div class="ir-sider__hist-label">历史会话</div>
+          <p v-if="!history.length" class="ir-sider__hist-empty">暂无历史，发起测算后自动记录</p>
+          <ul v-else class="ir-sider__hist-list">
+            <li
+              v-for="h in history"
+              :key="h.conversationId"
+              class="ir-sider__hist-item"
+              :class="{ 'is-current': h.conversationId === current }"
+              :title="h.title || '未命名会话'"
+              @click.stop="$emit('open-history', h.conversationId)"
+            >
+              <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
+              <span class="ir-sider__hist-actions" @click.stop>
+                <button
+                  class="ir-sider__hist-more"
+                  aria-label="更多"
+                  @click.stop="toggleMenu(h.conversationId)"
+                >
+                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+                  </svg>
+                </button>
+                <div v-show="openMenu === h.conversationId" class="ir-sider__hist-menu">
+                  <button class="ir-sider__hist-del" @click.stop="onDelete(h.conversationId)">删除</button>
+                </div>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 折叠态：只保留一个折叠图标；悬浮时上方内容以浮层预览展开，移开即收起 -->
+      <div v-show="isCollapsed && !isHoverExpand" class="ir-sider__collapsed-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="16" rx="3" />
+          <path d="M9 4v16" stroke-linecap="round" />
+        </svg>
+      </div>
+    </aside>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
+import logoSvg from '@/assets/logo.svg?raw'
 
-defineProps({
+const props = defineProps({
   history: { type: Array, default: () => [] },
   current: { type: [Number, String], default: null },
+  hidden: { type: Boolean, default: false },
+  canHide: { type: Boolean, default: false },
 })
-const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'collapse-change'])
+const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'collapse-change', 'visibility-change'])
 
 const openMenu = ref(null)
 function toggleMenu(id) {
@@ -103,6 +114,15 @@ function onDelete(id) {
 const isCollapsed = ref(false)
 const isHoverExpand = ref(false)
 let hoverTimer = null
+
+watch(() => props.hidden, (hidden) => {
+  if (!hidden) return
+  clearTimeout(hoverTimer)
+  isCollapsed.value = false
+  isHoverExpand.value = false
+  openMenu.value = null
+})
+onBeforeUnmount(() => clearTimeout(hoverTimer))
 
 function toggleCollapse() {
   isCollapsed.value = !isCollapsed.value
@@ -222,7 +242,15 @@ function handleClick() {
   width: 21px;
   height: 34px;
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   object-fit: contain;
+}
+.ir-sider__logo :deep(svg) {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 .ir-sider__brand {
   font-size: var(--xc-fs-lg);
@@ -231,6 +259,18 @@ function handleClick() {
   letter-spacing: 0.02em;
   flex: 1 1 auto;
 }
+.ir-sider__hide {
+  border: 0;
+  background: transparent;
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-2xs);
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.ir-sider__hide:hover,
+.ir-sider__hide:focus-visible { color: var(--xc-text-strong); }
+.ir-sider__hide:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+
 .ir-sider__toggle {
   width: 28px;
   height: 28px;

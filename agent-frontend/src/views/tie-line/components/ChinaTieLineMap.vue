@@ -34,6 +34,7 @@ const voltageColors = computed(() => {
 
 const el = ref(null)
 let chart = null
+let resizeObserver = null
 
 // registerMap 是进程内全局副作用，注册一次即可
 let mapRegistered = false
@@ -86,10 +87,18 @@ onMounted(() => {
   chart = echarts.init(el.value)
   chart.setOption(buildOption())
   chart.on('click', onChartClick)
+  if (typeof ResizeObserver !== 'undefined') {
+    resizeObserver = new ResizeObserver(resize)
+    resizeObserver.observe(el.value)
+  }
   window.addEventListener('resize', resize)
 })
 onBeforeUnmount(() => {
   window.removeEventListener('resize', resize)
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
   if (chart) {
     chart.off('click', onChartClick)
     chart.dispose()

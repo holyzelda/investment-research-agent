@@ -13,15 +13,26 @@
       </div>
     </header>
 
-    <div class="ir-layout__body">
+    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden }">
       <AppRail
         :items="navItems"
         :active="activeRail"
         @nav="onNav"
       />
+      <button
+        v-if="sidebarHidden"
+        class="ir-layout__sidebar-open"
+        aria-label="展开历史会话栏"
+        @click="sidebarHidden = false"
+      >
+        历史会话
+      </button>
       <AppSidebar
         :history="calc.history"
         :current="calc.conversationId"
+        :hidden="sidebarHidden"
+        :can-hide="Boolean(route.meta.collapseSidebar)"
+        @visibility-change="sidebarHidden = $event"
         @new-chat="onNewChat"
         @open-history="onOpenHistory"
         @delete-history="onDeleteHistory"
@@ -34,8 +45,8 @@
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
@@ -48,7 +59,9 @@ const title = computed(() => import.meta.env.VITE_APP_TITLE || '朱雀投研智�
 const session = useSessionStore()
 const calc = useCalculationStore()
 const permission = usePermissionStore()
+const route = useRoute()
 const router = useRouter()
+
 const navItems = computed(() => permission.railRoutes.length
   ? permission.railRoutes.map((item) => ({
       key: item.path.replace(/^\//, ''),
@@ -57,7 +70,12 @@ const navItems = computed(() => permission.railRoutes.length
       icon: item.icon,
     }))
   : null)
-const activeRail = computed(() => router.currentRoute.value.path.replace(/^\//, ''))
+const activeRail = computed(() => route.path.replace(/^\//, ''))
+const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))
+
+watch(() => route.fullPath, () => {
+  sidebarHidden.value = Boolean(route.meta.collapseSidebar)
+})
 
 function onNewChat() {
   calc.resetConversation()
@@ -170,8 +188,35 @@ onMounted(() => {
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
+  position: relative;
   gap: var(--xc-gutter-x);
   overflow: hidden;
+}
+.ir-layout__body.is-sidebar-hidden {
+  gap: 0;
+}
+.ir-layout__sidebar-open {
+  position: absolute;
+  left: var(--xc-rail-w);
+  top: 30px;
+  z-index: var(--xc-z-nav);
+  border: 1px solid var(--xc-border-soft);
+  border-left: 0;
+  border-radius: 0 var(--xc-radius-sm) var(--xc-radius-sm) 0;
+  background: var(--xc-surface-glass);
+  color: var(--xc-text-soft);
+  font-size: var(--xc-fs-2xs);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+.ir-layout__sidebar-open:hover,
+.ir-layout__sidebar-open:focus-visible {
+  color: var(--xc-text-strong);
+  background: var(--xc-surface-frosted);
+}
+.ir-layout__sidebar-open:focus-visible {
+  outline: 2px solid var(--xc-accent-blue);
+  outline-offset: 2px;
 }
 .ir-layout__viewport {
   flex: 1 1 auto;

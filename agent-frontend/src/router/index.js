@@ -26,7 +26,7 @@ const routes = [
         path: 'tie-line',
         name: 'TieLineMap',
         component: () => import('@/views/tie-line/index.vue'),
-        meta: { title: '联络线地图' },
+        meta: { title: '联络线地图', collapseSidebar: true },
       },
     ],
   },
