@@ -20,7 +20,7 @@
         @nav="onNav"
       />
       <button
-        v-if="sidebarHidden"
+        v-if="sidebarHidden && route.name !== 'TieLineMap'"
         class="ir-layout__sidebar-open"
         aria-label="展开历史会话栏"
         @click="sidebarHidden = false"

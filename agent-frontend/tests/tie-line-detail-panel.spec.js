@@ -30,6 +30,10 @@ describe('联络线详情面板', () => {
     expect(wrapper.find('.tl-detail__route').text()).toContain('乙站')
     expect(wrapper.find('.tl-detail__metric-value.xc-num').text()).toContain('4,000 MW')
     expect(wrapper.find('.tl-detail__data-state').text()).toContain('功率时序数据未接入')
+    expect(wrapper.find('.tl-detail__route').text()).toContain('甲站')
+    expect(wrapper.find('.tl-detail__route').text()).toContain('乙站')
+    expect(wrapper.find('.tl-detail__metric-value.xc-num').text()).toContain('4,000 MW')
+    expect(wrapper.find('.tl-detail__data-state').text()).toContain('功率时序数据未接入')
   })
 
   it('支持未知电压的强调色 token', () => {

@@ -37,5 +37,8 @@ describe('联络线筛选栏', () => {
     expect(wrapper.find('.xc-input').exists()).toBe(true)
     expect(wrapper.find('.xc-btn--icon').exists()).toBe(true)
     expect(wrapper.find('svg.lucide-arrow-left-right').exists()).toBe(true)
+    expect(wrapper.find('.xc-input').exists()).toBe(true)
+    expect(wrapper.find('.xc-btn--icon').exists()).toBe(true)
+    expect(wrapper.find('svg.lucide-arrow-left-right').exists()).toBe(true)
   })
 })
