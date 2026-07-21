@@ -4,13 +4,12 @@
   "private": true,
   "description": "朱雀投研智能体 ZRA-3 前端（平台子应用，无独立登录）",
   "type": "module",
-  "packageManager": "pnpm@9.12.0",
+  "packageManager": "npm@10.5.0",
   "engines": {
-    "pnpm": ">=9",
-    "node": ">=18"
+    "node": ">=20.12.1",
+    "npm": ">=10.5.0"
   },
   "scripts": {
-    "preinstall": "npx only-allow pnpm",
     "dev": "vite",
     "build": "vite build",
     "build:staging": "vite build --mode staging",

@@ -6,26 +6,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-"朱雀投研智能体"（ZRA-3）前端 —— 统一平台的子应用。**无独立登录**：用户在平台首页完成登录后跳转承接落地本系统；身份由平台/网关注入后端请求头，前端不管理任何登录 token。
+"朱雀投研智能体"（ZRA-3）前端 —— 统一平台的子应用。**无独立登录**：用户在平台首页完成登录后跳转承接落地本系统；身份由平台/网关注入后端请求头，前端不管理任何用户登录 token。唯一例外是 `VITE_API_TOKEN`：它是共享固定接口访问 Token，不代表用户身份，也不得用于登录页、路由守卫、刷新机制或用户状态。
 
 技术栈：Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router 4 + ECharts 5（通过 vue-echarts）+ Tailwind（仅布局工具类，已关闭 `preflight`）+ "玄策（XC）"设计体系（深色优先，基于 CSS 自定义属性）。
 
 ## 常用命令
 
-包管理器**统一用 pnpm** —— `preinstall` 会执行 `only-allow pnpm`，用 `npm install` 会被有意拦截报错。
+包管理器**统一用 npm**。使用 Node.js v20.12.1（对应 npm 10.5.0）；`package-lock.json` 必须保持提交。开发初始化与 CI 使用 `npm ci`，新增或移除依赖时使用 `npm install` / `npm uninstall` 并同步提交 `package.json` 与 `package-lock.json`。
 
 ```bash
-pnpm install          # 安装依赖（pnpm-lock.yaml 必须保持提交）
-pnpm dev               # 启动开发服务器 http://localhost:5210
-pnpm build              # 生产构建 -> dist/
-pnpm build:staging      # 以 --mode staging 构建（加载 .env.staging）
-pnpm preview             # 本地预览构建产物
-pnpm test                 # 运行全部测试（一次性，vitest run）
-pnpm test:watch            # vitest watch 模式
+npm ci                 # 按 package-lock.json 安装依赖
+npm run dev            # 启动开发服务器 http://localhost:5210
+npm run build          # 生产构建 -> dist/
+npm run build:staging  # 以 --mode staging 构建（加载 .env.staging）
+npm run preview        # 本地预览构建产物
+npm test               # 运行全部测试（一次性，vitest run）
+npm run test:watch     # vitest watch 模式
 ```
 
-运行单个测试文件：`pnpm vitest run tests/calc-flow.spec.js`
-按名称运行单个测试：`pnpm vitest run -t "polls a non-terminal task"`
+运行单个测试文件：`npm exec vitest -- run tests/calc-flow.spec.js`
+按名称运行单个测试：`npm exec vitest -- run -t "polls a non-terminal task"`
 
 测试文件位于 `tests/*.spec.js`（不与源码同目录），使用 `vitest` + `@vue/test-utils` + `jsdom`，通过 `vite.config.js` 中的 `test.include` 进行匹配。
 
@@ -39,7 +39,7 @@ pnpm test:watch            # vitest watch 模式
 
 如需覆盖代理目标，在本地 `.env.local`（已在 `.gitignore` 中忽略）中设置 `VITE_DEV_BACKEND`，**不要**为了个人后端端口去改已提交的 `.env*` 文件。开发环境下需单独启动后端（`uvicorn ...`），否则 API 请求无法解析。
 
-`.env*` 系列文件有意只保留 4 项配置：`VITE_APP_BASE_API`、`VITE_APP_TITLE`、`VITE_FAVICON`、`VITE_APP_ENV`。任何后端业务配置都不应出现在前端 env 中。
+`.env*` 系列文件允许保留 5 项配置：`VITE_APP_BASE_API`、`VITE_APP_TITLE`、`VITE_FAVICON`、`VITE_APP_ENV`、`VITE_API_TOKEN`。`VITE_API_TOKEN` 是唯一允许的前端凭据：用于共享固定接口访问 Token，不是用户登录 Token；真实值只写入已被 `.gitignore` 忽略的 `.env.local`。任何后端业务配置都不应出现在前端 env 中。
 
 ## 架构说明
 
