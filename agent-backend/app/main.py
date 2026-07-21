@@ -1,31 +1,77 @@
-"""应用入口。
+"""FastAPI 应用工厂与生命周期入口。
 
-`app` 由基础设施层的应用工厂组装（app.infrastructure.web.app_factory）。
-本文件保持轻薄：仅暴露 ASGI 应用对象 + 本地直跑入口。
+本模块负责环境初始化、应用工厂、生命周期、中间件和业务路由；业务模块
+本身不因入口迁移改变。
 """
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
+
 from app.core.config.settings import get_settings
-from app.infrastructure.web.app_factory import create_app
+from app.core.exceptions import register_exception_handlers
+from app.infrastructure.database.session import dispose_engine, init_engine
+from app.infrastructure.nacos.client import cleanup_nacos, init_nacos_config
+from app.infrastructure.web.health import router as system_router
+from app.infrastructure.web.middleware.request_logging import RequestLoggingMiddleware
+from app.modules.calculation.infrastructure.spot_daily_scheduler import (
+    start_spot_daily_scheduler,
+    stop_spot_daily_scheduler,
+)
+from app.modules.calculation.interface.conversation_router import router as conversation_router
+from app.modules.calculation.interface.router import router as calculation_router
+from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
+from app.modules.platform_access.interface.router import router as platform_access_router
+
+
+def register_routers(app: FastAPI) -> None:
+    """集中挂载系统、平台接入、测算和会话路由。"""
+    app.include_router(system_router)
+    app.include_router(platform_access_router)
+    app.include_router(calculation_router)
+    app.include_router(conversation_router)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    settings = get_settings()
+    logger.info(f"{settings.app.name} v{settings.app.version} 启动中...（debug={settings.app.debug}）")
+    await init_nacos_config()
+    init_engine()
+    start_spot_daily_scheduler()
+    logger.info(f"{settings.app.name} 启动完成")
+    yield
+    stop_spot_daily_scheduler()
+    await dispose_engine()
+    await cleanup_nacos()
+    logger.info(f"{settings.app.name} 已关闭")
+
+
+def create_app() -> FastAPI:
+    settings = get_settings()
+    application = FastAPI(
+        title=settings.app.name,
+        version=settings.app.version,
+        description=settings.app.description,
+        docs_url="/docs",
+        redoc_url="/redoc",
+        openapi_url="/openapi.json",
+        lifespan=lifespan,
+    )
+
+    register_exception_handlers(application)
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors.allow_origins,
+        allow_credentials=settings.cors.allow_credentials,
+        allow_methods=settings.cors.allow_methods,
+        allow_headers=settings.cors.allow_headers,
+    )
+    application.add_middleware(RequestLoggingMiddleware)
+    application.add_middleware(PlatformIdentityMiddleware)
+    register_routers(application)
+    return application
+
 
 app = create_app()
-
-
-if __name__ == "__main__":
-    # 直接运行本文件即可启动服务（IDE 右键运行 / F5 调试也走这里），
-    # 无需在终端手敲 uvicorn 命令。
-    # 注意：
-    #   1) 必须以模块方式从 agent-backend 目录运行：python -m app.main
-    #      （或在 IDE 里把工作目录设为 agent-backend），否则绝对导入 `app.*` 会失败。
-    #   2) 热更新（reload）要求传入导入字符串 "app.main:app" 而非 app 对象。
-    #   3) log_config=None：交给项目自己的 loguru，避免 uvicorn 默认彩色日志在
-    #      无 tty（如输出被重定向）时报 isatty 错误。
-    import uvicorn
-
-    _settings = get_settings()
-    uvicorn.run(
-        "app.main:app",
-        host=_settings.app.host,
-        port=_settings.app.port,
-        reload=_settings.app.debug,  # debug=true 时开启热更新
-        reload_dirs=["app"],
-        log_config=None,
-    )

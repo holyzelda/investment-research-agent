@@ -58,9 +58,11 @@ C:\Users\JDPC0200\AppData\Local\Programs\Python\Python313\python.exe -m venv .ve
 # ③ 运行测试（单测走内存 sqlite，不连真库）
 .venv\Scripts\python.exe -m pytest
 
-# ④ 启动服务（连 configs/application.yml 里的测试库）
-#   方式一（推荐）：直接运行 main.py 的内置入口，可 IDE 右键运行 / F5 调试
-.venv\Scripts\python.exe -m app.main
+# ④ 启动服务（默认加载 .env.test；业务配置来自 Nacos 或 configs/application.yml）
+#   方式一（推荐）：运行 run.py，先加载环境文件再创建应用
+.venv\Scripts\python.exe run.py
+#   生产环境显式选择环境文件
+set ENV_FILE=.env.prod && .venv\Scripts\python.exe run.py
 #   方式二：传统 uvicorn 命令（等价）
 .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8080
 
@@ -73,18 +75,20 @@ C:\Users\JDPC0200\AppData\Local\Programs\Python\Python313\python.exe -m venv .ve
 > 按**版本范围**安装，不使用锁文件（团队决定：保证来源/流程统一，不追求逐字节一致）。
 > MySQL 异步驱动用 `aiomysql`（纯 Python，Windows 免编译）；高性能备选 `asyncmy` 需 C++ 编译环境，按需单独装。
 
-> **启动方式说明**：`app/main.py` 底部有 `if __name__ == "__main__"` 入口，可直接运行/调试（IDE F5）。
-> 但**必须从 `agent-backend` 目录以模块方式运行**（`-m app.main`），或在 IDE 里把**工作目录设为 `agent-backend`**；
-> 否则代码里的绝对导入 `from app.core...` 会报 `ModuleNotFoundError: app`。
-> host/port/热更新从 `application.yml` 读（`debug=true` 自动开 reload）。
+> **启动方式说明**：`run.py` 负责在创建应用前加载 `ENV_FILE` 指定的 `.env.test` 或 `.env.prod`；`app/main.py` 保留标准 `app.main:app` ASGI 导出。必须从 `agent-backend` 目录运行，或在 IDE 中将工作目录设为 `agent-backend`。
+> host/port/热更新从 `ENV_FILE` 指定的 `.env.test` 或 `.env.prod` 读取（`APP_DEBUG=true` 自动开 reload）。
 
 ## 配置分层
-本地 `application.yml` + `.env`；生产敏感项（数据源、飞书凭证、电价库 DSN、header 字段名）走 Nacos/环境变量。
-`NACOS_ENABLED=false` 时使用本地配置，`IR_DB_URL` 默认 sqlite（异步），生产用 `mysql+aiomysql://.../ir_agent`。
+启动参数与业务参数分层存放：
+
+- `.env.test` / `.env.prod`：只保存 `APP_*` 和 `NACOS_*`。由 `app/main.py` 根据 `ENV_FILE` 显式选择，缺省为 `.env.test`；其中 `APP_NAME` 与 `NACOS_PROFILE` 决定远端 data ID `{app.name}-{profile}.yml`。
+- `configs/application.yml`：本地业务配置，包括 `database`、`platform`、`feishu`、`cors`、`calc` 与 `spot_price`。
+- Nacos：使用与本地 YAML 相同的业务节点覆盖本地配置；Nacos 未启用、不可达、返回空内容或 YAML 非法时自动使用本地 YAML。
+
+Nacos 远端业务配置优先级最高，其次为已有 `IR_*` 业务环境变量，随后是本地 YAML 与默认值。Nacos 远端配置不会覆盖 `app` 或 `nacos` 节点，因此服务连接信息和注册身份在启动后保持稳定。
 
 ### 上线前需改动的配置清单
-> 全在 `configs/application.yml`；生产应改从 Nacos/环境变量注入，勿把生产凭据提交进仓库。
-> 每项都有对应的环境变量可覆盖（优先级最高），见括号内。
+> 业务配置在 `configs/application.yml` 与对应 Nacos data ID 中保持相同结构；生产应由 Nacos 承载敏感项，勿把生产凭据提交进仓库。
 
 **数据库**
 - `database.url`（env `IR_DB_URL`）→ 生产 `ir_agent` 库连接串。
@@ -103,10 +107,10 @@ C:\Users\JDPC0200\AppData\Local\Programs\Python\Python313\python.exe -m venv .ve
 - `revenue_structure_token` → 生产表2 电子表格 token。
 
 **平台 / 其它**
-- `nacos.enabled` + `server_addr` → 上线开 Nacos，敏感项改从 Nacos 注入。
+- `.env.prod` 中的 `NACOS_ENABLED`、`NACOS_SERVER_ADDR`、`NACOS_NAMESPACE`、`NACOS_GROUP`、`NACOS_PROFILE`、`NACOS_DISCOVERY_SERVICE_NAME` → 上线前由运维填入；服务会在成功加载配置后注册到 Nacos。
 - `platform.header_user_id/username` → 与平台约定的真实 header 字段名（挂账#8）。
 - `platform.allow_anonymous` → 生产设 `false`（⚠ 挂账#9：当前禁匿名分支未拦截，上线前需补 401）。
-- `app.host/port`、`cors.allow_origins`（生产收紧到平台域名，勿留 `*`）。
+- `APP_HOST` / `APP_PORT`、`cors.allow_origins`（生产收紧到平台域名，勿留 `*`）。
 
 ## 现货电价 · 预计算与日更
 

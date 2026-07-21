@@ -7,7 +7,18 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from app.main import app
+from app import main
+
+app = main.app
+
+
+def test_main_owns_application_factory_and_lifecycle():
+    assert callable(main.create_app)
+    assert callable(main.lifespan)
+    assert callable(main.register_routers)
+    assert {"/health", "/ir/me", "/ir/calc/param-dict"}.issubset(
+        {route.path for route in app.routes}
+    )
 
 
 async def _client() -> AsyncClient:

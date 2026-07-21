@@ -3,6 +3,11 @@ import os
 
 # 必须在导入 app 配置之前设置环境变量
 os.environ.setdefault("NACOS_ENABLED", "false")
+os.environ.setdefault("APP_NAME", "ir-agent")
+os.environ.setdefault("APP_VERSION", "0.1.0")
+os.environ.setdefault("APP_DEBUG", "true")
+os.environ.setdefault("APP_HOST", "0.0.0.0")
+os.environ.setdefault("APP_PORT", "9089")
 os.environ.setdefault("IR_DB_URL", "sqlite+aiosqlite:///:memory:")
 os.environ.setdefault("IR_HEADER_USER_ID", "X-User-Id")
 os.environ.setdefault("IR_HEADER_USERNAME", "X-User-Name")

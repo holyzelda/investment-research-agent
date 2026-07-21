@@ -1,26 +1,11 @@
 # 朱雀投研智能体后端本地配置（application.yml）
 # 敏感/环境相关配置走 Nacos 与环境变量；此文件仅本地开发默认值。
 
-app:
-  name: ir-agent
-  version: 0.1.0
-  debug: true
-  host: 0.0.0.0
-  port: 9089
-
 database:
   # Python 异步 SQLAlchemy 连接串格式：mysql+aiomysql://example_user:example_password@database.example.invalid/库名
   # 正式环境该项走 Nacos，不写在此文件。
   url: mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent
   echo: false
-
-nacos:
-  enabled: false
-  server_addr: http://internal-2-58.example.invalid:8848/
-  namespace: test
-  group: DEFAULT_GROUP
-  profile: test
-  service_name: ir-agent
 
 platform:
   # 平台/网关注入身份的请求头字段名（待与统一平台约定，PRD 挂账 #8）
@@ -84,4 +69,3 @@ spot_price:
     蒙西:
       charge: 0.5
       discharge: 0.5
-

@@ -100,6 +100,14 @@
 5. 同一 `conversation_id` 可混合15年与20年版本；重试复用已复制副本。
 6. 批末完成后端 pytest、前端 Vitest、`pnpm build` 和代码审查。
 
+### Batch 7 · Nacos 配置与服务注册
+
+1. 由 `agent-backend/app/main.py` 在创建应用前加载 `ENV_FILE`；将应用启动参数与 Nacos 连接参数迁至 `agent-backend/.env.test`、`agent-backend/.env.prod`，仅保留 `APP_*` 与 `NACOS_*`，由 `ENV_FILE` 显式选择，不做自动环境探测。
+2. 本地 `configs/application.yml` 保留数据库、平台、飞书及既有业务配置；Nacos 远端配置使用同一业务配置结构且拥有最高优先级，其次为显式既有业务环境变量，再次为本地 YAML。
+3. 启动时依次创建 Nacos 客户端、拉取 `{app.name}-{profile}.yml`、校验并合并远端 YAML、初始化既有基础设施、注册服务实例；Nacos 未启用、不可达、空配置或非法 YAML 时使用本地 YAML，不改变既有业务调用逻辑。
+4. 关闭时仅在本进程已成功注册时注销实例并关闭 Nacos 客户端；Nacos 注册失败仅记录错误，不阻止本地配置模式下的服务运行。
+5. 覆盖远端覆盖、本地回退、环境变量优先级、注册/注销参数及 `ENV_FILE` 加载的隔离测试，不连接真实 Nacos。
+
 
 - 新行为先有失败测试，再写最小实现。
 - Batch 4 必须通过：`home.spec.js`、`calc-flow.spec.js`、`result-cards.spec.js`（覆盖电价 4 位、整数无小数点、其他非整数 2 位且不修改原值）、`charts.spec.js`、`version-list.spec.js`、现有前端测试与 `pnpm build`。

@@ -1,11 +1,12 @@
 """应用配置（基础设施层）。
 
-分层：默认值 → configs/application.yml → 环境变量（最高优先级）。
+分层：默认值 → configs/application.yml → 业务环境变量 → Nacos 远端业务配置（最高优先级）。
 Nacos 装载在启动时执行（见 app/infrastructure/nacos/client.py），装载结果并入本模块缓存。
 
 说明：本系统采用团队统一栈（FastAPI + 异步 SQLAlchemy + Nacos），
 仅框架选型与 trader 一致，配置实现为本项目自研。
 """
+import copy
 import os
 from functools import lru_cache
 from typing import Any, Optional
@@ -20,6 +21,34 @@ CONFIG_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))), "configs"
 )
 APPLICATION_YML = os.path.join(CONFIG_DIR, "application.yml")
+
+# Nacos 仅覆盖业务配置；启动和 Nacos 连接本身必须在进程启动前确定。
+_nacos_overrides: dict[str, Any] = {}
+
+
+def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    merged = copy.deepcopy(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = _deep_merge(merged[key], value)
+        else:
+            merged[key] = copy.deepcopy(value)
+    return merged
+
+
+def set_nacos_overrides(config: dict[str, Any]) -> None:
+    """保存远端业务配置；禁止覆盖启动阶段已确定的 app 和 nacos 配置。"""
+    global _nacos_overrides
+    _nacos_overrides = {
+        key: copy.deepcopy(value)
+        for key, value in (config or {}).items()
+        if key not in {"app", "nacos"}
+    }
+
+
+def clear_nacos_overrides() -> None:
+    global _nacos_overrides
+    _nacos_overrides = {}
 
 
 def _load_yaml() -> dict:
@@ -42,6 +71,18 @@ def _nested(cfg: dict, keys: list[str], default: Any = None) -> Any:
         else:
             return default
     return cur
+
+
+def _as_bool(value: Any) -> bool:
+    return str(value).lower() == "true"
+
+
+def _business_value(env_name: str, config: dict[str, Any], keys: list[str], default: Any) -> Any:
+    """Nacos 远端业务配置最高，其次保留既有 IR_* 环境变量兼容性。"""
+    remote_value = _nested(_nacos_overrides, keys)
+    if remote_value is not None:
+        return remote_value
+    return os.getenv(env_name, _nested(config, keys, default))
 
 
 class AppConfig(BaseModel):
@@ -166,32 +207,37 @@ class Settings(BaseModel):
 
 
 def _build_settings() -> Settings:
-    y = _load_yaml()
+    y = _deep_merge(_load_yaml(), _nacos_overrides)
 
     app = AppConfig(
-        name=_nested(y, ["app", "name"], "ir-agent"),
-        version=_nested(y, ["app", "version"], "0.1.0"),
-        debug=_nested(y, ["app", "debug"], True),
-        host=_nested(y, ["app", "host"], "0.0.0.0"),
-        port=int(_nested(y, ["app", "port"], 8080)),
+        name=os.getenv("APP_NAME", _nested(y, ["app", "name"], "ir-agent")),
+        version=os.getenv("APP_VERSION", _nested(y, ["app", "version"], "0.1.0")),
+        debug=_as_bool(os.getenv("APP_DEBUG", _nested(y, ["app", "debug"], True))),
+        host=os.getenv("APP_HOST", _nested(y, ["app", "host"], "0.0.0.0")),
+        port=int(os.getenv("APP_PORT", _nested(y, ["app", "port"], 8080))),
+        description=os.getenv("APP_DESCRIPTION", _nested(y, ["app", "description"], AppConfig().description)),
     )
     database = DatabaseConfig(
-        # 优先级：环境变量 IR_DB_URL（单测覆盖为内存 sqlite）> application.yml（测试库）
-        url=os.getenv("IR_DB_URL", _nested(y, ["database", "url"], DatabaseConfig().url)),
+        url=_business_value("IR_DB_URL", y, ["database", "url"], DatabaseConfig().url),
         echo=_nested(y, ["database", "echo"], False),
+        pool_size=int(_nested(y, ["database", "pool_size"], DatabaseConfig().pool_size)),
+        max_overflow=int(_nested(y, ["database", "max_overflow"], DatabaseConfig().max_overflow)),
     )
     nacos = NacosConfig(
-        enabled=os.getenv("NACOS_ENABLED", str(_nested(y, ["nacos", "enabled"], False))).lower() == "true",
+        enabled=_as_bool(os.getenv("NACOS_ENABLED", _nested(y, ["nacos", "enabled"], False))),
         server_addr=os.getenv("NACOS_SERVER_ADDR", _nested(y, ["nacos", "server_addr"], "127.0.0.1:8848")),
         namespace=os.getenv("NACOS_NAMESPACE", _nested(y, ["nacos", "namespace"], "test")),
         group=os.getenv("NACOS_GROUP", _nested(y, ["nacos", "group"], "DEFAULT_GROUP")),
         profile=os.getenv("NACOS_PROFILE", _nested(y, ["nacos", "profile"], "test")),
-        service_name=_nested(y, ["nacos", "service_name"], "ir-agent"),
+        service_name=os.getenv("NACOS_DISCOVERY_SERVICE_NAME", os.getenv(
+            "NACOS_SERVICE_NAME", _nested(y, ["nacos", "service_name"], "ir-agent"))),
     )
     platform = PlatformConfig(
-        header_user_id=os.getenv("IR_HEADER_USER_ID", _nested(y, ["platform", "header_user_id"], "X-User-Id")),
-        header_username=os.getenv("IR_HEADER_USERNAME", _nested(y, ["platform", "header_username"], "X-User-Name")),
-        allow_anonymous=os.getenv("IR_ALLOW_ANONYMOUS", str(_nested(y, ["platform", "allow_anonymous"], True))).lower() == "true",
+        header_user_id=_business_value("IR_HEADER_USER_ID", y, ["platform", "header_user_id"], "X-User-Id"),
+        header_username=_business_value("IR_HEADER_USERNAME", y, ["platform", "header_username"], "X-User-Name"),
+        allow_anonymous=_as_bool(_business_value("IR_ALLOW_ANONYMOUS", y, ["platform", "allow_anonymous"], True)),
+        anonymous_user_id=_nested(y, ["platform", "anonymous_user_id"], PlatformConfig().anonymous_user_id),
+        anonymous_username=_nested(y, ["platform", "anonymous_username"], PlatformConfig().anonymous_username),
     )
     cors = CorsConfig(
         allow_origins=_nested(y, ["cors", "allow_origins"], ["*"]),
@@ -200,53 +246,45 @@ def _build_settings() -> Settings:
         allow_headers=_nested(y, ["cors", "allow_headers"], ["*"]),
     )
     calc = CalcConfig(
-        poll_interval_seconds=float(os.getenv(
-            "IR_CALC_POLL_INTERVAL", _nested(y, ["calc", "poll_interval_seconds"], 3.0))),
-        poll_timeout_seconds=float(os.getenv(
-            "IR_CALC_POLL_TIMEOUT", _nested(y, ["calc", "poll_timeout_seconds"], 10.0))),
-        max_retries=int(os.getenv(
-            "IR_CALC_MAX_RETRIES", _nested(y, ["calc", "max_retries"], 3))),
+        poll_interval_seconds=float(_business_value("IR_CALC_POLL_INTERVAL", y, ["calc", "poll_interval_seconds"], 3.0)),
+        poll_timeout_seconds=float(_business_value("IR_CALC_POLL_TIMEOUT", y, ["calc", "poll_timeout_seconds"], 10.0)),
+        max_retries=int(_business_value("IR_CALC_MAX_RETRIES", y, ["calc", "max_retries"], 3)),
     )
     _fd = FeishuConfig()
     feishu = FeishuConfig(
-        enabled=os.getenv("IR_FEISHU_ENABLED", str(_nested(y, ["feishu", "enabled"], False))).lower() == "true",
-        base_url=os.getenv("IR_FEISHU_BASE_URL", _nested(y, ["feishu", "base_url"], _fd.base_url)),
-        app_id=os.getenv("IR_FEISHU_APP_ID", _nested(y, ["feishu", "app_id"], "")),
-        app_secret=os.getenv("IR_FEISHU_APP_SECRET", _nested(y, ["feishu", "app_secret"], "")),
-        template_token_15_years=os.getenv(
-            "IR_FEISHU_TEMPLATE_TOKEN_15_YEARS",
-            _nested(y, ["feishu", "template_token_15_years"], ""),
-        ),
-        template_token_20_years=os.getenv(
-            "IR_FEISHU_TEMPLATE_TOKEN_20_YEARS",
-            _nested(y, ["feishu", "template_token_20_years"], ""),
-        ),
-        target_folder_token=os.getenv("IR_FEISHU_FOLDER_TOKEN", _nested(y, ["feishu", "target_folder_token"], "")),
+        enabled=_as_bool(_business_value("IR_FEISHU_ENABLED", y, ["feishu", "enabled"], False)),
+        base_url=_business_value("IR_FEISHU_BASE_URL", y, ["feishu", "base_url"], _fd.base_url),
+        app_id=_business_value("IR_FEISHU_APP_ID", y, ["feishu", "app_id"], ""),
+        app_secret=_business_value("IR_FEISHU_APP_SECRET", y, ["feishu", "app_secret"], ""),
+        template_token_15_years=_business_value(
+            "IR_FEISHU_TEMPLATE_TOKEN_15_YEARS", y, ["feishu", "template_token_15_years"], ""),
+        template_token_20_years=_business_value(
+            "IR_FEISHU_TEMPLATE_TOKEN_20_YEARS", y, ["feishu", "template_token_20_years"], ""),
+        target_folder_token=_business_value("IR_FEISHU_FOLDER_TOKEN", y, ["feishu", "target_folder_token"], ""),
         copy_name_prefix=_nested(y, ["feishu", "copy_name_prefix"], _fd.copy_name_prefix),
         meta_status_cell=_nested(y, ["feishu", "meta_status_cell"], _fd.meta_status_cell),
         meta_request_id_cell=_nested(y, ["feishu", "meta_request_id_cell"], _fd.meta_request_id_cell),
         meta_param_hash_cell=_nested(y, ["feishu", "meta_param_hash_cell"], _fd.meta_param_hash_cell),
         meta_done_value=_nested(y, ["feishu", "meta_done_value"], _fd.meta_done_value),
-        revenue_structure_token=os.getenv("IR_FEISHU_REVENUE_TOKEN", _nested(y, ["feishu", "revenue_structure_token"], "")),
+        revenue_structure_token=_business_value("IR_FEISHU_REVENUE_TOKEN", y, ["feishu", "revenue_structure_token"], ""),
         revenue_structure_sheet=_nested(y, ["feishu", "revenue_structure_sheet"], _fd.revenue_structure_sheet),
         revenue_structure_range=_nested(y, ["feishu", "revenue_structure_range"], _fd.revenue_structure_range),
     )
     _sd = SpotPriceConfig()
     spot_price = SpotPriceConfig(
-        enabled=os.getenv("IR_SPOT_ENABLED", str(_nested(y, ["spot_price", "enabled"], False))).lower() == "true",
-        province_dsn=os.getenv("IR_SPOT_PROVINCE_DSN", _nested(y, ["spot_price", "province_dsn"], "")),
+        enabled=_as_bool(_business_value("IR_SPOT_ENABLED", y, ["spot_price", "enabled"], False)),
+        province_dsn=_business_value("IR_SPOT_PROVINCE_DSN", y, ["spot_price", "province_dsn"], ""),
         province_table=_nested(y, ["spot_price", "province_table"], _sd.province_table),
         province_market=_nested(y, ["spot_price", "province_market"], _sd.province_market),
-        node_dsn=os.getenv("IR_SPOT_NODE_DSN", _nested(y, ["spot_price", "node_dsn"], "")),
+        node_dsn=_business_value("IR_SPOT_NODE_DSN", y, ["spot_price", "node_dsn"], ""),
         node_table=_nested(y, ["spot_price", "node_table"], _sd.node_table),
         node_price_type=int(_nested(y, ["spot_price", "node_price_type"], _sd.node_price_type)),
         min_action_minutes=int(_nested(y, ["spot_price", "min_action_minutes"], _sd.min_action_minutes)),
         switch_gap_minutes=int(_nested(y, ["spot_price", "switch_gap_minutes"], _sd.switch_gap_minutes)),
         province_price_coefficients=_nested(
             y, ["spot_price", "province_price_coefficients"], _sd.province_price_coefficients),
-        daily_update_enabled=os.getenv(
-            "IR_SPOT_DAILY_UPDATE_ENABLED",
-            str(_nested(y, ["spot_price", "daily_update_enabled"], _sd.daily_update_enabled))).lower() == "true",
+        daily_update_enabled=_as_bool(_business_value(
+            "IR_SPOT_DAILY_UPDATE_ENABLED", y, ["spot_price", "daily_update_enabled"], _sd.daily_update_enabled)),
         daily_update_hour=int(_nested(y, ["spot_price", "daily_update_hour"], _sd.daily_update_hour)),
         daily_update_minute=int(_nested(y, ["spot_price", "daily_update_minute"], _sd.daily_update_minute)),
         daily_update_workers=int(_nested(y, ["spot_price", "daily_update_workers"], _sd.daily_update_workers)),
@@ -258,6 +296,18 @@ def _build_settings() -> Settings:
 @lru_cache
 def get_settings() -> Settings:
     return _build_settings()
+
+
+def get_app_config() -> AppConfig:
+    return get_settings().app
+
+
+def get_cors_config() -> CorsConfig:
+    return get_settings().cors
+
+
+def get_nacos_config() -> NacosConfig:
+    return get_settings().nacos
 
 
 def reload_settings() -> Settings:
