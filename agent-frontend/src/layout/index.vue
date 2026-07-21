@@ -3,7 +3,7 @@
     <!-- 顶栏融入背景、贯穿整行宽度，与下方 rail/侧栏对齐（对齐 trader AppShell 结构） -->
     <header class="ir-layout__topbar">
       <div class="ir-brand">
-        <span class="ir-brand__mark" aria-hidden="true" />
+        <img class="ir-brand__mark" src="/brand-logo.svg" alt="" aria-hidden="true" />
         <span class="ir-brand__name">{{ title }}</span>
         <span class="ir-brand__sub">ZRA · 储能投资投研助手</span>
       </div>
@@ -115,12 +115,10 @@ onMounted(() => {
   gap: var(--xc-space-3);
 }
 .ir-brand__mark {
-  width: 22px;
-  height: 22px;
+  width: 21px;
+  height: 34px;
   flex: 0 0 auto;
-  border-radius: var(--xc-radius-sm);
-  background: var(--xc-grad-brand);
-  box-shadow: var(--xc-glow-blue);
+  object-fit: contain;
 }
 .ir-brand__name {
   font-size: var(--xc-fs-h3);

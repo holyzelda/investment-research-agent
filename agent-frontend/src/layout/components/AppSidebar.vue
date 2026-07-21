@@ -11,7 +11,7 @@
     <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
       <!-- 品牌头 + 折叠按钮 -->
       <div class="ir-sider__head">
-        <span class="ir-sider__logo" aria-hidden="true" v-html="logoSvg" />
+        <img class="ir-sider__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
         <span class="ir-sider__brand">朱雀投研智能体</span>
         <button
           class="ir-sider__toggle"
@@ -80,7 +80,6 @@
 
 <script setup>
 import { ref } from 'vue'
-import logoSvg from '@/assets/logo.svg?raw'
 
 defineProps({
   history: { type: Array, default: () => [] },
@@ -220,19 +219,10 @@ function handleClick() {
   flex: 0 0 auto;
 }
 .ir-sider__logo {
-  width: 28px;
-  height: 28px;
+  width: 21px;
+  height: 34px;
   flex: 0 0 auto;
-  border-radius: var(--xc-radius-sm);
-  --zra-icon-bg: rgba(255, 255, 255, 0.05);
-  --zra-icon-border: rgba(255, 255, 255, 0.12);
-  --zra-icon-mark: #f2f4f7;
-  --zra-icon-accent: #e95a4f;
-}
-.ir-sider__logo :deep(svg) {
-  display: block;
-  width: 100%;
-  height: 100%;
+  object-fit: contain;
 }
 .ir-sider__brand {
   font-size: var(--xc-fs-lg);

@@ -27,7 +27,7 @@ Do not call `python`/`python3`. Use `.venv\Scripts\python.exe`, or `C:\Users\JDP
 
 - `app/core/` provides settings, constants, exceptions, and the `{code,msg,data}` response shell.
 - `app/infrastructure/` provides database, Nacos, and web/application-factory concerns.
-- `app/modules/platform_access/` trusts platform identity headers and exposes `/ir/me`; do not add authentication logic.
+- `app/modules/platform_access/` trusts platform identity headers and exposes `/ir/me`; fixed interface Token validation belongs in web middleware, not this module. Do not add login, JWT, session, or RBAC logic.
 - `app/modules/calculation/` follows `interface → application → domain`; `domain` cannot depend on FastAPI, database, or external HTTP, while `infrastructure` implements domain ports.
 - `infrastructure/data/param_dict.json` is the calculation parameter schema: source, writable/direction, interface mapping, default, and frontend control metadata. Use `ParamDictionary`/`ParamSpec`; do not bypass it with hard-coded parameter behavior.
 

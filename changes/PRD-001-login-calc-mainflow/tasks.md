@@ -72,9 +72,9 @@
 
 - [x] **0.1 前端全新工程 + 框架层 + 设计体系（无登录页）**
   - **0.1.1** 编写启动自检测试：`agent-frontend/tests/scaffold.spec.js` 断言 `import.meta.env.VITE_APP_BASE_API` 存在、axios `request` 拦截器按 `{code,msg,data}` 解析、路由默认落地对话首页、源码中**无** login/register/captcha/permission-guard、无 `ecenter`/`systemSign`。
-  - **0.1.2** 运行 `pnpm vitest run tests/scaffold.spec.js`，Expected: FAIL（工程未建）。
-  - **0.1.3** `pnpm create vite agent-frontend --template vue`；对齐 trader 依赖版本（vue/element-plus/pinia/vue-router/echarts/tailwindcss/vue-slider-component/nprogress）；搭建通用框架层（axios 请求实例、`layout/`、路由、通用组件、svg-icon）——**不含登录页/路由守卫/用户权限模块**；移植 `src/design-system/`（XC）；配 `.env.*`（`VITE_APP_BASE_API=/gateway/`、`VITE_APP_TITLE=朱雀投研智能体`、favicon）；根路由默认指向 `views/home`。
-  - **0.1.4** 运行 `pnpm install && pnpm vitest run tests/scaffold.spec.js`，Expected: PASS；`pnpm dev` 启动直达对话首页、无未捕获错误。
+  - **0.1.2** 运行 `npm exec vitest -- run tests/scaffold.spec.js`，Expected: FAIL（工程未建）。
+  - **0.1.3** `npm create vite@latest agent-frontend -- --template vue`；对齐 trader 依赖版本（vue/element-plus/pinia/vue-router/echarts/tailwindcss/vue-slider-component/nprogress）；搭建通用框架层（axios 请求实例、`layout/`、路由、通用组件、svg-icon）——**不含登录页/路由守卫/用户权限模块**；移植 `src/design-system/`（XC）；配 `.env.*`（`VITE_APP_BASE_API=/gateway/`、`VITE_APP_TITLE=朱雀投研智能体`、favicon）；根路由默认指向 `views/home`。
+  - **0.1.4** 运行 `npm ci && npm exec vitest -- run tests/scaffold.spec.js`，Expected: PASS；`npm run dev` 启动直达对话首页、无未捕获错误。
   - **0.1.5** 提交 `feat(frontend): bootstrap fresh Vue3 app (XC design system + framework layer, no login)`。
   - **Files**: `Create: agent-frontend/**`
 
@@ -109,7 +109,7 @@
 
 - [ ] **1.2 前端承接落地对话首页**
   - **1.2.1** 编写 `tests/landing.spec.js`：根路由 `/` 渲染 `views/home`（对话首页）；无登录页/无守卫重定向；标题=`VITE_APP_TITLE`、根节点带 `xc-app` class。
-  - **1.2.2** 运行 `pnpm vitest run tests/landing.spec.js`，Expected: FAIL。
+  - **1.2.2** 运行 `npm exec vitest -- run tests/landing.spec.js`，Expected: FAIL。
   - **1.2.3** 配置路由默认落地 `views/home`；`layout` 承载对话首页；确认请求实例透传（同域时浏览器自带平台注入的 header，无需前端处理身份）。
   - **1.2.4** 运行 pytest，Expected: PASS。
   - **1.2.5** 提交 `feat(frontend): land on conversation home (platform handoff, no login)`。
@@ -213,7 +213,7 @@
   - **4.6.5** 编写 `agent-frontend/tests/conversation-history.spec.js`：断言左侧“投资分析工作台”功能项全部排在历史会话之前；首页刷新仍为欢迎页；点击历史项回放固定顺序消息、版本和结果且不调用测算接口；回放后提交携带 `conversation_id`；“…”菜单删除需确认，取消不请求、确认后调用 DELETE 并从列表隐藏。
   - **4.6.6** 运行该测试，Expected: FAIL（无历史列表和回放动作）。
   - **4.6.7** 修改 `AppSidebar.vue`、`api/calc.js`、`store/modules/calculation.js` 与布局挂载逻辑：按原型采用功能导航 → 分隔线 → 历史标题 → 单行省略历史项；进入时仅加载列表；点击详情重建 messages/versions/selectedVersion/conversationId；更多菜单用 Element Plus 二次确认软删除。
-  - **4.6.8** 运行 Batch 4 前端全量测试与 `pnpm build`，Expected: PASS；手动验证两名用户互不可见、刷新不自动打开、历史回放不访问飞书。
+  - **4.6.8** 运行 Batch 4 前端全量测试与 `npm run build`，Expected: PASS；手动验证两名用户互不可见、刷新不自动打开、历史回放不访问飞书。
   - **Interfaces**: Consumes 平台 `get_current_user`、Batch 3 快照表；Produces 三个会话历史 API 和可继续追加版本的恢复态 store。
   - **Files**: `Modify: persistence/orm.py, interface/router.py, AppSidebar.vue, store/modules/calculation.js, api/calc.js`; `Create: migration, conversation_history_service.py, test_conversation_history_api.py, conversation-history.spec.js`。
 
@@ -242,6 +242,17 @@
   - **5.4.5** 编写前端测试：调整面板提交当前完整值和 `conversation_id`，得到 V2 后保留V1并追加版本；V3从V2 input基线初始化。
   - **5.4.6** 实现 store `recalculate` 复用任务轮询/拉结果编排，运行 Batch5 与历史回归测试，Expected: PASS。
   - **Interfaces**: Extends `POST /ir/calc/tasks` with optional `param_overrides`; consumes previous version `input_snapshot.payload.apiInput`; produces frozen V2/V3 input and report snapshot.
+
+---
+
+## 7. Batch 7：固定 Bearer Token 接口访问控制
+
+依赖：现有应用工厂与统一请求层。
+
+- [ ] **7.1 固定 Token 校验与前端注入**
+  - 后端：`IR_API_TOKEN` 配置、全局中间件、`OPTIONS`/health/docs/redoc/openapi 匿名白名单、401 响应壳、`WWW-Authenticate`、恒定时间比较、脱敏失败日志及 OpenAPI Bearer 方案。
+  - 前端：`VITE_API_TOKEN` 请求拦截器注入；未配置时不阻止启动；401 使用固定 Token 授权失败文案。
+  - 测试：后端覆盖白名单、错误分支、有效 Token、OpenAPI 与日志脱敏；前端覆盖请求头注入与 401 提示；执行相关回归和构建。
 
 ---
 

@@ -18,7 +18,7 @@
 - Batch 5 inline 参数调整与重新测算。
 
 范围外：
-- 登录、注册、验证码、用户/RBAC、token 二次校验；
+- 用户登录、注册、验证码、用户管理、RBAC、JWT、Token 过期/刷新/轮换/撤销；
 - 报告本体/PDF及报告历史（仅预留 `conversation_id/task_id/version` 关联约束）；
 - 中台 Tool、通用 NLU/意图分发；
 - 地图、政策模块；
@@ -30,7 +30,7 @@
 |---|---:|---|---|---|
 | 前端脚手架 | 0 | Vue3/Vite、统一请求壳、XC 设计系统；无登录页和权限守卫；默认落首页 | `scaffold.spec.js`、路由/品牌检查 | 已完成 |
 | 后端脚手架 | 0 | `create_app()`、中间件、`{code,msg,data}`、异常处理、异步 SQLAlchemy、Alembic、Nacos 降级 | app boot、响应壳、Nacos fallback、迁移 | 已完成 |
-| 平台承接 | 1 | 读取可配置身份 header 注入请求上下文；不校验 token、不访问外部登录态 | 身份存在/缺失、字段切换、无登录代码 | 已完成；生产禁匿名挂账 |
+| 平台承接 | 1 | 读取可配置身份 header 注入请求上下文；固定 Bearer Token 中间件校验受保护接口，不访问外部登录态 | 身份存在/缺失、Token 白名单/401/OpenAPI | 已完成；固定 Token 待执行 |
 | 参数字典 | 2 | 参数元数据结构化、可版本化；按省份收益结构收敛可见项 | schema、可见集、默认值与类型 | 基础完成；按省端点待 Batch 5 补齐 |
 | 飞书接口区 | 2 | 仅复制副本并读写 INPUT/OUTPUT/META，不改模型单元格；5xx 可重试 | gateway 打桩、接口区范围、重试 | 已完成 |
 | 参数组装 | 2 | 对话输入、默认值、电价库、表2四来源合并；只读项不写；hash 稳定 | assembler 单元/集成测试 | 已完成 |
@@ -53,9 +53,9 @@
 - 后端依赖方向：`interface → application → domain`，基础设施实现端口。
 - 飞书是唯一权威计算器；应用不复制计算公式。
 - `report_snapshot` 是历史结果展示的数据源。
-- 前端复用现有 `request.js`、Pinia store、ResultCard 与 ECharts 组件，不增加第二套请求层或通用工作流框架。
+- 前端复用现有 `request.js`、Pinia store、ResultCard 与 ECharts 组件；`request.js` 统一注入固定接口 Token，不增加第二套请求层或登录工作流框架。
+- 平台身份 header 只用于会话和快照归属；固定 Bearer Token 只确认调用方可访问接口。二者独立：有效 Token 缺身份 header 时保留既有匿名规则。
 - Batch 4 不提前实现 Batch 5；Batch 5 不实现报告本体。
-- 遵循简单实现：固定业务规则直接编码，不增加模式开关、自动探测或多重 fallback。
 
 ## Execution Batches
 
@@ -98,7 +98,7 @@
 3. 运营期保留在任务响应与 `input_snapshot`，但不写入 `API_INPUT!B11` 或其他飞书接口区单元格。
 4. 前端仅做明确15/20年文本提取，并在既有高级参数弹窗中按参数字典提供15/20下拉。
 5. 同一 `conversation_id` 可混合15年与20年版本；重试复用已复制副本。
-6. 批末完成后端 pytest、前端 Vitest、`pnpm build` 和代码审查。
+6. 批末完成后端 pytest、前端 `npm test`、`npm run build` 和代码审查。
 
 ### Batch 7 · Nacos 配置与服务注册
 
@@ -110,7 +110,7 @@
 
 
 - 新行为先有失败测试，再写最小实现。
-- Batch 4 必须通过：`home.spec.js`、`calc-flow.spec.js`、`result-cards.spec.js`（覆盖电价 4 位、整数无小数点、其他非整数 2 位且不修改原值）、`charts.spec.js`、`version-list.spec.js`、现有前端测试与 `pnpm build`。
+- Batch 4 必须通过：`home.spec.js`、`calc-flow.spec.js`、`result-cards.spec.js`（覆盖电价 4 位、整数无小数点、其他非整数 2 位且不修改原值）、`charts.spec.js`、`version-list.spec.js`、现有前端测试与 `npm run build`。
 - Batch 4.6 必须通过：后端 `test_conversation_history_api.py`（列表过滤、固定顺序回放、软删除保留快照、跨用户 404、task status/result 归属）和前端 `conversation-history.spec.js`（左侧位置、欢迎页、手动回放、复用 conversation_id、更多菜单确认/取消），以及前后端相关回归测试和前端构建。
 - Batch 5 必须覆盖：四区/控件范围、省份永久锁、首次锁定/二次解锁、所有市场按表2显隐、受控覆盖、新版本不覆盖，以及现货依赖变化重查/依赖不变继承手工价/开关关闭不查库；开始前 Batch 4.6 必须完成。
 - 回归敏感点：响应壳、request_id 串号、7 类快照不覆盖、report_snapshot 独立重建、版本不覆盖、节点缺省不显示。
