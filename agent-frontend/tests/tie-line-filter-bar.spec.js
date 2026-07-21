@@ -34,5 +34,8 @@ describe('联络线筛选栏', () => {
     expect(wrapper.emitted('swap-regions')).toHaveLength(1)
     expect(wrapper.emitted('reset-filters')).toHaveLength(1)
     expect(wrapper.props('startRegion')).toBe('西北')
+    expect(wrapper.find('.xc-input').exists()).toBe(true)
+    expect(wrapper.find('.xc-btn--icon').exists()).toBe(true)
+    expect(wrapper.find('svg.lucide-arrow-left-right').exists()).toBe(true)
   })
 })

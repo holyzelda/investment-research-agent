@@ -86,8 +86,9 @@ describe('联络线地图区域筛选', () => {
     expect(store.detail).toBeNull()
   })
 
-  it('原子交换区域并重置筛选而保留当前详情', () => {
+  it('交换区域后清除被隐藏的当前详情，重置筛选不恢复选择', () => {
     const store = useTieLineStore()
+    store.lines = lines
     store.activeStartRegion = '西北'
     store.activeEndRegion = ''
     store.activeMinCapacityMw = 1000
@@ -98,14 +99,16 @@ describe('联络线地图区域筛选', () => {
     store.swapRegions()
     expect(store.activeStartRegion).toBe('')
     expect(store.activeEndRegion).toBe('西北')
+    expect(store.selectedId).toBeNull()
+    expect(store.detail).toBeNull()
 
     store.resetFilters()
     expect(store.activeStartRegion).toBe('')
     expect(store.activeEndRegion).toBe('')
     expect(store.activeMinCapacityMw).toBeNull()
     expect(store.activeMaxCapacityMw).toBeNull()
-    expect(store.selectedId).toBe(1)
-    expect(store.detail).toEqual({ id: 1 })
+    expect(store.selectedId).toBeNull()
+    expect(store.detail).toBeNull()
   })
 
   it('按当前可见范围推荐长度最长的线路', () => {

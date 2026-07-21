@@ -1,8 +1,8 @@
 <template>
-  <div class="tl-stats">
-    <div v-for="item in cards" :key="item.key" class="tl-stats__card">
-      <span class="tl-stats__value">{{ item.value }}</span>
+  <div class="tl-stats" aria-label="联络线统计">
+    <div v-for="item in cards" :key="item.key" class="xc-kpi tl-stats__item">
       <span class="tl-stats__label">{{ item.label }}</span>
+      <strong class="xc-num tl-stats__value">{{ item.value }}</strong>
     </div>
   </div>
 </template>
@@ -10,8 +10,6 @@
 <script setup>
 import { computed } from 'vue'
 
-// 顶部统计条。原型图的「最高/最低 MW、有数据条数」依赖功率时序，底表无此数据，
-// 首版用静态数据能算的指标替换：联络线数 / 覆盖区域 / 电压档 / 额定容量合计。
 const props = defineProps({
   stats: { type: Object, default: null },
 })
@@ -32,23 +30,8 @@ const cards = computed(() => {
 </script>
 
 <style scoped>
-.tl-stats {
-  display: flex;
-  gap: var(--xc-space-6, 24px);
-  align-items: baseline;
-}
-.tl-stats__card {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.tl-stats__value {
-  font-size: var(--xc-fs-h3, 20px);
-  font-weight: var(--xc-fw-semi, 600);
-  color: var(--xc-text-strong);
-}
-.tl-stats__label {
-  font-size: var(--xc-fs-2xs, 12px);
-  color: var(--xc-text-mute);
-}
+.tl-stats { display: grid; grid-template-columns: repeat(4, max-content); gap: var(--xc-space-5); }
+.tl-stats__item { display: grid; gap: var(--xc-space-1); min-width: 72px; }
+.tl-stats__label { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.tl-stats__value { color: var(--xc-text-strong); font-size: var(--xc-fs-kpi-sm); font-weight: var(--xc-fw-semi); line-height: var(--xc-lh-tight); white-space: nowrap; }
 </style>

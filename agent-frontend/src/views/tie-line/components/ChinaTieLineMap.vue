@@ -20,7 +20,7 @@
       @select="emit('select', $event)"
       @close="closeList"
     />
-    <div class="china-tie-line-map__note">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
+    <div class="china-tie-line-map__note" aria-live="off">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
   </div>
 </template>
 
@@ -189,7 +189,7 @@ watch(
 .china-tie-line-map { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--xc-map-ocean); }
 .china-tie-line-map:fullscreen { width: 100%; height: 100%; background: var(--xc-map-ocean); }
 .china-tie-line-map__canvas { width: 100%; height: 100%; min-height: 0; }
-.china-tie-line-map__tools { position: absolute; top: 16px; right: 16px; z-index: 4; }
-.china-tie-line-map__list { position: absolute; top: 58px; right: 16px; z-index: 3; }
-.china-tie-line-map__note { position: absolute; left: 16px; bottom: 16px; z-index: 2; max-width: 260px; padding: 6px 10px; border: 1px solid var(--xc-map-legend-border); border-radius: var(--xc-radius-sm, 8px); background: var(--xc-map-legend-bg); color: var(--xc-text-mute); font-size: var(--xc-fs-3xs, 10px); line-height: var(--xc-lh-snug, 1.3); }
+.china-tie-line-map__tools { position: absolute; top: var(--xc-space-4); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
+.china-tie-line-map__list { position: absolute; top: calc(var(--xc-space-4) + 44px); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
+.china-tie-line-map__note { position: absolute; left: var(--xc-space-4); bottom: var(--xc-space-4); z-index: var(--xc-z-raised); max-width: 260px; padding: var(--xc-space-2) var(--xc-space-3); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--xc-surface-glass); box-shadow: var(--xc-shadow-sm); backdrop-filter: blur(var(--xc-blur-sm)); color: var(--xc-text-mute); font-size: var(--xc-fs-3xs); line-height: var(--xc-lh-snug); }
 </style>

@@ -9,6 +9,9 @@ describe('联络线地图工具栏', () => {
     expect(wrapper.findAll('button')).toHaveLength(5)
     expect(wrapper.find('[data-action="zoom-in"]').attributes('aria-label')).toBe('放大地图')
     expect(wrapper.find('[data-action="list"]').attributes('aria-pressed')).toBe('false')
+    expect(wrapper.find('svg.lucide-zoom-in').exists()).toBe(true)
+    expect(wrapper.find('svg.lucide-list').exists()).toBe(true)
+    expect(wrapper.find('.xc-btn--icon').exists()).toBe(true)
   })
 
   it('派发地图控制事件并同步开关状态', async () => {
