@@ -108,4 +108,29 @@ describe('联络线功率趋势状态', () => {
     expect(store.selectedId).toBeNull()
     expect(store.powerTrend).toBeNull()
   })
+
+  it('推荐线路变化时默认请求昨日趋势', async () => {
+    api.getTieLinePower.mockResolvedValue({ data: { lineId: 2, points: [] } })
+    const store = useTieLineStore()
+    store.lines = [
+      { id: 1, name: '短线', lengthText: '100 km' },
+      { id: 2, name: '长线', lengthText: '2,383 km' },
+    ]
+    const expectedRange = getRollingDateRange(1)
+
+    await store.loadRecommendedPowerTrend()
+
+    expect(api.getTieLinePower).toHaveBeenCalledWith(2, { key: 'yesterday', ...expectedRange })
+    expect(store.powerTrend).toEqual({ lineId: 2, points: [] })
+  })
+
+  it('已有用户选中线路时不为推荐线路覆盖功率趋势', async () => {
+    const store = useTieLineStore()
+    store.lines = [{ id: 2, name: '长线', lengthText: '2,383 km' }]
+    store.selectedId = 1
+
+    await store.loadRecommendedPowerTrend()
+
+    expect(api.getTieLinePower).not.toHaveBeenCalled()
+  })
 })

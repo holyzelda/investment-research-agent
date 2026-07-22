@@ -99,8 +99,20 @@ export const useTieLineStore = defineStore('tieLine', {
       this.powerTrendError = ''
     },
     async loadPowerTrend(range = this.powerRange) {
-      if (this.selectedId == null) return
-      const lineId = this.selectedId
+      const lineId = this.selectedId ?? this.recommendedLine?.id
+      if (lineId == null) return
+      await this._loadPowerTrendForLine(lineId, range, () => this.selectedId ?? this.recommendedLine?.id)
+    },
+    async loadRecommendedPowerTrend(range = { key: 'yesterday', ...getRollingDateRange(1) }) {
+      if (this.selectedId != null) return
+      const lineId = this.recommendedLine?.id
+      if (lineId == null) {
+        this._clearPowerTrend()
+        return
+      }
+      await this._loadPowerTrendForLine(lineId, range, () => this.selectedId == null ? this.recommendedLine?.id : null)
+    },
+    async _loadPowerTrendForLine(lineId, range, currentLineId) {
       const requestVersion = this.powerRequestVersion + 1
       this.powerRequestVersion = requestVersion
       this.powerRange = range
@@ -109,15 +121,15 @@ export const useTieLineStore = defineStore('tieLine', {
       this.powerTrendError = ''
       try {
         const res = await getTieLinePower(lineId, range)
-        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+        if (requestVersion === this.powerRequestVersion && currentLineId() === lineId) {
           this.powerTrend = res?.data || null
         }
       } catch (e) {
-        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+        if (requestVersion === this.powerRequestVersion && currentLineId() === lineId) {
           this.powerTrendError = '功率趋势加载失败，请稍后重试'
         }
       } finally {
-        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+        if (requestVersion === this.powerRequestVersion && currentLineId() === lineId) {
           this.powerTrendLoading = false
         }
       }

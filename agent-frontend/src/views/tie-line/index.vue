@@ -95,6 +95,13 @@ watch(hasNoVisibleLines, (visible) => {
   }, 2000)
 })
 
+watch(
+  () => [store.recommendedLine?.id, store.selectedId],
+  ([recommendedId, selectedId]) => {
+    if (selectedId == null && recommendedId != null) store.loadRecommendedPowerTrend()
+  },
+)
+
 const detailAccentToken = computed(() => {
   const { tokenByText } = buildVoltagePresentation(store.filters.voltageOptions)
   const displayLine = store.detail || store.recommendedLine

@@ -73,7 +73,7 @@ describe('联络线详情面板', () => {
     expect(wrapper.text()).toContain('乙站')
     expect(wrapper.text()).toContain('2,383 km')
     expect(wrapper.find('.tl-detail__placeholder').exists()).toBe(false)
-    expect(wrapper.find('[data-test="power-trend"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="power-trend"]').exists()).toBe(true)
   })
 
   it('透传功率趋势范围切换事件', async () => {

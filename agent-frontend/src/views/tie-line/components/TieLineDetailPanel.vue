@@ -30,21 +30,21 @@
         <div class="tl-metric-strip__item"><dt>投运年份</dt><dd class="xc-num">{{ displayLine.operationYear || '—' }}</dd></div>
       </dl>
 
-<!--      <section v-if="basisSummary" class="tl-data-basis">-->
-<!--        <button class="tl-data-basis__toggle" type="button" @click="basisOpen = !basisOpen">-->
-<!--          <span>数据口径</span>-->
-<!--          <strong class="tl-data-basis__summary">{{ basisSummary }}</strong>-->
-<!--          <em>{{ basisOpen ? '收起' : '展开' }}</em>-->
-<!--        </button>-->
-<!--        <div v-if="basisOpen" class="tl-data-basis__body">-->
-<!--          <p v-if="displayLine.coordinateBasis">坐标基准：{{ displayLine.coordinateBasis }}</p>-->
-<!--          <p v-if="displayLine.dataBasisNote">数据说明：{{ displayLine.dataBasisNote }}</p>-->
-<!--          <p v-if="displayLine.sourceNote">来源备注：{{ displayLine.sourceNote }}</p>-->
-<!--        </div>-->
-<!--      </section>-->
+      <section v-if="basisSummary" class="tl-data-basis">
+        <button class="tl-data-basis__toggle" type="button" @click="basisOpen = !basisOpen">
+          <span>数据口径</span>
+          <strong class="tl-data-basis__summary">{{ basisSummary }}</strong>
+          <em>{{ basisOpen ? '收起' : '展开' }}</em>
+        </button>
+        <div v-if="basisOpen" class="tl-data-basis__body">
+          <p v-if="displayLine.coordinateBasis">坐标基准：{{ displayLine.coordinateBasis }}</p>
+          <p v-if="displayLine.dataBasisNote">数据说明：{{ displayLine.dataBasisNote }}</p>
+          <p v-if="displayLine.sourceNote">来源备注：{{ displayLine.sourceNote }}</p>
+        </div>
+      </section>
 
       <TieLinePowerTrend
-        v-if="line"
+        v-if="displayLine"
         :trend="powerTrend"
         :range="powerRange"
         :loading="powerTrendLoading"

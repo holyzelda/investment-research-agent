@@ -16,12 +16,27 @@
         type="button"
         @click="selectPreset(item)"
       >{{ item.label }}</button>
-      <button
-        class="tl-power-trend__range"
-        :class="{ 'tl-power-trend__range--active': range?.key === 'custom' }"
-        type="button"
-        @click="openCustom"
-      >自定义</button>
+      <div class="tl-power-trend__custom-wrap">
+        <button
+          class="tl-power-trend__range"
+          :class="{ 'tl-power-trend__range--active': range?.key === 'custom' }"
+          type="button"
+          data-test="custom-range-trigger"
+          @click="openCustom"
+        >自定义</button>
+        <div v-if="customVisible" class="tl-power-trend__custom-panel" role="dialog" aria-label="自定义功率趋势日期">
+          <strong>自定义功率趋势日期</strong>
+          <div class="tl-power-trend__date-inputs">
+            <input v-model="customStartDate" type="date" :max="yesterday()" aria-label="开始日期">
+            <span>至</span>
+            <input v-model="customEndDate" type="date" :max="yesterday()" aria-label="结束日期">
+          </div>
+          <div class="tl-power-trend__dialog-actions">
+            <button class="tl-power-trend__btn tl-power-trend__btn--ghost" type="button" @click="customVisible = false">取消</button>
+            <button class="tl-power-trend__btn tl-power-trend__btn--primary" type="button" :disabled="!isCustomRangeValid" @click="confirmCustom">确认</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div
@@ -38,21 +53,6 @@
       <button class="xc-btn xc-btn--ghost" type="button" data-test="retry-power-trend" @click="$emit('retry')">重试</button>
     </div>
     <div v-else-if="isEmpty" class="tl-power-trend__state">该线路在所选日期范围内暂无功率数据</div>
-
-    <div v-if="customVisible" class="tl-power-trend__dialog" role="dialog" aria-modal="true" aria-label="自定义功率趋势日期">
-      <div class="tl-power-trend__dialog-card">
-        <strong>自定义功率趋势日期</strong>
-        <div class="tl-power-trend__date-inputs">
-          <input v-model="customStartDate" type="date" :max="yesterday()" aria-label="开始日期">
-          <span>至</span>
-          <input v-model="customEndDate" type="date" :max="yesterday()" aria-label="结束日期">
-        </div>
-        <div class="tl-power-trend__dialog-actions">
-          <button class="xc-btn xc-btn--ghost" type="button" @click="customVisible = false">取消</button>
-          <button class="xc-btn xc-btn--primary" type="button" :disabled="!isCustomRangeValid" @click="confirmCustom">确认</button>
-        </div>
-      </div>
-    </div>
   </section>
 </template>
 
@@ -190,9 +190,17 @@ const { el } = useEcharts(buildOption)
 .tl-power-trend__canvas--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .tl-power-trend__skeleton, .tl-power-trend__state { display: grid; place-content: center; min-height: 188px; gap: var(--xc-space-3); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); text-align: center; }
 .tl-power-trend__skeleton .xc-skeleton { width: 100%; height: 128px; }
-.tl-power-trend__dialog { position: fixed; inset: 0; z-index: var(--xc-z-modal); display: grid; place-items: center; padding: var(--xc-space-4); background: var(--xc-surface-overlay); }
-.tl-power-trend__dialog-card { width: min(100%, 420px); display: grid; gap: var(--xc-space-4); padding: var(--xc-space-5); color: var(--xc-text-strong); background: var(--xc-surface-raised); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-md); }
-.tl-power-trend__date-inputs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--xc-space-2); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
-.tl-power-trend__date-inputs input { min-width: 0; padding: var(--xc-space-2); color: var(--xc-text-strong); background: var(--xc-surface-control); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-xs); }
-.tl-power-trend__dialog-actions { display: flex; justify-content: flex-end; gap: var(--xc-space-2); }
+.tl-power-trend__custom-wrap { position: relative; min-width: 0; }
+.tl-power-trend__custom-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--xc-z-raised); display: grid; gap: 12px; width: min(300px, 78vw); margin-top: 0; padding: var(--xc-space-4); color: var(--xc-text-strong); background: var(--xc-surface-raised); border: 1px solid var(--xc-border-soft); border-radius: 6px; box-shadow: var(--xc-shadow-md); }
+.tl-power-trend__custom-panel > strong { font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-semi); }
+.tl-power-trend__date-inputs { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 8px; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
+.tl-power-trend__date-inputs input { min-width: 0; height: 34px; padding: 0 10px; color: var(--xc-text-default); background: var(--xc-surface-control); border: 1px solid var(--xc-border-soft); border-radius: 6px; font: inherit; font-size: var(--xc-fs-xs); outline: 0; appearance: textfield; }
+.tl-power-trend__date-inputs input:hover { border-color: var(--xc-border-strong); }
+.tl-power-trend__date-inputs input:focus-visible { border-color: var(--xc-border-accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--xc-border-accent) 22%, transparent); }
+.tl-power-trend__dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.tl-power-trend__btn { height: 30px; padding: 0 12px; border: 1px solid var(--xc-border-soft); border-radius: 6px; background: var(--xc-surface-control); color: var(--xc-text-soft); font: inherit; font-size: var(--xc-fs-2xs); cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease, opacity 160ms ease; }
+.tl-power-trend__btn--ghost:hover:not(:disabled) { border-color: var(--xc-border-strong); background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
+.tl-power-trend__btn--primary { border-color: var(--xc-border-accent); background: color-mix(in srgb, var(--xc-border-accent) 14%, transparent); color: var(--xc-text-strong); }
+.tl-power-trend__btn--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--xc-border-accent) 20%, transparent); }
+.tl-power-trend__btn:disabled { opacity: 0.35; cursor: default; }
 </style>

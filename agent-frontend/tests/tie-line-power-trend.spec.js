@@ -133,6 +133,31 @@ describe('联络线功率趋势组件', () => {
     expect(styles).toContain('pointer-events: none')
   })
 
+  it('自定义日期面板从自定义按钮下拉展开，不放在趋势模块底部或覆盖地图', async () => {
+    const wrapper = mount(TieLinePowerTrend, {
+      props: {
+        trend: { startDate: '2026-07-20', endDate: '2026-07-20', dataDateCount: 1, points },
+        range: { key: 'yesterday', startDate: '2026-07-20', endDate: '2026-07-20' },
+      },
+      global: { stubs: { ElDialog: true, ElDatePicker: true } },
+    })
+
+    await wrapper.find('[data-test="custom-range-trigger"]').trigger('click')
+
+    const customWrap = wrapper.find('.tl-power-trend__custom-wrap')
+    expect(customWrap.find('.tl-power-trend__custom-panel').exists()).toBe(true)
+    expect(wrapper.find('.tl-power-trend__dialog').exists()).toBe(false)
+    expect(tieLinePowerTrendSource.indexOf('tl-power-trend__custom-panel')).toBeLessThan(tieLinePowerTrendSource.indexOf('tl-power-trend__canvas'))
+    expect(tieLinePowerTrendSource).not.toContain('position: fixed')
+    expect(tieLinePowerTrendSource).not.toContain('aria-modal="true"')
+    expect(styles).toContain('.tl-power-trend__custom-wrap { position: relative')
+    expect(styles).toContain('position: absolute')
+    expect(styles).toContain('top: calc(100% + 6px)')
+    expect(styles).toContain('background: var(--xc-surface-raised)')
+    expect(styles).toContain('border-radius: 6px')
+    expect(styles).toContain('appearance: textfield')
+  })
+
   it('加载失败时发出重试事件', async () => {
     const wrapper = mount(TieLinePowerTrend, {
       props: {
