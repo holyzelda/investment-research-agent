@@ -50,26 +50,27 @@ defineEmits(['zoom-in', 'zoom-out', 'reset', 'toggle-fullscreen', 'toggle-list']
 .tl-map-tools {
   display: inline-flex;
   overflow: hidden;
-  border: 1px solid var(--xc-border-soft);
+  border: 1px solid rgba(9, 24, 43, 0.18);
   border-radius: var(--xc-radius-md);
-  background: var(--xc-surface-glass);
-  box-shadow: var(--xc-shadow-glass);
+  background: rgba(245, 239, 220, 0.92);
+  box-shadow: 0 10px 28px rgba(9, 24, 43, 0.28);
   backdrop-filter: blur(var(--xc-blur-lg));
 }
 .tl-map-tools .xc-btn--icon {
   border: 0;
-  border-right: 1px solid var(--xc-border-soft);
+  border-right: 1px solid rgba(9, 24, 43, 0.16);
   border-radius: 0;
-  color: var(--xc-text-soft);
+  background: transparent;
+  color: var(--xc-map-ocean);
 }
 .tl-map-tools .xc-btn--icon:last-child { border-right: 0; }
 .tl-map-tools .xc-btn--icon:hover,
 .tl-map-tools .xc-btn--icon.is-active {
-  color: var(--xc-text-strong);
-  background: var(--xc-accent-blue-soft);
+  color: var(--xc-map-ocean);
+  background: rgba(9, 24, 43, 0.12);
 }
 .tl-map-tools .xc-btn--icon:focus-visible {
-  outline: 2px solid var(--xc-border-accent);
+  outline: 2px solid var(--xc-accent-blue);
   outline-offset: -2px;
 }
 </style>

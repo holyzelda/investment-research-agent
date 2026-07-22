@@ -9,7 +9,7 @@
 """
 from __future__ import annotations
 
-from app.modules.tie_line_map.domain.models import TieLine
+from app.modules.tie_line_map.domain.models import TieLine, TieLinePowerTrend
 
 
 def _line_to_dict(line: TieLine) -> dict:
@@ -80,3 +80,17 @@ def serialize_lines(lines: list[TieLine]) -> dict:
 
 def serialize_line_detail(line: TieLine) -> dict:
     return _line_to_detail(line)
+
+
+def serialize_power_trend(trend: TieLinePowerTrend) -> dict:
+    """功率趋势值对象转为前端消费的 camelCase 数据。"""
+    return {
+        "lineId": trend.line_id,
+        "startDate": trend.start_date.isoformat(),
+        "endDate": trend.end_date.isoformat(),
+        "dataDateCount": trend.data_date_count,
+        "points": [
+            {"time": point.time, "powerMw": point.power_mw}
+            for point in trend.points
+        ],
+    }

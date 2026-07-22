@@ -14,3 +14,11 @@ export function getTieLineDetail(lineId) {
     method: 'get',
   })
 }
+
+export function getTieLinePower(lineId, { startDate, endDate }) {
+  return request({
+    url: `/ir/tie-lines/${lineId}/power`,
+    method: 'get',
+    params: { startDate, endDate },
+  })
+}

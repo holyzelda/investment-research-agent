@@ -6,14 +6,16 @@ serializer 派生。联络线为公共基础数据，不做用户归属过滤。
 """
 from __future__ import annotations
 
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
-from app.modules.tie_line_map.domain.models import TieLine
-from app.modules.tie_line_map.infrastructure.persistence.orm import TieLineMapORM
+from app.modules.tie_line_map.application.power_import_service import POWER_TIME_COLUMNS
+from app.modules.tie_line_map.domain.models import TieLine, TieLinePowerPoint, TieLinePowerTrend
+from app.modules.tie_line_map.infrastructure.persistence.orm import TieLineMapORM, TieLinePowerORM
 
 
 def _to_float(value: Decimal | float | None) -> float:
@@ -43,6 +45,21 @@ def _to_domain(row: TieLineMapORM) -> TieLine:
     )
 
 
+def _power_attribute_name(time_column: str) -> str:
+    return f"power_{time_column.replace(':', '')}_mw"
+
+
+def _average_power(rows: list[TieLinePowerORM], time_column: str) -> float | None:
+    values = [
+        value
+        for row in rows
+        if (value := getattr(row, _power_attribute_name(time_column))) is not None
+    ]
+    if not values:
+        return None
+    return float(sum(values, Decimal("0")) / len(values))
+
+
 class TieLineService:
     async def list_lines(self, session: AsyncSession) -> list[TieLine]:
         rows = (await session.execute(
@@ -55,3 +72,38 @@ class TieLineService:
         if row is None:
             raise NotFoundException("联络线不存在")
         return _to_domain(row)
+
+    async def get_power_trend(
+        self,
+        session: AsyncSession,
+        *,
+        line_id: int,
+        start_date: date,
+        end_date: date,
+    ) -> TieLinePowerTrend:
+        line = await session.get(TieLineMapORM, line_id)
+        if line is None:
+            raise NotFoundException("联络线不存在")
+
+        rows = (await session.execute(
+            select(TieLinePowerORM)
+            .where(
+                TieLinePowerORM.line_id == line_id,
+                TieLinePowerORM.data_date >= start_date,
+                TieLinePowerORM.data_date <= end_date,
+            )
+            .order_by(TieLinePowerORM.data_date.asc())
+        )).scalars().all()
+        return TieLinePowerTrend(
+            line_id=line_id,
+            start_date=start_date,
+            end_date=end_date,
+            data_date_count=len(rows),
+            points=tuple(
+                TieLinePowerPoint(
+                    time=time_column,
+                    power_mw=_average_power(rows, time_column),
+                )
+                for time_column in POWER_TIME_COLUMNS
+            ),
+        )

@@ -6,6 +6,7 @@ import * as echarts from 'echarts'
 export function useEcharts(optionFactory) {
   const el = ref(null)
   let chart = null
+  let resizeObserver = null
 
   const render = () => {
     if (!chart) return
@@ -17,9 +18,15 @@ export function useEcharts(optionFactory) {
     chart = echarts.init(el.value)
     render()
     window.addEventListener('resize', resize)
+    if (typeof ResizeObserver !== 'undefined' && el.value) {
+      resizeObserver = new ResizeObserver(resize)
+      resizeObserver.observe(el.value)
+    }
   })
   onBeforeUnmount(() => {
     window.removeEventListener('resize', resize)
+    resizeObserver && resizeObserver.disconnect()
+    resizeObserver = null
     chart && chart.dispose()
     chart = null
   })

@@ -1,11 +1,11 @@
 """联络线地图 HTTP 接口。"""
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from json import JSONDecodeError
 
-from fastapi import APIRouter, Depends, Request, UploadFile
+from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from app.modules.tie_line_map.interface.power_import_parser import parse_excel_i
 from app.modules.tie_line_map.interface.serializers import (
     serialize_line_detail,
     serialize_lines,
+    serialize_power_trend,
 )
 
 router = APIRouter(prefix="/ir/tie-lines", tags=["tie-line-map"])
@@ -53,6 +54,15 @@ class PowerJsonImportReq(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     records: list[PowerJsonRecordReq] = Field(min_length=1)
+
+
+def _parse_power_date(value: str | None, field_name: str) -> date:
+    if not value:
+        raise ValidationException(f"{field_name} 不能为空")
+    try:
+        return date.fromisoformat(value)
+    except ValueError as error:
+        raise ValidationException(f"{field_name} 格式必须为 YYYY-MM-DD") from error
 
 
 @router.get("")
@@ -112,6 +122,30 @@ async def import_tie_line_power(
         "insertedCount": result.inserted_count,
         "matchedLineCount": result.matched_line_count,
     })
+
+
+@router.get("/{line_id}/power")
+async def get_tie_line_power_trend(
+    line_id: int,
+    start_date_text: str | None = Query(default=None, alias="startDate"),
+    end_date_text: str | None = Query(default=None, alias="endDate"),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """返回联络线在已完整自然日范围内的 96 时刻功率趋势。"""
+    start_date = _parse_power_date(start_date_text, "startDate")
+    end_date = _parse_power_date(end_date_text, "endDate")
+    yesterday = date.today() - timedelta(days=1)
+    if start_date > end_date:
+        raise ValidationException("开始日期不能晚于结束日期")
+    if start_date > yesterday or end_date > yesterday:
+        raise ValidationException("功率趋势仅支持查询自然日昨天及更早日期")
+    trend = await _service.get_power_trend(
+        session,
+        line_id=line_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return ok(serialize_power_trend(trend))
 
 
 @router.get("/{line_id}")

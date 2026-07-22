@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { getTieLines, getTieLineDetail } from '@/api/tieLine'
+import { getTieLines, getTieLineDetail, getTieLinePower } from '@/api/tieLine'
 
 export function parseLengthKm(lengthText) {
   if (typeof lengthText !== 'string') return null
@@ -15,6 +15,28 @@ export function normalizeCapacityMw(value) {
   return Number.isSafeInteger(number) && number >= 0 ? number : null
 }
 
+function formatLocalDate(value) {
+  const year = value.getFullYear()
+  const month = String(value.getMonth() + 1).padStart(2, '0')
+  const day = String(value.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function yesterdayDate(now = new Date()) {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+}
+
+export function getRollingDateRange(days, now = new Date()) {
+  const end = yesterdayDate(now)
+  const start = new Date(end.getFullYear(), end.getMonth(), end.getDate() - (days - 1))
+  return { startDate: formatLocalDate(start), endDate: formatLocalDate(end) }
+}
+
+export function isValidCustomPowerRange(startDate, endDate, now = new Date()) {
+  if (!startDate || !endDate || startDate > endDate) return false
+  return endDate <= formatLocalDate(yesterdayDate(now))
+}
+
 // 联络线地图状态：线路列表、静态统计、起终点区域筛选与选中详情。
 // 首版只做地图展示，不含任何功率时序（底表无时序字段）。
 export const useTieLineStore = defineStore('tieLine', {
@@ -28,6 +50,11 @@ export const useTieLineStore = defineStore('tieLine', {
     activeMaxCapacityMw: null,
     selectedId: null,
     detail: null,
+    powerTrend: null,
+    powerTrendLoading: false,
+    powerTrendError: '',
+    powerRange: { key: 'yesterday', ...getRollingDateRange(1) },
+    powerRequestVersion: 0,
     loading: false,
     error: '',
   }),
@@ -63,6 +90,43 @@ export const useTieLineStore = defineStore('tieLine', {
     },
   },
   actions: {
+    _invalidatePowerRequests() {
+      this.powerRequestVersion += 1
+    },
+    _clearPowerTrend() {
+      this.powerTrend = null
+      this.powerTrendLoading = false
+      this.powerTrendError = ''
+    },
+    async loadPowerTrend(range = this.powerRange) {
+      if (this.selectedId == null) return
+      const lineId = this.selectedId
+      const requestVersion = this.powerRequestVersion + 1
+      this.powerRequestVersion = requestVersion
+      this.powerRange = range
+      this.powerTrend = null
+      this.powerTrendLoading = true
+      this.powerTrendError = ''
+      try {
+        const res = await getTieLinePower(lineId, range)
+        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+          this.powerTrend = res?.data || null
+        }
+      } catch (e) {
+        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+          this.powerTrendError = '功率趋势加载失败，请稍后重试'
+        }
+      } finally {
+        if (requestVersion === this.powerRequestVersion && this.selectedId === lineId) {
+          this.powerTrendLoading = false
+        }
+      }
+    },
+    async setPowerRange(key, range) {
+      if (!range || !isValidCustomPowerRange(range.startDate, range.endDate)) return false
+      await this.loadPowerTrend({ key, ...range })
+      return true
+    },
     async loadLines() {
       this.loading = true
       this.error = ''
@@ -80,14 +144,25 @@ export const useTieLineStore = defineStore('tieLine', {
       }
     },
     async selectLine(id) {
+      this._invalidatePowerRequests()
       this.selectedId = id
-      // 详情静态字段列表接口已包含；这里再取一次以拿溯源字段（coordinateBasis 等）
-      try {
-        const res = await getTieLineDetail(id)
-        this.detail = res?.data || null
-      } catch (e) {
-        this.detail = this.selectedLine // 详情接口失败时退回列表里的基础字段
-      }
+      this.detail = null
+      this._clearPowerTrend()
+      const defaultRange = { key: 'yesterday', ...getRollingDateRange(1) }
+      const trendRequest = this.loadPowerTrend(defaultRange)
+      const requestVersion = this.powerRequestVersion
+      const detailRequest = getTieLineDetail(id)
+        .then((res) => {
+          if (requestVersion === this.powerRequestVersion && this.selectedId === id) {
+            this.detail = res?.data || null
+          }
+        })
+        .catch(() => {
+          if (requestVersion === this.powerRequestVersion && this.selectedId === id) {
+            this.detail = this.selectedLine
+          }
+        })
+      await Promise.all([detailRequest, trendRequest])
     },
     setStartRegion(value) {
       this.activeStartRegion = value || ''
@@ -125,8 +200,10 @@ export const useTieLineStore = defineStore('tieLine', {
       this.activeMaxCapacityMw = null
     },
     clearSelection() {
+      this._invalidatePowerRequests()
       this.selectedId = null
       this.detail = null
+      this._clearPowerTrend()
     },
     // 选中的线路被筛掉后，清空右侧详情，避免展示与地图不一致
     _dropSelectionIfHidden() {

@@ -5,6 +5,7 @@
 故本值对象不含任何 MW 时序数据。
 """
 from dataclasses import dataclass
+from datetime import date
 from typing import Optional
 
 
@@ -29,3 +30,22 @@ class TieLine:
     coordinate_basis: Optional[str] = None
     data_basis_note: Optional[str] = None
     source_note: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class TieLinePowerPoint:
+    """一条联络线在固定 15 分钟时刻的功率值。"""
+
+    time: str
+    power_mw: Optional[float]
+
+
+@dataclass(frozen=True)
+class TieLinePowerTrend:
+    """联络线在闭合自然日范围内的 96 时刻功率趋势。"""
+
+    line_id: int
+    start_date: date
+    end_date: date
+    data_date_count: int
+    points: tuple[TieLinePowerPoint, ...]
