@@ -36,6 +36,19 @@ async def test_global_handler_returns_actual_error_in_debug(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_global_handler_logs_exception_type_and_request_context(monkeypatch):
+    messages = []
+    monkeypatch.setattr(exceptions.logger, "exception", messages.append)
+
+    await exceptions._global_handler(_request(), RuntimeError("table missing"))
+
+    assert messages
+    assert "RuntimeError" in messages[0]
+    assert "GET /ir/calc/stations" in messages[0]
+    assert "table missing" in messages[0]
+
+
+@pytest.mark.asyncio
 async def test_global_handler_hides_actual_error_outside_debug(monkeypatch):
     monkeypatch.setattr(
         exceptions,
