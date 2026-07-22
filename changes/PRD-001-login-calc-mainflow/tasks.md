@@ -226,9 +226,9 @@
   - **5.1.2**→**5.1.4** 运行失败 → 实现 `components/ParamAdjustPanel.vue`（消费 `GET /ir/calc/param-dict`）→ 通过。
   - **5.1.5** 提交 `feat(frontend): inline parameter adjustment panel`。
 
-- [ ] **5.2 锁项规则（省份永久锁 / 首次锁 / 二次解锁）**
-  - **5.2.1** 编写测试：省份在所有版本中只读；首次节点/功率/容量只读、其余按 G 列；二次节点/功率/容量解锁；项目运营期固定15年、换电成本固定0、贷款年限不展示。
-  - **5.2.2**→**5.2.5** 运行失败 → 实现锁项逻辑 → 通过 → 提交 `feat(frontend): province permanent lock / first-calc lock / re-calc unlock rules`。
+- [ ] **5.2 锁项规则（省份永久锁）**
+  - **5.2.1** 编写测试：省份在所有版本中只读；节点/功率/容量在首次及后续版本均可编辑、其余按 G 列；项目运营期固定15年、换电成本固定0、贷款年限不展示。
+  - **5.2.2**→**5.2.5** 运行失败 → 实现锁项逻辑 → 通过 → 提交 `feat(frontend): province permanent lock and editable project parameters`。
 
 - [ ] **5.3 收益类按表2显隐**
   - **5.3.1** 编写测试：表2现货1/调频1/中长期0/租赁0时展示现货/调频、不展示中长期/租赁；`switch_spot=0` 时现货也不展示；换省必须新建会话。
@@ -253,6 +253,31 @@
   - 后端：`IR_API_TOKEN` 配置、全局中间件、`OPTIONS`/health/docs/redoc/openapi 匿名白名单、401 响应壳、`WWW-Authenticate`、恒定时间比较、脱敏失败日志及 OpenAPI Bearer 方案。
   - 前端：`VITE_API_TOKEN` 请求拦截器注入；未配置时不阻止启动；401 使用固定 Token 授权失败文案。
   - 测试：后端覆盖白名单、错误分支、有效 Token、OpenAPI 与日志脱敏；前端覆盖请求头注入与 401 提示；执行相关回归和构建。
+
+---
+
+## 8. Batch 8：测算结果/正式报告快照数据库重构
+
+依赖：Batch 3 的测算快照持久化、Batch 4.6 的会话回放与归属校验。
+
+- [x] **8.1 更新快照持久化模型与完整 MySQL DDL**
+  - 先编写真实 MySQL 模式测试：input/data/feishu I/O/calculation-result 四类快照均拒绝相同 `task_id` 的第二行；新 `ir_report_snapshot` 验证 `report_id` 唯一、`task_id` 唯一与外键、`conversation_id` 外键、`user_id` 索引、`schema_version=1` 默认、JSON `payload NOT NULL` 与 `(conversation_id, created_at)` 索引；message 验证 `message_type='text'` 默认与可空 JSON `payload`。
+  - 运行失败测试后，将既有结果表/ORM 改为 `ir_calculation_result_snapshot`/`CalculationResultSnapshotORM`，新增空的正式 `ir_report_snapshot`/`ReportSnapshotORM`，同步更新完整 MySQL DDL；本批不写入、读取或暴露正式报告。
+  - 四类测算快照的 `task_id` 增加 `UNIQUE`；消息表新增 `message_type VARCHAR(32) NOT NULL DEFAULT 'text'` 和 `payload JSON NULL`。
+
+- [x] **8.2 经用户确认后重建受限 MySQL 测试表**
+  - 在执行前展示完整 SQL 并取得单独确认；仅清空/重建 `ir_conversation`、`ir_calculation_task`、`ir_message_snapshot`、`ir_input_snapshot`、`ir_data_snapshot`、`ir_feishu_io_snapshot`、旧 `ir_report_snapshot`，并创建 `ir_calculation_result_snapshot` 与新的 `ir_report_snapshot`。
+  - 不触碰 `ir_spot_station`、`ir_spot_daily_optimal_province`、`ir_spot_daily_optimal_node` 或其他表；完成后用元数据查询验证三张现货表仍存在。
+
+- [x] **8.3 保持测算结果与会话回放 HTTP 契约**
+  - 成功测算继续写入计算结果快照；结果接口和会话详情内部查询改用 `CalculationResultSnapshotORM`，但保留既有结果 JSON 响应形状。
+  - 普通历史消息显式写为 `message_type='text'`、`payload=NULL`；会话详情额外返回 `messageType` 与 `payload`，不产生或消费 `report_generated` 事件。
+  - 覆盖结果 API、会话回放、软删除与跨用户 404 回归。
+
+- [x] **8.4 验证与记录证据**
+  - 执行 MySQL 模式测试、快照服务测试、结果 API、会话历史 API 与完整后端 pytest；全绿后才更新本批完成证据。
+  - 扫描语义引用：既有测算写入/读取不得再使用 `ReportSnapshotORM` 或 `ir_report_snapshot`；它们仅可用于未来正式报告表模型、DDL 与模式测试。
+  - 不新增报告生成 API、报告前端、报告 JSON 模板、PDF/附件、编辑/重生成/状态/任务逻辑，也不增加报告 SQLite 兼容分支。
 
 ---
 

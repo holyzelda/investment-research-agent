@@ -11,7 +11,19 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any, Optional
 
-from sqlalchemy import JSON, BigInteger, Date, DateTime, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    BigInteger,
+    Date,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    SmallInteger,
+    String,
+    Text,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.infrastructure.database.base import Base
@@ -41,7 +53,7 @@ class ConversationORM(_PkTimestamp, Base):
 
 
 class MessageSnapshotORM(_PkTimestamp, Base):
-    """消息快照：会话回放（user/assistant 角色 + 文本内容）。"""
+    """消息快照：会话时间线（可见文本与轻量事件载荷）。"""
 
     __tablename__ = "ir_message_snapshot"
 
@@ -50,6 +62,10 @@ class MessageSnapshotORM(_PkTimestamp, Base):
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # user/assistant/system
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    message_type: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="text", server_default="text"
+    )
+    payload: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
 
 
 class CalculationTaskORM(_PkTimestamp, Base):
@@ -77,7 +93,7 @@ class InputSnapshotORM(_PkTimestamp, Base):
     __tablename__ = "ir_input_snapshot"
 
     task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, index=True
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
@@ -88,7 +104,7 @@ class DataSnapshotORM(_PkTimestamp, Base):
     __tablename__ = "ir_data_snapshot"
 
     task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, index=True
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
@@ -99,7 +115,7 @@ class FeishuIoSnapshotORM(_PkTimestamp, Base):
     __tablename__ = "ir_feishu_io_snapshot"
 
     task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, index=True
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
     )
     api_input: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     api_output: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -116,12 +132,34 @@ class SpotStationORM(Base):
     last_seen: Mapped[date] = mapped_column(Date, nullable=False)
 
 
-class ReportSnapshotORM(_PkTimestamp, Base):
-    """报告快照：结果三模块 + 图表底层数值（环形/折线），历史展示唯一数据源。"""
+class CalculationResultSnapshotORM(_PkTimestamp, Base):
+    """测算结果快照：三模块与图表底层数值，历史展示唯一数据源。"""
 
-    __tablename__ = "ir_report_snapshot"
+    __tablename__ = "ir_calculation_result_snapshot"
 
     task_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, index=True
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
+    )
+    payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class ReportSnapshotORM(_PkTimestamp, Base):
+    """正式报告快照：仅预留未来成功生成后的完整报告载荷。"""
+
+    __tablename__ = "ir_report_snapshot"
+    __table_args__ = (
+        Index("ix_ir_report_snapshot_conversation_created_at", "conversation_id", "created_at"),
+    )
+
+    report_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    task_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True
+    )
+    conversation_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ir_conversation.id"), nullable=False
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    schema_version: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=1, server_default="1"
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)

@@ -48,12 +48,10 @@ export function dynamicRange(baseline, step) {
   return { min: 0, max, step }
 }
 
-// 锁项：control=fixed 的参数（省份/运营期/换电成本，本阶段业务范围未开放）始终锁定；
-// 项目定义区其余字段（节点/容量/功率）仅首次测算锁定，二次起解锁；其余分区不受首二次限制。
-export function isFieldLocked(spec, { firstCalc }) {
-  if (spec.control === 'fixed') return true
-  if (spec.zone === 'project_definition') return firstCalc
-  return false
+// 仅参数字典声明为 fixed 的字段锁定；省份等固定字段保持只读，
+// 节点、容量和功率在所有版本均可编辑。
+export function isFieldLocked(spec) {
+  return spec.control === 'fixed'
 }
 
 // 提交当前完整面板值：仅收集 slider/dynamic_slider/select 控件的当前值作为受控 overrides，

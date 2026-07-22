@@ -13,11 +13,11 @@ from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.main import app
 from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
     CalculationTaskORM,
     ConversationORM,
     InputSnapshotORM,
     MessageSnapshotORM,
-    ReportSnapshotORM,
 )
 
 _USER_1 = {"X-User-Id": "history-user-1", "X-User-Name": "User One"}
@@ -145,9 +145,9 @@ async def history_context():
         session.add_all([old_task, v2, v1, foreign_task, deleted_task, empty_failed_task])
         await session.flush()
         session.add_all([
-            ReportSnapshotORM(task_id=v2.id, payload={"marker": "v2"}),
-            ReportSnapshotORM(task_id=foreign_task.id, payload={"marker": "foreign"}),
-            ReportSnapshotORM(task_id=deleted_task.id, payload={"marker": "deleted"}),
+            CalculationResultSnapshotORM(task_id=v2.id, payload={"marker": "v2"}),
+            CalculationResultSnapshotORM(task_id=foreign_task.id, payload={"marker": "foreign"}),
+            CalculationResultSnapshotORM(task_id=deleted_task.id, payload={"marker": "deleted"}),
             InputSnapshotORM(task_id=v2.id, payload={"apiInput": {"spot_charge_avg": 0.22}}),
         ])
         await session.commit()
@@ -240,7 +240,7 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
         before = {
             "messages": await session.scalar(select(func.count()).select_from(MessageSnapshotORM)),
             "tasks": await session.scalar(select(func.count()).select_from(CalculationTaskORM)),
-            "reports": await session.scalar(select(func.count()).select_from(ReportSnapshotORM)),
+            "results": await session.scalar(select(func.count()).select_from(CalculationResultSnapshotORM)),
         }
 
     response = await client.delete(f"/ir/conversations/{ids['newer']}")
@@ -256,7 +256,7 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
         after = {
             "messages": await session.scalar(select(func.count()).select_from(MessageSnapshotORM)),
             "tasks": await session.scalar(select(func.count()).select_from(CalculationTaskORM)),
-            "reports": await session.scalar(select(func.count()).select_from(ReportSnapshotORM)),
+            "results": await session.scalar(select(func.count()).select_from(CalculationResultSnapshotORM)),
         }
     assert after == before
     assert (await client.get("/ir/conversations")).json()["data"]["items"] == [

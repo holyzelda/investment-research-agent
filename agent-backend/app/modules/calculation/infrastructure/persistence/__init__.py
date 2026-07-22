@@ -4,6 +4,7 @@
 导入 orm 即把模型注册进 Base.metadata；建表 DDL 由 ORM 生成（见 sql/ir_agent_schema.sql）。
 """
 from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
     CalculationTaskORM,
     ConversationORM,
     DataSnapshotORM,
@@ -17,6 +18,7 @@ __all__ = [
     "ConversationORM",
     "MessageSnapshotORM",
     "CalculationTaskORM",
+    "CalculationResultSnapshotORM",
     "InputSnapshotORM",
     "DataSnapshotORM",
     "FeishuIoSnapshotORM",

@@ -25,7 +25,10 @@ from app.modules.calculation.application.conversation_history_service import (
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
-from app.modules.calculation.infrastructure.persistence.orm import ReportSnapshotORM, SpotStationORM
+from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
+    SpotStationORM,
+)
 from app.modules.calculation.interface.serializers import serialize_result
 from app.modules.platform_access.interface.deps import get_current_user
 from app.modules.platform_access.domain.models import CurrentUser
@@ -175,7 +178,7 @@ async def get_task_result(
         session, task_id=task_id, user_id=user.user_id
     )
     row = (await session.execute(
-        select(ReportSnapshotORM).where(ReportSnapshotORM.task_id == task_id)
+        select(CalculationResultSnapshotORM).where(CalculationResultSnapshotORM.task_id == task_id)
     )).scalar_one_or_none()
     if row is None:
         raise NotFoundException(f"该任务无结果快照（可能失败或不存在）：{task_id}")

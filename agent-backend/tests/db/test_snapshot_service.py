@@ -17,12 +17,12 @@ from app.modules.calculation.application.snapshot_service import SnapshotService
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.feishu_sample import SAMPLE_API_OUTPUT
 from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
     CalculationTaskORM,
     DataSnapshotORM,
     FeishuIoSnapshotORM,
     InputSnapshotORM,
     MessageSnapshotORM,
-    ReportSnapshotORM,
 )
 from tests.db.conftest import PYTEST_TITLE_PREFIX, PYTEST_USERNAME
 
@@ -69,7 +69,7 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
 
         # 每个任务各有 input/data/feishu_io/report 快照
         for tid in (task_v1, task_v2):
-            for orm in (InputSnapshotORM, DataSnapshotORM, FeishuIoSnapshotORM, ReportSnapshotORM):
+            for orm in (InputSnapshotORM, DataSnapshotORM, FeishuIoSnapshotORM, CalculationResultSnapshotORM):
                 n = await s.scalar(select(func.count()).select_from(orm).where(orm.task_id == tid))
                 assert n == 1, f"{orm.__name__} 缺失 for task {tid}"
 
@@ -79,12 +79,18 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
             .where(MessageSnapshotORM.conversation_id == conv_id)
         )
         assert n_msg == 4
+        messages = (await s.execute(
+            select(MessageSnapshotORM).where(MessageSnapshotORM.conversation_id == conv_id)
+        )).scalars().all()
+        assert all(message.message_type == "text" and message.payload is None for message in messages)
 
-        # 仅凭 report_snapshot 重建三模块
-        report = (await s.execute(
-            select(ReportSnapshotORM).where(ReportSnapshotORM.task_id == task_v2)
+        # 仅凭 calculation_result_snapshot 重建三模块
+        calculation_result = (await s.execute(
+            select(CalculationResultSnapshotORM).where(
+                CalculationResultSnapshotORM.task_id == task_v2
+            )
         )).scalar_one()
-        p = report.payload
+        p = calculation_result.payload
         assert p["basicInfo"]["province"] == "甘肃"
         assert set(p["financial"]) == {
             "projectIrr", "projectStaticPayback", "capitalIrr",

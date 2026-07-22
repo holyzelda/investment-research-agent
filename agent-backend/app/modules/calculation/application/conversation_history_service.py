@@ -8,11 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException
 from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
     CalculationTaskORM,
     ConversationORM,
     InputSnapshotORM,
     MessageSnapshotORM,
-    ReportSnapshotORM,
 )
 
 
@@ -78,11 +78,11 @@ class ConversationHistoryService:
             .where(CalculationTaskORM.conversation_id == conversation.id)
             .order_by(CalculationTaskORM.created_at.asc(), CalculationTaskORM.id.asc())
         )).scalars().all()
-        report_by_task = {
-            report.task_id: report.payload
-            for report in (await session.execute(
-                select(ReportSnapshotORM).where(
-                    ReportSnapshotORM.task_id.in_([task.id for task in tasks])
+        calculation_result_by_task = {
+            snapshot.task_id: snapshot.payload
+            for snapshot in (await session.execute(
+                select(CalculationResultSnapshotORM).where(
+                    CalculationResultSnapshotORM.task_id.in_([task.id for task in tasks])
                 )
             )).scalars().all()
         } if tasks else {}
@@ -101,6 +101,8 @@ class ConversationHistoryService:
                 {
                     "role": message.role,
                     "content": message.content,
+                    "messageType": message.message_type,
+                    "payload": message.payload,
                     "createdAt": message.created_at.isoformat(),
                 }
                 for message in messages
@@ -110,7 +112,7 @@ class ConversationHistoryService:
                     "taskId": task.id,
                     "version": task.version,
                     "status": task.status,
-                    "result": report_by_task.get(task.id),
+                    "result": calculation_result_by_task.get(task.id),
                     "input": input_by_task.get(task.id),
                 }
                 for task in tasks

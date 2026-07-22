@@ -19,7 +19,7 @@
 
 范围外：
 - 用户登录、注册、验证码、用户管理、RBAC、JWT、Token 过期/刷新/轮换/撤销；
-- 报告本体/PDF及报告历史（仅预留 `conversation_id/task_id/version` 关联约束）；
+- 报告本体/PDF及报告历史；Batch 8 仅重构结果/报告快照持久化命名并新建空的正式报告表，不定义报告 JSON、生成/读取接口或前端功能；
 - 中台 Tool、通用 NLU/意图分发；
 - 地图、政策模块；
 - 重写飞书公式。
@@ -35,7 +35,7 @@
 | 飞书接口区 | 2 | 仅复制副本并读写 INPUT/OUTPUT/META，不改模型单元格；5xx 可重试 | gateway 打桩、接口区范围、重试 | 已完成 |
 | 参数组装 | 2 | 对话输入、默认值、电价库、表2四来源合并；只读项不写；hash 稳定 | assembler 单元/集成测试 | 已完成 |
 | 执行引擎 | 3 | 状态机、request_id/hash 校验、智能重试、失败原因、任务/会话/version 持久化 | engine、retry、API 测试 | 已完成；同步/异步见 X1 |
-| 快照 | 3 | 每次落 7 类且不覆盖；`report_snapshot` 可脱离飞书重建结果 | snapshot 与 result API 测试 | 已完成 |
+| 快照 | 3 | 每次落 7 类且不覆盖；`calculation_result_snapshot` 可脱离飞书重建结果 | snapshot 与 result API 测试 | 已完成；Batch 8 重构表名/约束并保持接口兼容 |
 | 首页输入 | 4 | 省份/功率/容量齐全才发起；缺项提示且不请求 | `home.spec.js` | 进行中 |
 | 任务编排 | 4 | POST task；非终态轮询；完成后拉 result；失败展示原因和 request_id | `calc-flow.spec.js` | 进行中 |
 | 结果三模块 | 4 | 基本信息、5 项财务指标、首年收入环形图、4 条 15 年现金流；电价显示 4 位小数、整数不显示小数点、其他非整数显示 2 位，仅格式化前端展示且不修改快照原值 | `result-cards.spec.js`、`charts.spec.js` | UI 已有，格式化待补 |
@@ -43,7 +43,7 @@
 | 历史会话 | 4.6 | 左侧“投资分析工作台”全部功能项之后展示当前用户未删除会话；刷新保持欢迎页并手动打开；固定顺序回放消息、版本和 report_snapshot；继续测算复用 conversation_id | 后端 `test_conversation_history_api.py`、前端 `conversation-history.spec.js` | 已完成 |
 | 会话删除与归属 | 4.6 | “…”菜单二次确认；仅写 conversation.deleted_at，保留消息/任务/快照；列表/详情/删除及 task status/result 均按当前 user_id 校验，越权统一 404 | 软删除持久化、快照行数不变、跨用户 404 | 已完成 |
 | 参数调整 | 5 | 默认收起；四区（项目定义/金融边界/收益边界/成本边界）；已确认业务范围的滑块+数字框，无范围的成本/金额用数字框；不重复展示三项派生电价 | 后端 `test_param_dictionary.py`/`test_calc_endpoints.py`、前端 `param-adjust-logic.spec.js`/`param-adjust-panel.spec.js` | 已完成 |
-| 锁项与显隐 | 5 | 省份会话内永久锁定（后端校验，改省需新建会话）；节点/容量/功率仅首次（V1）锁定，二次起解锁；全部市场（含现货）统一按省表2开关显隐 | 省份锁定 400、V1/V2 锁项测试、显隐测试 | 已完成 |
+| 锁项与显隐 | 5 | 省份会话内永久锁定（后端校验，改省需新建会话）；节点/容量/功率在所有版本可编辑；全部市场（含现货）统一按省表2开关显隐 | 省份锁定 400、V1/V2 锁项测试、显隐测试 | 已完成 |
 | 重新测算 | 5 | 受控 `param_overrides`（仅 g=1 可写输入白名单生效）；现货依赖（节点/容量/功率/日循环）变化则重查预计算表并忽略陈旧覆盖，未变化则继承上一版本价格对并叠加手工修改；容量/功率变化时两档收益同理重算并忽略陈旧覆盖；冻结本次入参，同会话创建新任务、新版本，不覆盖旧版本 | `test_param_assembler.py::TestParamOverrides`、`test_task_service_overrides.py`、`param-adjust-recalculate.spec.js` | 已完成 |
 
 所有 delta spec 的 SHALL/MUST 均归入上述能力；显式延期项包括报告本体、中台意图分发、业务公式最终确认、生产 header/Nacos 配置。
@@ -52,7 +52,7 @@
 
 - 后端依赖方向：`interface → application → domain`，基础设施实现端口。
 - 飞书是唯一权威计算器；应用不复制计算公式。
-- `report_snapshot` 是历史结果展示的数据源。
+- `calculation_result_snapshot` 是历史结果展示的数据源；`report_snapshot` 仅为未来正式报告预留的空表，本批不定义其 payload 或接口。
 - 前端复用现有 `request.js`、Pinia store、ResultCard 与 ECharts 组件；`request.js` 统一注入固定接口 Token，不增加第二套请求层或登录工作流框架。
 - 平台身份 header 只用于会话和快照归属；固定 Bearer Token 只确认调用方可访问接口。二者独立：有效 Token 缺身份 header 时保留既有匿名规则。
 - Batch 4 不提前实现 Batch 5；Batch 5 不实现报告本体。
@@ -85,7 +85,7 @@
 
 1. 补 `GET /ir/calc/param-dict?province=` 契约与测试；所有市场（含现货）统一按表2开关显隐。现货沿用已确认的元/kWh 输出口径。
 2. 实现 inline 调整区、四区布局和控件范围：日循环1–2/0.1；三类达成率70%–95%/1%；贷款利率3.5%–4.5%/0.1%；EPC 0.70–0.85/0.01；维保/运营0–0.1000/0.0001；动态金额以基准值0–2倍；运营期控制与15/20年选择规则由 Batch 6 取代；换电成本固定0、贷款年限不展示。
-3. 省份永久锁定；首次节点/容量/功率锁定，二次及以后解锁；换省必须新建会话。
+3. 省份永久锁定；节点/容量/功率在所有版本可编辑；换省必须新建会话。
 4. 扩展任务接口为受控 `param_overrides`，历史详情暴露 input snapshot 作为版本基线。
 5. 后端比较上一版本【节点、容量、功率、日循环】：变化则查预计算表覆盖现货价格对；不变则不查库并继承/应用手工价格；`switch_spot=0` 不查库。
 6. 用同一 `conversation_id` 重新发起，追加后端版本并保留历史；不修改任何现有现货单位或换算逻辑。
@@ -107,12 +107,22 @@
 3. 启动时依次创建 Nacos 客户端、拉取 `{app.name}-{profile}.yml`、校验并合并远端 YAML、初始化既有基础设施、注册服务实例；Nacos 未启用、不可达、空配置或非法 YAML 时使用本地 YAML，不改变既有业务调用逻辑。
 4. 关闭时仅在本进程已成功注册时注销实例并关闭 Nacos 客户端；Nacos 注册失败仅记录错误，不阻止本地配置模式下的服务运行。
 5. 覆盖远端覆盖、本地回退、环境变量优先级、注册/注销参数及 `ENV_FILE` 加载的隔离测试，不连接真实 Nacos。
+### Batch 8 · 测算结果/正式报告快照数据库重构
+
+1. 将既有测算结果快照表和 ORM 从 `report_snapshot` 改为 `calculation_result_snapshot`；既有结果接口与历史回放对外响应不变。
+2. 新建空的 `ir_report_snapshot` 正式报告表；本批不得实现报告生成、读取、报告 JSON 结构或前端功能。
+3. 为 input/data/feishu I/O/calculation-result 四类快照增加 `UNIQUE(task_id)`。
+4. 为 message snapshot 增加 `message_type='text'` 默认值和可空 JSON `payload`；本批不产生或消费报告事件。
+5. 仅在用户再次确认完整 SQL 后，清空规定的 MySQL 测试表并按完整 DDL 重建；不得触碰现货预计算表或其他无关表。
+6. 用真实 MySQL 约束测试以及既有结果/会话 HTTP 回归验证；不得为报告功能增加 SQLite 兼容分支。
+
+完成证据：2026-07-21 已在用户确认后执行受限 MySQL 测试表重建；`tests/db/test_snapshot_schema.py`、`tests/db/test_snapshot_service.py`、`tests/db/test_conversation_history_api.py`、`tests/db/test_calc_task_api.py` 通过；完整后端 pytest 为 `209 passed`。正式报告表仍为空且未接入应用服务。
 
 
 - 新行为先有失败测试，再写最小实现。
 - Batch 4 必须通过：`home.spec.js`、`calc-flow.spec.js`、`result-cards.spec.js`（覆盖电价 4 位、整数无小数点、其他非整数 2 位且不修改原值）、`charts.spec.js`、`version-list.spec.js`、现有前端测试与 `npm run build`。
 - Batch 4.6 必须通过：后端 `test_conversation_history_api.py`（列表过滤、固定顺序回放、软删除保留快照、跨用户 404、task status/result 归属）和前端 `conversation-history.spec.js`（左侧位置、欢迎页、手动回放、复用 conversation_id、更多菜单确认/取消），以及前后端相关回归测试和前端构建。
-- Batch 5 必须覆盖：四区/控件范围、省份永久锁、首次锁定/二次解锁、所有市场按表2显隐、受控覆盖、新版本不覆盖，以及现货依赖变化重查/依赖不变继承手工价/开关关闭不查库；开始前 Batch 4.6 必须完成。
+- Batch 5 必须覆盖：四区/控件范围、省份永久锁、节点/容量/功率在所有版本可编辑、所有市场按表2显隐、受控覆盖、新版本不覆盖，以及现货依赖变化重查/依赖不变继承手工价/开关关闭不查库；开始前 Batch 4.6 必须完成。
 - 回归敏感点：响应壳、request_id 串号、7 类快照不覆盖、report_snapshot 独立重建、版本不覆盖、节点缺省不显示。
 
 ## Review Gates
