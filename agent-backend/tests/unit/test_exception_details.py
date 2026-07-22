@@ -38,7 +38,11 @@ async def test_global_handler_returns_actual_error_in_debug(monkeypatch):
 @pytest.mark.asyncio
 async def test_global_handler_logs_exception_type_and_request_context(monkeypatch):
     messages = []
-    monkeypatch.setattr(exceptions.logger, "exception", messages.append)
+    class BoundLogger:
+        def error(self, message):
+            messages.append(message)
+
+    monkeypatch.setattr(exceptions.logger, "opt", lambda **_: BoundLogger())
 
     await exceptions._global_handler(_request(), RuntimeError("table missing"))
 

@@ -51,8 +51,10 @@ async def _validation_handler(request: Request, exc: RequestValidationError):
 
 
 async def _global_handler(request: Request, exc: Exception):
-    logger.error(f"未处理异常 type={type(exc).__name__} request={request.method} "
-                 f"{request.url.path}: {exc}")
+    logger.opt(exception=exc).error(
+        f"未处理异常 type={type(exc).__name__} request={request.method} "
+        f"{request.url.path}: {exc}"
+    )
     message = str(exc) if get_settings().app.debug else "服务器内部错误"
     return _json(HttpStatus.INTERNAL_SERVER_ERROR, message or "服务器内部错误")
 
