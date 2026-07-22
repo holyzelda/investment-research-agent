@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
 .tie-line-page__subtitle { margin: var(--xc-space-1) 0 0; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
 .tie-line-page__filter-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--xc-space-4); }
 .tie-line-page__body { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: minmax(680px, 1fr) clamp(380px, 31vw, 440px); gap: 12px; }
-.tie-line-page__map-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--xc-map-ocean); border-radius: var(--xc-radius-md); }
+.tie-line-page__map-wrap { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--xc-map-ocean); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-md); }
 .tie-line-page__detail { min-width: 0; }
 .tie-line-page__state { position: absolute; inset: 0; z-index: var(--xc-z-raised); display: grid; place-content: center; justify-items: center; gap: var(--xc-space-3); padding: var(--xc-space-7); color: var(--xc-text-mute); text-align: center; }
 .tie-line-page__state--loading { background: var(--xc-surface-base); }

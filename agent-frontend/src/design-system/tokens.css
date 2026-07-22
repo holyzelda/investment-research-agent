@@ -204,8 +204,8 @@
 
   /* ---------- 16. TIE-LINE MAP ----------
    * 地图采用独立空间层与电压顺序色阶，不复用图表分类色、状态色或涨跌色。 */
-  --xc-map-ocean:          #09182b;
-  --xc-map-ocean-shade:    rgba(1, 8, 18, 0.52);
+  --xc-map-ocean:          #151b22;
+  --xc-map-ocean-shade:    rgba(4, 7, 11, 0.26);
   --xc-map-land:           #f5efdc;
   --xc-map-land-hover:     #fff7df;
   --xc-map-land-shadow:    rgba(0, 0, 0, 0.26);
