@@ -6,8 +6,8 @@ import request from '@/utils/request'
 
 const projectRoot = resolve(import.meta.dirname, '..')
 
-// Batch 0.1 启动自检：无登录页、默认落地对话首页、请求实例就绪
-describe('frontend scaffold (platform access, no login)', () => {
+// 启动自检：登录页、默认落地对话首页、请求实例就绪
+describe('frontend scaffold (platform access)', () => {
   it('exposes gateway base api from env', () => {
     expect(import.meta.env.VITE_APP_BASE_API).toBeTruthy()
     expect(request.defaults.baseURL).toBe(import.meta.env.VITE_APP_BASE_API)
@@ -20,11 +20,12 @@ describe('frontend scaffold (platform access, no login)', () => {
     expect(root?.redirect).toBe('/home')
   })
 
-  it('has NO login / register / permission-guard routes', () => {
+  it('has a login route but no register / captcha routes', () => {
     const paths = router.getRoutes().map((r) => r.path)
-    expect(paths.some((p) => /login|register|captcha/i.test(p))).toBe(false)
+    expect(paths).toContain('/login')
+    expect(paths.some((p) => /register|captcha/i.test(p))).toBe(false)
     const names = router.getRoutes().map((r) => String(r.name || ''))
-    expect(names.some((n) => /login|auth/i.test(n))).toBe(false)
+    expect(names.some((n) => /register|captcha|auth/i.test(n))).toBe(false)
   })
 
   it('defines the XC workspace elevation and responsive-content tokens', () => {

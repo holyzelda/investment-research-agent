@@ -1,6 +1,6 @@
 # 朱雀投研智能体 · 前端（agent-frontend）
 
-统一平台的子应用。**无独立登录**：用户在平台首页完成登录后跳转承接，落地本系统对话首页；身份由平台/网关注入后端请求头，前端不管理任何登录 token。
+统一平台的子应用。支持独立登录，也支持从统一平台携带 Token 直接承接；登录成功后进入本系统对话首页，身份由 ecenter/网关提供。
 
 ## 技术栈
 Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router 4 + ECharts 5 + Tailwind（仅布局）+ 玄策(XC)设计体系。
@@ -64,7 +64,7 @@ npm run dev
 
 代理目标在 `vite.config.js` 里配（`server.proxy`），后端端口若改了，同步改 `.env` 的 `VITE_DEV_BACKEND`。
 
-> 阶段0 未接平台注入 header，前端 `GET /ir/me` 会拿到后端的**匿名占位**用户（`allow_anonymous=true`），顶栏显示"访客"，属正常。
+独立登录页请求 ecenter 登录和验证码接口；从统一平台跳转时也可通过 `window.opener` 消息或 URL 的 `token`/`access_token` 参数接收 Token。
 
 ---
 
@@ -88,7 +88,7 @@ src/
 ├── styles/          # 全局样式（引入 tokens + 深色基线）
 ├── utils/request.js # axios 实例（{code,msg,data} 响应壳，转发平台 Token）
 ├── store/           # Pinia（session：Token 获取用户信息；permission：后端菜单路由）
-├── router/          # 路由（无登录守卫，默认落地 /home）
+├── router/          # 路由（登录页 + 平台 Token 守卫，默认落地 /home）
 ├── layout/          # 顶栏 + 主体布局
 ├── api/             # 接口封装（session / calc）
 └── views/home/      # 对话首页（Batch 4 接入对话消息流与结果三模块）
@@ -128,6 +128,6 @@ ecenter `user/getInfo?systemSign=eAgentIr` 获取并显示在顶部右侧；也�
 |---|---|
 | `npm ci` 报 Node/npm 版本不兼容 | 切换到 Node.js v20.12.1（对应 npm 10.5.0）后重试 |
 | 页面能开但请求 404 / 跨域 | 后端没起，或端口不是 8080 → 起后端，或改 `.env` 的 `VITE_DEV_BACKEND` |
-| 顶栏用户显示"访客" | 阶段0 未接平台 header，匿名占位，正常 |
+| 顶栏用户显示"访客" | 当前未取得有效 Token，或 ecenter 用户信息接口返回匿名用户 |
 | 端口 5210 被占用 | Vite 会自动换端口，或在 `vite.config.js` 改 `server.port` |
 | 装依赖很慢 | 可切国内镜像：`npm config set registry https://registry.npmmirror.com` |

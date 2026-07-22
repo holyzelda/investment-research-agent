@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
+import { login as loginRequest } from '@/api/auth'
 import { getUserInfo } from '@/api/session'
-import { getToken } from '@/utils/auth'
+import { getToken, setToken } from '@/utils/auth'
 
 // 会话状态：当前用户来自平台注入（后端读 header 后经 /ir/me 下发）。
 export const useSessionStore = defineStore('session', {
@@ -11,6 +12,16 @@ export const useSessionStore = defineStore('session', {
     loaded: false,
   }),
   actions: {
+    async login(form) {
+      const res = await loginRequest(form)
+      const data = res?.data || {}
+      const token = data.access_token || data.token
+      if (!token) throw new Error('登录成功但未返回 Token')
+      setToken(token)
+      this.token = token
+      this.loaded = false
+      return data
+    },
     async loadUserInfo({ force = false } = {}) {
       if (this.loaded && !force) return Boolean(this.username)
       this.token = getToken()

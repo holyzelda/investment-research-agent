@@ -2,8 +2,14 @@ import { createRouter, createWebHistory } from 'vue-router'
 import NProgress from 'nprogress'
 import 'nprogress/nprogress.css'
 
-// 路由：无登录页、无登录守卫。默认落地对话首页（承接平台跳转）。
+// 路由：保留独立登录页，同时支持平台携带 Token 直接承接；默认落地对话首页。
 const routes = [
+  {
+    path: '/login',
+    name: 'Login',
+    component: () => import('@/views/login.vue'),
+    meta: { title: '用户登录', hidden: true },
+  },
   {
     path: '/',
     name: 'Root',

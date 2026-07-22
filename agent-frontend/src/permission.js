@@ -48,6 +48,10 @@ router.beforeEach(async (to) => {
     if (received) return { ...to, replace: true }
   }
 
+  if (to.path === '/login') {
+    return getToken() ? { path: '/home', replace: true } : true
+  }
+
   const sessionStore = useSessionStore()
   const permissionStore = usePermissionStore()
 

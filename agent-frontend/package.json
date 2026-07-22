@@ -18,11 +18,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "^2.3.1",
+    "@lucide/vue": "^1.25.0",
     "axios": "^1.7.7",
     "dayjs": "^1.11.13",
     "echarts": "^5.5.1",
     "element-plus": "^2.4.4",
-    "@element-plus/icons-vue": "^2.3.1",
+    "jsencrypt": "^3.5.4",
     "lodash-es": "^4.17.21",
     "nprogress": "^0.2.0",
     "pinia": "^2.2.6",

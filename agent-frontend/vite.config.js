@@ -41,6 +41,11 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        '/gateway/': {
+          target: env.VITE_GATEWAY_BACKEND || env.VITE_ECENTER_BACKEND || 'http://internal-2-58.example.invalid:8183',
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
     test: {

@@ -3,8 +3,8 @@ import { ElMessage } from 'element-plus'
 import { getToken, removeToken } from '@/utils/auth'
 
 // 统一请求实例
-// 说明（平台接入）：本系统不做登录。用户在统一平台完成登录，平台/网关向后端请求头注入身份；
-// 前端仅经网关基地址发起请求；平台跳转传入的 Token 统一由拦截器转发。
+// 说明（平台接入）：支持独立登录，也支持统一平台携带 Token 直接承接；
+// 前端仅经网关基地址发起请求，Token 统一由拦截器转发。
 const service = axios.create({
   baseURL: import.meta.env.VITE_APP_BASE_API || '/gateway/ir-agent/',
   timeout: 60 * 1000,
