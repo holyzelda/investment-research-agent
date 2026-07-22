@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.core.config.settings import get_settings
+from app.core.config.settings import configure_logging, get_settings
 from app.core.exceptions import register_exception_handlers
 from app.infrastructure.database.session import dispose_engine, init_engine
 from app.infrastructure.nacos.client import cleanup_nacos, init_nacos_config
@@ -38,6 +38,8 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     logger.info(f"{settings.app.name} v{settings.app.version} 启动中...（debug={settings.app.debug}）")
     await init_nacos_config()
+    # Nacos 配置加载后重新应用日志设置，使远端 log 配置优先于本地 YAML。
+    configure_logging(get_settings().log)
     init_engine()
     start_spot_daily_scheduler()
     logger.info(f"{settings.app.name} 启动完成")
@@ -50,6 +52,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    configure_logging(settings.log)
     application = FastAPI(
         title=settings.app.name,
         version=settings.app.version,

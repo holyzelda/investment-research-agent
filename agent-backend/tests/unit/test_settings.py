@@ -68,6 +68,27 @@ def test_nacos_business_configuration_overrides_explicit_business_environment(mo
     get_settings.cache_clear()
 
 
+def test_log_and_cors_are_loaded_from_env_and_ignore_nacos(monkeypatch):
+    monkeypatch.setenv("APP_LOG_RETENTION", "14 days")
+    monkeypatch.setenv("APP_CORS_ALLOW_ORIGINS", "https://a.example, https://b.example")
+    monkeypatch.setenv("APP_CORS_ALLOW_CREDENTIALS", "false")
+    settings_module.set_nacos_overrides({
+        "log": {"retention": "1 day"},
+        "cors": {"allow_origins": ["https://nacos.example"], "allow_credentials": True},
+    })
+
+    settings = reload_settings()
+
+    assert settings.log.retention == "14 days"
+    assert settings.cors.allow_origins == ["https://a.example", "https://b.example"]
+    assert settings.cors.allow_credentials is False
+    assert "log" not in settings_module._nacos_overrides
+    assert "cors" not in settings_module._nacos_overrides
+
+    settings_module.clear_nacos_overrides()
+    get_settings.cache_clear()
+
+
 def test_section_getters_share_the_current_settings_snapshot():
     settings = get_settings()
 

@@ -1,5 +1,5 @@
 # 朱雀投研智能体后端本地配置（application.yml）
-# 敏感/环境相关配置走 Nacos 与环境变量；此文件仅本地开发默认值。
+# 敏感/环境相关配置走 Nacos 与环境变量；此文件仅本地业务默认值。
 
 database:
   # Python 异步 SQLAlchemy 连接串格式：mysql+aiomysql://example_user:example_password@database.example.invalid/库名
@@ -12,12 +12,6 @@ platform:
   header_user_id: X-User-Id
   header_username: X-User-Name
   allow_anonymous: true
-
-cors:
-  allow_origins: [ "*" ]
-  allow_credentials: true
-  allow_methods: [ "*" ]
-  allow_headers: [ "*" ]
 
 feishu:
   # 飞书电子表格集成（方案A）。enabled=false 时用 MockFeishuGateway（默认，不连真飞书）。

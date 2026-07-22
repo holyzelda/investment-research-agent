@@ -81,11 +81,13 @@ set ENV_FILE=.env.prod && .venv\Scripts\python.exe run.py
 ## 配置分层
 启动参数与业务参数分层存放：
 
-- `.env.test` / `.env.prod`：只保存 `APP_*` 和 `NACOS_*`。由 `app/main.py` 根据 `ENV_FILE` 显式选择，缺省为 `.env.test`；其中 `APP_NAME` 与 `NACOS_PROFILE` 决定远端 data ID `{app.name}-{profile}.yml`。
-- `configs/application.yml`：本地业务配置，包括 `database`、`platform`、`feishu`、`cors`、`calc` 与 `spot_price`。
+- `.env.test` / `.env.prod`：保存 `APP_*`、`NACOS_*`，以及固定的 `APP_LOG_*`、`APP_CORS_*` 配置。由 `run.py` 根据 `ENV_FILE` 显式选择，缺省为 `.env.test`；其中 `APP_NAME` 与 `NACOS_PROFILE` 决定远端 data ID `{app.name}-{profile}.yml`。
+- `configs/application.yml`：本地业务配置，包括 `database`、`platform`、`feishu`、`calc` 与 `spot_price`。
+- `APP_LOG_*`：Loguru 控制台及文件日志配置，默认每天 `00:00` 滚动，日志保留 `7 days`；不从 Nacos 读取。
+- `APP_CORS_*`：跨域配置，列表值使用逗号分隔；不从 Nacos 或 `application.yml` 读取。
 - Nacos：使用与本地 YAML 相同的业务节点覆盖本地配置；Nacos 未启用、不可达、返回空内容或 YAML 非法时自动使用本地 YAML。
 
-Nacos 远端业务配置优先级最高，其次为已有 `IR_*` 业务环境变量，随后是本地 YAML 与默认值。Nacos 远端配置不会覆盖 `app` 或 `nacos` 节点，因此服务连接信息和注册身份在启动后保持稳定。
+Nacos 远端业务配置优先级最高，其次为已有 `IR_*` 业务环境变量，随后是本地 YAML 与默认值。Nacos 远端配置不会覆盖 `app`、`log`、`cors` 或 `nacos` 节点，因此固定启动配置和注册身份保持稳定。
 
 ### 上线前需改动的配置清单
 > 业务配置在 `configs/application.yml` 与对应 Nacos data ID 中保持相同结构；生产应由 Nacos 承载敏感项，勿把生产凭据提交进仓库。
@@ -110,7 +112,7 @@ Nacos 远端业务配置优先级最高，其次为已有 `IR_*` 业务环境变
 - `.env.prod` 中的 `NACOS_ENABLED`、`NACOS_SERVER_ADDR`、`NACOS_NAMESPACE`、`NACOS_GROUP`、`NACOS_PROFILE`、`NACOS_DISCOVERY_SERVICE_NAME` → 上线前由运维填入；服务会在成功加载配置后注册到 Nacos。
 - `platform.header_user_id/username` → 与平台约定的真实 header 字段名（挂账#8）。
 - `platform.allow_anonymous` → 生产设 `false`（⚠ 挂账#9：当前禁匿名分支未拦截，上线前需补 401）。
-- `APP_HOST` / `APP_PORT`、`cors.allow_origins`（生产收紧到平台域名，勿留 `*`）。
+- `APP_HOST` / `APP_PORT`、`APP_CORS_ALLOW_ORIGINS`（生产收紧到平台域名，勿留 `*`）。
 
 ## 现货电价 · 预计算与日更
 

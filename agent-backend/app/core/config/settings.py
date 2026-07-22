@@ -1,6 +1,7 @@
 """应用配置（基础设施层）。
 
-分层：默认值 → configs/application.yml → 业务环境变量 → Nacos 远端业务配置（最高优先级）。
+分层：固定启动配置（.env）与默认值；业务配置为默认值 → configs/application.yml
+→ 业务环境变量 → Nacos 远端业务配置（最高优先级）。log/cors 只从 .env 读取。
 Nacos 装载在启动时执行（见 app/infrastructure/nacos/client.py），装载结果并入本模块缓存。
 
 说明：本系统采用团队统一栈（FastAPI + 异步 SQLAlchemy + Nacos），
@@ -37,12 +38,12 @@ def _deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any
 
 
 def set_nacos_overrides(config: dict[str, Any]) -> None:
-    """保存远端业务配置；禁止覆盖启动阶段已确定的 app 和 nacos 配置。"""
+    """保存远端业务配置；固定的 app、log、cors 和 nacos 配置不由 Nacos 覆盖。"""
     global _nacos_overrides
     _nacos_overrides = {
         key: copy.deepcopy(value)
         for key, value in (config or {}).items()
-        if key not in {"app", "nacos"}
+        if key not in {"app", "log", "cors", "nacos"}
     }
 
 
@@ -77,6 +78,12 @@ def _as_bool(value: Any) -> bool:
     return str(value).lower() == "true"
 
 
+def _as_list(value: str | None, default: list[str]) -> list[str]:
+    if value is None:
+        return default
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
 def _business_value(env_name: str, config: dict[str, Any], keys: list[str], default: Any) -> Any:
     """Nacos 远端业务配置最高，其次保留既有 IR_* 环境变量兼容性。"""
     remote_value = _nested(_nacos_overrides, keys)
@@ -92,6 +99,16 @@ class AppConfig(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8080
     description: str = "朱雀投研智能体 ZRA-3 后端（平台子应用）"
+
+
+class LogConfig(BaseModel):
+    """Loguru 控制台与文件输出配置。"""
+
+    level: str = "DEBUG"
+    format: str = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level} | {name}:{function}:{line} - {message}"
+    dir: str = "./logs"
+    rotation: str = "00:00"
+    retention: str = "7 days"
 
 
 class DatabaseConfig(BaseModel):
@@ -197,6 +214,7 @@ class SpotPriceConfig(BaseModel):
 
 class Settings(BaseModel):
     app: AppConfig = AppConfig()
+    log: LogConfig = LogConfig()
     database: DatabaseConfig = DatabaseConfig()
     nacos: NacosConfig = NacosConfig()
     platform: PlatformConfig = PlatformConfig()
@@ -216,6 +234,14 @@ def _build_settings() -> Settings:
         host=os.getenv("APP_HOST", _nested(y, ["app", "host"], "0.0.0.0")),
         port=int(os.getenv("APP_PORT", _nested(y, ["app", "port"], 8080))),
         description=os.getenv("APP_DESCRIPTION", _nested(y, ["app", "description"], AppConfig().description)),
+    )
+    _ld = LogConfig()
+    log = LogConfig(
+        level=os.getenv("APP_LOG_LEVEL", _ld.level),
+        format=os.getenv("APP_LOG_FORMAT", _ld.format),
+        dir=os.getenv("APP_LOG_DIR", _ld.dir),
+        rotation=os.getenv("APP_LOG_ROTATION", _ld.rotation),
+        retention=os.getenv("APP_LOG_RETENTION", _ld.retention),
     )
     database = DatabaseConfig(
         url=_business_value("IR_DB_URL", y, ["database", "url"], DatabaseConfig().url),
@@ -240,10 +266,10 @@ def _build_settings() -> Settings:
         anonymous_username=_nested(y, ["platform", "anonymous_username"], PlatformConfig().anonymous_username),
     )
     cors = CorsConfig(
-        allow_origins=_nested(y, ["cors", "allow_origins"], ["*"]),
-        allow_credentials=_nested(y, ["cors", "allow_credentials"], True),
-        allow_methods=_nested(y, ["cors", "allow_methods"], ["*"]),
-        allow_headers=_nested(y, ["cors", "allow_headers"], ["*"]),
+        allow_origins=_as_list(os.getenv("APP_CORS_ALLOW_ORIGINS"), ["*"]),
+        allow_credentials=_as_bool(os.getenv("APP_CORS_ALLOW_CREDENTIALS", "true")),
+        allow_methods=_as_list(os.getenv("APP_CORS_ALLOW_METHODS"), ["*"]),
+        allow_headers=_as_list(os.getenv("APP_CORS_ALLOW_HEADERS"), ["*"]),
     )
     calc = CalcConfig(
         poll_interval_seconds=float(_business_value("IR_CALC_POLL_INTERVAL", y, ["calc", "poll_interval_seconds"], 3.0)),
@@ -289,7 +315,7 @@ def _build_settings() -> Settings:
         daily_update_minute=int(_nested(y, ["spot_price", "daily_update_minute"], _sd.daily_update_minute)),
         daily_update_workers=int(_nested(y, ["spot_price", "daily_update_workers"], _sd.daily_update_workers)),
     )
-    return Settings(app=app, database=database, nacos=nacos, platform=platform, cors=cors,
+    return Settings(app=app, log=log, database=database, nacos=nacos, platform=platform, cors=cors,
                     calc=calc, feishu=feishu, spot_price=spot_price)
 
 
@@ -300,6 +326,10 @@ def get_settings() -> Settings:
 
 def get_app_config() -> AppConfig:
     return get_settings().app
+
+
+def get_log_config() -> LogConfig:
+    return get_settings().log
 
 
 def get_cors_config() -> CorsConfig:
@@ -314,3 +344,37 @@ def reload_settings() -> Settings:
     """Nacos 装载后或测试中重建配置缓存。"""
     get_settings.cache_clear()
     return get_settings()
+
+
+_logging_signature: tuple[str, str, str, str, str] | None = None
+
+
+def configure_logging(settings: LogConfig | None = None) -> None:
+    """配置 Loguru 控制台和按天滚动的文件输出。"""
+    global _logging_signature
+
+    settings = settings or get_log_config()
+    signature = (
+        settings.level,
+        settings.format,
+        settings.dir,
+        settings.rotation,
+        settings.retention,
+    )
+    if signature == _logging_signature:
+        return
+
+    import sys
+
+    os.makedirs(settings.dir, exist_ok=True)
+    logger.remove()
+    logger.add(sys.stderr, level=settings.level, format=settings.format)
+    logger.add(
+        os.path.join(settings.dir, "{time:YYYY-MM-DD}.log"),
+        level=settings.level,
+        format=settings.format,
+        rotation=settings.rotation,
+        retention=settings.retention,
+        encoding="utf-8",
+    )
+    _logging_signature = signature
