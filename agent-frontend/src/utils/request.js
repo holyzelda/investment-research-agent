@@ -1,9 +1,10 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
+import { getToken, removeToken } from '@/utils/auth'
 
 // 统一请求实例
 // 说明（平台接入）：本系统不做登录。用户在统一平台完成登录，平台/网关向后端请求头注入身份；
-// 前端仅经网关基地址发起请求，无需附带任何登录 token。
+// 前端仅经网关基地址发起请求；平台跳转传入的 Token 统一由拦截器转发。
 const service = axios.create({
   baseURL: import.meta.env.VITE_APP_BASE_API || '/gateway/ir-agent/',
   timeout: 60 * 1000,
@@ -11,10 +12,15 @@ const service = axios.create({
   withCredentials: true,
 })
 
-// 请求拦截器：仅设置通用头，不处理登录 token
+// 请求拦截器：附带平台 Token，并保留 isToken=false 的公开接口能力。
 service.interceptors.request.use(
   (config) => {
     config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json;charset=utf-8'
+    const token = getToken()
+    if (token && config.headers.isToken !== false) {
+      config.headers.Authorization = config.headers.Authorization || `Bearer ${token}`
+    }
+    delete config.headers.isToken
     return config
   },
   (error) => Promise.reject(error),
@@ -44,6 +50,7 @@ service.interceptors.response.use(
     return Promise.reject(new Error(msg))
   },
   (error) => {
+    if (error.response?.status === 401) removeToken()
     let message = error.message
     const backendMsg = error.response?.data?.msg
     if (backendMsg) message = backendMsg

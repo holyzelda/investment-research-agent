@@ -35,6 +35,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           rewrite: (p) => p.replace(new RegExp('^' + baseApi), '/'),
         },
+        // 菜单和用户信息由统一 ecenter 网关提供，开发环境直连测试网关。
+        '/gateway/ecenter/': {
+          target: env.VITE_ECENTER_BACKEND || 'http://internal-2-58.example.invalid:8183',
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
     test: {

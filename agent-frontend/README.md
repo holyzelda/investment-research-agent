@@ -86,8 +86,8 @@ npm run preview # 本地预览构建产物
 src/
 ├── design-system/   # 玄策 tokens（视觉基线，禁止内联 hex，一律 var(--xc-*)）
 ├── styles/          # 全局样式（引入 tokens + 深色基线）
-├── utils/request.js # axios 实例（{code,msg,data} 响应壳，无登录 token）
-├── store/           # Pinia（session：当前用户来自平台注入 /ir/me）
+├── utils/request.js # axios 实例（{code,msg,data} 响应壳，转发平台 Token）
+├── store/           # Pinia（session：Token 获取用户信息；permission：后端菜单路由）
 ├── router/          # 路由（无登录守卫，默认落地 /home）
 ├── layout/          # 顶栏 + 主体布局
 ├── api/             # 接口封装（session / calc）
@@ -103,6 +103,12 @@ src/
 - `VITE_APP_ENV` — 环境标识
 
 `.env`(通用) / `.env.development` / `.env.production` / `.env.staging` 分环境覆盖。
+
+平台跳转接入：页面打开时会按蒙西前端约定向 `window.opener` 发送 `request-token`，接收
+`{ type: 'token', token }` 后保存为 `Admin-Token`，请求自动携带 `Authorization: Bearer <token>`。
+菜单从 `/gateway/ecenter/system/menu/getRouters/eAgentIr?systemSign=eAgentIr` 获取，用户信息从
+ecenter `user/getInfo?systemSign=eAgentIr` 获取并显示在顶部右侧；也支持 URL 中的 `token` 或
+`access_token` 参数作为首次 Token。
 
 ---
 

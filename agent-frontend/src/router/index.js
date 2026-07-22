@@ -6,6 +6,7 @@ import 'nprogress/nprogress.css'
 const routes = [
   {
     path: '/',
+    name: 'Root',
     component: () => import('@/layout/index.vue'),
     redirect: '/home',
     children: [

@@ -14,7 +14,11 @@
     </header>
 
     <div class="ir-layout__body">
-      <AppRail :active="'home'" @nav="onNav" />
+      <AppRail
+        :items="navItems"
+        :active="router.currentRoute.value.path.replace(/^\//, '')"
+        @nav="onNav"
+      />
       <AppSidebar
         :history="calc.history"
         :current="calc.conversationId"
@@ -31,9 +35,11 @@
 
 <script setup>
 import { computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
+import { usePermissionStore } from '@/store/modules/permission'
 import AppRail from './components/AppRail.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import userAvatar from '@/assets/user.png'
@@ -41,12 +47,22 @@ import userAvatar from '@/assets/user.png'
 const title = computed(() => import.meta.env.VITE_APP_TITLE || '朱雀投研智能体')
 const session = useSessionStore()
 const calc = useCalculationStore()
+const permission = usePermissionStore()
+const router = useRouter()
+const navItems = computed(() => permission.railRoutes.length
+  ? permission.railRoutes.map((item) => ({
+      key: item.path.replace(/^\//, ''),
+      path: item.path,
+      label: item.title,
+      icon: item.icon,
+    }))
+  : null)
 
 function onNewChat() {
   calc.resetConversation()
 }
-function onNav() {
-  // 后续三大模块（全国指数地图/联络线地图/政策与市场）待各自 PRD；当前仅测算首页可用
+function onNav(path) {
+  if (path && router.currentRoute.value.path !== path) router.push(path)
 }
 
 async function onOpenHistory(conversationId) {
