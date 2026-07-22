@@ -57,7 +57,7 @@ const voltageColors = computed(() => {
 
 const mapRoot = ref(null)
 const el = ref(null)
-const isListOpen = ref(false)
+const isListOpen = ref(true)
 const isFullscreen = ref(false)
 let chart = null
 let resizeObserver = null
