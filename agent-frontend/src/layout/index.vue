@@ -70,7 +70,9 @@ const navItems = computed(() => permission.railRoutes.length
       icon: item.icon,
     }))
   : null)
-const activeRail = computed(() => route.path.replace(/^\//, ''))
+const RAIL_TO_PATH = { home: '/home', line: '/tie-line' }
+const PATH_TO_RAIL = { '/home': 'home', '/tie-line': 'line' }
+const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))
 
 watch(() => route.fullPath, () => {
@@ -81,7 +83,8 @@ function onNewChat() {
   calc.resetConversation()
 }
 
-function onNav(path) {
+function onNav(target) {
+  const path = RAIL_TO_PATH[target] || target
   if (path && router.currentRoute.value.path !== path) router.push(path)
 }
 

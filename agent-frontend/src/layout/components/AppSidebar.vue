@@ -11,7 +11,7 @@
       <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
         <!-- 品牌头 + 折叠按钮 -->
         <div class="ir-sider__head">
-          <span class="ir-sider__logo" v-html="logoSvg" aria-hidden="true" />
+          <img class="ir-sider__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
           <span class="ir-sider__brand">朱雀投研智能体</span>
           <button
             v-if="canHide"
@@ -88,7 +88,6 @@
 
 <script setup>
 import { onBeforeUnmount, ref, watch } from 'vue'
-import logoSvg from '@/assets/logo.svg?raw'
 
 const props = defineProps({
   history: { type: Array, default: () => [] },
