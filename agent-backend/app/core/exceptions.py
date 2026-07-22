@@ -6,6 +6,7 @@ from loguru import logger
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.constants import HttpStatus
+from app.core.config.settings import get_settings
 
 
 class BusinessException(Exception):
@@ -51,7 +52,8 @@ async def _validation_handler(request: Request, exc: RequestValidationError):
 
 async def _global_handler(request: Request, exc: Exception):
     logger.exception(f"未知异常：{exc} path={request.url.path}")
-    return _json(HttpStatus.INTERNAL_SERVER_ERROR, "服务器内部错误")
+    message = str(exc) if get_settings().app.debug else "服务器内部错误"
+    return _json(HttpStatus.INTERNAL_SERVER_ERROR, message or "服务器内部错误")
 
 
 def register_exception_handlers(app: FastAPI) -> None:
