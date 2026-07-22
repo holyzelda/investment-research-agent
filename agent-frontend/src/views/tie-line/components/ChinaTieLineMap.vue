@@ -88,6 +88,9 @@ function buildOption() {
       station: xcVar('--xc-map-station'),
       river: xcVar('--xc-map-river'),
       riverOpacity: Number(xcVar('--xc-map-river-opacity')),
+      lineUnderlay: xcVar('--xc-map-line-underlay'),
+      flow: xcVar('--xc-map-flow'),
+      landShadow: xcVar('--xc-map-land-shadow'),
     },
   })
 }
@@ -186,8 +189,8 @@ watch(
 </script>
 
 <style scoped>
-.china-tie-line-map { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--xc-map-ocean); }
-.china-tie-line-map:fullscreen { width: 100%; height: 100%; background: var(--xc-map-ocean); }
+.china-tie-line-map { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--xc-map-ocean); box-shadow: inset 0 0 72px var(--xc-map-ocean-shade); }
+.china-tie-line-map:fullscreen { width: 100%; height: 100%; background: var(--xc-map-ocean); box-shadow: inset 0 0 96px var(--xc-map-ocean-shade); }
 .china-tie-line-map__canvas { width: 100%; height: 100%; min-height: 0; }
 .china-tie-line-map__tools { position: absolute; top: var(--xc-space-4); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
 .china-tie-line-map__list { position: absolute; top: calc(var(--xc-space-4) + 44px); right: var(--xc-space-4); z-index: var(--xc-z-raised); }

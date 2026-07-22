@@ -13,6 +13,9 @@ const theme = {
   boundary: 'boundary',
   landHover: 'land-hover',
   station: 'station',
+  lineUnderlay: 'line-underlay',
+  flow: 'flow',
+  landShadow: 'land-shadow',
 }
 
 const lines = [
@@ -81,20 +84,19 @@ describe('联络线地图 option', () => {
     expect(visual.data[0]).toMatchObject({
       id: 1,
       coords: [[100, 30], [110, 35]],
-      lineStyle: { width: 3.6, opacity: 0.85 },
+      lineStyle: { width: 3.6, opacity: 0.85, curveness: 0.18 },
     })
     expect(visual.effect).toMatchObject({
       show: true,
       symbol: 'arrow',
-      symbolSize: 6,
-      period: 4,
+      symbolSize: 7,
       trailLength: 0,
       color: 'runtime-800',
     })
     expect(hit).not.toHaveProperty('effect')
     expect(hit).toMatchObject({
       cursor: 'pointer',
-      lineStyle: { color: 'rgba(0,0,0,0)', width: 12, curveness: 0.18 },
+      lineStyle: { color: 'rgba(0,0,0,0)', width: 12 },
       emphasis: { focus: 'none', lineStyle: { color: 'runtime-800', opacity: 1 } },
     })
     expect(hit.data[0]).toMatchObject({
@@ -102,6 +104,50 @@ describe('联络线地图 option', () => {
       coords: visual.data[0].coords,
       info: lines[0],
       emphasis: { lineStyle: { color: 'runtime-800', width: 5.1, opacity: 1 } },
+    })
+  })
+
+  it('为彩色线路增加独立暗色衬线，并通过轻微曲率差降低重叠感', () => {
+    const chartOption = option()
+    const underlay = seriesById(chartOption, 'tie-line-underlay')
+
+    expect(underlay).toMatchObject({
+      silent: true,
+      animation: false,
+      tooltip: { show: false },
+    })
+    expect(underlay.data).toHaveLength(3)
+    expect(underlay.data[0].lineStyle).toMatchObject({
+      color: 'line-underlay',
+      width: 5.6,
+      opacity: 0.38,
+      curveness: 0.18,
+    })
+    expect(new Set(underlay.data.map((line) => line.lineStyle.curveness)).size).toBeGreaterThan(1)
+  })
+
+  it('使用统一高对比终点箭头表达方向，不让方向依赖线路颜色', () => {
+    const chartOption = option()
+    const markers = seriesById(chartOption, 'tie-line-direction-markers')
+    const visual = visualSeries(chartOption).find((series) => series.effect.color === 'runtime-800')
+    const direction = seriesById(chartOption, 'tie-line-direction-markers')
+
+    expect(markers).toMatchObject({
+      silent: true,
+      animation: false,
+      symbol: ['none', 'arrow'],
+      symbolSize: [0, 7],
+      lineStyle: { color: 'flow', opacity: 0.72 },
+      effect: { color: 'flow', symbol: 'arrow' },
+    })
+    expect(direction.data[0].coords).toEqual([
+      [lines[0].startLng, lines[0].startLat],
+      [lines[0].endLng, lines[0].endLat],
+    ])
+    expect(visual.effect).toMatchObject({
+      symbol: 'arrow',
+      symbolSize: 7,
+      color: 'runtime-800',
     })
   })
 
@@ -139,6 +185,8 @@ describe('联络线地图 option', () => {
       areaColor: 'land',
       borderColor: 'boundary',
       borderWidth: 0.6,
+      shadowBlur: 10,
+      shadowColor: 'land-shadow',
     })
     expect(chartOption.geo.emphasis.itemStyle).toEqual({ areaColor: 'land-hover' })
     expect(chartOption.geo.tooltip).toEqual({ show: false })
@@ -159,8 +207,8 @@ describe('联络线地图 option', () => {
       silent: true,
       tooltip: { show: false },
       zlevel: 5,
-      effect: { color: 'runtime-800' },
-      data: [{ id: 1, lineStyle: { width: 5.1, opacity: 1 } }],
+      effect: { color: '#ffffff' },
+      data: [{ id: 1, lineStyle: { width: 5.1, opacity: 1, shadowBlur: 10 } }],
     })
     expect(regularMarkers).toMatchObject({
       silent: true,

@@ -10,6 +10,26 @@ function widthOf(capacity) {
   return 1.6 + Math.min(capacity / 2000, 4)
 }
 
+function curveOf(line) {
+  const seed = String(line.id ?? line.name ?? '').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return [0.12, 0.18, 0.24][seed % 3]
+}
+
+function rhythmOf(color) {
+  const seed = String(color).split('').reduce((sum, char) => sum + char.charCodeAt(0), 0)
+  return 4.6 + (seed % 4) * 0.45
+}
+
+function buildDirectionMarkerData(lines) {
+  return lines.map((line) => ({
+    coords: [
+      [line.startLng, line.startLat],
+      [line.endLng, line.endLat],
+    ],
+    lineStyle: { curveness: curveOf(line) },
+  }))
+}
+
 function colorOf(line, voltageColors, unknownColor) {
   return voltageColors[line.voltageText] || unknownColor
 }
@@ -48,12 +68,12 @@ function buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColo
     polyline: false,
     silent: true,
     tooltip: { show: false },
-    lineStyle: { color, curveness: 0.18 },
+    lineStyle: { color },
     effect: {
       show: true,
       symbol: 'arrow',
-      symbolSize: 6,
-      period: 4,
+      symbolSize: 7,
+      period: rhythmOf(color),
       trailLength: 0,
       color,
     },
@@ -63,11 +83,71 @@ function buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColo
         color,
         width: widthOf(line.ratedCapacityMw),
         opacity: hasSelection ? 0.2 : 0.85,
+        curveness: curveOf(line),
       },
     })),
     zlevel: 2,
     z: 2,
   }))
+}
+
+function buildDirectionMarkerSeries(lines, selectedId, theme) {
+  const hasSelection = selectedId !== null && selectedId !== undefined
+  const visibleLines = hasSelection ? lines.filter((line) => line.id !== selectedId) : lines
+  return {
+    id: 'tie-line-direction-markers',
+    type: 'lines',
+    coordinateSystem: 'geo',
+    polyline: false,
+    silent: true,
+    tooltip: { show: false },
+    animation: false,
+    lineStyle: {
+      color: theme.flow,
+      width: 1.2,
+      opacity: hasSelection ? 0.22 : 0.72,
+      curveness: 0.18,
+    },
+    symbol: ['none', 'arrow'],
+    symbolSize: [0, hasSelection ? 5 : 7],
+    effect: {
+      show: true,
+      symbol: 'arrow',
+      symbolSize: hasSelection ? 5 : 7,
+      period: 4.8,
+      trailLength: 0,
+      color: theme.flow,
+    },
+    data: buildDirectionMarkerData(visibleLines),
+    zlevel: 3,
+    z: 3,
+  }
+}
+
+function buildLineUnderlaySeries(lines, selectedId, theme) {
+  const hasSelection = selectedId !== null && selectedId !== undefined
+  return {
+    id: 'tie-line-underlay',
+    type: 'lines',
+    coordinateSystem: 'geo',
+    polyline: false,
+    silent: true,
+    tooltip: { show: false },
+    animation: false,
+    data: lines
+      .filter((line) => !hasSelection || line.id !== selectedId)
+      .map((line) => ({
+        ...lineData(line, theme.lineUnderlay),
+        lineStyle: {
+          color: theme.lineUnderlay,
+          width: widthOf(line.ratedCapacityMw) + 2,
+          opacity: hasSelection ? 0.08 : 0.38,
+          curveness: curveOf(line),
+        },
+      })),
+    zlevel: 2,
+    z: 1,
+  }
 }
 
 function buildHitLineSeries(lines, voltageColors, unknownColor) {
@@ -80,7 +160,6 @@ function buildHitLineSeries(lines, voltageColors, unknownColor) {
     lineStyle: {
       color: 'rgba(0,0,0,0)',
       width: 12,
-      curveness: 0.18,
     },
     emphasis: {
       focus: 'none',
@@ -93,6 +172,7 @@ function buildHitLineSeries(lines, voltageColors, unknownColor) {
           color,
           width: widthOf(line.ratedCapacityMw) + 1.5,
           opacity: 1,
+          curveness: curveOf(line),
         },
       },
     })),
@@ -113,21 +193,26 @@ function buildSelectedLineSeries(lines, selectedId, voltageColors, unknownColor)
     polyline: false,
     silent: true,
     tooltip: { show: false },
-    lineStyle: { color, curveness: 0.18 },
+    lineStyle: { color },
     effect: {
       show: true,
       symbol: 'arrow',
-      symbolSize: 6,
-      period: 4,
+      symbolSize: 10,
+      period: 3.8,
       trailLength: 0,
-      color,
+      color: '#ffffff',
     },
+    symbol: ['none', 'arrow'],
+    symbolSize: [0, 10],
     data: [{
       ...lineData(line, color),
       lineStyle: {
         color,
         width: widthOf(line.ratedCapacityMw) + 1.5,
         opacity: 1,
+        curveness: curveOf(line),
+        shadowBlur: 10,
+        shadowColor: color,
       },
     }],
     zlevel: 5,
@@ -244,11 +329,13 @@ function buildRiverSeries(rivers, theme) {
 // 动态箭头仅按静态线路资料的起点→终点坐标顺序运动，不表达真实潮流或功率方向。
 export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknownColor, theme, rivers }) {
   const riverSeries = buildRiverSeries(rivers, theme)
+  const lineUnderlaySeries = buildLineUnderlaySeries(lines, selectedId, theme)
   const baseVisualSeries = buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColor)
   const hitSeries = buildHitLineSeries(lines, voltageColors, unknownColor)
   const selectedLineSeries = buildSelectedLineSeries(lines, selectedId, voltageColors, unknownColor)
   const regularMarkerSeries = buildRegularMarkerSeries(lines, selectedId, theme)
   const selectedMarkerSeries = buildSelectedMarkerSeries(lines, selectedId, voltageColors, unknownColor)
+  const directionMarkerSeries = buildDirectionMarkerSeries(lines, selectedId, theme)
 
   return {
     backgroundColor: 'transparent',
@@ -280,6 +367,8 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
         areaColor: theme.land,
         borderColor: theme.boundary,
         borderWidth: 0.6,
+        shadowBlur: 10,
+        shadowColor: theme.landShadow,
       },
       emphasis: {
         itemStyle: { areaColor: theme.landHover },
@@ -293,8 +382,10 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
     },
     series: [
       ...(riverSeries ? [riverSeries] : []),
+      lineUnderlaySeries,
       ...baseVisualSeries,
       regularMarkerSeries,
+      directionMarkerSeries,
       ...hitSeries,
       ...selectedLineSeries,
       ...selectedMarkerSeries,
