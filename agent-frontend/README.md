@@ -110,6 +110,9 @@ src/
 ecenter `user/getInfo?systemSign=eAgentIr` 获取并显示在顶部右侧；也支持 URL 中的 `token` 或
 `access_token` 参数作为首次 Token。
 
+业务接口或 ecenter 接口返回 401 时会弹出重新登录确认框，确认后进入 `/login`。平台跳转场景会暂时
+停止从 `window.opener` 重取失效 Token，避免重新登录页被旧 Token 自动带回；登录成功后恢复平台 Token 接收。
+
 ---
 
 ## 七、依赖管理约定

@@ -1,5 +1,5 @@
 import router from '@/router'
-import { getToken, isLoginRequired, removeToken, setToken, takeTokenFromLocation } from '@/utils/auth'
+import { clearLoginRequired, getToken, isLoginRequired, removeToken, setToken, takeTokenFromLocation } from '@/utils/auth'
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
 
@@ -21,6 +21,7 @@ function requestOpenerToken() {
       const message = event.data
       if (message?.type !== 'token' || !message.token) return
       setToken(message.token)
+      clearLoginRequired()
       finish(true)
     }
     window.addEventListener('message', onMessage)
@@ -43,7 +44,8 @@ async function registerBackendRoutes(permissionStore) {
 router.beforeEach(async (to) => {
   takeTokenFromLocation()
 
-  if (!getToken() && !isLoginRequired() && typeof window !== 'undefined' && window.opener) {
+  const canRequestOpenerToken = to.path !== '/login' || !isLoginRequired()
+  if (!getToken() && canRequestOpenerToken && typeof window !== 'undefined' && window.opener) {
     const received = await requestOpenerToken()
     if (received) return { ...to, replace: true }
   }
