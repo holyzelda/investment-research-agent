@@ -84,8 +84,8 @@ describe('paramAdjust: 动态区间(基准值0~2倍)', () => {
   })
 })
 
-describe('paramAdjust: 锁项规则（省份永久锁 / 首次锁 / 二次解锁）', () => {
-  it('省份 control=fixed 时始终锁定，不受首/二次影响', () => {
+describe('paramAdjust: 锁项规则（仅字典固定项锁定）', () => {
+  it('省份 control=fixed 时始终锁定，不受版本影响', () => {
     const province = PARAM_DICT.find((p) => p.id === 'province')
     expect(isFieldLocked(province, { firstCalc: true })).toBe(true)
     expect(isFieldLocked(province, { firstCalc: false })).toBe(true)
@@ -94,20 +94,24 @@ describe('paramAdjust: 锁项规则（省份永久锁 / 首次锁 / 二次解锁
   it('运营期 select 可编辑，换电成本仍固定', () => {
     const years = PARAM_DICT.find((p) => p.id === 'operation_years')
     const battery = PARAM_DICT.find((p) => p.id === 'battery_replace_cost')
+    expect(isFieldLocked(years, { firstCalc: true })).toBe(false)
     expect(isFieldLocked(years, { firstCalc: false })).toBe(false)
+    expect(isFieldLocked(battery, { firstCalc: true })).toBe(true)
     expect(isFieldLocked(battery, { firstCalc: false })).toBe(true)
   })
 
-  it('节点/容量/功率仅首次测算锁定，二次解锁', () => {
+  it('节点/容量/功率在首次及后续结果均可编辑', () => {
     const node = PARAM_DICT.find((p) => p.id === 'node_name')
     const capacity = PARAM_DICT.find((p) => p.id === 'capacity_mwh')
-    expect(isFieldLocked(node, { firstCalc: true })).toBe(true)
-    expect(isFieldLocked(node, { firstCalc: false })).toBe(false)
-    expect(isFieldLocked(capacity, { firstCalc: true })).toBe(true)
-    expect(isFieldLocked(capacity, { firstCalc: false })).toBe(false)
+    const power = PARAM_DICT.find((p) => p.id === 'power_mw')
+    for (const firstCalc of [true, false]) {
+      expect(isFieldLocked(node, { firstCalc })).toBe(false)
+      expect(isFieldLocked(capacity, { firstCalc })).toBe(false)
+      expect(isFieldLocked(power, { firstCalc })).toBe(false)
+    }
   })
 
-  it('金融/收益/成本边界的可调参数不受首二次限制', () => {
+  it('金融/收益/成本边界的可调参数不受版本限制', () => {
     const epc = PARAM_DICT.find((p) => p.id === 'epc_unit_price')
     expect(isFieldLocked(epc, { firstCalc: true })).toBe(false)
     expect(isFieldLocked(epc, { firstCalc: false })).toBe(false)

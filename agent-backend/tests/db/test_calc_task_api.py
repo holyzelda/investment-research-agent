@@ -45,7 +45,7 @@ async def test_task_create_status_result_and_versioning(client):
     rs = await client.get(f"/ir/calc/tasks/{task1}")
     assert rs.json()["data"]["status"] == "completed"
 
-    # 结果三模块来自 report_snapshot
+    # 结果三模块来自 calculation_result_snapshot
     rr = await client.get(f"/ir/calc/tasks/{task1}/result")
     rep = rr.json()["data"]
     assert rep["basicInfo"]["province"] == "甘肃"
@@ -71,6 +71,7 @@ async def test_missing_task_returns_404(client):
 @pytest.mark.asyncio
 async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
     """引擎不可重试失败 → 落 failed 任务（真实留痕）→ GET 读回 error。"""
+    from app.core.config.settings import get_settings
     from app.modules.calculation.application import factory as calc_factory
     from app.modules.calculation.application.snapshot_service import SnapshotService
     from app.modules.calculation.application.task_service import CalculationTaskService
@@ -102,7 +103,7 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
             engine=calc_factory.build_calc_engine(gateway=gw),
             retry=calc_factory.build_retry_policy(),
             snapshot=SnapshotService(),
-            feishu=calc_factory.get_settings().feishu,
+            feishu=get_settings().feishu,
         )
 
     monkeypatch.setattr(calc_router, "build_task_service", _failing_task_service)

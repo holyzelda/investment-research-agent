@@ -1,15 +1,8 @@
-"""calculation 应用层 · 快照服务（7 类快照持久化 + report_snapshot 组装）。
+"""calculation 应用层 · 快照服务（会话、任务与测算结果持久化）。
 
-一次成功测算独立落 7 类快照（不覆盖历史）：
-- conversation（会话，归属 user_id/username；由 create_conversation 建，跨多次测算复用）
-- calculation_task（版本/状态/request_id/param_hash/飞书副本）
-- input_snapshot（最小入参 + 冻结 API_INPUT）
-- data_snapshot（各省收益结构开关/组装告警等取数中间态）
-- feishu_io_snapshot（API_INPUT/OUTPUT/META 全量）
-- report_snapshot（渲染就绪三模块，历史展示唯一数据源，含环形/折线底层数值）
-- message_snapshot（对话回放，user/assistant）
-
-report_snapshot 用 to_report_payload 组装——仅凭它即可重建结果三模块，不依赖飞书副本。
+一次成功测算独立落会话、任务、输入、数据、飞书 I/O、测算结果和对话消息快照。
+`calculation_result_snapshot` 用 to_report_payload 组装——仅凭它即可重建结果三模块，不依赖飞书副本。
+`report_snapshot` 仅为未来正式报告保留，本服务不写入它。
 """
 from __future__ import annotations
 
@@ -21,13 +14,13 @@ from app.modules.calculation.application.param_assembler import AssembledParams
 from app.modules.calculation.application.result_view import to_report_payload
 from app.modules.calculation.domain.result import CalculationResult
 from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
     CalculationTaskORM,
     ConversationORM,
     DataSnapshotORM,
     FeishuIoSnapshotORM,
     InputSnapshotORM,
     MessageSnapshotORM,
-    ReportSnapshotORM,
 )
 
 
@@ -86,14 +79,24 @@ class SnapshotService:
             api_output=api_output,
             api_meta=api_meta,
         ))
-        session.add(ReportSnapshotORM(task_id=task.id, payload=to_report_payload(result)))
+        session.add(CalculationResultSnapshotORM(task_id=task.id, payload=to_report_payload(result)))
 
         if user_message:
             session.add(MessageSnapshotORM(
-                conversation_id=conversation_id, role="user", content=user_message))
+                conversation_id=conversation_id,
+                role="user",
+                content=user_message,
+                message_type="text",
+                payload=None,
+            ))
         if assistant_message:
             session.add(MessageSnapshotORM(
-                conversation_id=conversation_id, role="assistant", content=assistant_message))
+                conversation_id=conversation_id,
+                role="assistant",
+                content=assistant_message,
+                message_type="text",
+                payload=None,
+            ))
 
         await session.commit()
         return task.id

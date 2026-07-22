@@ -35,29 +35,44 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.findAll('.ir-adjust__info-card').length).toBeGreaterThan(0)
   })
 
-  it('V1（首次测算）锁定省份/节点/容量/功率为只读', async () => {
+  it('V1 中省份只读，节点/容量/功率为可编辑控件', async () => {
     const wrapper = mount(ParamAdjustPanel, {
-      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V1' },
+      props: {
+        paramDict: PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: SEED,
+        stationOptions: ['祥泰站', '新节点'],
+        version: 'V1',
+      },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     const roTexts = wrapper.findAll('.ir-adjust__ro').map((n) => n.text())
     expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true)
-    expect(wrapper.find('.ir-adjust__select').exists()).toBe(false) // 无 stations 数据时节点卡片隐藏
-    expect(roTexts.some((t) => t.includes('800'))).toBe(true)
-    expect(roTexts.some((t) => t.includes('200'))).toBe(true)
+    expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
+
+    const projectFields = wrapper.findAll('.ir-adjust__info-card')
+    const capacityField = projectFields.find((field) => field.text().includes('装机容量'))
+    const powerField = projectFields.find((field) => field.text().includes('储能装机功率'))
+    expect(capacityField?.find('input.ir-adjust__number').exists()).toBe(true)
+    expect(powerField?.find('input.ir-adjust__number').exists()).toBe(true)
   })
 
-  it('V2（二次及以后）节点/容量/功率解锁为可编辑控件，省份仍只读', async () => {
+  it('V2 中省份仍只读，节点/容量/功率仍可编辑', async () => {
     const wrapper = mount(ParamAdjustPanel, {
-      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+      props: {
+        paramDict: PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: SEED,
+        stationOptions: ['祥泰站'],
+        version: 'V2',
+      },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
-    const roTexts = wrapper.findAll('.ir-adjust__ro').map((n) => n.text())
-    expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true) // 省份始终只读
-    expect(wrapper.find('.ir-adjust__select').exists()).toBe(false) // 无 stations 数据时节点卡片隐藏
-    expect(wrapper.findAll('.ir-adjust__number').length).toBeGreaterThan(0) // 容量/功率变为可编辑
+    expect(wrapper.findAll('.ir-adjust__ro').some((node) => node.text().includes('甘肃'))).toBe(true)
+    expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
+    expect(wrapper.findAll('.ir-adjust__info-card input.ir-adjust__number')).toHaveLength(2)
   })
 
   it('高级参数字段（如换电成本）不在内联调整面板重复展示', async () => {
@@ -164,6 +179,31 @@ describe('ParamAdjustPanel', () => {
     expect(emitted[0][0]).toEqual({
       overrides: { epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61 },
       basics: { node_name: '祥泰站', capacity_mwh: 800, power_mw: 200 },
+    })
+  })
+
+  it('V1 提交时携带用户修改后的节点、容量与功率', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: SEED,
+        stationOptions: ['祥泰站', '新节点'],
+        version: 'V1',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    await wrapper.find('.ir-adjust__select').setValue('新节点')
+    const projectInputs = wrapper.findAll('.ir-adjust__info-card input.ir-adjust__number')
+    await projectInputs[0].setValue(250)
+    await projectInputs[1].setValue(1000)
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')[0][0].basics).toEqual({
+      node_name: '新节点',
+      capacity_mwh: 1000,
+      power_mw: 250,
     })
   })
 

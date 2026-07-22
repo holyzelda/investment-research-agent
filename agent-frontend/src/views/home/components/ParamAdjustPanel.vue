@@ -129,7 +129,6 @@ const props = defineProps({
 const emit = defineEmits(['recalculate', 'open-advanced'])
 
 const expanded = ref(false)
-const firstCalc = computed(() => props.version === 'V1')
 const localValues = reactive({})
 
 const PROJECT_ORDER = ['province', 'node_name', 'power_mw', 'capacity_mwh']
@@ -192,7 +191,7 @@ function rowsFor(group) {
     .filter((row) => row.length)
 }
 
-function isLocked(spec) { return isFieldLocked(spec, { firstCalc: firstCalc.value }) }
+function isLocked(spec) { return isFieldLocked(spec) }
 function dynamicRangeOf(spec) { return dynamicRange(props.seedInput[spec.id], spec.step) }
 function rangeOf(spec) {
   if (spec.control === 'slider') return { min: spec.min, max: spec.max }
