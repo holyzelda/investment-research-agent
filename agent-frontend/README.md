@@ -106,8 +106,9 @@ src/
 
 平台跳转接入：页面打开时会按蒙西前端约定向 `window.opener` 发送 `request-token`，接收
 `{ type: 'token', token }` 后保存为 `Admin-Token`，请求自动携带 `Authorization: Bearer <token>`。
-菜单从 `/gateway/ecenter/system/menu/getRouters/eAgentIr?systemSign=eAgentIr` 获取，用户信息从
-ecenter `user/getInfo?systemSign=eAgentIr` 获取并显示在顶部右侧；也支持 URL 中的 `token` 或
+菜单、用户信息和登录页接口显式走根网关路径：菜单为 `/gateway/ecenter/system/menu/getRouters/eAgentIr?systemSign=eAgentIr`，用户信息为
+`/gateway/ecenter/system/user/getInfo?systemSign=eAgentIr`，验证码为 `/gateway/code`；这些请求不继承业务
+基地址 `/gateway/ir-agent/`。也支持 URL 中的 `token` 或
 `access_token` 参数作为首次 Token。
 
 业务接口或 ecenter 接口返回 401 时会弹出重新登录确认框，确认后进入 `/login`。平台跳转场景会暂时

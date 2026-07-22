@@ -20,6 +20,16 @@ describe('frontend scaffold (platform access)', () => {
     expect(root?.redirect).toBe('/home')
   })
 
+  it('keeps login-related gateway endpoints outside the app business prefix', () => {
+    expect(request.getUri({ baseURL: '', url: '/gateway/code' })).toBe('/gateway/code')
+    expect(request.getUri({ baseURL: '', url: '/gateway/ecenter/system/auth/login' })).toBe(
+      '/gateway/ecenter/system/auth/login',
+    )
+    expect(request.getUri({ baseURL: '', url: '/gateway/ecenter/system/user/getInfo' })).toBe(
+      '/gateway/ecenter/system/user/getInfo',
+    )
+  })
+
   it('has a login route but no register / captcha routes', () => {
     const paths = router.getRoutes().map((r) => r.path)
     expect(paths).toContain('/login')

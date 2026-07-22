@@ -12,6 +12,12 @@ const service = axios.create({
   withCredentials: true,
 })
 
+const ROOT_GATEWAY_PREFIXES = ['/gateway/code', '/gateway/ecenter/']
+
+function usesRootGateway(url = '') {
+  return ROOT_GATEWAY_PREFIXES.some((prefix) => url.startsWith(prefix))
+}
+
 export const isRelogin = { show: false }
 
 function redirectToLogin() {
@@ -49,6 +55,7 @@ function handleUnauthorized(config, message) {
 // 请求拦截器：附带平台 Token，并保留 isToken=false 的公开接口能力。
 service.interceptors.request.use(
   (config) => {
+    if (usesRootGateway(config.url)) config.baseURL = ''
     config.__skipAuthRedirect = config.headers?.isToken === false
     config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json;charset=utf-8'
     const token = getToken()

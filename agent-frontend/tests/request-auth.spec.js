@@ -72,4 +72,16 @@ describe('request authentication expiry', () => {
     expect(confirm).toHaveBeenCalledOnce()
     expect(window.sessionStorage.getItem('ir-login-required')).toBe('1')
   })
+
+  it('routes root gateway endpoints outside the business base URL', async () => {
+    let capturedConfig
+    request.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return { data: { code: 200 }, status: 200, statusText: 'OK', headers: {}, config, request: {} }
+    }
+
+    await request({ url: '/gateway/code', headers: { isToken: false } })
+
+    expect(capturedConfig.baseURL).toBe('')
+  })
 })
