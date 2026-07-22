@@ -3,6 +3,26 @@ import { login as loginRequest } from '@/api/auth'
 import { getUserInfo } from '@/api/session'
 import { getToken, setToken } from '@/utils/auth'
 
+function flattenObjects(value, result = [], seen = new Set()) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || seen.has(value)) return result
+  seen.add(value)
+  result.push(value)
+  for (const key of ['data', 'user', 'userInfo', 'sysUser', 'profile']) {
+    flattenObjects(value[key], result, seen)
+  }
+  return result
+}
+
+function firstField(objects, fields) {
+  for (const object of objects) {
+    for (const field of fields) {
+      const value = object[field]
+      if (value !== undefined && value !== null && String(value).trim() !== '') return value
+    }
+  }
+  return null
+}
+
 // 会话状态：当前用户来自平台注入（后端读 header 后经 /ir/me 下发）。
 export const useSessionStore = defineStore('session', {
   state: () => ({
@@ -32,10 +52,9 @@ export const useSessionStore = defineStore('session', {
       }
       try {
         const res = await getUserInfo()
-        const data = res?.data || {}
-        const user = data.user || data.sysUser || data
-        this.userId = data.userId ?? data.user_id ?? user.userId ?? user.id ?? null
-        this.username = data.username || data.userName || user.userName || user.nickName || '访客'
+        const objects = flattenObjects(res)
+        this.userId = firstField(objects, ['userId', 'user_id', 'userid', 'id'])
+        this.username = firstField(objects, ['username', 'userName', 'nickName', 'name', 'realName']) || '访客'
         return true
       } catch (e) {
         // 平台身份缺失时降级为访客（开发态），不阻塞对话首页
