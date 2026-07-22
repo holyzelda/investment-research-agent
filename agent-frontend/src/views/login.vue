@@ -203,6 +203,7 @@ import {
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
 import { getCodeImg } from '@/api/auth'
+import { clearLoginRequired } from '@/utils/auth'
 import loginBackgroundUrl from '@/assets/images/login_bg.png'
 import loginLogoUrl from '@/assets/images/eTrader_logo2.png'
 
@@ -313,6 +314,7 @@ async function onLogin() {
   loading.value = true
   try {
     await session.login(form)
+    clearLoginRequired()
     permission.resetRoutes()
     try {
       await session.loadUserInfo({ force: true })

@@ -1,6 +1,6 @@
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import { getToken, removeToken } from '@/utils/auth'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { getToken, markLoginRequired, removeToken } from '@/utils/auth'
 
 // 统一请求实例
 // 说明（平台接入）：支持独立登录，也支持统一平台携带 Token 直接承接；
@@ -12,9 +12,44 @@ const service = axios.create({
   withCredentials: true,
 })
 
+export const isRelogin = { show: false }
+
+function redirectToLogin() {
+  if (typeof window === 'undefined') return
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  const redirect = current && current !== '/login' ? `?redirect=${encodeURIComponent(current)}` : ''
+  window.location.replace(`/login${redirect}`)
+}
+
+function handleUnauthorized(config, message) {
+  if (config?.__skipAuthRedirect || config?.headers?.isToken === false) return false
+
+  removeToken()
+  markLoginRequired()
+  if (!isRelogin.show) {
+    isRelogin.show = true
+    ElMessageBox.confirm(
+      message || '登录状态已失效，请重新登录',
+      '登录状态异常',
+      {
+        confirmButtonText: '重新登录',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    ).then(() => {
+      isRelogin.show = false
+      redirectToLogin()
+    }).catch(() => {
+      isRelogin.show = false
+    })
+  }
+  return true
+}
+
 // 请求拦截器：附带平台 Token，并保留 isToken=false 的公开接口能力。
 service.interceptors.request.use(
   (config) => {
+    config.__skipAuthRedirect = config.headers?.isToken === false
     config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json;charset=utf-8'
     const token = getToken()
     if (token && config.headers.isToken !== false) {
@@ -41,16 +76,18 @@ service.interceptors.response.use(
     if (code === 200) {
       return body
     }
-    // 平台负责登录鉴权；本系统收到 401 视为平台会话问题，提示由平台处理
     if (code === 401) {
-      ElMessage.error('登录状态异常，请返回平台首页重新进入')
+      handleUnauthorized(res.config, msg)
       return Promise.reject(new Error(msg || '未授权'))
     }
     ElMessage.error(msg)
     return Promise.reject(new Error(msg))
   },
   (error) => {
-    if (error.response?.status === 401) removeToken()
+    if (error.response?.status === 401) {
+      const message = error.response?.data?.msg || '登录状态已失效，请重新登录'
+      handleUnauthorized(error.config, message)
+    }
     let message = error.message
     const backendMsg = error.response?.data?.msg
     if (backendMsg) message = backendMsg
@@ -59,7 +96,7 @@ service.interceptors.response.use(
     else if (message?.includes('Request failed with status code')) {
       message = `系统接口异常 ${message.slice(-3)}`
     }
-    ElMessage.error(message)
+    if (error.response?.status !== 401) ElMessage.error(message)
     return Promise.reject(error)
   },
 )

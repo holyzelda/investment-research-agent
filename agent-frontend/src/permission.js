@@ -1,5 +1,5 @@
 import router from '@/router'
-import { getToken, removeToken, setToken, takeTokenFromLocation } from '@/utils/auth'
+import { getToken, isLoginRequired, removeToken, setToken, takeTokenFromLocation } from '@/utils/auth'
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
 
@@ -43,13 +43,13 @@ async function registerBackendRoutes(permissionStore) {
 router.beforeEach(async (to) => {
   takeTokenFromLocation()
 
-  if (!getToken() && typeof window !== 'undefined' && window.opener) {
+  if (!getToken() && !isLoginRequired() && typeof window !== 'undefined' && window.opener) {
     const received = await requestOpenerToken()
     if (received) return { ...to, replace: true }
   }
 
   if (to.path === '/login') {
-    return getToken() ? { path: '/home', replace: true } : true
+    return getToken() && !isLoginRequired() ? { path: '/home', replace: true } : true
   }
 
   const sessionStore = useSessionStore()

@@ -1,4 +1,10 @@
 const TOKEN_KEY = 'Admin-Token'
+const LOGIN_REQUIRED_KEY = 'ir-login-required'
+
+function getSessionStorage() {
+  if (typeof window === 'undefined') return null
+  return typeof window.sessionStorage?.getItem === 'function' ? window.sessionStorage : null
+}
 
 export function getToken() {
   if (typeof window === 'undefined') return ''
@@ -16,6 +22,18 @@ export function removeToken() {
   if (typeof window === 'undefined') return
   if (typeof window.localStorage?.removeItem !== 'function') return
   window.localStorage.removeItem(TOKEN_KEY)
+}
+
+export function markLoginRequired() {
+  getSessionStorage()?.setItem(LOGIN_REQUIRED_KEY, '1')
+}
+
+export function isLoginRequired() {
+  return getSessionStorage()?.getItem(LOGIN_REQUIRED_KEY) === '1'
+}
+
+export function clearLoginRequired() {
+  getSessionStorage()?.removeItem(LOGIN_REQUIRED_KEY)
 }
 
 export function takeTokenFromLocation() {
