@@ -9,7 +9,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 // 说明：前端配置网关基地址；固定接口 Token 由 src/utils/request.js 从 VITE_API_TOKEN 读取并注入，Vite 代理不处理鉴权。
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
-  const baseApi = env.VITE_APP_BASE_API || '/gateway/'
+  const baseApi = env.VITE_APP_BASE_API || '/gateway/ir-agent/'
   return {
     plugins: [
       vue(),

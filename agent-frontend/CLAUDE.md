@@ -31,10 +31,10 @@ npm run test:watch     # vitest watch 模式
 
 ## 开发代理 / 后端联调
 
-所有 API 请求都经由 `VITE_APP_BASE_API`（默认 `/gateway/`，在 `.env` 中配置）。开发环境下 Vite 会把该前缀代理到本地后端：
+所有 API 请求都经由 `VITE_APP_BASE_API`（默认 `/gateway/ir-agent/`，在 `.env` 中配置）。开发环境下 Vite 会把该前缀代理到本地后端：
 
 ```
-浏览器 → /gateway/ir/me → （vite 代理，去除前缀）→ http://127.0.0.1:9089/*
+浏览器 → /gateway/ir-agent/ir/me → （vite 代理，去除前缀）→ http://127.0.0.1:9089/ir/me
 ```
 
 如需覆盖代理目标，在本地 `.env.local`（已在 `.gitignore` 中忽略）中设置 `VITE_DEV_BACKEND`，**不要**为了个人后端端口去改已提交的 `.env*` 文件。开发环境下需单独启动后端（`uvicorn ...`），否则 API 请求无法解析。

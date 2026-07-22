@@ -51,11 +51,11 @@ npm run dev
 
 ## 三、前端如何连后端（代理说明）
 
-前端页面里所有 API 请求都发往 `VITE_APP_BASE_API`（见 `.env`，默认 `/gateway/`）。
-开发时 Vite 会把 `/gateway/` 的请求**代理**到本地后端：
+前端页面里所有 API 请求都发往 `VITE_APP_BASE_API`（见 `.env`，默认 `/gateway/ir-agent/`）。
+开发时 Vite 会把 `/gateway/ir-agent/` 的请求**代理**到本地后端：
 
 ```
-浏览器 → http://localhost:5210/gateway/ir/me  →（Vite 代理）→ http://127.0.0.1:8080/ir/me
+浏览器 → http://localhost:5210/gateway/ir-agent/ir/me  →（Vite 代理）→ http://127.0.0.1:9089/ir/me
 ```
 
 所以要联调"前端 + 后端"，需**两个终端同时开**：
@@ -97,7 +97,7 @@ src/
 ## 六、配置
 
 前端 `.env.*` **只配 4 项**（不含任何后端业务配置）：
-- `VITE_APP_BASE_API` — 网关基地址（默认 `/gateway/`）
+- `VITE_APP_BASE_API` — 网关基地址（默认 `/gateway/ir-agent/`）
 - `VITE_APP_TITLE` — 页面/品牌标题
 - `VITE_FAVICON` — 图标
 - `VITE_APP_ENV` — 环境标识

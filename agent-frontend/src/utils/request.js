@@ -5,7 +5,7 @@ import { ElMessage } from 'element-plus'
 // 说明（平台接入）：本系统不做登录。用户在统一平台完成登录，平台/网关向后端请求头注入身份；
 // 前端仅经网关基地址发起请求，无需附带任何登录 token。
 const service = axios.create({
-  baseURL: import.meta.env.VITE_APP_BASE_API || '/gateway/',
+  baseURL: import.meta.env.VITE_APP_BASE_API || '/gateway/ir-agent/',
   timeout: 60 * 1000,
   // 同域部署，携带平台会话 cookie（如平台以 cookie 承载会话）
   withCredentials: true,
