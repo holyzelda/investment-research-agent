@@ -7,12 +7,6 @@ database:
   url: mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent
   echo: false
 
-platform:
-  # 平台/网关注入身份的请求头字段名（待与统一平台约定，PRD 挂账 #8）
-  header_user_id: X-User-Id
-  header_username: X-User-Name
-  allow_anonymous: true
-
 feishu:
   # 飞书电子表格集成（方案A）。enabled=false 时用 MockFeishuGateway（默认，不连真飞书）。
   # 测试环境：凭据（app_id/app_secret）+ template_token/target_folder_token 可直接填本文件；
@@ -33,6 +27,11 @@ feishu:
   revenue_structure_token: "exampleToken000000000000052"              # 表2 电子表格 token
   revenue_structure_sheet: "各省收益结构"    # 表2 sheet 名（title）
   revenue_structure_range: "A4:S40"        # 数据区：表头在第2行，省份数据行4起，列 A:S
+  report_energy_structure_sheet: "各省能源结构"
+  report_energy_structure_range: "A1:F100"
+  report_market_status_sheet: "各省电力市场情况"
+  report_market_status_range: "A1:G100"
+  report_chart_sheet: "画图数据"
 
 spot_price:
   # 现货电价库（多循环 DP，离线预计算）。enabled=true → 测算查 ir_agent 预计算表(PrecomputeSpotPriceAlgo)；

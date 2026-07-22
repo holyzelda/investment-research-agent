@@ -40,11 +40,13 @@ class CalcError(Exception):
         code: str,
         request_id: Optional[str] = None,
         doc_token: Optional[str] = None,
+        retry_count: int = 0,
     ):
         super().__init__(message)
         self.code = code
         self.request_id = request_id
         self.doc_token = doc_token
+        self.retry_count = retry_count
 
 
 class RetryableCalcError(CalcError):

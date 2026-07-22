@@ -41,12 +41,14 @@ def _param_dict() -> ParamDictionary:
 class FakeFeishu:
     """飞书开放平台打桩：路由各端点、记录请求，支持配置错误响应与读值。"""
 
-    def __init__(self, *, update_responses=None, get_values=None):
+    def __init__(self, *, update_responses=None, query_responses=None, get_values=None):
         self.sheets = {"API_INPUT": "shtI", "API_OUTPUT": "shtO", "API_META": "shtM", "画图数据": "shtChart"}
         self.update_responses = list(update_responses or [])   # 队列：(status_code, json)
+        self.query_responses = list(query_responses or [])     # 队列：(status_code, json)
         self.get_values = get_values                            # 按 range 顺序的二维值
         self.token_calls = 0
         self.copy_calls = 0
+        self.query_calls = 0
         self.batch_updates = []     # 捕获的 valueRanges
         self.copy_auth = None
         self.copy_path = None
@@ -67,6 +69,10 @@ class FakeFeishu:
             return httpx.Response(200, json={
                 "code": 0, "data": {"file": {"token": "cp-token", "name": "n", "type": "sheet"}}})
         if p.endswith("/sheets/query"):
+            self.query_calls += 1
+            if self.query_responses:
+                sc, body = self.query_responses.pop(0)
+                return httpx.Response(sc, json=body)
             return httpx.Response(200, json={"code": 0, "data": {
                 "sheets": [{"sheet_id": sid, "title": t} for t, sid in self.sheets.items()]}})
         if p.endswith("/values_batch_update"):
@@ -111,7 +117,64 @@ async def test_copy_carries_token_and_returns_new_doc():
 
 
 @pytest.mark.asyncio
-async def test_write_input_maps_api_cells_to_sheet_ranges():
+async def test_new_copy_retries_sheet_query_http_500_before_writing_input():
+    fake = FakeFeishu(query_responses=[(500, {"code": 1315201, "msg": "Server Error"})])
+    gw = _gateway(fake)
+    gw._initial_sheet_query_backoff = 0
+
+    doc_token = await gw.copy_template("tmpl")
+    await gw.write_input(doc_token, {"power_mw": 100})
+
+    assert fake.copy_calls == 1
+    assert fake.query_calls == 2
+    assert len(fake.batch_updates) == 1
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_new_copy_retries_sheet_query_feishu_1315201_before_writing_input():
+    fake = FakeFeishu(query_responses=[(200, {"code": 1315201, "msg": "Server Error"})])
+    gw = _gateway(fake)
+    gw._initial_sheet_query_backoff = 0
+
+    doc_token = await gw.copy_template("tmpl")
+    await gw.write_input(doc_token, {"power_mw": 100})
+
+    assert fake.query_calls == 2
+    assert len(fake.batch_updates) == 1
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_new_copy_sheet_query_readiness_exhaustion_is_retryable():
+    fake = FakeFeishu(query_responses=[(500, {})] * 3)
+    gw = _gateway(fake)
+    gw._initial_sheet_query_retries = 2
+    gw._initial_sheet_query_backoff = 0
+
+    doc_token = await gw.copy_template("tmpl")
+    with pytest.raises(RetryableCalcError) as ei:
+        await gw.write_input(doc_token, {"power_mw": 100})
+
+    assert ei.value.code == "feishu_initial_sheet_query_not_ready"
+    assert fake.query_calls == 3
+    assert fake.batch_updates == []
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_existing_document_does_not_retry_sheet_query_feishu_1315201():
+    fake = FakeFeishu(query_responses=[(200, {"code": 1315201, "msg": "Server Error"})])
+    gw = _gateway(fake)
+
+    with pytest.raises(NonRetryableCalcError) as ei:
+        await gw.write_input("existing-doc", {"power_mw": 100})
+
+    assert ei.value.code == "feishu_1315201"
+    assert fake.query_calls == 1
+    assert fake.batch_updates == []
+    await gw._client.aclose()
+
     fake = FakeFeishu()
     gw = _gateway(fake)
     await gw.write_input("doc1", {"power_mw": 100, "capacity_mwh": 200, "not_in_dict": 9})
@@ -172,11 +235,37 @@ async def test_permission_error_is_non_retryable():
 
 
 @pytest.mark.asyncio
-async def test_server_error_is_retryable():
+async def test_input_write_server_error_is_retryable_and_identified():
     fake = FakeFeishu(update_responses=[(500, {})])
     gw = _gateway(fake)
-    with pytest.raises(RetryableCalcError):
+    with pytest.raises(RetryableCalcError) as ei:
         await gw.write_input("doc1", {"power_mw": 1})
+    assert ei.value.code == "feishu_write_input_http_500"
+    assert str(ei.value) == "飞书 write_input 失败 HTTP 500"
+    assert len(fake.batch_updates) == 1
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_sheet_query_server_error_is_retryable_before_input_write():
+    fake = FakeFeishu()
+    original_handler = fake.handler
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/sheets/query"):
+            return httpx.Response(500, json={})
+        return original_handler(request)
+
+    gw = HttpFeishuGateway(
+        config=FeishuConfig(enabled=True, app_id="a", app_secret="s", template_token_15_years="tmpl"),
+        param_dict=_param_dict(),
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="https://open.feishu.cn"),
+    )
+    with pytest.raises(RetryableCalcError) as ei:
+        await gw.write_input("doc1", {"power_mw": 1})
+    assert ei.value.code == "feishu_sheets_query_write_input_http_500"
+    assert str(ei.value) == "飞书 sheets_query_write_input 失败 HTTP 500"
+    assert fake.batch_updates == []
     await gw._client.aclose()
 
 

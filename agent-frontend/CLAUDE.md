@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-"朱雀投研智能体"（ZRA-3）前端 —— 统一平台的子应用。**无独立登录**：用户在平台首页完成登录后跳转承接落地本系统；身份由平台/网关注入后端请求头，前端不管理任何用户登录 token。唯一例外是 `VITE_API_TOKEN`：它是共享固定接口访问 Token，不代表用户身份，也不得用于登录页、路由守卫、刷新机制或用户状态。
+"朱雀投研智能体"（ZRA-3）前端 —— 统一平台的子应用。前端使用 ecenter 登录、`getInfo` 获取用户资料与动态菜单，并保留其 Bearer Token。IR 业务请求还必须携带固定 `userId` / `username` Header：本地由请求拦截器转发 ecenter 已解析身份，测试/生产由可信网关注入或覆盖同名 Header；`username` 需 URL 编码为 ASCII。不得在业务请求体/query 中传递身份，不得伪造访客身份。
 
 技术栈：Vue 3 + Vite 5 + Element Plus + Pinia + Vue Router 4 + ECharts 5（通过 vue-echarts）+ Tailwind（仅布局工具类，已关闭 `preflight`）+ "玄策（XC）"设计体系（深色优先，基于 CSS 自定义属性）。
 
@@ -39,18 +39,18 @@ npm run test:watch     # vitest watch 模式
 
 如需覆盖代理目标，在本地 `.env.local`（已在 `.gitignore` 中忽略）中设置 `VITE_DEV_BACKEND`，**不要**为了个人后端端口去改已提交的 `.env*` 文件。开发环境下需单独启动后端（`uvicorn ...`），否则 API 请求无法解析。
 
-`.env*` 系列文件允许保留 5 项配置：`VITE_APP_BASE_API`、`VITE_APP_TITLE`、`VITE_FAVICON`、`VITE_APP_ENV`、`VITE_API_TOKEN`。`VITE_API_TOKEN` 是唯一允许的前端凭据：用于共享固定接口访问 Token，不是用户登录 Token；真实值只写入已被 `.gitignore` 忽略的 `.env.local`。任何后端业务配置都不应出现在前端 env 中。
+`.env*` 仅保存前端构建与代理配置：`VITE_APP_BASE_API`、`VITE_APP_TITLE`、`VITE_FAVICON`、`VITE_APP_ENV`、`VITE_DEV_BACKEND`、`VITE_ECENTER_BACKEND`、`VITE_GATEWAY_BACKEND`。真实凭据不得提交到 env 文件；后端业务配置也不得出现在前端 env 中。
 
 ## 架构说明
 
 ### 请求/响应契约
 `src/utils/request.js` 用 axios 封装了固定的后端响应壳：每个响应体都是 `{code, msg, data}`。拦截器在 `code === 200` 时解包出 `data`，其余情况弹出 `ElMessage.error` 并 reject；`code === 401` 被视为"平台会话问题"（不是前端可自行处理的鉴权状态，只提示用户返回平台重新进入）。二进制响应（`responseType: 'blob'|'arraybuffer'`）绕过该响应壳。各接口模块（`src/api/*.js`）都是对 `request({...})` 的薄封装。
 
-### 无鉴权/无路由守卫
-`src/router/index.js` 只有一个真实路由（`/home`，`/` 重定向到它）加一个兜底重定向。没有登录路由，没有路由守卫，没有 token 刷新逻辑 —— 这一点由 `tests/scaffold.spec.js` 强制校验（断言不存在 `login|register|captcha` 相关路径/路由名）。不要在此处新增鉴权脚手架；身份信息来自 `useSessionStore().loadUserInfo()` 请求 `/ir/me`，若平台请求头缺失（本地开发下预期如此，对应后端 `allow_anonymous`），会降级为"访客"占位。
+### 登录、路由与身份
+`src/router/index.js` 提供登录页与业务首页，`src/permission.js` 负责 ecenter 菜单和动态路由。`store/modules/session.js` 从 ecenter `getInfo` 归一化并缓存 `userId` / `username`；请求层仅向 IR 业务接口添加这两个 Header，绝不向 `/gateway/ecenter/**`、`/gateway/code` 等 ecenter/验证码接口发送。用户名 Header 使用 URL 编码；身份缺失不降级为“访客”，应由后端返回 401。
 
 ### 状态管理：两个 Pinia store
-- `store/modules/session.js` —— 仅保存当前用户（`userId`/`username`），从 `/ir/me` 加载一次。刻意没有 login/logout 相关 action。
+- `store/modules/session.js` —— 保存 ecenter 当前用户（`userId`/`username`）和 Token；登录后通过 ecenter `getInfo` 加载并缓存身份，供请求层传递给 IR 后端。
 - `store/modules/calculation.js` —— 核心业务 store，驱动整个"对话 → 测算"流程：
   - `messages`：有序对话记录（`{id, role, kind: 'text'|'result', text|result, version}`）。消息顺序只增不改，选择不同版本**不会**重排消息流（见 `tests/version-list.spec.js`）。
   - `versions`：某会话下已完成的测算结果（`V1`、`V2`……），可通过 `selectedVersion`/`selectVersion` 独立于对话流选中 —— 选中某版本会在（顺序不变的）消息流中高亮对应卡片，而不是重新排序。

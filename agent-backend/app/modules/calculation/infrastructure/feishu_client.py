@@ -41,6 +41,44 @@ class MockFeishuGateway(FeishuGateway):
     async def read_output(self, doc_token: str) -> dict:
         return dict(self._output)
 
+    async def read_report_sources(
+        self,
+        *,
+        doc_token: str,
+        province: str | None,
+        energy_sheet: str,
+        energy_range: str,
+        market_sheet: str,
+        market_range: str,
+        chart_sheet: str,
+        chart_end_column: str,
+    ) -> dict:
+        years = 15 if chart_end_column == "Q" else 20
+        count = 15 if years == 15 else 20
+        return {
+            "operationYears": years,
+            "provinceSources": {
+                "available": True,
+                "energy": {"地区": province, "能源结构": "模拟能源结构"},
+                "marketStatus": {"地区": province, "现货市场": 1},
+                "error": None,
+            },
+            "charts": {
+                "available": True,
+                "series": {
+                    "debtServiceCoverage": [1.2] * count,
+                    "freeCashflow": [100.0] * count,
+                    "operatingCashflow": [200.0] * count,
+                    "principal": [60.0] * count,
+                    "interest": [20.0] * count,
+                    "netProfit": [80.0] * count,
+                    "depreciationAmortization": [30.0] * count,
+                },
+                "sensitivity": {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1},
+                "error": None,
+            },
+        }
+
     def last_payload(self) -> dict | None:
         if not self.written:
             return None

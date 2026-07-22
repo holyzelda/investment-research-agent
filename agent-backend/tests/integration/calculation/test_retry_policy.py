@@ -4,7 +4,7 @@
 1. 可重试恢复且复用同副本——即使异常不带 doc_token（原始 httpx 网络抖动）也复用，不重复复制。
    （这是 #1 修复的核心：副本归属在重试层，doc_token 不依赖异常带回。）
 2. 复制副本本身失败（可重试）→ 下轮重新复制，不复用不存在的副本。
-3. 超过重试上限：一直可重试 → 终态失败(max_retries_exceeded)带 request_id，共尝试 1+max 次。
+3. 超过重试上限：一直可重试 → 保留最终根因、重试次数和 request_id，共尝试 1+max 次。
 4. 不可重试错误：立即失败、不重试。
 5. classify_error：httpx 原始异常正确归类（429/5xx→可重试，401/403/404→不可重试）。
 """
@@ -92,8 +92,10 @@ async def test_exceeds_max_retries_fails_terminally():
         await RetryPolicy(max_retries=3).run_with_retry(
             always_retryable, request_id=RID, copy_template=copy_template
         )
-    assert ei.value.code == "max_retries_exceeded"
+    assert ei.value.code == "feishu_503"
+    assert str(ei.value) == "飞书 503"
     assert ei.value.request_id == RID
+    assert ei.value.retry_count == 3
     assert calls == 4  # 1 次初始 + 3 次重试
 
 
@@ -114,6 +116,7 @@ async def test_non_retryable_fails_immediately():
             auth_failed, request_id=RID, copy_template=copy_template
         )
     assert ei.value.code == "feishu_auth_401"
+    assert ei.value.retry_count == 0
     assert calls == 1  # 不重试
 
 

@@ -129,16 +129,6 @@ class NacosConfig(BaseModel):
     service_name: str = "ir-agent"
 
 
-class PlatformConfig(BaseModel):
-    """平台身份注入配置（阶段0：读 header，不做登录）。"""
-    header_user_id: str = "X-User-Id"
-    header_username: str = "X-User-Name"
-    # header 缺失时是否放行匿名（开发/联调用；生产按平台约定收紧）
-    allow_anonymous: bool = True
-    anonymous_user_id: str = "0"
-    anonymous_username: str = "访客"
-
-
 class CorsConfig(BaseModel):
     allow_origins: list[str] = ["*"]
     allow_credentials: bool = True
@@ -177,6 +167,11 @@ class FeishuConfig(BaseModel):
     revenue_structure_token: str = ""              # 表2 电子表格 token（稳定，不随测算副本变）
     revenue_structure_sheet: str = "各省收益结构"     # 表2 sheet 名（title；v2 需再解析 sheetId）
     revenue_structure_range: str = "A4:S40"        # 数据区：表头在第2行，省份数据行4起，列 A:S
+    report_energy_structure_sheet: str = "各省能源结构"
+    report_energy_structure_range: str = "A1:F100"
+    report_market_status_sheet: str = "各省电力市场情况"
+    report_market_status_range: str = "A1:G100"
+    report_chart_sheet: str = "画图数据"
 
 
 class ProvincePriceCoefficient(BaseModel):
@@ -217,7 +212,6 @@ class Settings(BaseModel):
     log: LogConfig = LogConfig()
     database: DatabaseConfig = DatabaseConfig()
     nacos: NacosConfig = NacosConfig()
-    platform: PlatformConfig = PlatformConfig()
     cors: CorsConfig = CorsConfig()
     calc: CalcConfig = CalcConfig()
     feishu: FeishuConfig = FeishuConfig()
@@ -257,13 +251,6 @@ def _build_settings() -> Settings:
         profile=os.getenv("NACOS_PROFILE", _nested(y, ["nacos", "profile"], "test")),
         service_name=os.getenv("NACOS_DISCOVERY_SERVICE_NAME", os.getenv(
             "NACOS_SERVICE_NAME", _nested(y, ["nacos", "service_name"], "ir-agent"))),
-    )
-    platform = PlatformConfig(
-        header_user_id=_business_value("IR_HEADER_USER_ID", y, ["platform", "header_user_id"], "X-User-Id"),
-        header_username=_business_value("IR_HEADER_USERNAME", y, ["platform", "header_username"], "X-User-Name"),
-        allow_anonymous=_as_bool(_business_value("IR_ALLOW_ANONYMOUS", y, ["platform", "allow_anonymous"], True)),
-        anonymous_user_id=_nested(y, ["platform", "anonymous_user_id"], PlatformConfig().anonymous_user_id),
-        anonymous_username=_nested(y, ["platform", "anonymous_username"], PlatformConfig().anonymous_username),
     )
     cors = CorsConfig(
         allow_origins=_as_list(os.getenv("APP_CORS_ALLOW_ORIGINS"), ["*"]),
@@ -315,7 +302,7 @@ def _build_settings() -> Settings:
         daily_update_minute=int(_nested(y, ["spot_price", "daily_update_minute"], _sd.daily_update_minute)),
         daily_update_workers=int(_nested(y, ["spot_price", "daily_update_workers"], _sd.daily_update_workers)),
     )
-    return Settings(app=app, log=log, database=database, nacos=nacos, platform=platform, cors=cors,
+    return Settings(app=app, log=log, database=database, nacos=nacos, cors=cors,
                     calc=calc, feishu=feishu, spot_price=spot_price)
 
 

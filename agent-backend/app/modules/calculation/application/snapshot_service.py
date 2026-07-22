@@ -47,6 +47,7 @@ class SnapshotService:
         api_meta: dict,
         result: CalculationResult,
         min_input: dict,
+        report_sources: Optional[dict] = None,
         user_message: Optional[str] = None,
         assistant_message: Optional[str] = None,
     ) -> int:
@@ -71,6 +72,7 @@ class SnapshotService:
             payload={
                 "switches": assembled.switches,
                 "warnings": assembled.warnings,
+                "reportSources": report_sources or {},
             },
         ))
         session.add(FeishuIoSnapshotORM(

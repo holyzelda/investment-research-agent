@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with the backend application.
 
-Read the repository-root `CLAUDE.md` first for PRD authority, cross-end constraints, spec-superflow gates, and Git rules.
+Read the repository-root `CLAUDE.md` first for PRD authority, cross-end constraints, and Git rules.
 
 ## Commands
 
@@ -27,7 +27,7 @@ Do not call `python`/`python3`. Use `.venv\Scripts\python.exe`, or `C:\Users\JDP
 
 - `app/core/` provides settings, constants, exceptions, and the `{code,msg,data}` response shell.
 - `app/infrastructure/` provides database, Nacos, and web/application-factory concerns.
-- `app/modules/platform_access/` trusts platform identity headers and exposes `/ir/me`; fixed interface Token validation belongs in web middleware, not this module. Do not add login, JWT, session, or RBAC logic.
+- `app/modules/platform_access/` 只读取固定 `userId` / `username` 身份 Header 并暴露 `/ir/me`；本地由前端在 ecenter `getInfo` 成功后传递，测试/生产由可信网关认证后注入或覆盖。缺少任一 Header 返回 401。不要添加后端 ecenter 调用、登录、JWT、session 或 RBAC 逻辑。
 - `app/modules/calculation/` follows `interface → application → domain`; `domain` cannot depend on FastAPI, database, or external HTTP, while `infrastructure` implements domain ports.
 - `infrastructure/data/param_dict.json` is the calculation parameter schema: source, writable/direction, interface mapping, default, and frontend control metadata. Use `ParamDictionary`/`ParamSpec`; do not bypass it with hard-coded parameter behavior.
 
@@ -58,4 +58,4 @@ Controlled overrides accept only dictionary parameters marked `g=1`, `direction=
 
 - Use `httpx.ASGITransport` + `AsyncClient` in the main event loop; never `Starlette TestClient`, which can trigger greenlet loading failures under the local application-control policy.
 - For async integration tests, pass `-o asyncio_mode=auto` to the pytest wrapper when the project configuration is not applied.
-- HTTP headers must be ASCII. A platform-provided Chinese username must be URL-encoded or Base64-encoded upstream before the backend decodes it.
+- HTTP headers must be ASCII. The frontend URL-encodes `username`; the backend decodes it before persistence. Never restore anonymous/visitor identity fallback.

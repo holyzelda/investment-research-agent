@@ -143,6 +143,29 @@ class CalculationResultSnapshotORM(_PkTimestamp, Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
+class ReportGenerationTaskORM(_PkTimestamp, Base):
+    """报告生成过程：可恢复状态与面向用户的步骤进度，不保存正式报告内容。"""
+
+    __tablename__ = "ir_report_generation_task"
+
+    task_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
+    )
+    conversation_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ir_conversation.id"), nullable=False, index=True
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(
+        String(16), nullable=False, default="generating", server_default="generating"
+    )
+    steps: Mapped[list[dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    current_step: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error_code: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    report_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+
 class ReportSnapshotORM(_PkTimestamp, Base):
     """正式报告快照：仅预留未来成功生成后的完整报告载荷。"""
 

@@ -25,6 +25,7 @@ from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEng
 from app.modules.calculation.application.output_mapper import map_output_to_result
 from app.modules.calculation.application.param_assembler import ParamAssembler
 from app.modules.calculation.application.retry_policy import RetryPolicy
+from app.modules.calculation.application.report_source_freezer import freeze_report_sources
 from app.modules.calculation.application.snapshot_service import SnapshotService
 from app.modules.calculation.domain.execution import CalcError
 from app.modules.calculation.domain.models import ProjectBasics
@@ -131,6 +132,7 @@ class CalculationTaskService:
                 copy_template=lambda: self._gateway.copy_template(template_token, copy_name),
             )
         except CalcError as e:
+            error_message = str(e)[:500]
             task = CalculationTaskORM(
                 conversation_id=conversation_id,
                 version=version,
@@ -138,7 +140,8 @@ class CalculationTaskService:
                 request_id=request_id,
                 param_hash=param_hash,
                 error_code=e.code,
-                error_message=str(e)[:500],
+                error_message=error_message,
+                retry_count=e.retry_count,
             )
             session.add(task)
             await session.commit()
@@ -147,12 +150,23 @@ class CalculationTaskService:
                 "taskId": task.id,
                 "version": version,
                 "status": "failed",
-                "error": {"code": e.code, "message": str(e), "requestId": e.request_id},
+                "error": {
+                    "code": e.code,
+                    "message": error_message,
+                    "requestId": request_id,
+                    "retryCount": e.retry_count,
+                },
             }
 
         result_dto = map_output_to_result(
             basics, assembled, engine_result.api_output,
             version=version, request_id=request_id,
+        )
+        report_sources = await freeze_report_sources(
+            self._gateway,
+            doc_token=engine_result.doc_token,
+            api_input=assembled.api_input,
+            config=self._feishu,
         )
         task_id = await self._snapshot.persist_success(
             session,
@@ -166,6 +180,7 @@ class CalculationTaskService:
             api_meta=engine_result.meta,
             result=result_dto,
             min_input=_min_input(basics),
+            report_sources=report_sources,
             user_message=f"测算{basics.province} {basics.power_mw}MW/{basics.capacity_mwh}MWh",
             assistant_message=f"{version} 测算完成",
         )

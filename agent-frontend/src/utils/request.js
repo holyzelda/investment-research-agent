@@ -1,6 +1,6 @@
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { getToken, markLoginRequired, removeToken } from '@/utils/auth'
+import { getToken, getUserIdentity, markLoginRequired, removeToken, removeUserIdentity } from '@/utils/auth'
 
 // 统一请求实例
 // 说明（平台接入）：支持独立登录，也支持统一平台携带 Token 直接承接；
@@ -31,6 +31,7 @@ function handleUnauthorized(config, message) {
   if (config?.__skipAuthRedirect || config?.headers?.isToken === false) return false
 
   removeToken()
+  removeUserIdentity()
   markLoginRequired()
   if (!isRelogin.show) {
     isRelogin.show = true
@@ -52,7 +53,7 @@ function handleUnauthorized(config, message) {
   return true
 }
 
-// 请求拦截器：附带平台 Token，并保留 isToken=false 的公开接口能力。
+// 请求拦截器：附带平台 Token；IR 业务请求同时携带 ecenter 已解析的身份。
 service.interceptors.request.use(
   (config) => {
     if (usesRootGateway(config.url)) config.baseURL = ''
@@ -61,6 +62,11 @@ service.interceptors.request.use(
     const token = getToken()
     if (token && config.headers.isToken !== false) {
       config.headers.Authorization = config.headers.Authorization || `Bearer ${token}`
+    }
+    if (!usesRootGateway(config.url)) {
+      const { userId, username } = getUserIdentity()
+      if (userId && !config.headers.userId) config.headers.userId = userId
+      if (username && !config.headers.username) config.headers.username = encodeURIComponent(username)
     }
     delete config.headers.isToken
     return config

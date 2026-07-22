@@ -3,6 +3,7 @@
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS ir_report_snapshot;
+DROP TABLE IF EXISTS ir_report_generation_task;
 DROP TABLE IF EXISTS ir_calculation_result_snapshot;
 DROP TABLE IF EXISTS ir_feishu_io_snapshot;
 DROP TABLE IF EXISTS ir_data_snapshot;
@@ -95,6 +96,28 @@ CREATE TABLE ir_calculation_result_snapshot (
     UNIQUE KEY uq_ir_calculation_result_snapshot_task_id (task_id),
     FOREIGN KEY (task_id) REFERENCES ir_calculation_task (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE ir_report_generation_task (
+    task_id BIGINT NOT NULL,
+    conversation_id BIGINT NOT NULL,
+    user_id VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'generating',
+    steps JSON NOT NULL,
+    current_step VARCHAR(64),
+    error_code VARCHAR(64),
+    error_message VARCHAR(512),
+    report_id VARCHAR(64),
+    completed_at DATETIME,
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME NOT NULL DEFAULT now(),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_ir_report_generation_task_task_id (task_id),
+    FOREIGN KEY (task_id) REFERENCES ir_calculation_task (id),
+    FOREIGN KEY (conversation_id) REFERENCES ir_conversation (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX ix_ir_report_generation_task_conversation_id ON ir_report_generation_task (conversation_id);
+CREATE INDEX ix_ir_report_generation_task_user_id ON ir_report_generation_task (user_id);
+CREATE INDEX ix_ir_report_generation_task_report_id ON ir_report_generation_task (report_id);
 
 CREATE TABLE ir_report_snapshot (
     report_id VARCHAR(64) NOT NULL,

@@ -20,6 +20,7 @@ import uuid
 from typing import Optional
 
 import httpx
+from loguru import logger
 
 from app.core.config.settings import FeishuConfig
 from app.modules.calculation.domain.execution import (
@@ -30,11 +31,11 @@ from app.modules.calculation.domain.param_dictionary import ParamDictionary
 from app.modules.calculation.domain.ports import FeishuGateway
 
 # 飞书业务错误码分类（PoC 联调后按真实返回校准）
-_TOKEN_CODES = {99991661, 99991663, 99991664, 99991668}   # token 失效/过期 → 刷新重试
-_RATE_LIMIT_CODES = {99991400}                             # 频控 → 可重试
-_RETRYABLE_CODES = {1061045}                               # drive copy 内部可重试错误
-_PROCESSING_CODES = {601124041}                            # 副本 ContentMeta 处理中（copy 异步）→ 退避重试
-_PERMISSION_CODES = {1310213, 1310214, 1310217}           # 无权限/表格不存在 → 不可重试
+_TOKEN_CODES = {99991661, 99991663, 99991664, 99991668}  # token 失效/过期 → 刷新重试
+_RATE_LIMIT_CODES = {99991400}  # 频控 → 可重试
+_RETRYABLE_CODES = {1061045}  # drive copy 内部可重试错误
+_PROCESSING_CODES = {601124041}  # 副本 ContentMeta 处理中（copy 异步）→ 退避重试
+_PERMISSION_CODES = {1310213, 1310214, 1310217}  # 无权限/表格不存在 → 不可重试
 
 
 class _TokenExpired(Exception):
@@ -59,22 +60,28 @@ def _first_cell(values) -> Optional[object]:
 
 class HttpFeishuGateway(FeishuGateway):
     def __init__(
-        self,
-        config: FeishuConfig,
-        param_dict: ParamDictionary,
-        client: Optional[httpx.AsyncClient] = None,
-        processing_retries: int = 5,
-        processing_backoff: float = 2.0,
+            self,
+            config: FeishuConfig,
+            param_dict: ParamDictionary,
+            client: Optional[httpx.AsyncClient] = None,
+            processing_retries: int = 5,
+            processing_backoff: float = 2.0,
+            initial_sheet_query_retries: int = 5,
+            initial_sheet_query_backoff: float = 2.0,
     ):
         self._cfg = config
         self._dict = param_dict
         self._client = client or httpx.AsyncClient(base_url=config.base_url, timeout=30.0)
         self._token: Optional[str] = None
         self._token_exp: float = 0.0
-        self._sheet_ids: dict[str, dict[str, str]] = {}   # doc_token -> {sheet 标题: sheetId}
+        self._sheet_ids: dict[str, dict[str, str]] = {}  # doc_token -> {sheet 标题: sheetId}
+        self._pending_initial_sheet_query: set[str] = set()
         # copy 异步：副本 ContentMeta 处理中（601124041）时退避重试的次数与间隔
         self._processing_retries = processing_retries
         self._processing_backoff = processing_backoff
+        # 新副本首次查询工作表元数据时的短暂内部错误退避。
+        self._initial_sheet_query_retries = initial_sheet_query_retries
+        self._initial_sheet_query_backoff = initial_sheet_query_backoff
 
     # ---- 鉴权 ----
     async def _tenant_token(self) -> str:
@@ -85,46 +92,54 @@ class HttpFeishuGateway(FeishuGateway):
             "/open-apis/auth/v3/tenant_access_token/internal",
             json={"app_id": self._cfg.app_id, "app_secret": self._cfg.app_secret},
         )
-        body = self._check(r)
+        body = self._check(r, operation="tenant_token")
         self._token = body["tenant_access_token"]
         # 提前 60s 视为过期，避免临界失败
         self._token_exp = now + max(0, int(body.get("expire", 7200)) - 60)
         return self._token
 
-    async def _authed(self, method: str, url: str, **kw) -> dict:
+    async def _authed(self, method: str, url: str, *, operation: str, **kw) -> dict:
         """带鉴权请求。副本刚复制时 ContentMeta 仍在处理(601124041) → 退避重试同一请求；
         退避耗尽仍在处理则抛 Retryable，交外层重试策略（正式 /tasks 流程）继续兜。"""
         for attempt in range(self._processing_retries + 1):
             try:
-                return await self._authed_once(method, url, **kw)
+                return await self._authed_once(method, url, operation=operation, **kw)
             except _ContentProcessing:
                 if attempt >= self._processing_retries:
                     raise RetryableCalcError(
-                        "飞书副本内容仍在处理(ContentMeta is processing)，稍后重试",
+                        f"飞书副本内容仍在处理(ContentMeta is processing)，稍后重试（{operation}）",
                         code="feishu_601124041")
                 await asyncio.sleep(self._processing_backoff)
 
-    async def _authed_once(self, method: str, url: str, **kw) -> dict:
+    async def _authed_once(self, method: str, url: str, *, operation: str, **kw) -> dict:
         """带 Bearer 的单次请求；token 失效自动刷新一次后重试。"""
         token = await self._tenant_token()
         headers = {**kw.pop("headers", {}), "Authorization": f"Bearer {token}"}
         try:
-            return self._check(await self._client.request(method, url, headers=headers, **kw))
+            return self._check(
+                await self._client.request(method, url, headers=headers, **kw), operation=operation
+            )
         except _TokenExpired:
             self._token = None
             headers["Authorization"] = f"Bearer {await self._tenant_token()}"
             try:
-                return self._check(await self._client.request(method, url, headers=headers, **kw))
+                return self._check(
+                    await self._client.request(method, url, headers=headers, **kw), operation=operation
+                )
             except _TokenExpired:
                 raise NonRetryableCalcError(
-                    "飞书 token 刷新后仍失效，请检查应用凭据", code="feishu_token_invalid"
+                    f"飞书 token 刷新后仍失效，请检查应用凭据（{operation}）",
+                    code="feishu_token_invalid",
                 )
 
-    def _check(self, r: httpx.Response) -> dict:
+    def _check(self, r: httpx.Response, *, operation: str) -> dict:
         """HTTP 状态 + 飞书 body code 映射到错误分类；成功返回 body。"""
         sc = r.status_code
         if sc >= 500:
-            raise RetryableCalcError(f"飞书服务端错误 HTTP {sc}", code=f"feishu_http_{sc}")
+            code = f"feishu_{operation}_http_{sc}"
+            message = f"飞书 {operation} 失败 HTTP {sc}"
+            logger.error("飞书请求失败 operation={} status={} text={}", operation, sc, r.text)
+            raise RetryableCalcError(message, code=code)
         if sc == 429:
             raise RetryableCalcError("飞书限流 HTTP 429", code="feishu_rate_limited")
         if sc in (401, 403):
@@ -150,7 +165,7 @@ class HttpFeishuGateway(FeishuGateway):
     def _ss(self, doc_token: str) -> str:
         return f"/open-apis/sheets/v2/spreadsheets/{doc_token}"
 
-    async def _sheet_id(self, doc_token: str, title: str) -> str:
+    async def _sheet_id(self, doc_token: str, title: str, *, purpose: str) -> str:
         """标题→sheet_id。用 v3『获取工作表』sheets/query（v2 metainfo 已不推荐）。
 
         副本从同一模板复制、sheet_id 稳定，故按 doc_token 缓存一次即可。
@@ -158,13 +173,46 @@ class HttpFeishuGateway(FeishuGateway):
         """
         ids = self._sheet_ids.get(doc_token)
         if ids is None:
-            body = await self._authed(
-                "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query")
-            ids = {s["title"]: s["sheet_id"] for s in body["data"]["sheets"]}
+            if doc_token in self._pending_initial_sheet_query:
+                ids = await self._wait_for_initial_sheet_query(doc_token, purpose)
+            else:
+                body = await self._authed(
+                    "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query",
+                    operation=f"sheets_query_{purpose}",
+                )
+                ids = {s["title"]: s["sheet_id"] for s in body["data"]["sheets"]}
             self._sheet_ids[doc_token] = ids
         return ids[title]
 
-    async def _range(self, doc_token: str, api_cell: str) -> str:
+    async def _wait_for_initial_sheet_query(self, doc_token: str, purpose: str) -> dict[str, str]:
+        """等待新副本的首次工作表元数据查询可用，避免复制后立即访问的短暂 500。"""
+        operation = f"sheets_query_{purpose}"
+        try:
+            for attempt in range(self._initial_sheet_query_retries + 1):
+                try:
+                    body = await self._authed(
+                        "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query",
+                        operation=operation,
+                    )
+                    return {s["title"]: s["sheet_id"] for s in body["data"]["sheets"]}
+                except (RetryableCalcError, NonRetryableCalcError) as err:
+                    retryable_readiness_error = (
+                        err.code == f"feishu_{operation}_http_500"
+                        or err.code == "feishu_1315201"
+                    )
+                    if not retryable_readiness_error:
+                        raise
+                    if attempt >= self._initial_sheet_query_retries:
+                        raise RetryableCalcError(
+                            "飞书新副本工作表元数据未就绪，请稍后重试",
+                            code="feishu_initial_sheet_query_not_ready",
+                            doc_token=doc_token,
+                        ) from err
+                    await asyncio.sleep(self._initial_sheet_query_backoff)
+        finally:
+            self._pending_initial_sheet_query.discard(doc_token)
+
+    async def _range(self, doc_token: str, api_cell: str, *, purpose: str) -> str:
         """'API_INPUT!B2' -> '<sheetId>!B2:B2'。
 
         飞书 range 需 <起>:<止> 形式，单格也要写成 B2:B2（裸 B2 会被 values_batch_update 拒绝）；
@@ -173,16 +221,19 @@ class HttpFeishuGateway(FeishuGateway):
         title, cell = api_cell.split("!", 1)
         if ":" not in cell:
             cell = f"{cell}:{cell}"
-        return f"{await self._sheet_id(doc_token, title)}!{cell}"
+        return f"{await self._sheet_id(doc_token, title, purpose=purpose)}!{cell}"
 
     # ---- FeishuGateway 端口实现 ----
     async def copy_template(self, template_token: str, name: Optional[str] = None) -> str:
         name = name or f"{self._cfg.copy_name_prefix}-{uuid.uuid4().hex[:8]}"
         body = await self._authed(
             "POST", f"/open-apis/drive/v1/files/{template_token}/copy",
+            operation="copy_template",
             json={"name": name, "type": "sheet", "folder_token": self._cfg.target_folder_token},
         )
-        return body["data"]["file"]["token"]
+        doc_token = body["data"]["file"]["token"]
+        self._pending_initial_sheet_query.add(doc_token)
+        return doc_token
 
     async def write_input(self, doc_token: str, payload: dict) -> None:
         value_ranges = []
@@ -192,10 +243,14 @@ class HttpFeishuGateway(FeishuGateway):
             spec = self._dict.get(pid)
             if spec is None or not spec.api_cell:
                 continue  # 非接口区参数（如仅展示）不写飞书
-            value_ranges.append({"range": await self._range(doc_token, spec.api_cell), "values": [[val]]})
+            value_ranges.append({
+                "range": await self._range(doc_token, spec.api_cell, purpose="write_input"),
+                "values": [[val]],
+            })
         if value_ranges:
             await self._authed(
                 "POST", f"{self._ss(doc_token)}/values_batch_update",
+                operation="write_input",
                 json={"valueRanges": value_ranges},
             )
 
@@ -205,23 +260,26 @@ class HttpFeishuGateway(FeishuGateway):
             self._cfg.meta_param_hash_cell: meta.get("param_hash"),
         }
         value_ranges = [
-            {"range": await self._range(doc_token, cell), "values": [[val]]}
+            {"range": await self._range(doc_token, cell, purpose="write_meta"), "values": [[val]]}
             for cell, val in cells.items() if cell
         ]
         if value_ranges:
             await self._authed(
                 "POST", f"{self._ss(doc_token)}/values_batch_update",
+                operation="write_meta",
                 json={"valueRanges": value_ranges},
             )
 
     async def read_meta(self, doc_token: str) -> dict:
         ranges = [
-            await self._range(doc_token, self._cfg.meta_status_cell),
-            await self._range(doc_token, self._cfg.meta_request_id_cell),
+            await self._range(doc_token, self._cfg.meta_status_cell, purpose="read_meta"),
+            await self._range(doc_token, self._cfg.meta_request_id_cell, purpose="read_meta"),
         ]
         body = await self._authed(
             "GET", f"{self._ss(doc_token)}/values_batch_get",
-            params={"ranges": ",".join(ranges), "valueRenderOption": _VALUE_RENDER})
+            operation="read_meta",
+            params={"ranges": ",".join(ranges), "valueRenderOption": _VALUE_RENDER},
+        )
         vals = [_first_cell(vr.get("values")) for vr in body["data"]["valueRanges"]]
         raw_status, request_id = (vals + [None, None])[:2]
         # 归一化：与业务约定的"算完"取值一致才置 done，否则原样（引擎据 status==done 决定是否读 output）
@@ -232,16 +290,18 @@ class HttpFeishuGateway(FeishuGateway):
         specs = [s for s in self._dict.outputs() if s.api_cell]
         if not specs:
             return {}
-        ranges = [await self._range(doc_token, s.api_cell) for s in specs]
+        ranges = [await self._range(doc_token, s.api_cell, purpose="read_output") for s in specs]
         body = await self._authed(
             "GET", f"{self._ss(doc_token)}/values_batch_get",
-            params={"ranges": ",".join(ranges), "valueRenderOption": _VALUE_RENDER})
+            operation="read_output",
+            params={"ranges": ",".join(ranges), "valueRenderOption": _VALUE_RENDER},
+        )
         vrs = body["data"]["valueRanges"]
         result: dict = {}
         for spec, vr in zip(specs, vrs):
             values = vr.get("values") or []
             _, cell = spec.api_cell.split("!", 1)
-            if ":" in cell:   # 区间（如 15 年序列）→ 展平为列表
+            if ":" in cell:  # 区间（如 15 年序列）→ 展平为列表
                 result[spec.id] = [v for row in values for v in row]
             else:
                 result[spec.id] = _first_cell(values)

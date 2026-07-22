@@ -20,8 +20,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     MessageSnapshotORM,
 )
 
-_USER_1 = {"X-User-Id": "history-user-1", "X-User-Name": "User One"}
-_USER_2 = {"X-User-Id": "history-user-2", "X-User-Name": "User Two"}
+_USER_1 = {"userId": "history-user-1", "username": "User One"}
+_USER_2 = {"userId": "history-user-2", "username": "User Two"}
 
 
 def test_conversation_deleted_at_is_nullable():

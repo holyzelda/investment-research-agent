@@ -73,3 +73,18 @@ class FeishuGateway(ABC):
     async def read_output(self, doc_token: str) -> dict:
         """读取 API_OUTPUT（参数ID→值）。"""
         raise NotImplementedError
+
+    async def read_report_sources(
+        self,
+        *,
+        doc_token: str,
+        province: str | None,
+        energy_sheet: str,
+        energy_range: str,
+        market_sheet: str,
+        market_range: str,
+        chart_sheet: str,
+        chart_end_column: str,
+    ) -> dict:
+        """读取报告专用省份资料与画图数据，供测算完成时冻结。"""
+        raise NotImplementedError

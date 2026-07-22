@@ -10,7 +10,7 @@ vi.mock('element-plus', () => ({
 }))
 
 const { default: request, isRelogin } = await import('@/utils/request')
-const { removeToken, setToken } = await import('@/utils/auth')
+const { removeToken, removeUserIdentity, setToken, setUserIdentity } = await import('@/utils/auth')
 
 function responseAdapter(data, status = 200) {
   return async (config) => {
@@ -30,11 +30,13 @@ describe('request authentication expiry', () => {
     isRelogin.show = false
     window.sessionStorage.clear()
     setToken('expired-token')
+    setUserIdentity({ userId: 'admin-1', username: '张三' })
   })
 
   afterEach(() => {
     request.defaults.adapter = undefined
     removeToken()
+    removeUserIdentity()
     window.sessionStorage.clear()
   })
 
@@ -71,6 +73,35 @@ describe('request authentication expiry', () => {
 
     expect(confirm).toHaveBeenCalledOnce()
     expect(window.sessionStorage.getItem('ir-login-required')).toBe('1')
+  })
+
+  it('adds ecenter identity only to IR business requests', async () => {
+    let capturedConfig
+    request.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return { data: { code: 200 }, status: 200, statusText: 'OK', headers: {}, config, request: {} }
+    }
+
+    await request({ url: '/ir/me' })
+
+    expect(capturedConfig.headers.userId).toBe('admin-1')
+    expect(capturedConfig.headers.username).toBe('%E5%BC%A0%E4%B8%89')
+  })
+
+  it('does not add identity to root gateway endpoints or overwrite explicit headers', async () => {
+    const capturedConfigs = []
+    request.defaults.adapter = async (config) => {
+      capturedConfigs.push(config)
+      return { data: { code: 200 }, status: 200, statusText: 'OK', headers: {}, config, request: {} }
+    }
+
+    await request({ url: '/gateway/ecenter/system/user/getInfo?systemSign=eAgentIr' })
+    await request({ url: '/ir/me', headers: { userId: 'explicit-id', username: 'explicit-name' } })
+
+    expect(capturedConfigs[0].headers.userId).toBeUndefined()
+    expect(capturedConfigs[0].headers.username).toBeUndefined()
+    expect(capturedConfigs[1].headers.userId).toBe('explicit-id')
+    expect(capturedConfigs[1].headers.username).toBe('explicit-name')
   })
 
   it('routes root gateway endpoints outside the business base URL', async () => {

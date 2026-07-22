@@ -99,11 +99,12 @@ class RetryPolicy:
                 # 可重试：钉住副本以复用（引擎抛出的错误可能带更精确的 doc_token）
                 if err.doc_token:
                     doc_token = err.doc_token
-                retries += 1
-                if retries > self._max:
+                if retries >= self._max:
                     raise NonRetryableCalcError(
-                        "多次重试失败，请联系管理员",
-                        code="max_retries_exceeded",
-                        request_id=request_id,
-                        doc_token=doc_token,
+                        str(err),
+                        code=err.code,
+                        request_id=err.request_id or request_id,
+                        doc_token=err.doc_token or doc_token,
+                        retry_count=retries,
                     ) from raw
+                retries += 1

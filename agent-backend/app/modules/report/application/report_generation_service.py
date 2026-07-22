@@ -1,0 +1,193 @@
+"""报告生成服务：任务状态、AI 降级与正式快照原子落库。"""
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.exceptions import NotFoundException
+from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
+from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationResultSnapshotORM,
+    DataSnapshotORM,
+    InputSnapshotORM,
+    MessageSnapshotORM,
+    ReportGenerationTaskORM,
+    ReportSnapshotORM,
+)
+from app.modules.report.application.report_builder import build_report_payload
+from app.modules.report.application.report_rules import AI_FALLBACK_TEXT, AI_SECTION_RULES
+
+
+class ReportGenerationService:
+    def __init__(self, ai_client):
+        self._ai_client = ai_client
+        self._history = ConversationHistoryService()
+
+    async def start(self, session: AsyncSession, *, task_id: int, user_id: str) -> dict:
+        task = await self._history.require_owned_task(session, task_id=task_id, user_id=user_id)
+        if task.status != "completed":
+            raise NotFoundException("测算任务不存在")
+        report = (await session.execute(
+            select(ReportSnapshotORM).where(ReportSnapshotORM.task_id == task.id)
+        )).scalar_one_or_none()
+        if report is not None:
+            return {"status": "completed", "reportId": report.report_id, "taskId": task.id}
+        generation = (await session.execute(
+            select(ReportGenerationTaskORM).where(ReportGenerationTaskORM.task_id == task.id)
+        )).scalar_one_or_none()
+        if generation is None:
+            generation = ReportGenerationTaskORM(
+                task_id=task.id,
+                conversation_id=task.conversation_id,
+                user_id=user_id,
+                steps=[self._step(1, "prepare", "读取冻结测算快照", "active")],
+                current_step="prepare",
+            )
+            session.add(generation)
+        elif generation.status == "failed":
+            generation.status = "generating"
+            generation.steps = [self._step(1, "prepare", "读取冻结测算快照", "active")]
+            generation.current_step = "prepare"
+            generation.error_code = None
+            generation.error_message = None
+            generation.report_id = None
+            generation.completed_at = None
+        await session.commit()
+        return self.serialize_task(generation)
+
+    async def run(self, session: AsyncSession, *, report_task_id: int) -> None:
+        generation = await session.get(ReportGenerationTaskORM, report_task_id)
+        if generation is None or generation.status != "generating":
+            return
+        try:
+            task = await self._history.require_owned_task(
+                session, task_id=generation.task_id, user_id=generation.user_id
+            )
+            input_snapshot = (await session.execute(
+                select(InputSnapshotORM).where(InputSnapshotORM.task_id == task.id)
+            )).scalar_one()
+            data_snapshot = (await session.execute(
+                select(DataSnapshotORM).where(DataSnapshotORM.task_id == task.id)
+            )).scalar_one()
+            result_snapshot = (await session.execute(
+                select(CalculationResultSnapshotORM).where(CalculationResultSnapshotORM.task_id == task.id)
+            )).scalar_one()
+            payload = build_report_payload(
+                task=task,
+                input_snapshot=input_snapshot,
+                data_snapshot=data_snapshot,
+                result_snapshot=result_snapshot,
+            )
+            self._complete_step(generation, "prepare", "读取冻结测算快照")
+            for rule in AI_SECTION_RULES:
+                payload["aiSections"][rule["key"]] = await self._generate_section(
+                    generation, rule, payload
+                )
+            report_id = uuid.uuid4().hex
+            report = ReportSnapshotORM(
+                report_id=report_id,
+                task_id=task.id,
+                conversation_id=task.conversation_id,
+                user_id=generation.user_id,
+                payload=payload,
+            )
+            session.add(report)
+            generation.status = "completed"
+            generation.report_id = report_id
+            generation.current_step = None
+            generation.completed_at = datetime.now()
+            generation.steps = [*generation.steps, self._step(
+                len(generation.steps) + 1, "complete", "报告已生成", "completed"
+            )]
+            session.add(MessageSnapshotORM(
+                conversation_id=task.conversation_id,
+                role="assistant",
+                content="报告已生成",
+                message_type="report_generated",
+                payload={"event_type": "report_generated", "report_id": report_id, "task_id": task.id},
+            ))
+            await session.commit()
+        except Exception as exc:
+            await session.rollback()
+            generation = await session.get(ReportGenerationTaskORM, report_task_id)
+            if generation is not None:
+                generation.status = "failed"
+                generation.current_step = None
+                generation.error_code = "report_generation_failed"
+                generation.error_message = str(exc)[:512]
+                generation.steps = [*generation.steps, self._step(
+                    len(generation.steps) + 1, "failed", "报告生成失败", "failed"
+                )]
+                await session.commit()
+
+    async def get_task(self, session: AsyncSession, *, report_task_id: int, user_id: str) -> dict:
+        generation = await self._owned_generation(session, report_task_id, user_id)
+        return self.serialize_task(generation)
+
+    async def get_report(self, session: AsyncSession, *, report_id: str, user_id: str) -> ReportSnapshotORM:
+        report = (await session.execute(
+            select(ReportSnapshotORM).where(
+                ReportSnapshotORM.report_id == report_id,
+                ReportSnapshotORM.user_id == user_id,
+            )
+        )).scalar_one_or_none()
+        if report is None:
+            raise NotFoundException("报告不存在")
+        await self._history.require_owned_task(session, task_id=report.task_id, user_id=user_id)
+        return report
+
+    async def _owned_generation(self, session, report_task_id, user_id):
+        generation = (await session.execute(
+            select(ReportGenerationTaskORM).where(
+                ReportGenerationTaskORM.id == report_task_id,
+                ReportGenerationTaskORM.user_id == user_id,
+            )
+        )).scalar_one_or_none()
+        if generation is None:
+            raise NotFoundException("报告生成任务不存在")
+        await self._history.require_owned_task(session, task_id=generation.task_id, user_id=user_id)
+        return generation
+
+    async def _generate_section(self, generation, rule, payload):
+        attempts = 0
+        for attempts in range(1, 4):
+            generation.current_step = rule["key"]
+            generation.steps = [*generation.steps, self._step(
+                len(generation.steps) + 1, rule["key"], rule["title"], "active", attempts
+            )]
+            try:
+                text = await self._ai_client.generate_section(rule, payload)
+                self._complete_step(generation, rule["key"], rule["title"], attempts)
+                return {"status": "completed", "attempts": attempts, "usedFallback": False, "text": text}
+            except Exception:
+                continue
+        self._complete_step(generation, rule["key"], rule["title"], attempts)
+        return {"status": "fallback", "attempts": attempts, "usedFallback": True, "text": AI_FALLBACK_TEXT}
+
+    @staticmethod
+    def _step(seq, key, title, state, attempt=None):
+        item = {"seq": seq, "key": key, "title": title, "state": state, "at": datetime.now().isoformat()}
+        if attempt is not None:
+            item["attempt"] = attempt
+        return item
+
+    def _complete_step(self, generation, key, title, attempt=None):
+        generation.steps = [*generation.steps, self._step(
+            len(generation.steps) + 1, key, title, "completed", attempt
+        )]
+
+    @staticmethod
+    def serialize_task(generation):
+        return {
+            "reportTaskId": generation.id,
+            "taskId": generation.task_id,
+            "status": generation.status,
+            "steps": generation.steps,
+            "currentStep": generation.current_step,
+            "reportId": generation.report_id,
+            "error": ({"code": generation.error_code, "message": generation.error_message}
+                      if generation.status == "failed" else None),
+        }

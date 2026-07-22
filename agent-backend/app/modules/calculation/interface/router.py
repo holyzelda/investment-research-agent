@@ -163,7 +163,12 @@ async def get_task_status(
         "requestId": task.request_id,
     }
     if task.status == "failed":
-        data["error"] = {"code": task.error_code, "message": task.error_message}
+        data["error"] = {
+            "code": task.error_code,
+            "message": task.error_message,
+            "requestId": task.request_id,
+            "retryCount": task.retry_count,
+        }
     return ok(data)
 
 

@@ -5,12 +5,13 @@
 """
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.database.session import get_db_session
 from app.main import app
 
-_HEADERS = {"X-User-Id": "1001", "X-User-Name": "__pytest__"}
+_HEADERS = {"userId": "1001", "username": "__pytest__"}
 
 
 @pytest.fixture
@@ -114,11 +115,85 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
     assert r.status_code == 200
     d = r.json()["data"]
     assert d["status"] == "failed"
-    assert d["error"]["code"] == "feishu_auth_401"
+    assert d["error"] == {
+        "code": "feishu_auth_401",
+        "message": "模拟飞书鉴权失败",
+        "requestId": d["error"]["requestId"],
+        "retryCount": 0,
+    }
 
-    # 失败任务落库留痕，状态查询脱离飞书读回 error
+    # 失败任务落库留痕，状态查询脱离飞书读回相同 error。
     rs = await client.get(f"/ir/calc/tasks/{d['taskId']}")
     body = rs.json()["data"]
     assert body["status"] == "failed"
-    assert body["error"]["code"] == "feishu_auth_401"
+    assert body["requestId"] == d["error"]["requestId"]
 
+
+@pytest.mark.asyncio
+async def test_retryable_task_failure_keeps_root_cause_and_retry_count(client, monkeypatch, db_engine):
+    """重试耗尽后保留最终飞书根因，并在 POST/DB/GET 间一致。"""
+    from app.core.config.settings import get_settings
+    from app.modules.calculation.application import factory as calc_factory
+    from app.modules.calculation.application.retry_policy import RetryPolicy
+    from app.modules.calculation.application.snapshot_service import SnapshotService
+    from app.modules.calculation.application.task_service import CalculationTaskService
+    from app.modules.calculation.domain.execution import RetryableCalcError
+    from app.modules.calculation.domain.ports import FeishuGateway
+    from app.modules.calculation.infrastructure.persistence.orm import CalculationTaskORM
+    from app.modules.calculation.interface import router as calc_router
+
+    class RetryableGateway(FeishuGateway):
+        async def copy_template(self, template_token, name=None):
+            return "doc-retry"
+
+        async def write_input(self, doc_token, payload):
+            raise RetryableCalcError("飞书副本仍在处理中", code="feishu_601124041")
+
+        async def write_meta(self, doc_token, meta):
+            return None
+
+        async def read_meta(self, doc_token):
+            return {}
+
+        async def read_output(self, doc_token):
+            return {}
+
+    def _retryable_task_service():
+        gw = RetryableGateway()
+        return CalculationTaskService(
+            assembler=calc_factory.build_param_assembler(),
+            gateway=gw,
+            engine=calc_factory.build_calc_engine(gateway=gw),
+            retry=RetryPolicy(max_retries=1),
+            snapshot=SnapshotService(),
+            feishu=get_settings().feishu,
+        )
+
+    monkeypatch.setattr(calc_router, "build_task_service", _retryable_task_service)
+
+    r = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+    })
+    assert r.status_code == 200
+    created = r.json()["data"]
+    expected_error = {
+        "code": "feishu_601124041",
+        "message": "飞书副本仍在处理中",
+        "requestId": created["error"]["requestId"],
+        "retryCount": 1,
+    }
+    assert created["status"] == "failed"
+    assert created["error"] == expected_error
+
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as session:
+        task = (await session.execute(
+            select(CalculationTaskORM).where(CalculationTaskORM.id == created["taskId"])
+        )).scalar_one()
+    assert (task.error_code, task.error_message, task.retry_count) == (
+        "feishu_601124041", "飞书副本仍在处理中", 1,
+    )
+
+    status = (await client.get(f"/ir/calc/tasks/{created['taskId']}")).json()["data"]
+    assert status["requestId"] == expected_error["requestId"]
+    assert status["error"] == expected_error

@@ -7,7 +7,9 @@
 
 ## 项目定位
 
-朱雀投研智能体（ZRA-3）是统一平台的子应用。用户在平台首页完成登录后进入本系统；身份由平台/网关注入请求头。本系统不实现登录、注册、验证码、用户管理、RBAC、JWT、token 过期/刷新/轮换/撤销或前端登录页。接口访问长期使用单一固定 Bearer Token 校验。
+朱雀投研智能体（ZRA-3）是统一平台的子应用。前端通过 ecenter 登录、`getInfo` 获取用户资料，并使用 ecenter Token 访问平台接口；本系统不自行实现注册、验证码、用户管理、RBAC、JWT、Token 过期/刷新/轮换/撤销。
+
+IR 业务请求的身份协议固定为 `userId` / `username` Header：本地开发由前端请求拦截器将 ecenter 已解析身份传给后端，测试/生产由统一网关在认证后注入或覆盖同名 Header。后端不调用 ecenter、不解析 Token，只将该身份用于会话和快照归属；缺少任一 Header 必须返回 401，绝不写入匿名/访客数据。
 
 一阶段主闭环是：`首页对话 → 飞书副本测算 → 结果三模块 → 快照/版本`。
 
@@ -16,7 +18,7 @@
 ```text
 agent-backend/    # FastAPI + 异步 SQLAlchemy + Nacos；后端约束见 agent-backend/CLAUDE.md
 agent-frontend/   # Vue3 + Vite + Element Plus + Pinia + XC；前端约束见 agent-frontend/CLAUDE.md
-changes/          # spec-superflow 制品
+changes/          # 需求拆解与设计制品
 ```
 
 子应用分别独立运行；改动子应用时先读其 `CLAUDE.md` 和 README。
@@ -28,8 +30,7 @@ changes/          # spec-superflow 制品
 - 前端不 fork etrader 业务，不引入 ecenter 登录或 `systemSign`；后端不抄 trader 的业务或鉴权代码。
 - 飞书方案 A：只读写 `API_INPUT`、`API_OUTPUT`、`API_META`，绝不直接读写模型单元格；允许读取的输出区域仅有 `API_OUTPUT` 与 `画图数据`。
 - 响应壳统一为 `{code, msg, data}`；参数校验统一 HTTP 400，不使用 422/500。
-- 平台身份是信任式 header：`user_id`/`username` 仅用于会话和快照归属；固定 Bearer Token 只确认调用方可访问接口。有效 Token 缺少身份 header 时保留匿名规则。
-- 会话软删除；会话、任务和结果读取都按当前用户过滤，非本人资源统一 404。
+- 平台身份以固定 `userId` / `username` Header 传递：前端本地直连时透传 ecenter `getInfo` 的归一化结果，可信网关部署时认证后注入或覆盖；两者仅用于会话和快照归属。缺失身份必须返回 401；会话、任务和结果读取都按当前用户过滤，非本人资源统一 404。
 
 ## 依赖管理
 
@@ -43,7 +44,3 @@ changes/          # spec-superflow 制品
 - 同一 `conversation_id` 的每次测算追加版本，不覆盖历史入参或结果。
 - 参数字典是参数元数据与飞书映射的唯一数据契约；前后端不得绕过字典写死参数展示、可调性或接口单元格。
 - `operation_years` 只支持 15、20：它决定复制哪个固定运营期飞书模板，保留在冻结入参与 `input_snapshot`，但绝不写入任何 `API_INPUT` 单元格；同一会话可混用两个运营期版本。
-
-## Spec-Superflow
-
-`changes/PRD-001-login-calc-mainflow/` 存在 active spec-superflow 制品。涉及该变更的实现前必须检查并遵守其状态、执行合同和 execution plan；未经合同批准及当前 execution plan 不得开始应用代码改动。

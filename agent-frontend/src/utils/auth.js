@@ -1,4 +1,6 @@
 const TOKEN_KEY = 'Admin-Token'
+const USER_ID_KEY = 'ir-user-id'
+const USERNAME_KEY = 'ir-username'
 const LOGIN_REQUIRED_KEY = 'ir-login-required'
 
 function getSessionStorage() {
@@ -22,6 +24,32 @@ export function removeToken() {
   if (typeof window === 'undefined') return
   if (typeof window.localStorage?.removeItem !== 'function') return
   window.localStorage.removeItem(TOKEN_KEY)
+}
+
+function getLocalStorage() {
+  if (typeof window === 'undefined') return null
+  return typeof window.localStorage?.getItem === 'function' ? window.localStorage : null
+}
+
+export function getUserIdentity() {
+  const storage = getLocalStorage()
+  return {
+    userId: storage?.getItem(USER_ID_KEY) || '',
+    username: storage?.getItem(USERNAME_KEY) || '',
+  }
+}
+
+export function setUserIdentity({ userId, username }) {
+  const storage = getLocalStorage()
+  if (!storage || !userId || !username) return
+  storage.setItem(USER_ID_KEY, String(userId))
+  storage.setItem(USERNAME_KEY, String(username))
+}
+
+export function removeUserIdentity() {
+  const storage = getLocalStorage()
+  storage?.removeItem(USER_ID_KEY)
+  storage?.removeItem(USERNAME_KEY)
 }
 
 export function markLoginRequired() {

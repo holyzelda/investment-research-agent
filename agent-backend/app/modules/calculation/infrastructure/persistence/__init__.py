@@ -11,6 +11,7 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     FeishuIoSnapshotORM,
     InputSnapshotORM,
     MessageSnapshotORM,
+    ReportGenerationTaskORM,
     ReportSnapshotORM,
 )
 
@@ -22,5 +23,6 @@ __all__ = [
     "InputSnapshotORM",
     "DataSnapshotORM",
     "FeishuIoSnapshotORM",
+    "ReportGenerationTaskORM",
     "ReportSnapshotORM",
 ]

@@ -61,8 +61,6 @@ database:
 feishu:
   enabled: true
   app_id: remote-app-id
-platform:
-  header_user_id: Remote-User-Id
 """
     )
     monkeypatch.setattr(nacos_module, "get_nacos_client", lambda: fake_client)
@@ -76,7 +74,6 @@ platform:
     assert settings.database.url == "mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent"
     assert settings.feishu.enabled is True
     assert settings.feishu.app_id == "remote-app-id"
-    assert settings.platform.header_user_id == "Remote-User-Id"
     assert fake_client.register_calls == [
         {
             "service_name": "ir-agent",
@@ -103,7 +100,7 @@ def test_nacos_empty_config_falls_back_to_local_and_registers_service(monkeypatc
 
 def test_cleanup_deregisters_registered_instance_and_closes_client(monkeypatch):
     monkeypatch.setenv("NACOS_ENABLED", "true")
-    fake_client = FakeNacosClient("platform:\n  allow_anonymous: false\n")
+    fake_client = FakeNacosClient(None)
     monkeypatch.setattr(nacos_module, "get_nacos_client", lambda: fake_client)
     monkeypatch.setattr(nacos_module, "get_local_ip", lambda: "internal-6-75.example.invalid")
     reload_settings()
