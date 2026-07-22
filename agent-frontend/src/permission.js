@@ -4,10 +4,13 @@ import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
 
 let openerTokenPromise = null
+let openerTokenRequested = false
 
 function requestOpenerToken() {
   if (typeof window === 'undefined' || !window.opener) return Promise.resolve(false)
+  if (openerTokenRequested) return Promise.resolve(false)
   if (openerTokenPromise) return openerTokenPromise
+  openerTokenRequested = true
 
   openerTokenPromise = new Promise((resolve) => {
     let settled = false
@@ -42,10 +45,15 @@ async function registerBackendRoutes(permissionStore) {
 }
 
 router.beforeEach(async (to) => {
-  takeTokenFromLocation()
+  const locationToken = takeTokenFromLocation()
+  const loginRequired = isLoginRequired()
+  if (locationToken) openerTokenRequested = true
 
-  const canRequestOpenerToken = to.path !== '/login' || !isLoginRequired()
-  if (!getToken() && canRequestOpenerToken && typeof window !== 'undefined' && window.opener) {
+  // 401 后的手动登录不再从 opener 重新取旧 Token。
+  if (to.path === '/login' && loginRequired) openerTokenRequested = true
+
+  const canRequestOpenerToken = to.path !== '/login' || !loginRequired
+  if (!locationToken && canRequestOpenerToken && typeof window !== 'undefined' && window.opener) {
     const received = await requestOpenerToken()
     if (received) return { ...to, replace: true }
   }

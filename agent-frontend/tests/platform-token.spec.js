@@ -17,7 +17,7 @@ vi.mock('@/store/modules/permission', () => ({
 }))
 
 const { default: _permission } = await import('@/permission')
-const { clearLoginRequired, getToken, markLoginRequired, removeToken } = await import('@/utils/auth')
+const { clearLoginRequired, getToken, markLoginRequired, removeToken, setToken } = await import('@/utils/auth')
 
 describe('platform opener token handoff', () => {
   const guard = () => guards[0]
@@ -42,6 +42,7 @@ describe('platform opener token handoff', () => {
 
   it('accepts a valid opener token and retries the original navigation', async () => {
     const to = { path: '/home', fullPath: '/home' }
+    setToken('stale-platform-token')
     const navigation = guard()(to)
     window.dispatchEvent(new MessageEvent('message', {
       data: { type: 'token', token: 'valid-platform-token' },
