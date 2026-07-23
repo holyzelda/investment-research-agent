@@ -21,7 +21,7 @@
           @nav="onNav"
         />
         <button
-          v-if="sidebarHidden && route.name !== 'TieLineMap'"
+          v-if="sidebarHidden && !route.meta.collapseSidebar"
           class="ir-layout__sidebar-open"
           aria-label="展开历史会话栏"
           @click="sidebarHidden = false"
@@ -72,8 +72,8 @@ const navItems = computed(() => permission.railRoutes.length
       icon: item.icon,
     }))
   : null)
-const RAIL_TO_PATH = { home: '/home', line: '/tie-line' }
-const PATH_TO_RAIL = { '/home': 'home', '/tie-line': 'line' }
+const RAIL_TO_PATH = { home: '/home', line: '/tie-line', policy: '/policy-market' }
+const PATH_TO_RAIL = { '/home': 'home', '/tie-line': 'line', '/policy-market': 'policy' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const isReportView = computed(() => route.name === 'ReportDetail')
 const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))

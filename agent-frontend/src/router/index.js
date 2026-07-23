@@ -34,6 +34,12 @@ const routes = [
         component: () => import('@/views/tie-line/index.vue'),
         meta: { title: '联络线地图', collapseSidebar: true },
       },
+      {
+        path: 'policy-market',
+        name: 'PolicyMarket',
+        component: () => import('@/views/policy-market/index.vue'),
+        meta: { title: '政策与市场', collapseSidebar: true },
+      },
     ],
   },
   // 兜底：任何未知路径回到对话首页

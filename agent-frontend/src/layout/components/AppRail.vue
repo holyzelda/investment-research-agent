@@ -31,12 +31,12 @@ const ICON = {
   default: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M12 9v6" stroke-linecap="round"/></svg>',
 }
 
-// 待建三模块（全国指数地图/联络线地图/政策与市场）命名以 PRD 为准
+// 待建模块（全国指数地图）命名以 PRD 为准；联络线地图和政策与市场可访问
 const fallbackItems = [
   { key: 'home', label: '首页', icon: ICON.home, disabled: false },
   { key: 'index', label: '全国指数地图', icon: ICON.index, disabled: true },
   { key: 'line', label: '联络线地图', icon: ICON.line, disabled: false },
-  { key: 'policy', label: '政策与市场', icon: ICON.policy, disabled: true },
+  { key: 'policy', label: '政策与市场', icon: ICON.policy, disabled: false },
 ]
 
 const props = defineProps({
