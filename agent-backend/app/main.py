@@ -24,6 +24,7 @@ from app.modules.calculation.interface.router import router as calculation_route
 from app.modules.middle_platform.interface.router import router as middle_platform_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 from app.modules.platform_access.interface.router import router as platform_access_router
+from app.modules.policy_market.interface.router import router as policy_market_router
 from app.modules.report.application.startup_recovery import mark_interrupted_generations_failed
 from app.modules.report.interface.router import router as report_router
 from app.modules.tie_line_map.interface.router import router as tie_line_router
@@ -38,6 +39,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(middle_platform_router)
     app.include_router(report_router)
     app.include_router(tie_line_router)
+    app.include_router(policy_market_router)
 
 
 @asynccontextmanager

@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
+
+vi.mock('@/utils/request', () => ({ default: vi.fn() }))
+
+import request from '@/utils/request'
 import {
   getConsultationStats,
   getConsultations,
@@ -6,7 +10,7 @@ import {
   submitConsultation,
 } from '@/api/policyMarket'
 
-describe('政策与市场模拟 API', () => {
+describe('政策与市场 API', () => {
   it('返回可直接映射为页面 DTO 的咨询记录', async () => {
     const records = await getConsultations()
 
@@ -43,16 +47,11 @@ describe('政策与市场模拟 API', () => {
     expect(innerMongolia.total).toBeLessThan(all.total)
   })
 
-  it('返回带来源和正文的市场资讯', async () => {
-    const news = await getMarketNews()
+  it('读取市场脉搏消息时解包后端响应数据', async () => {
+    const messages = [{ id: 1, title: '置顶资讯', tags: ['政策'] }]
+    request.mockResolvedValue({ code: 200, msg: 'success', data: messages })
 
-    expect(news[0]).toMatchObject({
-      id: expect.any(String),
-      category: expect.any(String),
-      title: expect.any(String),
-      publishedAt: expect.any(String),
-      content: expect.any(String),
-      source: expect.any(String),
-    })
+    await expect(getMarketNews()).resolves.toEqual(messages)
+    expect(request).toHaveBeenCalledWith({ url: '/ir/policy-market/messages', method: 'get' })
   })
 })

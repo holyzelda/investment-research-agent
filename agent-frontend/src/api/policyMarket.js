@@ -1,4 +1,6 @@
-// 政策与市场的数据访问边界：当前为异步模拟实现，后续仅在此处替换为后端请求与 DTO 映射。
+import request from '@/utils/request'
+
+// 咨询与统计暂保持模拟实现；市场脉搏由后端接口提供真实数据。
 const delay = (value, ms = 180) => new Promise((resolve) => window.setTimeout(() => resolve(value), ms))
 
 const consultations = [
@@ -99,7 +101,7 @@ export function submitConsultation({ question }) {
 }
 
 export function getMarketNews() {
-  return delay(marketNews.map((item) => ({ ...item })))
+  return request({ url: '/ir/policy-market/messages', method: 'get' }).then((response) => response.data)
 }
 
 export function getConsultationStats({ province = 'all', period = 'all', topic = 'all' } = {}) {

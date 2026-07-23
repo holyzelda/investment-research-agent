@@ -270,3 +270,27 @@ CREATE TABLE ir_report_generation_task (
 CREATE INDEX ix_ir_report_generation_task_conversation_id ON ir_report_generation_task (conversation_id);
 CREATE INDEX ix_ir_report_generation_task_user_id ON ir_report_generation_task (user_id);
 CREATE INDEX ix_ir_report_generation_task_report_id ON ir_report_generation_task (report_id);
+
+CREATE TABLE policy_market_scrolling_messages (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    title VARCHAR(255) COLLATE utf8mb4_unicode_ci NOT NULL COMMENT '标题',
+    summary VARCHAR(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '简介',
+    link_url VARCHAR(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '跳转链接',
+    province VARCHAR(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '省份',
+    publish_time DATETIME DEFAULT NULL COMMENT '数据发布时间',
+    expire_time DATETIME DEFAULT NULL COMMENT '过期/下线时间',
+    status TINYINT NOT NULL DEFAULT 1 COMMENT '状态：0-禁用，1-启用',
+    rating DECIMAL(3,2) DEFAULT 0.00 COMMENT '评分',
+    sort_order INT NOT NULL DEFAULT 0 COMMENT '排序权重(数值越大越靠前)',
+    tags VARCHAR(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '标签(逗号分隔或JSON)',
+    extra_data JSON DEFAULT NULL COMMENT '扩展属性(JSON格式)',
+    is_deleted TINYINT NOT NULL DEFAULT 0 COMMENT '逻辑删除：0-正常，1-已删除',
+    created_by VARCHAR(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '创建人',
+    updated_by VARCHAR(64) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT '最后更新人',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    KEY idx_status_deleted_sort (is_deleted, status, sort_order DESC, rating DESC),
+    KEY idx_province (province),
+    KEY idx_expire_time (expire_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='政策与市场栏目-网页滚动播放信息表';
