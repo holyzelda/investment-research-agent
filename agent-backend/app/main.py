@@ -11,7 +11,7 @@ from loguru import logger
 
 from app.core.config.settings import configure_logging, get_settings
 from app.core.exceptions import register_exception_handlers
-from app.infrastructure.database.session import dispose_engine, init_engine
+from app.infrastructure.database.session import dispose_engine, get_sessionmaker, init_engine
 from app.infrastructure.nacos.client import cleanup_nacos, init_nacos_config
 from app.infrastructure.web.health import router as system_router
 from app.infrastructure.web.middleware.request_logging import RequestLoggingMiddleware
@@ -23,6 +23,8 @@ from app.modules.calculation.interface.conversation_router import router as conv
 from app.modules.calculation.interface.router import router as calculation_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 from app.modules.platform_access.interface.router import router as platform_access_router
+from app.modules.report.application.startup_recovery import mark_interrupted_generations_failed
+from app.modules.report.interface.router import router as report_router
 from app.modules.tie_line_map.interface.router import router as tie_line_router
 
 
@@ -32,6 +34,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(platform_access_router)
     app.include_router(calculation_router)
     app.include_router(conversation_router)
+    app.include_router(report_router)
     app.include_router(tie_line_router)
 
 
@@ -43,6 +46,10 @@ async def lifespan(app: FastAPI):
     # Nacos 配置加载后重新应用日志设置，使远端 log 配置优先于本地 YAML。
     configure_logging(get_settings().log)
     init_engine()
+    async with get_sessionmaker()() as session:
+        interrupted = await mark_interrupted_generations_failed(session)
+    if interrupted:
+        logger.info("已将 {} 个中断的报告生成任务标记为失败", interrupted)
     start_spot_daily_scheduler()
     logger.info(f"{settings.app.name} 启动完成")
     yield

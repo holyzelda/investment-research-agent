@@ -57,7 +57,11 @@ async def seeded_client():
 
     app.dependency_overrides[get_db_session] = _override
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"userId": "tie-line-pytest", "username": "__pytest__"},
+    ) as client:
         yield client
     app.dependency_overrides.pop(get_db_session, None)
     await engine.dispose()

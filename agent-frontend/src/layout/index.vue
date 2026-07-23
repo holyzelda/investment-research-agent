@@ -13,30 +13,32 @@
       </div>
     </header>
 
-    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden }">
-      <AppRail
-        :items="navItems"
-        :active="activeRail"
-        @nav="onNav"
-      />
-      <button
-        v-if="sidebarHidden && route.name !== 'TieLineMap'"
-        class="ir-layout__sidebar-open"
-        aria-label="展开历史会话栏"
-        @click="sidebarHidden = false"
-      >
-        历史会话
-      </button>
-      <AppSidebar
-        :history="calc.history"
-        :current="calc.conversationId"
-        :hidden="sidebarHidden"
-        :can-hide="Boolean(route.meta.collapseSidebar)"
-        @visibility-change="sidebarHidden = $event"
-        @new-chat="onNewChat"
-        @open-history="onOpenHistory"
-        @delete-history="onDeleteHistory"
-      />
+    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden, 'is-report-view': isReportView }">
+      <template v-if="!isReportView">
+        <AppRail
+          :items="navItems"
+          :active="activeRail"
+          @nav="onNav"
+        />
+        <button
+          v-if="sidebarHidden && route.name !== 'TieLineMap'"
+          class="ir-layout__sidebar-open"
+          aria-label="展开历史会话栏"
+          @click="sidebarHidden = false"
+        >
+          历史会话
+        </button>
+        <AppSidebar
+          :history="calc.history"
+          :current="calc.conversationId"
+          :hidden="sidebarHidden"
+          :can-hide="Boolean(route.meta.collapseSidebar)"
+          @visibility-change="sidebarHidden = $event"
+          @new-chat="onNewChat"
+          @open-history="onOpenHistory"
+          @delete-history="onDeleteHistory"
+        />
+      </template>
       <main class="ir-layout__viewport">
         <router-view />
       </main>
@@ -73,6 +75,7 @@ const navItems = computed(() => permission.railRoutes.length
 const RAIL_TO_PATH = { home: '/home', line: '/tie-line' }
 const PATH_TO_RAIL = { '/home': 'home', '/tie-line': 'line' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
+const isReportView = computed(() => route.name === 'ReportDetail')
 const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))
 
 watch(() => route.fullPath, () => {
@@ -197,6 +200,12 @@ onMounted(() => {
 }
 .ir-layout__body.is-sidebar-hidden {
   gap: 0;
+}
+.ir-layout__body.is-report-view {
+  gap: 0;
+}
+.ir-layout__body.is-report-view .ir-layout__viewport {
+  width: 100%;
 }
 .ir-layout__sidebar-open {
   position: absolute;

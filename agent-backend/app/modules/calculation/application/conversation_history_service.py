@@ -13,6 +13,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     ConversationORM,
     InputSnapshotORM,
     MessageSnapshotORM,
+    ReportGenerationTaskORM,
+    ReportSnapshotORM,
 )
 
 
@@ -94,7 +96,20 @@ class ConversationHistoryService:
                 )
             )).scalars().all()
         } if tasks else {}
-        return {
+        reports = (await session.execute(
+            select(ReportSnapshotORM).where(ReportSnapshotORM.conversation_id == conversation.id)
+            .order_by(ReportSnapshotORM.created_at.desc(), ReportSnapshotORM.id.desc())
+        )).scalars().all()
+        generations = {
+            generation.task_id: generation
+            for generation in (await session.execute(
+                select(ReportGenerationTaskORM).where(
+                    ReportGenerationTaskORM.conversation_id == conversation.id
+                )
+            )).scalars().all()
+        }
+        report_by_task = {report.task_id: report for report in reports}
+        detail = {
             "conversationId": conversation.id,
             "title": conversation.title,
             "messages": [
@@ -114,10 +129,43 @@ class ConversationHistoryService:
                     "status": task.status,
                     "result": calculation_result_by_task.get(task.id),
                     "input": input_by_task.get(task.id),
+                    **({"report": summary} if (summary := self._report_summary(
+                        report_by_task.get(task.id), generations.get(task.id), task.version
+                    )) else {}),
                 }
                 for task in tasks
             ],
         }
+        if reports or generations:
+            detail["reports"] = [
+                self._report_summary(report, generations.get(report.task_id), next(
+                    (task.version for task in tasks if task.id == report.task_id), None
+                ))
+                for report in reports
+            ]
+        return detail
+
+    @staticmethod
+    def _report_summary(report, generation, version):
+        if report is not None:
+            return {
+                "reportId": report.report_id,
+                "taskId": report.task_id,
+                "version": version,
+                "status": "completed",
+                "title": report.payload.get("title"),
+                "createdAt": report.created_at.isoformat(),
+            }
+        if generation is not None:
+            return {
+                "reportTaskId": generation.id,
+                "taskId": generation.task_id,
+                "version": version,
+                "status": generation.status,
+                "title": None,
+                "createdAt": generation.created_at.isoformat(),
+            }
+        return None
 
     async def soft_delete(
         self, session: AsyncSession, *, conversation_id: int, user_id: str

@@ -49,14 +49,23 @@
     />
 
     <div class="ir-result__footer">
-      <button class="ir-result__act ir-result__act--ghost" @click="showReportPlaceholder">生成报告*</button>
+      <button
+        v-if="report?.status === 'completed'"
+        class="ir-result__act ir-result__act--ghost"
+        @click="$emit('view-report', report.reportId)"
+      >已生成报告</button>
+      <button
+        v-else
+        class="ir-result__act ir-result__act--ghost"
+        :disabled="report?.status === 'generating'"
+        @click="$emit('generate-report')"
+      >{{ report?.status === 'generating' ? '报告生成中' : report?.status === 'failed' ? '重新生成报告' : '生成报告' }}</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { computed, ref, watch } from 'vue'
-import { ElMessage } from 'element-plus'
 import BasicInfoBlock from './BasicInfoBlock.vue'
 import FinancialBlock from './FinancialBlock.vue'
 import RevenueDonut from './RevenueDonut.vue'
@@ -72,8 +81,9 @@ const props = defineProps({
   switches: { type: Object, default: () => ({}) },
   stationOptions: { type: Array, default: () => [] },
   responding: { type: Boolean, default: false },
+  report: { type: Object, default: null },
 })
-defineEmits(['recalculate'])
+defineEmits(['recalculate', 'generate-report', 'view-report'])
 const advanced = computed(() => props.result.advanced || { donut: {}, debtServiceCoverage: {} })
 const warnings = computed(() => props.result.warnings || [])
 const advancedOpen = ref(false)
@@ -84,7 +94,6 @@ watch(() => [props.version, props.seedInput], () => { advancedOverrides.value = 
 function saveAdvancedDraft(overrides) {
   advancedOverrides.value = overrides
 }
-const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开放')
 </script>
 
 <style scoped>

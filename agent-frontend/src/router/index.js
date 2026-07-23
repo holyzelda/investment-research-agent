@@ -23,6 +23,12 @@ const routes = [
         meta: { title: '对话首页' },
       },
       {
+        path: 'reports/:reportId',
+        name: 'ReportDetail',
+        component: () => import('@/views/report/index.vue'),
+        meta: { title: '正式报告', collapseSidebar: true },
+      },
+      {
         path: 'tie-line',
         name: 'TieLineMap',
         component: () => import('@/views/tie-line/index.vue'),

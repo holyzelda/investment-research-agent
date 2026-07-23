@@ -23,10 +23,10 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
     result = result_snapshot.payload
     basic = result.get("basicInfo", {})
     reports = data_snapshot.payload.get("reportSources", {})
-    province = basic.get("province") or minimum.get("province")
-    power = basic.get("powerMw") or minimum.get("powerMw")
-    capacity = basic.get("capacityMwh") or minimum.get("capacityMwh")
-    duration = capacity / power if capacity and power else None
+    province = basic.get("province") or minimum.get("province") or MISSING_DATA_TEXT
+    power = basic.get("powerMw") or minimum.get("powerMw") or MISSING_DATA_TEXT
+    capacity = basic.get("capacityMwh") or minimum.get("capacityMwh") or MISSING_DATA_TEXT
+    duration = capacity / power if isinstance(capacity, (int, float)) and isinstance(power, (int, float)) and power else MISSING_DATA_TEXT
     title = f"{province}{_number(power)}MW/{_number(capacity)}MWh储能项目测算方案"
     sources = reports.get("provinceSources", {})
     charts = reports.get("charts", {})

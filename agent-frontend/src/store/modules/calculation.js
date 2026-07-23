@@ -9,6 +9,8 @@ import {
   getStations,
   listConversations,
 } from '@/api/calc'
+import { createReport, getReportTask } from '@/api/report'
+import { streamReportEvents } from '@/utils/reportSse'
 
 const PROVINCES = [
   ['内蒙古自治区', '内蒙古'], ['广西壮族自治区', '广西'], ['宁夏回族自治区', '宁夏'],
@@ -66,6 +68,8 @@ export const useCalculationStore = defineStore('calculation', {
     paramDict: [],
     switches: {},
     stationOptions: [],
+    reports: [],
+    reportTasks: {},
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -80,6 +84,8 @@ export const useCalculationStore = defineStore('calculation', {
       this.conversationId = null
       this.selectedVersion = null
       this.responding = false
+      this.reports = []
+      this.reportTasks = {}
     },
     selectVersion(version) {
       if (this.versions.some((item) => item.version === version)) this.selectedVersion = version
@@ -113,7 +119,11 @@ export const useCalculationStore = defineStore('calculation', {
           return {
             id: nextId(), role: 'assistant', kind: 'result',
             version: version.version, result: version.result, input: version.input,
+            report: version.report,
           }
+        }
+        if (message.messageType === 'report_generated') {
+          return { id: nextId(), role: message.role, kind: 'report-generated', text: message.content, payload: message.payload }
         }
         return { id: nextId(), role: message.role, kind: 'text', text: message.content }
       })
@@ -124,7 +134,14 @@ export const useCalculationStore = defineStore('calculation', {
         status: version.status,
         result: version.result,
         input: version.input,
+        report: version.report,
       }))
+      this.reports = detail.reports || []
+      this.reportTasks = Object.fromEntries(
+        [...this.reports, ...completed.map((version) => version.report)].filter(Boolean)
+          .filter((report) => report.reportTaskId)
+          .map((report) => [report.reportTaskId, report]),
+      )
       this.conversationId = conversationId
       this.selectedVersion = this.versions.length
         ? this.versions[this.versions.length - 1].version
@@ -196,6 +213,40 @@ export const useCalculationStore = defineStore('calculation', {
         conversation_id: this.conversationId,
         param_overrides: overrides,
       })
+    },
+    async generateReport(taskId) {
+      const created = (await createReport(taskId)).data || {}
+      if (created.status === 'completed') {
+        const report = { reportId: created.reportId, taskId, status: 'completed' }
+        this._applyReport(report)
+        return report
+      }
+      this.reportTasks[created.reportTaskId] = created
+      this._applyReport({ taskId, reportTaskId: created.reportTaskId, status: 'generating' })
+      const controller = new AbortController()
+      try {
+        await streamReportEvents(created.reportTaskId, {
+          signal: controller.signal,
+          onEvent: ({ type, data }) => {
+            if (type === 'complete' || type === 'failed') this._applyReport(data)
+            else this.reportTasks[created.reportTaskId] = { ...this.reportTasks[created.reportTaskId], steps: [...(this.reportTasks[created.reportTaskId]?.steps || []), data] }
+          },
+        })
+      } catch (error) {
+        const recovered = (await getReportTask(created.reportTaskId)).data || {}
+        this._applyReport(recovered)
+      }
+      return this.reportTasks[created.reportTaskId]
+    },
+    _applyReport(report) {
+      if (report.reportTaskId) this.reportTasks[report.reportTaskId] = report
+      const index = this.reports.findIndex((item) => item.taskId === report.taskId)
+      const prior = index >= 0 ? this.reports[index] : {}
+      const merged = { ...prior, ...report }
+      if (index >= 0) this.reports.splice(index, 1, merged)
+      else this.reports.push(merged)
+      const version = this.versions.find((item) => item.taskId === report.taskId)
+      if (version) version.report = merged
     },
     async _submitAndTrack(payload) {
       this.responding = true

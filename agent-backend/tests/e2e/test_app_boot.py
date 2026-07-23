@@ -23,7 +23,11 @@ def test_main_owns_application_factory_and_lifecycle():
 
 async def _client() -> AsyncClient:
     transport = ASGITransport(app=app)
-    return AsyncClient(transport=transport, base_url="http://test")
+    return AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"userId": "app-boot-pytest", "username": "__pytest__"},
+    )
 
 
 @pytest.mark.asyncio

@@ -38,7 +38,9 @@ class ReportGenerationService:
         generation = (await session.execute(
             select(ReportGenerationTaskORM).where(ReportGenerationTaskORM.task_id == task.id)
         )).scalar_one_or_none()
+        should_run = False
         if generation is None:
+            should_run = True
             generation = ReportGenerationTaskORM(
                 task_id=task.id,
                 conversation_id=task.conversation_id,
@@ -48,6 +50,7 @@ class ReportGenerationService:
             )
             session.add(generation)
         elif generation.status == "failed":
+            should_run = True
             generation.status = "generating"
             generation.steps = [self._step(1, "prepare", "读取冻结测算快照", "active")]
             generation.current_step = "prepare"
@@ -56,7 +59,9 @@ class ReportGenerationService:
             generation.report_id = None
             generation.completed_at = None
         await session.commit()
-        return self.serialize_task(generation)
+        data = self.serialize_task(generation)
+        data["shouldRun"] = should_run
+        return data
 
     async def run(self, session: AsyncSession, *, report_task_id: int) -> None:
         generation = await session.get(ReportGenerationTaskORM, report_task_id)

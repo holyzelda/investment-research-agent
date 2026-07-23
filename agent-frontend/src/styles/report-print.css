@@ -1,0 +1,8 @@
+@page { size: A4 portrait; margin: 1in 1.25in; }
+@media print {
+  body * { visibility: hidden; }
+  .ir-report-document, .ir-report-document * { visibility: visible; }
+  .ir-report-document { position: absolute; inset: 0; width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .ir-report-document h2, .ir-report-document h3 { break-after: avoid; }
+  .ir-report-document table, .ir-report-ai { break-inside: avoid; }
+}

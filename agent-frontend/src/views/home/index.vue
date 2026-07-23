@@ -73,7 +73,10 @@
                 :switches="calc.switches"
                 :station-options="calc.stationOptions"
                 :responding="calc.responding"
+                :report="m.report || calc.versions.find((item) => item.version === m.version)?.report"
                 @recalculate="calc.recalculate($event)"
+                @generate-report="calc.generateReport(calc.versions.find((item) => item.version === m.version)?.taskId)"
+                @view-report="openReport"
               />
             </div>
             <img
@@ -90,13 +93,14 @@
       </template>
     </section>
 
-    <!-- 右侧：本会话版本记录（PRD 常驻，为生成报告用）。仅对话态显示。 -->
+    <!-- 右侧：测算记录与报告记录。 -->
     <aside v-if="hasConversation" class="ir-home__side">
-      <div class="ir-home__side-title">本会话测算记录</div>
-      <div v-if="!calc.versions.length" class="ir-home__side-empty">
-        暂无版本，发起测算后在此追踪 V1 / V2 / V3…
-      </div>
-      <ul v-else class="ir-ver">
+      <section class="ir-home__side-section">
+        <div class="ir-home__side-title">测算记录</div>
+        <div v-if="!calc.versions.length" class="ir-home__side-empty">
+          暂无版本，发起测算后在此追踪 V1 / V2 / V3…
+        </div>
+        <ul v-else class="ir-ver">
         <li
           v-for="v in reversedVersions"
           :key="v.version"
@@ -115,16 +119,33 @@
           <div class="ir-ver__metric xc-num">
             项目全投资IRR {{ formatNumber(v.result?.financial?.projectIrr) }}%
           </div>
-          <button class="ir-ver__report" @click.stop="showReportPlaceholder">生成报告*</button>
+          <button
+            class="ir-ver__report"
+            :disabled="v.report?.status === 'generating'"
+            @click.stop="v.report?.status === 'completed' ? openReport(v.report.reportId) : calc.generateReport(v.taskId)"
+          >{{ v.report?.status === 'completed' ? '查看报告' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}</button>
         </li>
       </ul>
+      </section>
+      <section class="ir-home__side-section">
+        <div class="ir-home__side-title">报告记录</div>
+        <div v-if="!reversedReports.length" class="ir-home__side-empty">暂无已生成报告</div>
+        <ul v-else class="ir-report-list">
+          <li v-for="report in reversedReports" :key="report.reportId" class="ir-report-list__item">
+            <strong>{{ report.title || '正式报告' }}</strong>
+            <span>关联测算：{{ report.version }}</span>
+            <span>{{ report.createdAt }}</span>
+            <button class="ir-ver__report" @click="openReport(report.reportId)">查看报告</button>
+          </li>
+        </ul>
+      </section>
     </aside>
   </div>
 </template>
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
 import ResultCard from './components/ResultCard.vue'
@@ -135,11 +156,16 @@ import userAvatar from '@/assets/user.png'
 import { formatNumber } from '@/utils/formatNumber'
 
 const session = useSessionStore()
+const router = useRouter()
 const calc = useCalculationStore()
 const scrollEl = ref(null)
 
 const hasConversation = computed(() => calc.messages.length > 0)
 const reversedVersions = computed(() => [...calc.versions].reverse())
+const reversedReports = computed(() => calc.reports
+  .filter((report) => report.status === 'completed' && report.reportId)
+  .slice()
+  .reverse())
 
 const examples = [
   '测算甘肃 200MW/800MWh 独立储能项目',
@@ -162,7 +188,9 @@ async function selectVersion(version) {
   }
 }
 
-const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开放')
+function openReport(reportId) {
+  if (reportId) router.push(`/reports/${reportId}`)
+}
 </script>
 
 <style scoped>
@@ -318,8 +346,12 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
 .ir-home__side {
   border-left: 1px solid var(--xc-border-soft);
   padding: var(--xc-space-6) 0 var(--xc-space-6) var(--xc-space-6);
-  overflow-y: auto;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--xc-space-6);
 }
+.ir-home__side-section { min-height: 0; overflow-y: auto; }
 .ir-home__side-title {
   font-size: var(--xc-fs-sm);
   font-weight: var(--xc-fw-medium);
@@ -332,6 +364,9 @@ const showReportPlaceholder = () => ElMessage.info('报告功能将在后续开�
   line-height: var(--xc-lh-loose);
 }
 .ir-ver { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-report-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-report-list__item { display: flex; flex-direction: column; gap: var(--xc-space-2); border: 1px solid var(--xc-border-card); border-radius: var(--xc-radius-md); background: var(--xc-surface-card); padding: var(--xc-space-4); font-size: var(--xc-fs-2xs); color: var(--xc-text-soft); }
+.ir-report-list__item strong { color: var(--xc-text-strong); font-size: var(--xc-fs-xs); }
 .ir-ver__item {
   border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-md);

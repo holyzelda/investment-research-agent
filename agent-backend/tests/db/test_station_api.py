@@ -18,7 +18,11 @@ async def client(db_engine):
 
     app.dependency_overrides[get_db_session] = _override
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as http_client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"userId": "station-pytest", "username": "__pytest__"},
+    ) as http_client:
         yield http_client
     app.dependency_overrides.clear()
 

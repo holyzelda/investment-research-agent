@@ -303,3 +303,34 @@ async def test_content_processing_exhausts_to_retryable():
     with pytest.raises(RetryableCalcError):
         await gw.write_input("doc1", {"power_mw": 1})
     await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_report_source_reader_preserves_chart_null_positions_and_maps_province_rows():
+    gateway = _gateway(FakeFeishu(), revenue_structure_token="revenue-doc")
+    responses = {
+        ("各省能源结构", "A1:F100"): [["地区", "新能源装机"], ["甘肃", 123]],
+        ("各省电力市场情况", "A1:G100"): [["地区", "现货市场"], ["甘肃", 1]],
+        ("画图数据", "C3:Q12"): [[1.2, None, 1.4]] + [[None, None, None]] * 9,
+        ("画图数据", "B27"): [[1.5]],
+        ("画图数据", "B29"): [[1.7]],
+        ("画图数据", "B31"): [[1.1]],
+    }
+
+    async def read_values(doc_token, sheet, cell_range, *, purpose):
+        return responses[(sheet, cell_range)]
+
+    gateway._read_values = read_values
+    sources = await gateway.read_report_sources(
+        doc_token="calc-copy", province="甘肃",
+        energy_sheet="各省能源结构", energy_range="A1:F100",
+        market_sheet="各省电力市场情况", market_range="A1:G100",
+        chart_sheet="画图数据", chart_end_column="Q",
+    )
+
+    assert sources["operationYears"] == 15
+    assert sources["provinceSources"]["energy"] == {"地区": "甘肃", "新能源装机": 123}
+    assert sources["provinceSources"]["marketStatus"] == {"地区": "甘肃", "现货市场": 1}
+    assert sources["charts"]["series"]["debtServiceCoverage"] == [1.2, None, 1.4]
+    assert sources["charts"]["sensitivity"] == {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1}
+    await gateway._client.aclose()

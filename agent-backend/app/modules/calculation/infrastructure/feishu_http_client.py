@@ -64,10 +64,8 @@ class HttpFeishuGateway(FeishuGateway):
             config: FeishuConfig,
             param_dict: ParamDictionary,
             client: Optional[httpx.AsyncClient] = None,
-            processing_retries: int = 5,
-            processing_backoff: float = 2.0,
-            initial_sheet_query_retries: int = 5,
-            initial_sheet_query_backoff: float = 2.0,
+            transient_retries: int = 5,
+            transient_backoff: float = 2.0,
     ):
         self._cfg = config
         self._dict = param_dict
@@ -76,12 +74,13 @@ class HttpFeishuGateway(FeishuGateway):
         self._token_exp: float = 0.0
         self._sheet_ids: dict[str, dict[str, str]] = {}  # doc_token -> {sheet 标题: sheetId}
         self._pending_initial_sheet_query: set[str] = set()
-        # copy 异步：副本 ContentMeta 处理中（601124041）时退避重试的次数与间隔
-        self._processing_retries = processing_retries
-        self._processing_backoff = processing_backoff
-        # 新副本首次查询工作表元数据时的短暂内部错误退避。
-        self._initial_sheet_query_retries = initial_sheet_query_retries
-        self._initial_sheet_query_backoff = initial_sheet_query_backoff
+        # 已识别的飞书短暂状态共用同一组局部避让策略。
+        self._transient_retries = transient_retries
+        self._transient_backoff = transient_backoff
+        self._initial_sheet_query_retries = transient_retries
+        self._initial_sheet_query_backoff = transient_backoff
+        self._processing_retries = transient_retries
+        self._processing_backoff = transient_backoff
 
     # ---- 鉴权 ----
     async def _tenant_token(self) -> str:
@@ -165,6 +164,13 @@ class HttpFeishuGateway(FeishuGateway):
     def _ss(self, doc_token: str) -> str:
         return f"/open-apis/sheets/v2/spreadsheets/{doc_token}"
 
+    async def _query_sheet_ids(self, doc_token: str, purpose: str) -> dict[str, str]:
+        body = await self._authed(
+            "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query",
+            operation=f"sheets_query_{purpose}",
+        )
+        return {sheet["title"]: sheet["sheet_id"] for sheet in body["data"]["sheets"]}
+
     async def _sheet_id(self, doc_token: str, title: str, *, purpose: str) -> str:
         """标题→sheet_id。用 v3『获取工作表』sheets/query（v2 metainfo 已不推荐）。
 
@@ -176,11 +182,7 @@ class HttpFeishuGateway(FeishuGateway):
             if doc_token in self._pending_initial_sheet_query:
                 ids = await self._wait_for_initial_sheet_query(doc_token, purpose)
             else:
-                body = await self._authed(
-                    "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query",
-                    operation=f"sheets_query_{purpose}",
-                )
-                ids = {s["title"]: s["sheet_id"] for s in body["data"]["sheets"]}
+                ids = await self._query_sheet_ids(doc_token, purpose)
             self._sheet_ids[doc_token] = ids
         return ids[title]
 
@@ -190,11 +192,7 @@ class HttpFeishuGateway(FeishuGateway):
         try:
             for attempt in range(self._initial_sheet_query_retries + 1):
                 try:
-                    body = await self._authed(
-                        "GET", f"/open-apis/sheets/v3/spreadsheets/{doc_token}/sheets/query",
-                        operation=operation,
-                    )
-                    return {s["title"]: s["sheet_id"] for s in body["data"]["sheets"]}
+                    return await self._query_sheet_ids(doc_token, purpose)
                 except (RetryableCalcError, NonRetryableCalcError) as err:
                     retryable_readiness_error = (
                         err.code == f"feishu_{operation}_http_500"
@@ -306,3 +304,80 @@ class HttpFeishuGateway(FeishuGateway):
             else:
                 result[spec.id] = _first_cell(values)
         return result
+
+    async def _read_values(self, doc_token: str, sheet: str, cell_range: str, *, purpose: str) -> list[list]:
+        body = await self._authed(
+            "GET", f"{self._ss(doc_token)}/values_batch_get",
+            operation=purpose,
+            params={
+                "ranges": await self._range(doc_token, f"{sheet}!{cell_range}", purpose=purpose),
+                "valueRenderOption": _VALUE_RENDER,
+            },
+        )
+        value_ranges = body.get("data", {}).get("valueRanges", [])
+        return value_ranges[0].get("values") if value_ranges else []
+
+    @staticmethod
+    def _province_row(values: list[list], province: str | None) -> dict:
+        if not values:
+            return {}
+        headers = values[0]
+        for row in values[1:]:
+            if row and str(row[0]).strip() == str(province or "").strip():
+                return {str(header): row[index] if index < len(row) else None for index, header in enumerate(headers)}
+        return {}
+
+    async def read_report_sources(
+        self,
+        *,
+        doc_token: str,
+        province: str | None,
+        energy_sheet: str,
+        energy_range: str,
+        market_sheet: str,
+        market_range: str,
+        chart_sheet: str,
+        chart_end_column: str,
+    ) -> dict:
+        """读取报告冻结资料；图表只读已完成副本，省份资料读配置的收益结构工作簿。"""
+        revenue_token = self._cfg.revenue_structure_token
+        if not revenue_token:
+            raise NonRetryableCalcError("报告省份资料未配置收益结构工作簿", code="report_source_not_configured")
+        energy_values, market_values, chart_values, baseline, optimistic, pessimistic = await asyncio.gather(
+            self._read_values(revenue_token, energy_sheet, energy_range, purpose="read_report_energy"),
+            self._read_values(revenue_token, market_sheet, market_range, purpose="read_report_market"),
+            self._read_values(doc_token, chart_sheet, f"C3:{chart_end_column}12", purpose="read_report_charts"),
+            self._read_values(doc_token, chart_sheet, "B27", purpose="read_report_sensitivity"),
+            self._read_values(doc_token, chart_sheet, "B29", purpose="read_report_sensitivity"),
+            self._read_values(doc_token, chart_sheet, "B31", purpose="read_report_sensitivity"),
+        )
+        row_by_number = {number: chart_values[number - 3] if number - 3 < len(chart_values) else [] for number in range(3, 13)}
+        series = {
+            "debtServiceCoverage": row_by_number[3],
+            "freeCashflow": row_by_number[6],
+            "operatingCashflow": row_by_number[7],
+            "principal": row_by_number[8],
+            "interest": row_by_number[9],
+            "netProfit": row_by_number[11],
+            "depreciationAmortization": row_by_number[12],
+        }
+        years = 15 if chart_end_column == "Q" else 20
+        return {
+            "operationYears": years,
+            "provinceSources": {
+                "available": True,
+                "energy": self._province_row(energy_values, province),
+                "marketStatus": self._province_row(market_values, province),
+                "error": None,
+            },
+            "charts": {
+                "available": True,
+                "series": series,
+                "sensitivity": {
+                    "baseline": _first_cell(baseline),
+                    "optimistic": _first_cell(optimistic),
+                    "pessimistic": _first_cell(pessimistic),
+                },
+                "error": None,
+            },
+        }

@@ -8,6 +8,7 @@ aiosqlite>=0.20          # 本地/单测异步驱动（纯 Python，安装无门
 aiomysql>=0.2.0          # MySQL 异步驱动（纯 Python，Windows 免编译）；url 前缀 mysql+aiomysql://
 # 备选高性能驱动 asyncmy 需 C++ 编译环境（Windows 可能装不上），如需再单独装：pip install asyncmy
 httpx>=0.27
+python-multipart>=0.0.20  # FastAPI 解析联络线功率导入的 multipart 表单
 tenacity>=8.5
 APScheduler>=3.10
 PyYAML>=6.0
