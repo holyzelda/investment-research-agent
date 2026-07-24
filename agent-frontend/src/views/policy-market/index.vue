@@ -33,5 +33,18 @@ function handleFiltersChange(filters) { store.setStatsFilters(filters) }
 </script>
 
 <style scoped>
-.policy-market-page { min-height: 100%; padding: var(--xc-gutter-y) var(--xc-gutter-x); box-sizing: border-box; }.policy-market-page__grid { min-height: calc(100vh - 64px - (var(--xc-gutter-y) * 2)); display: grid; grid-template-columns: 248px minmax(0, 1fr) 336px; gap: var(--xc-space-4); }.policy-market-page__consult { min-width: 0; display: flex; flex-direction: column; gap: var(--xc-space-4); }.policy-market-page__hero { display: grid; gap: var(--xc-space-2); padding: var(--xc-space-4) 0; }.policy-market-page__hero p { margin: 0; color: var(--xc-accent-blue); font-size: var(--xc-fs-2xs); letter-spacing: .05em; }.policy-market-page__hero h1 { margin: 0; color: var(--xc-text-strong); font-size: clamp(var(--xc-fs-h2), 3vw, var(--xc-fs-h1)); font-weight: var(--xc-fw-semi); line-height: var(--xc-lh-snug); }.policy-market-page__hero h1 em { color: var(--xc-accent-blue); font-style: normal; }.policy-market-page__hero span, .policy-market-page__notice { color: var(--xc-text-mute); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }.policy-market-page__notice { margin: 0; font-size: var(--xc-fs-xs); }.policy-market-page__notice--error { color: var(--xc-status-danger); }.policy-market-page__source-note { margin: 0; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); }@media (max-width: 1180px) { .policy-market-page { overflow-y: auto; }.policy-market-page__grid { min-height: auto; grid-template-columns: 1fr; } }
+.policy-market-page { min-height: 100%; padding: clamp(18px, 2.6vw, 36px) clamp(16px, 3vw, 48px); box-sizing: border-box; }
+.policy-market-page__grid { min-height: calc(100vh - 64px - 72px); display: grid; grid-template-columns: 196px minmax(600px, 820px) 286px; justify-content: center; gap: clamp(22px, 3vw, 48px); align-items: start; }
+.policy-market-page__consult { min-width: 0; display: flex; flex-direction: column; gap: var(--xc-space-4); }
+.policy-market-page__hero { display: grid; gap: var(--xc-space-2); padding: clamp(10px, 1.5vh, 18px) 2px 18px; }
+.policy-market-page__hero p { margin: 0; color: var(--xc-accent-blue); font-size: var(--xc-fs-2xs); letter-spacing: .08em; }
+.policy-market-page__hero h1 { max-width: 720px; margin: 0; color: var(--xc-text-strong); font-size: clamp(34px, 3.4vw, var(--xc-fs-h1)); font-weight: var(--xc-fw-semi); line-height: 1.16; text-wrap: balance; }
+.policy-market-page__hero h1 em { color: var(--xc-accent-blue); font-style: normal; }
+.policy-market-page__hero span, .policy-market-page__notice { max-width: 620px; color: var(--xc-text-mute); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
+.policy-market-page__notice { margin: 0; font-size: var(--xc-fs-xs); }
+.policy-market-page__notice--error { color: var(--xc-status-danger); }
+.policy-market-page__source-note { margin: 0; padding-inline: 2px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); }
+@media (max-width: 1180px) { .policy-market-page { overflow-y: auto; }.policy-market-page__grid { grid-template-columns: 188px minmax(0, 1fr) 270px; gap: 22px; } }
+@media (max-width: 980px) { .policy-market-page__grid { min-height: auto; grid-template-columns: minmax(180px, 220px) minmax(0, 1fr); gap: 24px; }.policy-market-page__grid > :last-child { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .policy-market-page { padding: 12px 16px 24px; }.policy-market-page__grid { grid-template-columns: 1fr; gap: 18px; }.policy-market-page__grid > :last-child { grid-column: auto; }.policy-market-page__hero { padding-block: 12px 4px; }.policy-market-page__hero h1 { font-size: 30px; } }
 </style>

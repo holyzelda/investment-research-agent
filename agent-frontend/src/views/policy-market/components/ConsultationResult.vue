@@ -35,13 +35,13 @@ defineProps({
 </script>
 
 <style scoped>
-.pm-result { min-height: 260px; display: grid; place-items: stretch; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-md); background: var(--xc-surface-card); }
-.pm-result__empty, .pm-result__state { display: grid; place-content: center; min-height: 260px; padding: var(--xc-space-6); color: var(--xc-text-mute); text-align: center; }
+.pm-result { min-height: 220px; display: grid; place-items: stretch; border-top: 2px solid var(--xc-border-accent); border-radius: 0; background: transparent; }
+.pm-result__empty, .pm-result__state { display: grid; place-content: center; min-height: 220px; padding: var(--xc-space-6); color: var(--xc-text-mute); text-align: center; }
 .pm-result__state { gap: var(--xc-space-2); color: var(--xc-text-soft); }
 .pm-result__state--error strong { color: var(--xc-status-danger); }
-.pm-result__card { padding: var(--xc-space-6); }
+.pm-result__card { padding: var(--xc-space-5) 2px; }
 .pm-result__eyebrow { margin: 0; color: var(--xc-accent-blue); font-size: var(--xc-fs-2xs); letter-spacing: 0.04em; }
 .pm-result__card h2 { margin: var(--xc-space-3) 0; color: var(--xc-text-strong); font-size: var(--xc-fs-h3); font-weight: var(--xc-fw-semi); line-height: var(--xc-lh-snug); }
-.pm-result__answer { margin: 0; color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-relaxed); white-space: pre-wrap; overflow-wrap: anywhere; }
-.pm-result__card footer { display: flex; flex-wrap: wrap; gap: var(--xc-space-3); margin-top: var(--xc-space-6); color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-result__answer { max-width: 76ch; margin: 0; color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: 1.85; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pm-result__card footer { display: flex; flex-wrap: wrap; gap: var(--xc-space-3); margin-top: var(--xc-space-5); padding-top: var(--xc-space-3); border-top: 1px solid var(--xc-border-soft); color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
 </style>
