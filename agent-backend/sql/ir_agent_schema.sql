@@ -19,6 +19,22 @@ CREATE INDEX ix_ir_conversation_user_id ON ir_conversation (user_id);
 CREATE UNIQUE INDEX uq_ir_conversation_user_middle_session
     ON ir_conversation (user_id, middle_platform_session_id);
 
+CREATE TABLE consultation_records (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    user_id VARCHAR(64) NOT NULL,
+    question TEXT NOT NULL,
+    answer TEXT,
+    province_code VARCHAR(20),
+    topic VARCHAR(50),
+    status VARCHAR(20) NOT NULL DEFAULT 'processing',
+    source_data JSON,
+    created_at DATETIME NOT NULL DEFAULT now(),
+    answered_at DATETIME,
+    updated_at DATETIME NOT NULL DEFAULT now() ON UPDATE now(),
+    PRIMARY KEY (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX idx_consultation_user_time ON consultation_records (user_id, created_at DESC);
+
 CREATE TABLE ir_calculation_task (
     conversation_id BIGINT NOT NULL,
     version VARCHAR(16) NOT NULL,

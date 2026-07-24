@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import {
+  getConsultation,
   getConsultations,
   getMarketNews,
   getMarketOverview,
@@ -15,6 +16,9 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
     selectedConsultationId: null,
     consultationsLoading: false,
     consultationsError: '',
+    consultationDetails: {},
+    consultationDetailLoading: false,
+    consultationDetailError: '',
     submitting: false,
     submitError: '',
     news: [],
@@ -30,9 +34,9 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
   }),
 
   getters: {
-    selectedConsultation: (state) => state.consultations.find(
-      (item) => item.id === state.selectedConsultationId,
-    ) || null,
+    selectedConsultation: (state) => state.consultationDetails[state.selectedConsultationId]
+      || state.consultations.find((item) => item.id === state.selectedConsultationId)
+      || null,
   },
 
   actions: {
@@ -100,8 +104,22 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
       }
     },
 
-    selectConsultation(id) {
-      if (this.consultations.some((item) => item.id === id)) this.selectedConsultationId = id
+    async selectConsultation(id) {
+      if (!this.consultations.some((item) => item.id === id)) return
+      this.selectedConsultationId = id
+      if (this.consultationDetails[id]) return
+
+      this.consultationDetailLoading = true
+      this.consultationDetailError = ''
+      try {
+        const detail = await getConsultation(id)
+        this.consultationDetails[id] = detail
+      } catch (error) {
+        this.consultationDetailError = error?.message || '咨询详情加载失败'
+        throw error
+      } finally {
+        this.consultationDetailLoading = false
+      }
     },
 
     startNewConsultation() {
@@ -115,7 +133,7 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
       const pendingId = `pending-${Date.now()}`
       const pendingRecord = {
         id: pendingId, title: normalizedQuestion, question: normalizedQuestion, answer: '', status: 'processing',
-        createdAt: new Date().toISOString(), sourceScope: [],
+        createdAt: new Date().toISOString(), sourceData: null,
       }
       this.submitError = ''
       this.submitting = true
@@ -125,7 +143,13 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
         const completedRecord = await submitConsultation({ question: normalizedQuestion })
         const index = this.consultations.findIndex((item) => item.id === pendingId)
         if (index !== -1) this.consultations.splice(index, 1, completedRecord)
+        this.consultationDetails[completedRecord.id] = completedRecord
         this.selectedConsultationId = completedRecord.id
+        try {
+          await this.loadConsultations()
+        } catch {
+          // 已有完整结果可展示；历史列表刷新失败不覆盖成功咨询。
+        }
         return completedRecord
       } catch (error) {
         const index = this.consultations.findIndex((item) => item.id === pendingId)

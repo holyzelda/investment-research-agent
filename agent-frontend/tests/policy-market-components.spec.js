@@ -69,11 +69,24 @@ describe('政策与市场咨询组件', () => {
   it('按咨询状态显示处理中、失败和完成结果', () => {
     const processing = mount(ConsultationResult, { props: { consultation: { status: 'processing', question: '问题' } } })
     const failed = mount(ConsultationResult, { props: { consultation: { status: 'failed', question: '问题', answer: '' } } })
-    const completed = mount(ConsultationResult, { props: { consultation: { status: 'completed', title: '问题', answer: '回答', sourceScope: ['政策文件'] } } })
+    const completed = mount(ConsultationResult, {
+      props: {
+        consultation: {
+          status: 'completed', title: '问题', answer: '回答',
+          sourceData: {
+            sources: ['https://example.test/source'],
+            timeliness: { province: '宁夏', as_of: '2026-07', status: '已核验' },
+            reminders: ['关注政策更新'],
+          },
+        },
+      },
+    })
     expect(processing.text()).toContain('正在分析')
     expect(failed.text()).toContain('咨询失败')
     expect(completed.text()).toContain('回答')
-    expect(completed.text()).toContain('政策文件')
+    expect(completed.text()).toContain('https://example.test/source')
+    expect(completed.text()).toContain('宁夏')
+    expect(completed.text()).toContain('关注政策更新')
   })
 
   it('动态资讯主题和真实趋势按接口结果展示', () => {

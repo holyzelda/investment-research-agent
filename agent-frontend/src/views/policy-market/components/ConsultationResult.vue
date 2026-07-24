@@ -13,7 +13,15 @@
       <h2>关于「{{ consultation.title || consultation.question }}」</h2>
       <p class="pm-result__answer">{{ consultation.answer }}</p>
       <footer>
-        <span>检索范围：{{ consultation.sourceScope?.join(' / ') || '—' }}</span>
+        <span v-if="consultation.sourceData?.sources?.length">
+          来源：{{ consultation.sourceData.sources.join(' / ') }}
+        </span>
+        <span v-if="consultation.sourceData?.timeliness?.province">
+          信息范围：{{ consultation.sourceData.timeliness.province }}
+        </span>
+        <span v-if="consultation.sourceData?.reminders?.length">
+          提醒：{{ consultation.sourceData.reminders.join('；') }}
+        </span>
         <span>状态：分析完成</span>
       </footer>
     </article>

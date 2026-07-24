@@ -1,4 +1,9 @@
-from app.modules.policy_market.domain.models import MarketOverview, ScrollingMessage, parse_tags
+from app.modules.policy_market.domain.models import (
+    ConsultationRecord,
+    MarketOverview,
+    ScrollingMessage,
+    parse_tags,
+)
 
 
 def _serialize_tags(tags: str | None) -> list[str]:
@@ -29,4 +34,25 @@ def serialize_overview(overview: MarketOverview) -> dict:
             {"value": item.value, "label": item.value, "count": item.count}
             for item in overview.topic_options
         ],
+    }
+
+
+def serialize_consultation_summary(record: ConsultationRecord) -> dict:
+    return {
+        "id": record.id,
+        "title": record.question,
+        "question": record.question,
+        "status": record.status,
+        "createdAt": record.created_at.isoformat() if record.created_at else None,
+        "answeredAt": record.answered_at.isoformat() if record.answered_at else None,
+    }
+
+
+def serialize_consultation_detail(record: ConsultationRecord) -> dict:
+    return {
+        **serialize_consultation_summary(record),
+        "answer": record.answer,
+        "provinceCode": record.province_code,
+        "topic": record.topic,
+        "sourceData": record.source_data,
     }

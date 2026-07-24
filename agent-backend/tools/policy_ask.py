@@ -14,18 +14,7 @@ from urllib.error import URLError
 
 import lark_oapi as lark
 
-# 加载 .env（保持单文件入口行为）
-_env_path = Path(__file__).with_name(".env")
-if _env_path.exists():
-    with _env_path.open(encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            os.environ.setdefault(k.strip(), v.strip())
-
-# === 飞书配置(保持当前实现，不改成从环境变量读取) ===
+# === 飞书配置(内部使用,已内置) ===
 APP_ID = "example-value-0063"
 APP_SECRET = "example-value-0011"
 INDEX_TOKEN = "exampleToken000000000000012"
@@ -39,7 +28,6 @@ PROVINCES = {
     "宁夏": "exampleToken000000000000016",
     "甘肃": "exampleToken000000000000018",
 }
-
 # 省份别名(只收无歧义别名, 单字"宁"/"甘"会误路由)
 PROVINCE_ALIASES = {
     "蒙西": ["蒙西", "内蒙古", "内蒙", "蒙西电网"],
@@ -67,10 +55,10 @@ MARKET_KW = {
     "需求响应": ["需求响应", "需求侧"],
 }
 
-# === LLM 配置(保持当前实现) ===
-LLM_BASE_URL = os.environ.get("KB_ASK_LLM_URL", "http://qileerouter.jd-ecenter.com")
-LLM_API_KEY = os.environ.get("KB_ASK_LLM_API_KEY", "example-value-0013")
-LLM_MODEL = os.environ.get("KB_ASK_LLM_MODEL", "deepseek-v4-flash")
+# === LLM 配置 ===
+LLM_BASE_URL = "http://qileerouter.jd-ecenter.com"
+LLM_API_KEY = "example-value-0013"
+LLM_MODEL = "deepseek-v4-flash"
 
 SYSTEM_PROMPT = "你是储能电力交易投研知识库的问答助手。基于 wiki 认知层检索到的信息回答投研问题。规则: 1.直接回答,含关键数值和约束。2.时效差异按年份区分。3.结论带依据(用文件名,不暴露原始token)。4.信息不足如实说'知识库暂无'。5.版本更替/跨市场互斥/结论待确认等风险在末尾提醒。6.简洁,不展开wiki没有的内容。7.引用的文件URL直接输出,不转成token格式。"
 
@@ -78,7 +66,15 @@ SYSTEM_PROMPT = "你是储能电力交易投研知识库的问答助手。基于
 _client = None
 
 
+def _require_config(name, value):
+    if not value:
+        raise RuntimeError(f"缺少政策知识库配置：{name}")
+    return value
+
+
 def _get_client():
+    _require_config("KB_ASK_FEISHU_APP_ID", APP_ID)
+    _require_config("KB_ASK_FEISHU_APP_SECRET", APP_SECRET)
     global _client
     if _client is None:
         _client = lark.Client.builder() \
@@ -90,6 +86,9 @@ def _get_client():
 
 def _download(token):
     """下载飞书文件, 带本地缓存, 返回本地路径。"""
+    _require_config("KB_ASK_INDEX_TOKEN", INDEX_TOKEN)
+    if not PROVINCES:
+        raise RuntimeError("缺少政策知识库配置：KB_ASK_PROVINCE_TOKENS_JSON")
     CACHE_DIR.mkdir(exist_ok=True)
     cache_path = CACHE_DIR / f"{token}.md"
     if cache_path.exists():
@@ -126,6 +125,7 @@ def _strip_internal_tokens(text):
 
 
 def _llm_summarize(question, context, as_of, status):
+    _require_config("KB_ASK_LLM_API_KEY", LLM_API_KEY)
     safe_context = _strip_internal_tokens(context)
     prompt = f"用户问题: {question}\n\n检索到的信息:\n{safe_context}\n\n时效: as_of={as_of}, status={status}"
 
@@ -465,7 +465,7 @@ def main():
                 print(f"   {s}")
         if r.get("timeliness"):
             t = r["timeliness"]
-            print(f"\n[时效] {t.get('province','')} | as_of={t.get('as_of','')} | {t.get('status','')}")
+            print(f"\n[时效] {t.get('province', '')} | as_of={t.get('as_of', '')} | {t.get('status', '')}")
         if r.get("reminders"):
             for rem in r["reminders"]:
                 print(f"[!] {rem}")

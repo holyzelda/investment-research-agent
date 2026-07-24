@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -25,6 +26,28 @@ class MarketOverview:
     trend_percent: float | None
     range_label: str
     topic_options: list[TopicOption]
+
+
+@dataclass(frozen=True)
+class ConsultationAnswer:
+    answer: str
+    province_code: str | None
+    source_data: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ConsultationRecord:
+    id: int
+    user_id: str
+    question: str
+    answer: str | None
+    province_code: str | None
+    topic: str | None
+    status: str
+    source_data: dict[str, Any] | None
+    created_at: datetime | None
+    answered_at: datetime | None
+    updated_at: datetime | None
 
 
 def parse_tags(tags: str | None) -> list[str]:

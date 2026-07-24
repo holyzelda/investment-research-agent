@@ -13,6 +13,31 @@ from app.infrastructure.database.base import Base
 _PK = BigInteger().with_variant(Integer, "sqlite")
 
 
+class ConsultationRecordORM(Base):
+    """当前用户的政策与市场咨询记录。"""
+
+    __tablename__ = "consultation_records"
+    __table_args__ = (
+        Index("idx_consultation_user_time", "user_id", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(_PK, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    province_code: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    topic: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="processing")
+    source_data: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now()
+    )
+    answered_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
 class ScrollingMessageORM(Base):
     """政策与市场栏目中展示的滚动资讯。"""
 

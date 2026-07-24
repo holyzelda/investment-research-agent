@@ -5,6 +5,7 @@ import { usePolicyMarketStore } from '@/store/modules/policyMarket'
 
 vi.mock('@/api/policyMarket', () => ({
   getConsultations: vi.fn(),
+  getConsultation: vi.fn(),
   submitConsultation: vi.fn(),
   getMarketNews: vi.fn(),
   getMarketOverview: vi.fn(),
@@ -37,6 +38,31 @@ describe('政策与市场 Store', () => {
     expect(store.stats.total).toBe(10)
     expect(store.topicOptions).toEqual([{ value: '储能', label: '储能', count: 6 }])
     expect(store.selectedConsultationId).toBe('c-1')
+  })
+
+  it('选择历史项时按需加载并替换为完整详情', async () => {
+    api.getConsultation.mockResolvedValue({
+      id: 'c-1', title: '问题', question: '问题', answer: '完整回答',
+      status: 'completed', sourceData: { sources: [] },
+    })
+    const store = usePolicyMarketStore()
+    store.consultations = [{ id: 'c-1', title: '问题', status: 'completed' }]
+
+    await store.selectConsultation('c-1')
+
+    expect(api.getConsultation).toHaveBeenCalledWith('c-1')
+    expect(store.selectedConsultation.answer).toBe('完整回答')
+  })
+
+  it('详情加载失败时保留历史摘要并记录错误', async () => {
+    api.getConsultation.mockRejectedValue(new Error('详情不可用'))
+    const store = usePolicyMarketStore()
+    store.consultations = [{ id: 'c-1', title: '问题', status: 'completed' }]
+
+    await expect(store.selectConsultation('c-1')).rejects.toThrow('详情不可用')
+
+    expect(store.consultations).toEqual([{ id: 'c-1', title: '问题', status: 'completed' }])
+    expect(store.consultationDetailError).toBe('详情不可用')
   })
 
   it('提交时先插入处理中记录，成功后以 API 回答替换', async () => {
