@@ -134,6 +134,15 @@ class CorsConfig(BaseModel):
     allow_credentials: bool = True
     allow_methods: list[str] = ["*"]
     allow_headers: list[str] = ["*"]
+    expose_headers: list[str] = ["X-IR-Conversation-Id"]
+
+
+class MiddlePlatformConfig(BaseModel):
+    """智能体中台对话代理配置。"""
+
+    base_url: str = "http://internal-2-58.example.invalid"
+    app_id: str = "ir-agent"
+    app_secret: str = ""
 
 
 class CalcConfig(BaseModel):
@@ -214,6 +223,7 @@ class Settings(BaseModel):
     nacos: NacosConfig = NacosConfig()
     cors: CorsConfig = CorsConfig()
     calc: CalcConfig = CalcConfig()
+    middle_platform: MiddlePlatformConfig = MiddlePlatformConfig()
     feishu: FeishuConfig = FeishuConfig()
     spot_price: SpotPriceConfig = SpotPriceConfig()
 
@@ -257,11 +267,21 @@ def _build_settings() -> Settings:
         allow_credentials=_as_bool(os.getenv("APP_CORS_ALLOW_CREDENTIALS", "true")),
         allow_methods=_as_list(os.getenv("APP_CORS_ALLOW_METHODS"), ["*"]),
         allow_headers=_as_list(os.getenv("APP_CORS_ALLOW_HEADERS"), ["*"]),
+        expose_headers=["X-IR-Conversation-Id"],
     )
     calc = CalcConfig(
         poll_interval_seconds=float(_business_value("IR_CALC_POLL_INTERVAL", y, ["calc", "poll_interval_seconds"], 3.0)),
         poll_timeout_seconds=float(_business_value("IR_CALC_POLL_TIMEOUT", y, ["calc", "poll_timeout_seconds"], 10.0)),
         max_retries=int(_business_value("IR_CALC_MAX_RETRIES", y, ["calc", "max_retries"], 3)),
+    )
+    _mpd = MiddlePlatformConfig()
+    middle_platform = MiddlePlatformConfig(
+        base_url=_business_value(
+            "IR_MIDDLE_PLATFORM_BASE_URL", y, ["middle_platform", "base_url"], _mpd.base_url),
+        app_id=_business_value(
+            "IR_MIDDLE_PLATFORM_APP_ID", y, ["middle_platform", "app_id"], _mpd.app_id),
+        app_secret=_business_value(
+            "IR_MIDDLE_PLATFORM_APP_SECRET", y, ["middle_platform", "app_secret"], _mpd.app_secret),
     )
     _fd = FeishuConfig()
     feishu = FeishuConfig(
@@ -303,7 +323,7 @@ def _build_settings() -> Settings:
         daily_update_workers=int(_nested(y, ["spot_price", "daily_update_workers"], _sd.daily_update_workers)),
     )
     return Settings(app=app, log=log, database=database, nacos=nacos, cors=cors,
-                    calc=calc, feishu=feishu, spot_price=spot_price)
+                    calc=calc, middle_platform=middle_platform, feishu=feishu, spot_price=spot_price)
 
 
 @lru_cache

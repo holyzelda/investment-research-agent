@@ -9,7 +9,7 @@ def _dict():
 
 def test_dictionary_loads():
     d = _dict()
-    assert len(d) == 49  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+13输出
+    assert len(d) == 56  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+13输出
 
 def test_f_column_only_controls_display_not_write():
     """表2开关 F=0，但仍应写入 API_INPUT（F 列只管展示）。"""
@@ -79,4 +79,4 @@ def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
 
 def test_outputs_count():
     d = _dict()
-    assert len(d.outputs()) == 16  # 13 财务/收入/偿债倍数 + 3 地区成本(充电成本/放电返还/损耗)
+    assert len(d.outputs()) == 23  # 13 财务/收入/偿债倍数 + 3 地区成本(充电成本/放电返还/损耗)

@@ -33,6 +33,11 @@ feishu:
   report_market_status_range: "A1:G100"
   report_chart_sheet: "画图数据"
 
+middle_platform:
+  base_url: http://internal-2-58.example.invalid
+  app_id: ir-agent
+  app_secret: ""
+
 spot_price:
   # 现货电价库（多循环 DP，离线预计算）。enabled=true → 测算查 ir_agent 预计算表(PrecomputeSpotPriceAlgo)；
   # enabled=false → NullSpotPriceAlgo（不连库、返回 None）。下列 DSN 供预计算脚本 tools/spot_precompute.py 读源库。

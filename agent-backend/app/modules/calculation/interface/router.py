@@ -22,6 +22,7 @@ from app.modules.calculation.application.factory import (
 from app.modules.calculation.application.conversation_history_service import (
     ConversationHistoryService,
 )
+from app.modules.calculation.application.input_normalizer import normalize_project_basics
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
@@ -115,8 +116,9 @@ async def run_calculation(req: AssembleReq):
 
 class TaskCreateReq(BaseModel):
     province: str
-    capacity_mwh: float = Field(gt=0)
-    power_mw: float = Field(gt=0)
+    capacity_mwh: Optional[float] = Field(default=None, gt=0)
+    power_mw: Optional[float] = Field(default=None, gt=0)
+    duration_hours: Optional[float] = Field(default=None, gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
     conversation_id: Optional[int] = None  # 空=新会话(V1)；给定=同会话追加(版本递增)
@@ -135,9 +137,13 @@ async def create_task(
         session,
         user_id=user.user_id,
         username=user.username,
-        basics=ProjectBasics(
-            province=req.province, capacity_mwh=req.capacity_mwh, power_mw=req.power_mw,
-            node_name=req.node_name, voltage_kv=req.voltage_kv,
+        basics=normalize_project_basics(
+            province=req.province,
+            capacity_mwh=req.capacity_mwh,
+            power_mw=req.power_mw,
+            duration_hours=req.duration_hours,
+            node_name=req.node_name,
+            voltage_kv=req.voltage_kv,
         ),
         conversation_id=req.conversation_id,
         param_overrides=req.param_overrides,

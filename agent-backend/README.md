@@ -4,8 +4,17 @@
 
 ## 阶段0：平台接入（无登录）
 本系统**不做**登录/注册/验证码/用户/权限。用户在统一平台完成登录后跳转承接；
-平台/网关向请求头注入身份，`PlatformIdentityMiddleware` 读取 `user_id/username` 注入 `request.state`，
-仅用于快照归属。header 字段名可配（`platform.header_user_id/username`，默认 `X-User-Id`/`X-User-Name`，待与平台约定）。
+平台/网关向请求头注入身份。`PlatformIdentityMiddleware` 从固定的 `userId`、`username` Header 读取身份，
+对 `username` 做 URL 解码后写入 `request.state.user_id`、`request.state.username`，仅用于会话和快照归属。
+
+除以下公共端点外，所有请求都必须同时携带非空的 `userId` 和 `username`，否则返回 HTTP 401：
+
+- `/docs`：Swagger UI
+- `/redoc`：ReDoc 文档
+- `/openapi.json`：OpenAPI 规范
+- `/health`：健康检查
+
+直接访问 Swagger 文档不需要身份 Header，但从 Swagger UI 调用业务接口时，浏览器不会自动注入平台身份。应通过已接入的平台/网关访问，或使用具备 Header 注入能力的本地代理、API 客户端进行调试。
 
 ## 目录（DDD 分层 + 限界上下文）
 
@@ -110,8 +119,8 @@ Nacos 远端业务配置优先级最高，其次为已有 `IR_*` 业务环境变
 
 **平台 / 其它**
 - `.env.prod` 中的 `NACOS_ENABLED`、`NACOS_SERVER_ADDR`、`NACOS_NAMESPACE`、`NACOS_GROUP`、`NACOS_PROFILE`、`NACOS_DISCOVERY_SERVICE_NAME` → 上线前由运维填入；服务会在成功加载配置后注册到 Nacos。
-- `platform.header_user_id/username` → 与平台约定的真实 header 字段名（挂账#8）。
-- `platform.allow_anonymous` → 生产设 `false`（⚠ 挂账#9：当前禁匿名分支未拦截，上线前需补 401）。
+- 平台/网关必须以固定的 `userId`、`username` Header 注入身份；该字段名当前不支持配置。
+- 只有 `/docs`、`/redoc`、`/openapi.json`、`/health` 可匿名访问；其余接口均由身份中间件返回 401。
 - `APP_HOST` / `APP_PORT`、`APP_CORS_ALLOW_ORIGINS`（生产收紧到平台域名，勿留 `*`）。
 
 ## 现货电价 · 预计算与日更

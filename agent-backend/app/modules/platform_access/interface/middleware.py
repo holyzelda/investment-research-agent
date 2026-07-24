@@ -1,8 +1,7 @@
 """平台身份中间件（平台接入上下文 · 入站适配器）。
 
 统一网关认证后将 ecenter 身份以固定的 `userId`、`username` Header
-转发给本系统。本地开发由前端请求拦截器传递同一份已解析身份。
-不做 Token 校验、不访问任何外部登录态存储。
+转发给本系统。不做 Token 校验、不访问任何外部登录态存储。
 """
 from urllib.parse import unquote
 
@@ -11,8 +10,14 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 
 
+_PUBLIC_PATHS = frozenset({"/docs", "/redoc", "/openapi.json", "/health"})
+
+
 class PlatformIdentityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.url.path in _PUBLIC_PATHS:
+            return await call_next(request)
+
         user_id = (request.headers.get("userId") or "").strip()
         encoded_username = (request.headers.get("username") or "").strip()
         username = unquote(encoded_username).strip()

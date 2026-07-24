@@ -21,6 +21,7 @@ from app.modules.calculation.infrastructure.spot_daily_scheduler import (
 )
 from app.modules.calculation.interface.conversation_router import router as conversation_router
 from app.modules.calculation.interface.router import router as calculation_router
+from app.modules.middle_platform.interface.router import router as middle_platform_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 from app.modules.platform_access.interface.router import router as platform_access_router
 from app.modules.report.application.startup_recovery import mark_interrupted_generations_failed
@@ -34,6 +35,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(platform_access_router)
     app.include_router(calculation_router)
     app.include_router(conversation_router)
+    app.include_router(middle_platform_router)
     app.include_router(report_router)
     app.include_router(tie_line_router)
 
@@ -79,6 +81,7 @@ def create_app() -> FastAPI:
         allow_credentials=settings.cors.allow_credentials,
         allow_methods=settings.cors.allow_methods,
         allow_headers=settings.cors.allow_headers,
+        expose_headers=settings.cors.expose_headers,
     )
     application.add_middleware(RequestLoggingMiddleware)
     application.add_middleware(PlatformIdentityMiddleware)

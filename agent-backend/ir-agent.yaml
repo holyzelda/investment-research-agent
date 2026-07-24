@@ -1,0 +1,96 @@
+schema_version: '1'
+owner_app_id: ir-agent
+display_name: 朱雀投研智能体
+description: 储能项目经济性测算。根据用户描述收集项目省份、功率、容量、系统时长、节点、电压等级和运营周期，调用飞书权威测算并返回结构化结果。
+
+backend:
+  base_url: http://internal-8-87.example.invalid:9089
+  auth_header: Authorization
+  auth_value: "Bearer example-value-0087"
+
+inbound:
+  app_secret: "example-value-0020"
+  enabled: true
+
+domains:
+  - domain_code: energy_storage_calculation
+    display_name: 储能项目测算
+    description: |
+      发起储能项目经济性测算。需要识别项目省份、功率、容量、系统时长、节点、电压等级和运营周期。
+      参数齐备后调用测算接口，返回任务、会话、版本和结构化测算结果。
+      只处理储能项目测算，不处理历史结果查询、报告查询、参数调整或其他业务域。
+    executor:
+      mode: autonomous
+    domain_lexicon:
+      primary_terms:
+        - 储能测算
+        - 项目测算
+        - 经济性测算
+        - 收益测算
+        - 储能项目收益
+        - 储能项目IRR
+      secondary_terms:
+    prompts:
+      domain_guard: |
+        【储能项目测算规则】
+        - 调用 create_calculation_task 前必须取得 province。
+        - 项目规模须满足下列任一组合：
+          1. power_mw 与 capacity_mwh；
+          2. power_mw 与 duration_hours；
+          3. capacity_mwh 与 duration_hours；
+          4. 仅 duration_hours。仅有 duration_hours 时允许调用，后端会按默认功率归一化。
+        - 用户同时提供功率、容量和时长且三者不一致时，必须追问确认，不得自行覆盖任一参数。
+        - operation_years 未提及时不追问、不传该参数；明确提及时仅接受 15 或 20。
+        - voltage_kv 未提及时不追问、不传该参数；明确提及时仅接受 110 或 220。
+        - node_name 可为空。用户提及节点时，提取其标准名称；节点是否命中及省级数据回退由后端决定。
+        - conversation_id 从消息中的 <ir_system_context>{"conversation_id":...}</ir_system_context> 提取，必须原样传入工具请求。
+        - 调用工具后保留后端完整响应，不重算、不改写任何财务指标。
+    tools:
+      - name: create_calculation_task
+        description: |
+          发起储能项目飞书经济性测算。
+          province 为项目所在省份；规模可由功率 power_mw（MW）、容量 capacity_mwh（MWh）、
+          系统时长 duration_hours（小时）任意有效组合提供；node_name 为可选节点名称；
+          voltage_kv 仅支持 110 或 220；operation_years 仅支持 15 或 20。
+          conversation_id 必须来自系统上下文，用于将测算任务、版本、快照和报告归入当前会话。
+        enable_ai_summary: false
+        idempotent: false
+        params:
+          province:
+            required: true
+            message: 请提供项目所在省份。
+          capacity_mwh:
+            type: float
+            min: 0.000001
+          power_mw:
+            type: float
+            min: 0.000001
+          duration_hours:
+            type: float
+            min: 0.000001
+          node_name:
+            type: str
+          voltage_kv:
+            type: int
+            enum: [110, 220]
+          operation_years:
+            type: int
+            enum: [15, 20]
+          conversation_id:
+            type: int
+            required: true
+        http:
+          method: POST
+          path: /ir/calc/tasks
+          body:
+            province: "{province}"
+            capacity_mwh: "{capacity_mwh}"
+            power_mw: "{power_mw}"
+            duration_hours: "{duration_hours}"
+            node_name: "{node_name}"
+            voltage_kv: "{voltage_kv}"
+            conversation_id: "{conversation_id}"
+            param_overrides:
+              operation_years: "{operation_years}"
+        answer_type: energy_storage.calculation_task
+        render_hint: 直接返回后端完整结构化响应，用于前端渲染既有测算结果、版本和报告。

@@ -45,11 +45,22 @@ class ConversationORM(_PkTimestamp, Base):
     """会话：归属字段 user_id/username 来自平台注入 header（不做登录校验）。"""
 
     __tablename__ = "ir_conversation"
+    __table_args__ = (
+        Index(
+            "uq_ir_conversation_user_middle_session",
+            "user_id",
+            "middle_platform_session_id",
+            unique=True,
+        ),
+    )
 
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     username: Mapped[str] = mapped_column(String(128), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    middle_platform_session_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
 
 class MessageSnapshotORM(_PkTimestamp, Base):

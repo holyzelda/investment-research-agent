@@ -197,3 +197,46 @@ async def test_retryable_task_failure_keeps_root_cause_and_retry_count(client, m
     status = (await client.get(f"/ir/calc/tasks/{created['taskId']}")).json()["data"]
     assert status["requestId"] == expected_error["requestId"]
     assert status["error"] == expected_error
+
+
+@pytest.mark.asyncio
+async def test_task_accepts_duration_only_and_freezes_normalized_basics(client):
+    response = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃",
+        "duration_hours": 2,
+    })
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["status"] == "completed"
+    assert data["input"]["power_mw"] == 100
+    assert data["input"]["capacity_mwh"] == 200
+    assert "duration_hours" not in data["input"]
+
+
+@pytest.mark.asyncio
+async def test_task_accepts_power_and_duration(client):
+    response = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃",
+        "power_mw": 100,
+        "duration_hours": 2,
+    })
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["input"]["power_mw"] == 100
+    assert data["input"]["capacity_mwh"] == 200
+
+
+@pytest.mark.asyncio
+async def test_task_rejects_inconsistent_capacity_power_and_duration(client):
+    response = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃",
+        "capacity_mwh": 150,
+        "power_mw": 100,
+        "duration_hours": 2,
+    })
+
+    assert response.status_code == 400
+    assert response.json()["code"] == 400
+    assert "不一致" in response.json()["msg"]
