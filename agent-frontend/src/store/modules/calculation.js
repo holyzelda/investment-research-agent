@@ -222,14 +222,31 @@ export const useCalculationStore = defineStore('calculation', {
         return report
       }
       this.reportTasks[created.reportTaskId] = created
+      const progressMessage = {
+        id: nextId(), role: 'assistant', kind: 'report-progress', taskId,
+        reportTaskId: created.reportTaskId, steps: created.steps || [],
+      }
+      this.messages.push(progressMessage)
       this._applyReport({ taskId, reportTaskId: created.reportTaskId, status: 'generating' })
       const controller = new AbortController()
       try {
         await streamReportEvents(created.reportTaskId, {
           signal: controller.signal,
           onEvent: ({ type, data }) => {
-            if (type === 'complete' || type === 'failed') this._applyReport(data)
-            else this.reportTasks[created.reportTaskId] = { ...this.reportTasks[created.reportTaskId], steps: [...(this.reportTasks[created.reportTaskId]?.steps || []), data] }
+            if (type === 'complete' || type === 'failed') {
+              const observedSteps = this.reportTasks[created.reportTaskId]?.steps || []
+              this._applyReport(data)
+              progressMessage.steps = [...observedSteps, ...((data.steps || []).filter((step) => step.state !== 'active'))]
+              if (type === 'complete' && data.reportId) {
+                progressMessage.kind = 'report-generated'
+                progressMessage.text = '报告已生成'
+                progressMessage.payload = { event_type: 'report_generated', report_id: data.reportId, task_id: taskId }
+              }
+            } else {
+              const next = { ...this.reportTasks[created.reportTaskId], steps: [...(this.reportTasks[created.reportTaskId]?.steps || []), data] }
+              this.reportTasks[created.reportTaskId] = next
+              progressMessage.steps = next.steps
+            }
           },
         })
       } catch (error) {

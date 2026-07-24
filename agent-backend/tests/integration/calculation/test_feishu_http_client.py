@@ -312,6 +312,7 @@ async def test_report_source_reader_preserves_chart_null_positions_and_maps_prov
         ("各省能源结构", "A1:F100"): [["地区", "新能源装机"], ["甘肃", 123]],
         ("各省电力市场情况", "A1:G100"): [["地区", "现货市场"], ["甘肃", 1]],
         ("画图数据", "C3:Q12"): [[1.2, None, 1.4]] + [[None, None, None]] * 9,
+        ("画图数据", "C4:Q4"): [[100, None, 300]],
         ("画图数据", "B27"): [[1.5]],
         ("画图数据", "B29"): [[1.7]],
         ("画图数据", "B31"): [[1.1]],
@@ -332,5 +333,6 @@ async def test_report_source_reader_preserves_chart_null_positions_and_maps_prov
     assert sources["provinceSources"]["energy"] == {"地区": "甘肃", "新能源装机": 123}
     assert sources["provinceSources"]["marketStatus"] == {"地区": "甘肃", "现货市场": 1}
     assert sources["charts"]["series"]["debtServiceCoverage"] == [1.2, None, 1.4]
+    assert sources["charts"]["averageRevenue"] == [100, None, 300]
     assert sources["charts"]["sensitivity"] == {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1}
     await gateway._client.aclose()

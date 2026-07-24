@@ -343,10 +343,11 @@ class HttpFeishuGateway(FeishuGateway):
         revenue_token = self._cfg.revenue_structure_token
         if not revenue_token:
             raise NonRetryableCalcError("报告省份资料未配置收益结构工作簿", code="report_source_not_configured")
-        energy_values, market_values, chart_values, baseline, optimistic, pessimistic = await asyncio.gather(
+        energy_values, market_values, chart_values, average_revenue, baseline, optimistic, pessimistic = await asyncio.gather(
             self._read_values(revenue_token, energy_sheet, energy_range, purpose="read_report_energy"),
             self._read_values(revenue_token, market_sheet, market_range, purpose="read_report_market"),
             self._read_values(doc_token, chart_sheet, f"C3:{chart_end_column}12", purpose="read_report_charts"),
+            self._read_values(doc_token, chart_sheet, f"C4:{chart_end_column}4", purpose="read_report_average_revenue"),
             self._read_values(doc_token, chart_sheet, "B27", purpose="read_report_sensitivity"),
             self._read_values(doc_token, chart_sheet, "B29", purpose="read_report_sensitivity"),
             self._read_values(doc_token, chart_sheet, "B31", purpose="read_report_sensitivity"),
@@ -373,6 +374,7 @@ class HttpFeishuGateway(FeishuGateway):
             "charts": {
                 "available": True,
                 "series": series,
+                "averageRevenue": [value for row in average_revenue for value in row],
                 "sensitivity": {
                     "baseline": _first_cell(baseline),
                     "optimistic": _first_cell(optimistic),

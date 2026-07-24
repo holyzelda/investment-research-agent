@@ -61,6 +61,17 @@
             <div v-if="m.kind === 'text'" class="ir-msg__bubble">
               <span :class="{ 'ir-msg__pending': m.text === '测算中…' }">{{ m.text }}</span>
             </div>
+            <div v-else-if="m.kind === 'report-progress'" class="ir-msg__bubble ir-msg__report-progress">
+              <strong>正在生成正式报告</strong>
+              <ol>
+                <li v-for="step in m.steps" :key="`${step.seq || step.key}-${step.at || step.title}`">{{ step.title }}</li>
+              </ol>
+            </div>
+            <div v-else-if="m.kind === 'report-generated'" class="ir-msg__bubble ir-msg__report-card">
+              <strong>报告已生成</strong>
+              <span>已基于冻结测算快照生成正式报告。</span>
+              <button type="button" @click="openReport(m.payload?.report_id)">查看报告</button>
+            </div>
             <div v-else-if="m.kind === 'result'" class="ir-msg__result">
               <!-- 调整参数并重新测算仅在最新版本卡片开放：
                    现货依赖比较/受控覆盖以“会话最新已完成版本”为基线，
@@ -330,6 +341,12 @@ function openReport(reportId) {
   background: var(--xc-surface-card);
 }
 .ir-msg__pending { color: var(--xc-text-mute); }
+.ir-msg__report-progress, .ir-msg__report-card { display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-msg__report-progress strong, .ir-msg__report-card strong { color: var(--xc-text-strong); font-size: var(--xc-fs-sm); }
+.ir-msg__report-progress ol { margin: 0; padding-left: 20px; color: var(--xc-text-soft); font-size: var(--xc-fs-xs); }
+.ir-msg__report-card { border-left: 3px solid var(--xc-accent-blue); }
+.ir-msg__report-card span { color: var(--xc-text-soft); font-size: var(--xc-fs-xs); }
+.ir-msg__report-card button { align-self: flex-start; padding: 5px 10px; border: 1px solid var(--xc-accent-blue); border-radius: var(--xc-radius-xs); background: transparent; color: var(--xc-accent-blue); font-size: var(--xc-fs-xs); cursor: pointer; }
 .ir-msg__result { width: 100%; }
 .ir-msg--selected-result .ir-msg__result {
   border-radius: var(--xc-radius-lg);

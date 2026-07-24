@@ -16,6 +16,17 @@ def _number(value):
     return value
 
 
+def _average(values) -> float | None:
+    numbers = [value for value in values if isinstance(value, (int, float))]
+    return sum(numbers) / len(numbers) if numbers else None
+
+
+def _difference(left, right) -> float | None:
+    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
+        return round(left - right, 4)
+    return None
+
+
 def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot, generated_on=None) -> dict:
     """只消费任务快照，不读取飞书、当前配置或实时结果。"""
     api_input = input_snapshot.payload.get("apiInput", {})
@@ -65,6 +76,39 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "projectImpact": market_impact,
             "available": bool(sources.get("available")),
         },
+        "marketOperations": {
+            "spotChargePrice": api_input.get("spot_charge_avg"),
+            "spotDischargePrice": api_input.get("spot_discharge_avg"),
+            "spotSpread": _difference(api_input.get("spot_discharge_avg"), api_input.get("spot_charge_avg")),
+            "transmissionPrice": basic.get("transmissionPrice"),
+            "lineLossFee": basic.get("lineLossFee"),
+            "systemOperationFee": basic.get("systemOperationFee"),
+            "governmentFundSurcharge": basic.get("governmentFundSurcharge"),
+            "chargeCost": basic.get("chargeCost"),
+            "dischargeReturn": basic.get("dischargeReturn"),
+            "lossCost": basic.get("lossCost"),
+            "actualSpread": _difference(basic.get("chargeCost"), basic.get("dischargeReturn")),
+        },
+        "measurementBoundary": {
+            "epcUnitPrice": api_input.get("epc_unit_price"),
+            "batteryReplaceCost": api_input.get("battery_replace_cost"),
+            "equityRatio": result.get("boundary", {}).get("equityRatio"),
+            "strategyAchievementRate": api_input.get("strategy_achievement_rate"),
+            "annualOperationDays": result.get("boundary", {}).get("annualOperationDays"),
+            "loanRate": api_input.get("loan_rate"),
+            "loanYears": api_input.get("loan_years"),
+            "operationYears": api_input.get("operation_years", 15),
+            "repaymentMethod": "等额本息",
+            "discountRate": 0.05,
+        },
+        "financialMetrics": {
+            "projectIrr": result.get("financial", {}).get("projectIrr"),
+            "capitalIrr": result.get("financial", {}).get("capitalIrr"),
+            "projectStaticPayback": result.get("financial", {}).get("projectStaticPayback"),
+            "averageProfit": result.get("financial", {}).get("averageProfit"),
+            "averageRevenue": _average(charts.get("averageRevenue", [])),
+            "totalInvestmentRoi": result.get("financial", {}).get("totalInvestmentRoi"),
+        },
         "calculation": {
             "input": api_input,
             "result": result,
@@ -74,6 +118,7 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "operationYears": reports.get("operationYears", api_input.get("operation_years", 15)),
             "available": bool(charts.get("available")),
             "series": charts.get("series", {}),
+            "averageRevenue": charts.get("averageRevenue", []),
             "sensitivity": charts.get("sensitivity", {}),
         },
         "aiSections": {},

@@ -22,6 +22,10 @@ def to_report_payload(r: CalculationResult) -> dict:
             "chargeCost": b.charge_cost,
             "dischargeReturn": b.discharge_return,
             "lossCost": b.loss_cost,
+            "transmissionPrice": b.transmission_price,
+            "lineLossFee": b.line_loss_fee,
+            "systemOperationFee": b.system_operation_fee,
+            "governmentFundSurcharge": b.government_fund_surcharge,
         },
         "financial": {
             "projectIrr": f.project_irr,
@@ -29,6 +33,11 @@ def to_report_payload(r: CalculationResult) -> dict:
             "capitalIrr": f.capital_irr,
             "capitalStaticPayback": f.capital_static_payback,
             "averageProfit": f.average_profit,
+            "totalInvestmentRoi": f.total_investment_roi,
+        },
+        "boundary": {
+            "equityRatio": r.boundary.equity_ratio,
+            "annualOperationDays": r.boundary.annual_operation_days,
         },
         "advanced": {
             "donut": {

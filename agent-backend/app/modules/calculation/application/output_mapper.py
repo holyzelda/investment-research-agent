@@ -13,6 +13,7 @@ from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.domain.result import (
     AdvancedResult,
     BasicInfo,
+    BoundaryParams,
     CalculationResult,
     DebtServiceCoverage,
     FinancialMetrics,
@@ -22,7 +23,9 @@ from app.modules.calculation.domain.result import (
 
 def _f(out: dict, key: str) -> Optional[float]:
     v = out.get(key)
-    return None if v is None else float(v)
+    if v is None or (isinstance(v, str) and v.startswith("#")):
+        return None
+    return float(v)
 
 
 def _ratio_sequence(out: dict, key: str) -> list[float | None]:
@@ -57,6 +60,10 @@ def map_output_to_result(
         charge_cost=_f(api_output, "charge_cost"),
         discharge_return=_f(api_output, "discharge_return"),
         loss_cost=_f(api_output, "loss_cost"),
+        transmission_price=_f(api_output, "transmission_price"),
+        line_loss_fee=_f(api_output, "line_loss_fee"),
+        system_operation_fee=_f(api_output, "system_operation_fee"),
+        government_fund_surcharge=_f(api_output, "government_fund_surcharge"),
     )
 
     financial = FinancialMetrics(
@@ -65,6 +72,7 @@ def map_output_to_result(
         capital_irr=_f(api_output, "capital_irr"),
         capital_static_payback=_f(api_output, "capital_static_payback"),
         average_profit=_f(api_output, "average_profit"),
+        total_investment_roi=_f(api_output, "total_investment_roi"),
     )
 
     donut = RevenueDonut(
@@ -86,6 +94,10 @@ def map_output_to_result(
         advanced=AdvancedResult(
             donut=donut,
             debt_service_coverage=debt_service_coverage,
+        ),
+        boundary=BoundaryParams(
+            equity_ratio=_f(api_output, "equity_ratio"),
+            annual_operation_days=_f(api_output, "annual_operation_days"),
         ),
         version=version,
         request_id=request_id,

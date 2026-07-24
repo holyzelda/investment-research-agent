@@ -79,6 +79,54 @@ def test_basic_info_from_basics_and_region_output():
     assert r.basic_info.charge_cost == 0.3
 
 
+def test_maps_report_only_outputs_into_their_calculation_domain_groups():
+    result = map_output_to_result(
+        _basics(),
+        _assembled(),
+        {
+            "transmission_price": 0.0123,
+            "line_loss_fee": 0.0045,
+            "system_operation_fee": 0.0067,
+            "government_fund_surcharge": 0.0089,
+            "equity_ratio": 0.2,
+            "annual_operation_days": 330,
+            "total_investment_roi": 7.8,
+        },
+    )
+
+    assert result.basic_info.transmission_price == 0.0123
+    assert result.basic_info.line_loss_fee == 0.0045
+    assert result.basic_info.system_operation_fee == 0.0067
+    assert result.basic_info.government_fund_surcharge == 0.0089
+    assert result.boundary.equity_ratio == 0.2
+    assert result.boundary.annual_operation_days == 330.0
+    assert result.financial.total_investment_roi == 7.8
+
+
+def test_maps_feishu_error_values_to_none_without_failing_calculation():
+    result = map_output_to_result(
+        _basics(),
+        _assembled(),
+        {"charge_cost": "#N/A", "total_investment_roi": "#DIV/0!"},
+    )
+
+    assert result.basic_info.charge_cost is None
+    assert result.financial.total_investment_roi is None
+
+
+def test_report_payload_serializes_new_calculation_fields():
+    result = map_output_to_result(
+        _basics(),
+        _assembled(),
+        {"transmission_price": 0.0123, "equity_ratio": 0.2, "total_investment_roi": 7.8},
+    )
+
+    payload = to_report_payload(result)
+    assert payload["basicInfo"]["transmissionPrice"] == 0.0123
+    assert payload["boundary"] == {"equityRatio": 0.2, "annualOperationDays": None}
+    assert payload["financial"]["totalInvestmentRoi"] == 7.8
+
+
 def test_missing_output_is_none():
     r = map_output_to_result(_basics(), _assembled(), {})
     assert r.financial.project_irr is None

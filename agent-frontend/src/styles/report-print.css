@@ -1,8 +1,21 @@
 @page { size: A4 portrait; margin: 1in 1.25in; }
 @media print {
-  body * { visibility: hidden; }
-  .ir-report-document, .ir-report-document * { visibility: visible; }
-  .ir-report-document { position: absolute; inset: 0; width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
-  .ir-report-document h2, .ir-report-document h3 { break-after: avoid; }
-  .ir-report-document table, .ir-report-ai { break-inside: avoid; }
+  body { background: #fff !important; }
+  .ir-report-actions { display: none !important; }
+  .ir-report-document {
+    --xc-surface-raised: #fff;
+    --xc-surface-control: #f4f6f8;
+    --xc-text-strong: #17212b;
+    --xc-text-default: #2f3a45;
+    --xc-text-soft: #526170;
+    --xc-text-mute: #6f7b88;
+    --xc-text-inverse: #fff;
+    --xc-border-line: #aeb8c1;
+    --xc-border-card: #cbd3da;
+    --xc-border-soft: #dce2e7;
+    --xc-accent-blue: #176b9c;
+    --xc-status-danger: #b63535;
+    --xc-status-ok: #397544;
+  }
+  .ir-report-chart { background: #fff !important; }
 }

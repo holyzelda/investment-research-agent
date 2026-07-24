@@ -15,7 +15,7 @@ from typing import Optional
 
 @dataclass(frozen=True)
 class BasicInfo:
-    """① 基本信息。"""
+    """① 基本信息及地区运营成本。"""
     province: str
     capacity_mwh: float
     power_mw: float
@@ -23,6 +23,10 @@ class BasicInfo:
     charge_cost: Optional[float] = None       # 地区表 W，元/kWh（经 API_OUTPUT 读回）
     discharge_return: Optional[float] = None  # 地区表 X（经 API_OUTPUT 读回）
     loss_cost: Optional[float] = None         # 地区表 Y（经 API_OUTPUT 读回）
+    transmission_price: Optional[float] = None
+    line_loss_fee: Optional[float] = None
+    system_operation_fee: Optional[float] = None
+    government_fund_surcharge: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -33,6 +37,14 @@ class FinancialMetrics:
     capital_irr: Optional[float] = None              # 资本金IRR %
     capital_static_payback: Optional[float] = None   # 资本金静态回收期 年
     average_profit: Optional[float] = None           # 年均利润 万元
+    total_investment_roi: Optional[float] = None     # 总投资收益率 %
+
+
+@dataclass(frozen=True)
+class BoundaryParams:
+    """测算边界中需随结果冻结展示的参数。"""
+    equity_ratio: Optional[float] = None
+    annual_operation_days: Optional[float] = None
 
 
 @dataclass(frozen=True)
@@ -66,6 +78,7 @@ class CalculationResult:
     basic_info: BasicInfo
     financial: FinancialMetrics
     advanced: AdvancedResult
+    boundary: BoundaryParams = field(default_factory=BoundaryParams)
     version: Optional[str] = None       # V1/V2/V3…（Batch3 版本记录落地；薄片先占位）
     request_id: Optional[str] = None    # 本次测算标识（薄片占位）
     warnings: list = field(default_factory=list)
