@@ -1,10 +1,8 @@
-from app.modules.policy_market.domain.models import ScrollingMessage
+from app.modules.policy_market.domain.models import MarketOverview, ScrollingMessage, parse_tags
 
 
 def _serialize_tags(tags: str | None) -> list[str]:
-    if not tags or not tags.strip():
-        return []
-    return [tag.strip() for tag in tags.split(",") if tag.strip()]
+    return parse_tags(tags)
 
 
 def serialize_messages(messages: list[ScrollingMessage]) -> list[dict]:
@@ -20,3 +18,15 @@ def serialize_messages(messages: list[ScrollingMessage]) -> list[dict]:
         }
         for message in messages
     ]
+
+
+def serialize_overview(overview: MarketOverview) -> dict:
+    return {
+        "total": overview.total,
+        "trendPercent": overview.trend_percent,
+        "rangeLabel": overview.range_label,
+        "topicOptions": [
+            {"value": item.value, "label": item.value, "count": item.count}
+            for item in overview.topic_options
+        ],
+    }

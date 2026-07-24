@@ -51,3 +51,81 @@ async def test_list_messages_returns_only_active_nonexpired_rows_in_display_orde
 
     assert [message.title for message in messages] == ["最高", "次高"]
     assert serialize_messages(messages)[0]["tags"] == ["政策", "储能"]
+
+
+@pytest.mark.asyncio
+async def test_list_messages_supports_filters_and_preserves_order(session):
+    now = datetime(2026, 7, 23, 12, 0, 0)
+    session.add_all([
+        ScrollingMessageORM(
+            title="本月内蒙古储能一", province="内蒙古", publish_time=datetime(2026, 7, 5, 9, 0, 0),
+            tags="储能, 政策", status=1, is_deleted=0, sort_order=10, rating=Decimal("4.50"),
+        ),
+        ScrollingMessageORM(
+            title="本月内蒙古储能二", province="内蒙古", publish_time=datetime(2026, 7, 6, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0, sort_order=8, rating=Decimal("4.00"),
+        ),
+        ScrollingMessageORM(
+            title="上月内蒙古储能", province="内蒙古", publish_time=datetime(2026, 6, 6, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0, sort_order=20, rating=Decimal("5.00"),
+        ),
+        ScrollingMessageORM(
+            title="本月山东储能", province="山东", publish_time=datetime(2026, 7, 7, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0, sort_order=30, rating=Decimal("5.00"),
+        ),
+    ])
+    await session.commit()
+
+    messages = await ScrollingMessageService().list_messages(
+        session,
+        province="内蒙古",
+        period="month",
+        topic="储能",
+        now=now,
+    )
+
+    assert [message.title for message in messages] == ["本月内蒙古储能一", "本月内蒙古储能二"]
+
+
+@pytest.mark.asyncio
+async def test_get_overview_filters_real_messages_and_returns_top_topics_and_trend(session):
+    now = datetime(2026, 7, 23, 12, 0, 0)
+    session.add_all([
+        ScrollingMessageORM(
+            title="本月储能一", province="内蒙古", publish_time=datetime(2026, 7, 5, 9, 0, 0),
+            tags="储能, 政策", status=1, is_deleted=0,
+        ),
+        ScrollingMessageORM(
+            title="本月储能二", province="内蒙古", publish_time=datetime(2026, 7, 10, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0,
+        ),
+        ScrollingMessageORM(
+            title="上月储能", province="内蒙古", publish_time=datetime(2026, 6, 5, 9, 0, 0),
+            tags="储能,市场", status=1, is_deleted=0,
+        ),
+        ScrollingMessageORM(
+            title="其他省份", province="山东", publish_time=datetime(2026, 7, 8, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0,
+        ),
+        ScrollingMessageORM(
+            title="过期资讯", province="内蒙古", publish_time=datetime(2026, 7, 12, 9, 0, 0),
+            tags="储能", status=1, is_deleted=0, expire_time=now - timedelta(seconds=1),
+        ),
+    ])
+    await session.commit()
+
+    overview = await ScrollingMessageService().get_overview(
+        session,
+        province="内蒙古",
+        period="month",
+        topic="储能",
+        now=now,
+    )
+
+    assert overview.total == 2
+    assert overview.trend_percent == 100.0
+    assert overview.range_label == "内蒙古 · 本月"
+    assert [(item.value, item.count) for item in overview.topic_options] == [
+        ("储能", 2),
+        ("政策", 1),
+    ]

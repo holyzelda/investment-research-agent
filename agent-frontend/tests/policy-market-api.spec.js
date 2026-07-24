@@ -4,7 +4,7 @@ vi.mock('@/utils/request', () => ({ default: vi.fn() }))
 
 import request from '@/utils/request'
 import {
-  getConsultationStats,
+  getMarketOverview,
   getConsultations,
   getMarketNews,
   submitConsultation,
@@ -38,20 +38,32 @@ describe('政策与市场 API', () => {
     })
   })
 
-  it('按筛选参数聚合统计结果', async () => {
-    const all = await getConsultationStats({ province: 'all', period: 'all', topic: 'all' })
-    const innerMongolia = await getConsultationStats({ province: '内蒙古', period: 'month', topic: '政策' })
+  it('按筛选参数获取真实市场资讯概览', async () => {
+    const overview = {
+      total: 12,
+      trendPercent: -8.3,
+      rangeLabel: '内蒙古 · 本月',
+      topicOptions: [{ value: '储能', label: '储能', count: 8 }],
+    }
+    request.mockResolvedValue({ code: 200, msg: 'success', data: overview })
 
-    expect(all).toMatchObject({ total: expect.any(Number), trend: expect.any(Number), rangeLabel: '全部省份' })
-    expect(innerMongolia).toMatchObject({ total: 186, rangeLabel: '内蒙古' })
-    expect(innerMongolia.total).toBeLessThan(all.total)
+    await expect(getMarketOverview({ province: '内蒙古', period: 'month', topic: '储能' })).resolves.toEqual(overview)
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/policy-market/messages/overview',
+      method: 'get',
+      params: { province: '内蒙古', period: 'month', topic: '储能' },
+    })
   })
 
   it('读取市场脉搏消息时解包后端响应数据', async () => {
     const messages = [{ id: 1, title: '置顶资讯', tags: ['政策'] }]
     request.mockResolvedValue({ code: 200, msg: 'success', data: messages })
 
-    await expect(getMarketNews()).resolves.toEqual(messages)
-    expect(request).toHaveBeenCalledWith({ url: '/ir/policy-market/messages', method: 'get' })
+    await expect(getMarketNews({ province: '内蒙古', period: 'month', topic: '储能' })).resolves.toEqual(messages)
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/policy-market/messages',
+      method: 'get',
+      params: { province: '内蒙古', period: 'month', topic: '储能' },
+    })
   })
 })

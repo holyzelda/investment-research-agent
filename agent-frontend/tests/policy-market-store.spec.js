@@ -7,8 +7,16 @@ vi.mock('@/api/policyMarket', () => ({
   getConsultations: vi.fn(),
   submitConsultation: vi.fn(),
   getMarketNews: vi.fn(),
-  getConsultationStats: vi.fn(),
+  getMarketOverview: vi.fn(),
 }))
+
+const overview = (overrides = {}) => ({
+  total: 10,
+  trendPercent: 12.6,
+  rangeLabel: '全部省份 · 全部时间',
+  topicOptions: [{ value: '储能', label: '储能', count: 6 }],
+  ...overrides,
+})
 
 describe('政策与市场 Store', () => {
   beforeEach(() => {
@@ -16,10 +24,10 @@ describe('政策与市场 Store', () => {
     vi.resetAllMocks()
   })
 
-  it('初始化时加载咨询、资讯和默认统计', async () => {
+  it('初始化时加载咨询、资讯和真实资讯概览', async () => {
     api.getConsultations.mockResolvedValue([{ id: 'c-1', title: '问题', status: 'completed' }])
     api.getMarketNews.mockResolvedValue([{ id: 'n-1', title: '资讯' }])
-    api.getConsultationStats.mockResolvedValue({ total: 10, trend: 12.6, rangeLabel: '全部省份' })
+    api.getMarketOverview.mockResolvedValue(overview())
     const store = usePolicyMarketStore()
 
     await store.loadInitialData()
@@ -27,6 +35,7 @@ describe('政策与市场 Store', () => {
     expect(store.consultations).toHaveLength(1)
     expect(store.news).toHaveLength(1)
     expect(store.stats.total).toBe(10)
+    expect(store.topicOptions).toEqual([{ value: '储能', label: '储能', count: 6 }])
     expect(store.selectedConsultationId).toBe('c-1')
   })
 
@@ -55,13 +64,30 @@ describe('政策与市场 Store', () => {
     expect(store.submitError).toBe('服务暂不可用')
   })
 
-  it('筛选变化时将当前参数传递给统计 API', async () => {
-    api.getConsultationStats.mockResolvedValue({ total: 186, trend: 9.3, rangeLabel: '内蒙古' })
+  it('筛选变化时将当前参数传递给真实资讯概览接口和资讯接口', async () => {
+    api.getMarketOverview.mockResolvedValue(overview({ total: 186, rangeLabel: '内蒙古 · 本月' }))
+    api.getMarketNews.mockResolvedValue([{ id: 'n-1', title: '资讯' }])
     const store = usePolicyMarketStore()
 
-    await store.setStatsFilters({ province: '内蒙古', period: 'month', topic: '政策' })
+    await store.setStatsFilters({ province: '内蒙古', period: 'month', topic: '储能' })
 
-    expect(api.getConsultationStats).toHaveBeenCalledWith({ province: '内蒙古', period: 'month', topic: '政策' })
+    expect(api.getMarketOverview).toHaveBeenCalledWith({ province: '内蒙古', period: 'month', topic: '储能' })
+    expect(api.getMarketNews).toHaveBeenCalledWith({ province: '内蒙古', period: 'month', topic: '储能' })
     expect(store.stats.total).toBe(186)
+  })
+
+  it('筛选范围变化后主题不在候选中时重置为全部主题并重拉资讯', async () => {
+    api.getMarketOverview
+      .mockResolvedValueOnce(overview({ topicOptions: [{ value: '政策', label: '政策', count: 2 }] }))
+      .mockResolvedValueOnce(overview({ topicOptions: [{ value: '政策', label: '政策', count: 2 }] }))
+    api.getMarketNews.mockResolvedValue([{ id: 'n-1', title: '资讯' }])
+    const store = usePolicyMarketStore()
+    store.statsFilters = { province: 'all', period: 'all', topic: '储能' }
+
+    await store.setStatsFilters({ province: '内蒙古' })
+
+    expect(store.statsFilters.topic).toBe('all')
+    expect(api.getMarketOverview).toHaveBeenLastCalledWith({ province: '内蒙古', period: 'all', topic: 'all' })
+    expect(api.getMarketNews).toHaveBeenLastCalledWith({ province: '内蒙古', period: 'all', topic: 'all' })
   })
 })

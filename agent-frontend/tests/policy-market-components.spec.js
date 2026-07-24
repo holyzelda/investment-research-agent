@@ -1,8 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
-vi.mock('element-plus', () => ({ ElDialog: {} }))
-vi.mock('element-plus/es', () => ({ ElDialog: {} }))
+vi.mock('element-plus', () => ({
+  ElDialog: {},
+  ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
+}))
+vi.mock('element-plus/es', () => ({
+  ElDialog: {},
+  ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
+}))
 import ConsultationComposer from '@/views/policy-market/components/ConsultationComposer.vue'
 import ConsultationHistory from '@/views/policy-market/components/ConsultationHistory.vue'
 import ConsultationResult from '@/views/policy-market/components/ConsultationResult.vue'
@@ -70,10 +76,36 @@ describe('政策与市场咨询组件', () => {
     expect(completed.text()).toContain('政策文件')
   })
 
-  it('筛选变化时发出完整筛选条件', async () => {
-    const wrapper = mount(MarketPulse, { props: { filters: { province: 'all', period: 'all', topic: 'all' }, stats: { total: 186, trend: 9.3, rangeLabel: '内蒙古' }, news: [] } })
-    await wrapper.get('[data-filter="province"]').setValue('内蒙古')
-    expect(wrapper.emitted('filters-change')?.[0]?.[0]).toMatchObject({ province: '内蒙古' })
+  it('动态资讯主题和真实趋势按接口结果展示', () => {
+    const wrapper = mount(MarketPulse, {
+      props: {
+        filters: { province: 'all', period: 'all', topic: '储能' },
+        topicOptions: [{ value: '储能', label: '储能', count: 8 }],
+        stats: { total: 8, trendPercent: -12.5, rangeLabel: '内蒙古 · 本月' },
+      },
+    })
+
+    expect(wrapper.get('[data-filter="topic"]').text()).toContain('储能')
+    expect(wrapper.text()).toContain('条资讯')
+    expect(wrapper.text()).toContain('较上期 -12.5%')
+  })
+
+  it('无可比数据时显示对应趋势状态', () => {
+    const wrapper = mount(MarketPulse, { props: { stats: { total: 0, trendPercent: null, rangeLabel: '全部省份 · 全部时间' } } })
+    expect(wrapper.text()).toContain('暂无可比数据')
+  })
+
+  it('自定义筛选菜单发出完整筛选条件，并展示完整省份选项', async () => {
+    const wrapper = mount(MarketPulse, { props: { filters: { province: 'all', period: 'all', topic: 'all' }, news: [] } })
+    await wrapper.get('[data-filter="province"]').trigger('click')
+    expect(wrapper.find('[data-test="province-北京"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="province-广西"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="province-新疆"]').exists()).toBe(true)
+    expect(wrapper.findAll('[data-test^="province-"]')).toHaveLength(35)
+
+    await wrapper.get('[data-test="province-内蒙古"]').trigger('click')
+
+    expect(wrapper.emitted('filters-change')?.[0]?.[0]).toEqual({ province: '内蒙古', period: 'all', topic: 'all' })
   })
 
   it('市场脉搏显示标签和安全外链，不显示横向滚动资讯', () => {

@@ -11,3 +11,23 @@ class ScrollingMessage:
     province: str | None
     publish_time: datetime | None
     tags: str | None
+
+
+@dataclass(frozen=True)
+class TopicOption:
+    value: str
+    count: int
+
+
+@dataclass(frozen=True)
+class MarketOverview:
+    total: int
+    trend_percent: float | None
+    range_label: str
+    topic_options: list[TopicOption]
+
+
+def parse_tags(tags: str | None) -> list[str]:
+    if not tags or not tags.strip():
+        return []
+    return [tag.strip() for tag in tags.split(",") if tag.strip()]

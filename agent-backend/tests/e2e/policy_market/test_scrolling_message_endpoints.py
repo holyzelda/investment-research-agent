@@ -74,3 +74,39 @@ async def test_list_scrolling_messages_returns_response_shell_and_camel_case_dto
         "publishTime": "2026-07-23T09:00:00",
         "tags": ["政策", "储能"],
     }
+
+
+@pytest.mark.asyncio
+async def test_market_overview_returns_real_stats_and_rejects_invalid_period(seeded_client):
+    response = await seeded_client.get(
+        "/ir/policy-market/messages/overview",
+        params={"province": "内蒙古", "period": "all", "topic": "储能"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["code"] == 200
+    assert body["data"] == {
+        "total": 1,
+        "trendPercent": None,
+        "rangeLabel": "内蒙古 · 全部时间",
+        "topicOptions": [
+            {"value": "储能", "label": "储能", "count": 1},
+            {"value": "政策", "label": "政策", "count": 1},
+        ],
+    }
+
+    filtered_messages = await seeded_client.get(
+        "/ir/policy-market/messages",
+        params={"province": "内蒙古", "period": "month", "topic": "储能"},
+    )
+    assert filtered_messages.status_code == 200
+    assert [item["title"] for item in filtered_messages.json()["data"]] == ["置顶资讯"]
+
+    invalid = await seeded_client.get(
+        "/ir/policy-market/messages/overview",
+        params={"period": "year"},
+    )
+
+    assert invalid.status_code == 400
+    assert invalid.json()["code"] == 400

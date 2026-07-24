@@ -10,7 +10,7 @@
         <ConsultationResult :consultation="store.selectedConsultation" />
         <p class="policy-market-page__source-note">回答基于公开政策文件与市场数据，具体结论请结合实际场景判断。</p>
       </main>
-      <MarketPulse :filters="store.statsFilters" :stats="store.stats" :news="store.news" :loading="store.newsLoading" :error="store.newsError" :stats-loading="store.statsLoading" :stats-error="store.statsError" @filters-change="handleFiltersChange" />
+      <MarketPulse :filters="store.statsFilters" :stats="store.stats" :topic-options="store.topicOptions" :news="store.news" :loading="store.newsLoading" :error="store.newsError" :stats-loading="store.statsLoading" :stats-error="store.statsError" @filters-change="handleFiltersChange" />
     </div>
   </section>
 </template>
