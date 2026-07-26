@@ -27,7 +27,7 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 class SnapshotService:
     async def create_conversation(
         self, session: AsyncSession, *, user_id: str, username: str, title: Optional[str] = None
-    ) -> int:
+    ) -> str:
         conv = ConversationORM(user_id=user_id, username=username, title=title)
         session.add(conv)
         await session.flush()
@@ -37,7 +37,7 @@ class SnapshotService:
         self,
         session: AsyncSession,
         *,
-        conversation_id: int,
+        conversation_id: str,
         version: str,
         request_id: str,
         param_hash: str,

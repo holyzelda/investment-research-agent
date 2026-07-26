@@ -23,9 +23,16 @@ from app.modules.calculation.domain.result import (
 
 def _f(out: dict, key: str) -> Optional[float]:
     v = out.get(key)
-    if v is None or (isinstance(v, str) and v.startswith("#")):
+    if v is None or (isinstance(v, str) and (not v.strip() or v.startswith("#"))):
         return None
     return float(v)
+
+
+def _s(out: dict, key: str) -> Optional[str]:
+    v = out.get(key)
+    if v is None or (isinstance(v, str) and (not v.strip() or v.startswith("#"))):
+        return None
+    return str(v)
 
 
 def _ratio_sequence(out: dict, key: str) -> list[float | None]:
@@ -98,6 +105,15 @@ def map_output_to_result(
         boundary=BoundaryParams(
             equity_ratio=_f(api_output, "equity_ratio"),
             annual_operation_days=_f(api_output, "annual_operation_days"),
+            repayment_method=_s(api_output, "repayment_method"),
+            discount_rate=_f(api_output, "discount_rate"),
+            energy_revenue_vat_rate=_f(api_output, "energy_revenue_vat_rate"),
+            ancillary_service_vat_rate=_f(api_output, "ancillary_service_vat_rate"),
+            capacity_compensation_vat_rate=_f(api_output, "capacity_compensation_vat_rate"),
+            capacity_lease_vat_rate=_f(api_output, "capacity_lease_vat_rate"),
+            subsidy_vat_rate=_f(api_output, "subsidy_vat_rate"),
+            intervention_compensation_vat_rate=_f(api_output, "intervention_compensation_vat_rate"),
+            income_tax_rate=_f(api_output, "income_tax_rate"),
         ),
         version=version,
         request_id=request_id,

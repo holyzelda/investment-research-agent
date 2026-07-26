@@ -59,3 +59,5 @@ Controlled overrides accept only dictionary parameters marked `g=1`, `direction=
 - Use `httpx.ASGITransport` + `AsyncClient` in the main event loop; never `Starlette TestClient`, which can trigger greenlet loading failures under the local application-control policy.
 - For async integration tests, pass `-o asyncio_mode=auto` to the pytest wrapper when the project configuration is not applied.
 - HTTP headers must be ASCII. The frontend URL-encodes `username`; the backend decodes it before persistence. Never restore anonymous/visitor identity fallback.
+
+当前会话执行，当前main执行

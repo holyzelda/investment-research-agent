@@ -38,6 +38,15 @@ def to_report_payload(r: CalculationResult) -> dict:
         "boundary": {
             "equityRatio": r.boundary.equity_ratio,
             "annualOperationDays": r.boundary.annual_operation_days,
+            "repaymentMethod": r.boundary.repayment_method,
+            "discountRate": r.boundary.discount_rate,
+            "energyRevenueVatRate": r.boundary.energy_revenue_vat_rate,
+            "ancillaryServiceVatRate": r.boundary.ancillary_service_vat_rate,
+            "capacityCompensationVatRate": r.boundary.capacity_compensation_vat_rate,
+            "capacityLeaseVatRate": r.boundary.capacity_lease_vat_rate,
+            "subsidyVatRate": r.boundary.subsidy_vat_rate,
+            "interventionCompensationVatRate": r.boundary.intervention_compensation_vat_rate,
+            "incomeTaxRate": r.boundary.income_tax_rate,
         },
         "advanced": {
             "donut": {

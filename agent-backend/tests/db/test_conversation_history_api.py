@@ -310,3 +310,50 @@ async def test_tasks_in_soft_deleted_conversation_return_404(history_context, pa
     response = await client.get(f"/ir/calc/tasks/{ids['deleted_task']}{suffix}")
 
     assert response.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_rename_updates_title_and_lists_new_title(history_context):
+    client, _, ids = history_context
+
+    response = await client.patch(
+        f"/ir/conversations/{ids['older']}",
+        json={"title": "  甘肃 200MW/800MWh 复核  "},
+    )
+
+    assert response.status_code == 200
+    # 首尾空白被裁剪后落库
+    assert response.json()["data"] == {
+        "conversationId": ids["older"],
+        "title": "甘肃 200MW/800MWh 复核",
+    }
+    items = (await client.get("/ir/conversations")).json()["data"]["items"]
+    titles = {item["conversationId"]: item["title"] for item in items}
+    assert titles[ids["older"]] == "甘肃 200MW/800MWh 复核"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("title", ["", "   "])
+async def test_rename_rejects_blank_title(history_context, title):
+    client, _, ids = history_context
+
+    response = await client.patch(
+        f"/ir/conversations/{ids['newer']}",
+        json={"title": title},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_rename_foreign_conversation_returns_404(history_context):
+    client, _, ids = history_context
+
+    response = await client.patch(
+        f"/ir/conversations/{ids['foreign']}",
+        json={"title": "越权改名"},
+    )
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None

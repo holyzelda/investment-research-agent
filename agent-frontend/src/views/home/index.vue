@@ -2,18 +2,28 @@
   <div class="ir-home" :class="{ 'ir-home--welcome': !hasConversation }">
     <!-- 中间：对话区 -->
     <section class="ir-home__chat">
-      <!-- 欢迎态：居中问候 + 输入框 + 示例胶囊 -->
+      <!-- 欢迎态：背景由全局 layout 全屏承载；上区文字簇贴顶、下区提问框+胶囊沉底左对齐 -->
       <div v-if="!hasConversation" class="ir-welcome">
-        <div class="ir-welcome__inner">
-          <img class="ir-welcome__orb" :src="orbSrc" alt="" aria-hidden="true" />
-          <h1 class="ir-welcome__hi">
-            你好，我是朱雀投研智能体
-          </h1>
+        <div class="ir-welcome__top">
+          <div class="ir-welcome__heading">
+            <img class="ir-welcome__orb" :src="orbSrc" alt="" aria-hidden="true" />
+            <h1 class="ir-welcome__hi">
+              你好，<br />我是朱雀投研智能体
+            </h1>
+          </div>
           <p class="ir-welcome__lead">
-            用一句话给出<strong>省份 · 容量 · 功率</strong>，我来完成储能项目的权威测算，
-            并给出财务指标、收入结构与 15 年现金流。
+            用一句话完成储能项目投资测算
           </p>
 
+          <div class="ir-welcome__abilities" aria-label="能力范围">
+            <span>储能投资测算</span>
+            <span>收益分析</span>
+            <span>测算调整</span>
+            <span>投资报告</span>
+          </div>
+        </div>
+
+        <div class="ir-welcome__bottom">
           <ChatComposer
             class="ir-welcome__composer"
             :responding="calc.responding"
@@ -222,24 +232,48 @@ function openReport(reportId) {
   overflow: hidden;
 }
 
-/* ---------- 欢迎态：居中 ---------- */
+/* ---------- 欢迎态：背景由全局 layout 承载；上区文字贴顶、下区提问框沉底 ---------- */
 .ir-welcome {
+  position: relative;
   flex: 1 1 auto;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: var(--xc-space-11) var(--xc-space-9);
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  min-height: 0;
+  padding: var(--xc-space-9) var(--xc-space-10);
+  overflow: hidden;
 }
-.ir-welcome__inner {
-  width: min(860px, 100%);
-  text-align: center;
+/* 上区：欢迎语 + 描述 + 能力标签，贴顶（略下移，避免顶到边） */
+.ir-welcome__top {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin-top: clamp(40px, 9vh, 110px);
+  text-align: left;
+}
+/* 下区：提问框 + 示例胶囊，锚在主区底部、收窄左对齐（与对话态 composer 同宽档位，右侧留白给 hero） */
+.ir-welcome__bottom {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: var(--xc-content-fluid);
+  display: flex;
+  flex-direction: column;
+  gap: var(--xc-space-5);
+}
+.ir-welcome__heading {
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-5);
+  margin-bottom: var(--xc-space-4);
 }
 .ir-welcome__orb {
-  width: 108px;
-  height: 108px;
+  flex: 0 0 auto;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
   filter: drop-shadow(0 10px 48px rgba(110, 42, 255, 0.55));
-  margin-bottom: var(--xc-space-5);
   animation: ir-orb-float 6s ease-in-out infinite;
 }
 @keyframes ir-orb-float {
@@ -247,6 +281,7 @@ function openReport(reportId) {
   50% { transform: translateY(-8px); }
 }
 .ir-welcome__hi {
+  margin: 0;
   font-size: clamp(36px, 3.4vw, 52px);
   font-weight: var(--xc-fw-bold);
   line-height: var(--xc-lh-snug);
@@ -255,24 +290,44 @@ function openReport(reportId) {
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  margin: 0 0 var(--xc-space-5);
 }
 .ir-welcome__lead {
-  font-size: var(--xc-fs-md);
+  font-size: var(--xc-fs-lg);
   color: var(--xc-text-soft);
-  line-height: var(--xc-lh-loose);
-  margin: 0 auto var(--xc-space-8);
-  max-width: 640px;
+  line-height: var(--xc-lh-normal);
+  margin: 0 0 var(--xc-space-5);
 }
 .ir-welcome__lead strong { color: var(--xc-accent-blue); }
+.ir-welcome__abilities {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  align-items: center;
+  gap: var(--xc-space-5);
+  margin-bottom: var(--xc-space-8);
+}
+.ir-welcome__abilities span {
+  position: relative;
+  font-size: var(--xc-fs-md);
+  color: var(--xc-text-soft);
+}
+.ir-welcome__abilities span::before {
+  content: '·';
+  position: absolute;
+  left: calc(-1 * var(--xc-space-3));
+  color: var(--xc-text-faint);
+}
+.ir-welcome__abilities span:first-child::before { content: none; }
+.ir-welcome__abilities span.is-accent { color: var(--xc-accent-blue); }
 .ir-welcome__composer { padding: 0; }
 .ir-welcome__chips {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
+  justify-content: flex-start;
   gap: var(--xc-space-3);
-  margin-top: var(--xc-space-6);
 }
+
+/* 对话态 */
 .ir-chip {
   display: inline-flex;
   align-items: center;
@@ -357,6 +412,7 @@ function openReport(reportId) {
   width: 100%;
   max-width: var(--xc-content-fluid);
   margin: 0 auto;
+  padding: var(--xc-space-4) var(--xc-space-6) var(--xc-space-6);
 }
 
 /* ---------- 右侧版本记录 ---------- */

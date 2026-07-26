@@ -58,3 +58,11 @@ export function deleteConversation(conversationId) {
     method: 'delete',
   })
 }
+
+export function renameConversation(conversationId, title) {
+  return request({
+    url: `/ir/conversations/${conversationId}`,
+    method: 'patch',
+    data: { title },
+  })
+}

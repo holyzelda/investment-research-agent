@@ -6,7 +6,7 @@ from datetime import datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
@@ -65,7 +65,7 @@ class ConversationHistoryService:
         ]
 
     async def get_detail(
-        self, session: AsyncSession, *, conversation_id: int, user_id: str
+        self, session: AsyncSession, *, conversation_id: str, user_id: str
     ) -> dict:
         conversation = await self.require_active_conversation(
             session, conversation_id=conversation_id, user_id=user_id
@@ -168,7 +168,7 @@ class ConversationHistoryService:
         return None
 
     async def soft_delete(
-        self, session: AsyncSession, *, conversation_id: int, user_id: str
+        self, session: AsyncSession, *, conversation_id: str, user_id: str
     ) -> dict:
         conversation = await self.require_active_conversation(
             session, conversation_id=conversation_id, user_id=user_id
@@ -177,8 +177,23 @@ class ConversationHistoryService:
         await session.commit()
         return {"conversationId": conversation.id, "deleted": True}
 
+    async def rename(
+        self, session: AsyncSession, *, conversation_id: str, user_id: str, title: str
+    ) -> dict:
+        cleaned = (title or "").strip()
+        if not cleaned:
+            raise ValidationException("会话标题不能为空")
+        if len(cleaned) > 255:
+            raise ValidationException("会话标题不能超过 255 个字符")
+        conversation = await self.require_active_conversation(
+            session, conversation_id=conversation_id, user_id=user_id
+        )
+        conversation.title = cleaned
+        await session.commit()
+        return {"conversationId": conversation.id, "title": conversation.title}
+
     async def require_active_conversation(
-        self, session: AsyncSession, *, conversation_id: int, user_id: str
+        self, session: AsyncSession, *, conversation_id: str, user_id: str
     ) -> ConversationORM:
         conversation = (await session.execute(
             select(ConversationORM).where(

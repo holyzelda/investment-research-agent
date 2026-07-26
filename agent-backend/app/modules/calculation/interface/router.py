@@ -4,6 +4,7 @@
 真正的测算触发端点在 Batch3（执行引擎）落地。
 """
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
@@ -121,7 +122,7 @@ class TaskCreateReq(BaseModel):
     duration_hours: Optional[float] = Field(default=None, gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
-    conversation_id: Optional[int] = None  # 空=新会话(V1)；给定=同会话追加(版本递增)
+    conversation_id: Optional[UUID] = None  # 空=新会话(V1)；给定=同会话追加(版本递增)
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
 
 
@@ -145,7 +146,7 @@ async def create_task(
             node_name=req.node_name,
             voltage_kv=req.voltage_kv,
         ),
-        conversation_id=req.conversation_id,
+        conversation_id=str(req.conversation_id) if req.conversation_id else None,
         param_overrides=req.param_overrides,
     )
     return ok(out)

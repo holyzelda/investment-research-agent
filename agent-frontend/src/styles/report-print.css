@@ -18,4 +18,13 @@
     --xc-status-ok: #397544;
   }
   .ir-report-chart { background: #fff !important; }
+  .ir-report-section { margin-top: 0 !important; padding-top: 0 !important; }
+  .ir-report-chapter-heading { margin-top: 0 !important; }
+  .ir-report-cover { break-after: page !important; }
+  .ir-report-section--chapter { break-before: page !important; }
+  .ir-report-table, .ir-report-operation-group, .ir-report-revenue-layout { break-inside: avoid !important; }
+  .ir-report-boundary-table { break-inside: auto !important; }
+  .ir-report-boundary-table thead { display: table-header-group; }
+  .ir-report-boundary-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr) !important; }
 }

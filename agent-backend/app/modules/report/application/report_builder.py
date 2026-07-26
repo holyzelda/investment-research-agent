@@ -27,6 +27,28 @@ def _difference(left, right) -> float | None:
     return None
 
 
+_POLICY_SWITCHES = (
+    ("中长期市场", "switch_mid_long"),
+    ("现货市场", "switch_spot"),
+    ("容量补偿", "switch_capacity"),
+    ("调频市场", "switch_frequency"),
+    ("租赁市场", "switch_lease"),
+    ("补贴政策", "switch_subsidy"),
+    ("干预补偿", "switch_intervention"),
+    ("过网费优惠政策", "switch_return_grid_fee"),
+)
+
+
+def _market_supply_demand(energy: dict) -> dict:
+    return {
+        "energyStructure": energy.get("能源结构"),
+        "storage": energy.get("储能"),
+        "generation": energy.get("发电情况"),
+        "consumption": energy.get("用电情况"),
+        "developmentPlan": energy.get("能源发展规划"),
+    }
+
+
 def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot, generated_on=None) -> dict:
     """只消费任务快照，不读取飞书、当前配置或实时结果。"""
     api_input = input_snapshot.payload.get("apiInput", {})
@@ -39,6 +61,7 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
     capacity = basic.get("capacityMwh") or minimum.get("capacityMwh") or MISSING_DATA_TEXT
     duration = capacity / power if isinstance(capacity, (int, float)) and isinstance(power, (int, float)) and power else MISSING_DATA_TEXT
     title = f"{province}{_number(power)}MW/{_number(capacity)}MWh储能项目测算方案"
+    project_name = f"{province}{_number(power)}MW/{_number(capacity)}MWh独立储能项目"
     sources = reports.get("provinceSources", {})
     charts = reports.get("charts", {})
     switches = data_snapshot.payload.get("switches", {})
@@ -51,6 +74,10 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
         key: "纳入测算" if value == 1 else "不纳入测算"
         for key, value in switches.items()
     }
+    policy_rows = [
+        {"name": name, "enabled": switches.get(switch_key) == 1}
+        for name, switch_key in _POLICY_SWITCHES
+    ]
     return {
         "schemaVersion": REPORT_SCHEMA_VERSION,
         "structureVersion": REPORT_STRUCTURE_VERSION,
@@ -58,6 +85,7 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
         "generatedDate": (generated_on or date.today()).isoformat(),
         "source": {"taskId": task.id, "version": task.version},
         "project": {
+            "name": project_name,
             "province": province,
             "nodeName": basic.get("nodeName") or province,
             "powerMw": power,
@@ -70,8 +98,9 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "expectedOperationDate": None,
             "ownerBackground": None,
         },
-        "marketSupplyDemand": sources.get("energy") if sources.get("available") else {},
+        "marketSupplyDemand": _market_supply_demand(sources.get("energy") or {}) if sources.get("available") else {},
         "policyEnvironment": {
+            "rows": policy_rows,
             "marketStatus": market_status,
             "projectImpact": market_impact,
             "available": bool(sources.get("available")),
@@ -98,8 +127,15 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "loanRate": api_input.get("loan_rate"),
             "loanYears": api_input.get("loan_years"),
             "operationYears": api_input.get("operation_years", 15),
-            "repaymentMethod": "等额本息",
-            "discountRate": 0.05,
+            "repaymentMethod": result.get("boundary", {}).get("repaymentMethod"),
+            "discountRate": result.get("boundary", {}).get("discountRate"),
+            "energyRevenueVatRate": result.get("boundary", {}).get("energyRevenueVatRate"),
+            "ancillaryServiceVatRate": result.get("boundary", {}).get("ancillaryServiceVatRate"),
+            "capacityCompensationVatRate": result.get("boundary", {}).get("capacityCompensationVatRate"),
+            "capacityLeaseVatRate": result.get("boundary", {}).get("capacityLeaseVatRate"),
+            "subsidyVatRate": result.get("boundary", {}).get("subsidyVatRate"),
+            "interventionCompensationVatRate": result.get("boundary", {}).get("interventionCompensationVatRate"),
+            "incomeTaxRate": result.get("boundary", {}).get("incomeTaxRate"),
         },
         "financialMetrics": {
             "projectIrr": result.get("financial", {}).get("projectIrr"),

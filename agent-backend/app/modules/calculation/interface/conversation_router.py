@@ -1,5 +1,8 @@
 """Conversation history HTTP endpoints."""
+from uuid import UUID
+
 from fastapi import APIRouter, Depends
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
@@ -14,6 +17,10 @@ router = APIRouter(prefix="/ir/conversations", tags=["conversation-history"])
 _service = ConversationHistoryService()
 
 
+class RenameConversationReq(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+
+
 @router.get("")
 async def list_conversations(
     user: CurrentUser = Depends(get_current_user),
@@ -24,25 +31,40 @@ async def list_conversations(
 
 @router.get("/{conversation_id}")
 async def get_conversation(
-    conversation_id: int,
+    conversation_id: UUID,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
     return ok(await _service.get_detail(
         session,
-        conversation_id=conversation_id,
+        conversation_id=str(conversation_id),
         user_id=user.user_id,
+    ))
+
+
+@router.patch("/{conversation_id}")
+async def rename_conversation(
+    conversation_id: UUID,
+    req: RenameConversationReq,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    return ok(await _service.rename(
+        session,
+        conversation_id=str(conversation_id),
+        user_id=user.user_id,
+        title=req.title,
     ))
 
 
 @router.delete("/{conversation_id}")
 async def delete_conversation(
-    conversation_id: int,
+    conversation_id: UUID,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
     return ok(await _service.soft_delete(
         session,
-        conversation_id=conversation_id,
+        conversation_id=str(conversation_id),
         user_id=user.user_id,
     ))

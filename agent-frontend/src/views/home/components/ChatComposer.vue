@@ -55,25 +55,39 @@ function onSend() {
 <style scoped>
 .ir-composer {
   flex: 0 0 auto;
-  padding: var(--xc-space-4) var(--xc-space-6) var(--xc-space-6);
 }
 .ir-composer__frame {
   position: relative;
-  min-height: 112px;
+  overflow: hidden;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-xl);
   background: var(--xc-surface-raised);
-  padding: var(--xc-space-5) var(--xc-space-6) var(--xc-space-4);
+  padding: var(--xc-space-5) var(--xc-space-6) var(--xc-space-4) var(--xc-space-7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: var(--xc-shadow-raised);
   transition: border-color var(--xc-dur-base), box-shadow var(--xc-dur-base);
 }
+/* 充电导轨：左缘竖条，静默时暗、聚焦时点亮为品牌能量渐变并微微发光 */
+.ir-composer__frame::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--xc-border-card);
+  transition: background var(--xc-dur-base), box-shadow var(--xc-dur-base);
+}
 .ir-composer__frame:focus-within {
   border-color: var(--xc-border-accent);
-  box-shadow: var(--xc-shadow-raised), var(--xc-glow-blue);
+}
+.ir-composer__frame:focus-within::before {
+  background: var(--xc-grad-send);
+  box-shadow: var(--xc-glow-blue);
 }
 .ir-composer__input {
   flex: 0 0 auto;
@@ -108,9 +122,9 @@ function onSend() {
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: var(--xc-radius-lg);
+  border-radius: var(--xc-radius-md);
   background: var(--xc-grad-send);
-  color: #fff;
+  color: var(--xc-text-strong);
   cursor: pointer;
   box-shadow: var(--xc-glow-blue);
   transition: opacity var(--xc-dur-fast), transform var(--xc-dur-fast);
@@ -121,4 +135,10 @@ function onSend() {
 .ir-composer__send svg { width: 20px; height: 20px; }
 .ir-composer__spin { animation: ir-spin 0.9s linear infinite; }
 @keyframes ir-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .ir-composer__frame,
+  .ir-composer__frame::before,
+  .ir-composer__send { transition: none; }
+}
 </style>

@@ -24,6 +24,8 @@
   /* ---------- 1.1 WORKSPACE ELEVATION (derived XC dark surfaces) ---------- */
   --xc-surface-workspace: rgba(10, 12, 18, 0.96);
   --xc-surface-raised:    rgba(44, 46, 55, 0.92);
+  /* 历史栏毛玻璃：深海军蓝半透，叠 backdrop blur 后既透出全屏底图又压暗背景保证文字可读 */
+  --xc-surface-sider:     rgba(6, 10, 22, 0.55);
   --xc-surface-card:      rgba(255, 255, 255, 0.055);
   --xc-surface-control:   rgba(255, 255, 255, 0.075);
   --xc-border-card:       rgba(212, 217, 229, 0.16);
@@ -89,6 +91,7 @@
   --xc-fs-h1:       clamp(28px, 1.67vw, 32px);
   --xc-fs-h2:       clamp(22px, 1.25vw, 24px);
   --xc-fs-h3:       20px;
+  --xc-fs-xl:       clamp(21px, 1.3vw, 25px);
   --xc-fs-lg:       18px;
   --xc-fs-md:       16px;
   --xc-fs-sm:       14px;

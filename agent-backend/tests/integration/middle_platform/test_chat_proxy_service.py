@@ -1,6 +1,7 @@
 """中台对话代理服务测试。"""
 
 import json
+from uuid import UUID
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -15,16 +16,20 @@ from app.modules.middle_platform.infrastructure.http_client import PlatformAcces
 from app.modules.platform_access.domain.models import CurrentUser
 
 
-_SESSION_START = (
-    'event: session_start\n'
-    'id: frame-1\n'
-    'data: {"event":"session_start","session":{"session_id":"mp-42"},"data":{}}\n\n'
-).encode()
-_QUESTION = (
-    'event: question\n'
-    'id: frame-2\n'
-    'data: {"event":"question","session":{"session_id":"mp-42"},"data":{"text":"请补充项目功率"}}\n\n'
-).encode()
+def _session_start(session_id: str) -> bytes:
+    return (
+        "event: session_start\n"
+        "id: frame-1\n"
+        f'data: {{"event":"session_start","session":{{"session_id":"{session_id}"}},"data":{{}}}}\n\n'
+    ).encode()
+
+
+def _question(session_id: str) -> bytes:
+    return (
+        "event: question\n"
+        "id: frame-2\n"
+        f'data: {{"event":"question","session":{{"session_id":"{session_id}"}},"data":{{"text":"请补充项目功率"}}}}\n\n'
+    ).encode()
 
 
 class FakeMiddlePlatformClient:
@@ -75,8 +80,8 @@ async def _collect(chunks):
 
 
 @pytest.mark.asyncio
-async def test_first_chat_creates_conversation_relays_sse_and_persists_session(session):
-    client = FakeMiddlePlatformClient([_SESSION_START[:28], _SESSION_START[28:] + _QUESTION])
+async def test_first_chat_sends_ir_uuid_as_session_and_relays_sse(session):
+    client = FakeMiddlePlatformClient([_question("platform-session")])
     stream = await _service(client).start_chat(
         session=session,
         user=CurrentUser(user_id="u-1", username="张三"),
@@ -84,29 +89,30 @@ async def test_first_chat_creates_conversation_relays_sse_and_persists_session(s
         conversation_id=None,
     )
 
-    assert await _collect(stream.chunks) == _SESSION_START + _QUESTION
+    body = await _collect(stream.chunks)
+    UUID(stream.conversation_id)
+    assert body == _question("platform-session")
     conversation = await session.get(ConversationORM, stream.conversation_id)
     assert conversation.title == "测算甘肃 2H 储能项目"
-    assert conversation.middle_platform_session_id == "mp-42"
     assert client.issued_for == [("u-1", "张三")]
     payload = client.payloads[0][1]
-    assert payload["session_id"] is None
+    assert payload["session_id"] == stream.conversation_id
     assert payload["header"] == {"userId": "u-1", "username": "%E5%BC%A0%E4%B8%89"}
     assert payload["message"].endswith(
-        f'<ir_system_context>{{"conversation_id":{stream.conversation_id}}}</ir_system_context>'
+        f'<ir_system_context>{{"conversation_id":"{stream.conversation_id}"}}</ir_system_context>'
     )
 
 
 @pytest.mark.asyncio
-async def test_existing_conversation_reuses_platform_session(session):
+async def test_existing_conversation_reuses_its_uuid_as_platform_session(session):
     conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
         user_id="u-1",
         username="张三",
-        middle_platform_session_id="mp-old",
     )
     session.add(conversation)
     await session.commit()
-    client = FakeMiddlePlatformClient([_QUESTION])
+    client = FakeMiddlePlatformClient([_question(conversation.id)])
 
     stream = await _service(client).start_chat(
         session=session,
@@ -116,20 +122,19 @@ async def test_existing_conversation_reuses_platform_session(session):
     )
 
     await _collect(stream.chunks)
-    assert client.payloads[0][1]["session_id"] == "mp-old"
+    assert client.payloads[0][1]["session_id"] == conversation.id
 
 
 @pytest.mark.asyncio
-async def test_different_session_id_does_not_overwrite_existing_mapping(session):
+async def test_different_platform_session_id_emits_protocol_error(session):
     conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
         user_id="u-1",
         username="张三",
-        middle_platform_session_id="mp-old",
     )
     session.add(conversation)
     await session.commit()
-    incoming = _SESSION_START.replace(b'"mp-42"', b'"mp-new"')
-    client = FakeMiddlePlatformClient([incoming])
+    client = FakeMiddlePlatformClient([_session_start("mp-other")])
 
     stream = await _service(client).start_chat(
         session=session,
@@ -140,5 +145,4 @@ async def test_different_session_id_does_not_overwrite_existing_mapping(session)
 
     body = await _collect(stream.chunks)
     assert body.startswith(b"event: error\n")
-    assert json.loads(body.split(b"data: ", 1)[1]) ["msg"] == "中台会话映射冲突"
-    assert (await session.get(ConversationORM, conversation.id)).middle_platform_session_id == "mp-old"
+    assert json.loads(body.split(b"data: ", 1)[1])["msg"] == "中台会话协议异常：session_id不一致"

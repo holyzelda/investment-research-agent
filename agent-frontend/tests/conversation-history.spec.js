@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   listConversations: vi.fn(),
   getConversation: vi.fn(),
   deleteConversation: vi.fn(),
+  renameConversation: vi.fn(),
 }))
 
 vi.mock('@/api/calc', () => api)
@@ -84,17 +85,44 @@ describe('conversation history sidebar and replay', () => {
     expect(wrapper.emitted('open-history')[0]).toEqual([7])
   })
 
-  it('emits delete-history from the more menu without triggering open', async () => {
+  it('emits delete-history from the hover delete icon without triggering open', async () => {
     const wrapper = mount(AppSidebar, {
       props: { history: [{ conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2' }] },
       global: { stubs: { teleport: true } },
     })
 
-    await wrapper.find('.ir-sider__hist-more').trigger('click')
-    await wrapper.find('.ir-sider__hist-del').trigger('click')
+    await wrapper.find('.ir-sider__hist-delete').trigger('click')
 
     expect(wrapper.emitted('delete-history')[0]).toEqual([7])
     expect(wrapper.emitted('open-history')).toBeUndefined()
+  })
+
+  it('emits rename-history with the conversation from the hover edit icon', async () => {
+    const conversation = { conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2' }
+    const wrapper = mount(AppSidebar, {
+      props: { history: [conversation] },
+      global: { stubs: { teleport: true } },
+    })
+
+    await wrapper.find('.ir-sider__hist-edit').trigger('click')
+
+    expect(wrapper.emitted('rename-history')[0]).toEqual([conversation])
+    expect(wrapper.emitted('open-history')).toBeUndefined()
+  })
+
+  it('renameConversation patches the trimmed title and updates history in place', async () => {
+    api.renameConversation.mockResolvedValue({ data: { conversationId: 7, title: '甘肃复核' } })
+    const store = useCalculationStore()
+    store.history = [
+      { conversationId: 7, title: '甘肃' },
+      { conversationId: 6, title: '宁夏' },
+    ]
+
+    await store.renameConversation(7, '  甘肃复核  ')
+
+    expect(api.renameConversation).toHaveBeenCalledWith(7, '甘肃复核')
+    expect(store.history.find((h) => h.conversationId === 7).title).toBe('甘肃复核')
+    expect(store.history.find((h) => h.conversationId === 6).title).toBe('宁夏')
   })
 
   it('loadHistory stores the current user conversation list', async () => {

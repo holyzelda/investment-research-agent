@@ -47,10 +47,21 @@ def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
     payload = build_report_payload(**snapshots, generated_on=date(2026, 7, 23))
 
     assert payload["title"] == "甘肃200MW/800MWh储能项目测算方案"
+    assert payload["project"]["name"] == "甘肃200MW/800MWh独立储能项目"
     assert payload["generatedDate"] == "2026-07-23"
     assert payload["source"] == {"taskId": 42, "version": "V3"}
     assert payload["project"]["durationHours"] == 4
     assert payload["policyEnvironment"] == {
+        "rows": [
+            {"name": "中长期市场", "enabled": False},
+            {"name": "现货市场", "enabled": False},
+            {"name": "容量补偿", "enabled": False},
+            {"name": "调频市场", "enabled": False},
+            {"name": "租赁市场", "enabled": False},
+            {"name": "补贴政策", "enabled": False},
+            {"name": "干预补偿", "enabled": False},
+            {"name": "过网费优惠政策", "enabled": False},
+        ],
         "marketStatus": {"现货市场": "已启动", "辅助服务市场": "未启动"},
         "projectImpact": {"spot": "纳入测算", "capacity": "不纳入测算", "frequency": "不纳入测算"},
         "available": True,
@@ -63,6 +74,52 @@ def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
         "sensitivity": {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1},
     }
     assert payload["aiSections"] == {}
+
+
+def test_builds_ordered_template_sources_for_market_supply_and_policy_environment():
+    snapshots = _snapshots(report_sources={
+        "provinceSources": {
+            "available": True,
+            "energy": {
+                "地区": "甘肃",
+                "能源结构": "新能源与火电结构。",
+                "储能": "独立储能项目储备。",
+                "发电情况": "发电量稳步增长。",
+                "用电情况": "全社会用电量增长。",
+                "能源发展规划": "规划新增新能源装机。",
+            },
+        },
+    })
+    snapshots["data_snapshot"].payload["switches"] = {
+        "switch_mid_long": 1,
+        "switch_spot": 0,
+        "switch_capacity": None,
+        "switch_frequency": 1,
+        "switch_lease": 0,
+        "switch_subsidy": 1,
+        "switch_intervention": 0,
+        "switch_return_grid_fee": 1,
+    }
+
+    payload = build_report_payload(**snapshots)
+
+    assert payload["marketSupplyDemand"] == {
+        "energyStructure": "新能源与火电结构。",
+        "storage": "独立储能项目储备。",
+        "generation": "发电量稳步增长。",
+        "consumption": "全社会用电量增长。",
+        "developmentPlan": "规划新增新能源装机。",
+    }
+    assert payload["policyEnvironment"]["rows"] == [
+        {"name": "中长期市场", "enabled": True},
+        {"name": "现货市场", "enabled": False},
+        {"name": "容量补偿", "enabled": False},
+        {"name": "调频市场", "enabled": True},
+        {"name": "租赁市场", "enabled": False},
+        {"name": "补贴政策", "enabled": True},
+        {"name": "干预补偿", "enabled": False},
+        {"name": "过网费优惠政策", "enabled": True},
+    ]
 
 
 def test_builds_template_facing_operations_boundary_and_financial_sections():
@@ -81,7 +138,19 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
             "transmissionPrice": 0.0123, "lineLossFee": 0.0034,
             "systemOperationFee": 0.0056, "governmentFundSurcharge": 0.0078,
         },
-        "boundary": {"equityRatio": 0.2, "annualOperationDays": 330},
+        "boundary": {
+            "equityRatio": 0.2,
+            "annualOperationDays": 330,
+            "repaymentMethod": "等额本息",
+            "discountRate": 0.04,
+            "energyRevenueVatRate": 0.13,
+            "ancillaryServiceVatRate": 0.13,
+            "capacityCompensationVatRate": 0.13,
+            "capacityLeaseVatRate": 0.06,
+            "subsidyVatRate": 0.13,
+            "interventionCompensationVatRate": 0.09,
+            "incomeTaxRate": 0.25,
+        },
         "financial": {
             "projectIrr": 8.5, "capitalIrr": 12.3, "projectStaticPayback": 9.1,
             "averageProfit": 3200, "totalInvestmentRoi": 7.8,
@@ -109,6 +178,11 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
     assert payload["measurementBoundary"]["equityRatio"] == 0.2
     assert payload["measurementBoundary"]["annualOperationDays"] == 330
     assert payload["measurementBoundary"]["operationYears"] == 20
+    assert payload["measurementBoundary"]["repaymentMethod"] == "等额本息"
+    assert payload["measurementBoundary"]["discountRate"] == 0.04
+    assert payload["measurementBoundary"]["energyRevenueVatRate"] == 0.13
+    assert payload["measurementBoundary"]["capacityLeaseVatRate"] == 0.06
+    assert payload["measurementBoundary"]["incomeTaxRate"] == 0.25
     assert payload["financialMetrics"] == {
         "projectIrr": 8.5,
         "capitalIrr": 12.3,

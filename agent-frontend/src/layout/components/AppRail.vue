@@ -107,7 +107,7 @@ function onClick(it) {
 /* 激活：纯蓝底 + 白图标 + 蓝阴影 */
 .ir-rail-btn.is-active {
   background: var(--xc-accent-blue);
-  color: #fff;
+  color: var(--xc-text-strong);
   box-shadow: var(--xc-glow-blue);
 }
 

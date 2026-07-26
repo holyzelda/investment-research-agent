@@ -106,7 +106,7 @@ class CalculationTaskService:
         user_id: str,
         username: str,
         basics: ProjectBasics,
-        conversation_id: Optional[int] = None,
+        conversation_id: Optional[str] = None,
         param_overrides: Optional[dict] = None,
     ) -> dict:
         conversation_id, version, previous_input = await self._resolve_version(
@@ -194,7 +194,7 @@ class CalculationTaskService:
 
     async def _resolve_version(
         self, session, conversation_id, user_id, username, basics
-    ) -> tuple[int, str, Optional[dict]]:
+    ) -> tuple[str, str, Optional[dict]]:
         if conversation_id is None:
             conversation_id = await self._snapshot.create_conversation(
                 session, user_id=user_id, username=username,
@@ -222,7 +222,7 @@ class CalculationTaskService:
         )
         return conversation_id, f"V{(n or 0) + 1}", previous_input
 
-    async def _latest_completed_input(self, session, conversation_id: int) -> Optional[dict]:
+    async def _latest_completed_input(self, session, conversation_id: str) -> Optional[dict]:
         """最近一次成功版本冻结的 api_input（现货依赖比较 + 省份锁定校验的基线）。"""
         latest_task = (await session.execute(
             select(CalculationTaskORM)

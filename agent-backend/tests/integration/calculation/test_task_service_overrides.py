@@ -228,7 +228,7 @@ async def test_unknown_conversation_raises_not_found(session_maker):
         with pytest.raises(NotFoundException):
             await svc.create_and_run(
                 session, user_id="u1", username="U1", basics=_BASICS,
-                conversation_id=999999,
+                conversation_id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
             )
 
 

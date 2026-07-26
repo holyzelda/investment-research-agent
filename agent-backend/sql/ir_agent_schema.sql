@@ -6,18 +6,15 @@ SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
 
 CREATE TABLE ir_conversation (
+    id CHAR(36) NOT NULL,
     user_id VARCHAR(64) NOT NULL,
     username VARCHAR(128) NOT NULL,
     title VARCHAR(255),
     deleted_at DATETIME,
-    middle_platform_session_id VARCHAR(255),
-    id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME NOT NULL DEFAULT now(),
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 CREATE INDEX ix_ir_conversation_user_id ON ir_conversation (user_id);
-CREATE UNIQUE INDEX uq_ir_conversation_user_middle_session
-    ON ir_conversation (user_id, middle_platform_session_id);
 
 CREATE TABLE consultation_records (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -36,7 +33,7 @@ CREATE TABLE consultation_records (
 CREATE INDEX idx_consultation_user_time ON consultation_records (user_id, created_at DESC);
 
 CREATE TABLE ir_calculation_task (
-    conversation_id BIGINT NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
     version VARCHAR(16) NOT NULL,
     status VARCHAR(24) NOT NULL,
     request_id VARCHAR(64),
@@ -54,7 +51,7 @@ CREATE INDEX ix_ir_calculation_task_conversation_id ON ir_calculation_task (conv
 CREATE INDEX ix_ir_calculation_task_request_id ON ir_calculation_task (request_id);
 
 CREATE TABLE ir_message_snapshot (
-    conversation_id BIGINT NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
     `role` VARCHAR(16) NOT NULL,
     content TEXT NOT NULL,
     message_type VARCHAR(32) NOT NULL DEFAULT 'text',
@@ -246,7 +243,7 @@ CREATE INDEX ix_ir_tie_line_power_data_date ON ir_tie_line_power (data_date);
 CREATE TABLE ir_report_snapshot (
     report_id VARCHAR(64) NOT NULL,
     task_id BIGINT NOT NULL,
-    conversation_id BIGINT NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
     user_id VARCHAR(64) NOT NULL,
     schema_version SMALLINT NOT NULL DEFAULT 1,
     payload JSON NOT NULL,
@@ -267,7 +264,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE ir_report_generation_task (
     task_id BIGINT NOT NULL,
-    conversation_id BIGINT NOT NULL,
+    conversation_id CHAR(36) NOT NULL,
     user_id VARCHAR(64) NOT NULL,
     status VARCHAR(16) NOT NULL DEFAULT 'generating',
     steps JSON NOT NULL,

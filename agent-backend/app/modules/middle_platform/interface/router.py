@@ -1,5 +1,6 @@
 """本应用的中台对话 SSE 代理接口。"""
 from typing import Optional
+from uuid import UUID
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/ir/chat", tags=["middle-platform-chat"])
 
 class ChatDiagRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
-    conversation_id: Optional[int] = Field(default=None, gt=0)
+    conversation_id: Optional[UUID] = None
 
 
 @router.post("/diag")
@@ -30,7 +31,7 @@ async def chat_diag(
         session=session,
         user=user,
         message=req.message,
-        conversation_id=req.conversation_id,
+        conversation_id=str(req.conversation_id) if req.conversation_id else None,
     )
     return StreamingResponse(
         stream.chunks,

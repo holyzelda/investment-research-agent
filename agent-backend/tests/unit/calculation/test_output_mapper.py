@@ -103,6 +103,41 @@ def test_maps_report_only_outputs_into_their_calculation_domain_groups():
     assert result.financial.total_investment_roi == 7.8
 
 
+def test_maps_and_serializes_frozen_report_boundary_outputs():
+    result = map_output_to_result(
+        _basics(),
+        _assembled(),
+        {
+            "repayment_method": "等额本息",
+            "discount_rate": 0.04,
+            "energy_revenue_vat_rate": 0.13,
+            "ancillary_service_vat_rate": 0.13,
+            "capacity_compensation_vat_rate": 0.13,
+            "capacity_lease_vat_rate": 0.06,
+            "subsidy_vat_rate": 0.13,
+            "intervention_compensation_vat_rate": 0.09,
+            "income_tax_rate": 0.25,
+        },
+    )
+
+    assert result.boundary.repayment_method == "等额本息"
+    assert result.boundary.discount_rate == 0.04
+    assert result.boundary.intervention_compensation_vat_rate == 0.09
+    assert to_report_payload(result)["boundary"]["incomeTaxRate"] == 0.25
+
+
+def test_maps_blank_and_feishu_error_boundary_outputs_to_none():
+    result = map_output_to_result(
+        _basics(),
+        _assembled(),
+        {"repayment_method": "#VALUE!", "discount_rate": "", "income_tax_rate": "#N/A"},
+    )
+
+    assert result.boundary.repayment_method is None
+    assert result.boundary.discount_rate is None
+    assert result.boundary.income_tax_rate is None
+
+
 def test_maps_feishu_error_values_to_none_without_failing_calculation():
     result = map_output_to_result(
         _basics(),
@@ -123,7 +158,19 @@ def test_report_payload_serializes_new_calculation_fields():
 
     payload = to_report_payload(result)
     assert payload["basicInfo"]["transmissionPrice"] == 0.0123
-    assert payload["boundary"] == {"equityRatio": 0.2, "annualOperationDays": None}
+    assert payload["boundary"] == {
+        "equityRatio": 0.2,
+        "annualOperationDays": None,
+        "repaymentMethod": None,
+        "discountRate": None,
+        "energyRevenueVatRate": None,
+        "ancillaryServiceVatRate": None,
+        "capacityCompensationVatRate": None,
+        "capacityLeaseVatRate": None,
+        "subsidyVatRate": None,
+        "interventionCompensationVatRate": None,
+        "incomeTaxRate": None,
+    }
     assert payload["financial"]["totalInvestmentRoi"] == 7.8
 
 

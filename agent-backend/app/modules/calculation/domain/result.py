@@ -45,6 +45,15 @@ class BoundaryParams:
     """测算边界中需随结果冻结展示的参数。"""
     equity_ratio: Optional[float] = None
     annual_operation_days: Optional[float] = None
+    repayment_method: Optional[str] = None
+    discount_rate: Optional[float] = None
+    energy_revenue_vat_rate: Optional[float] = None
+    ancillary_service_vat_rate: Optional[float] = None
+    capacity_compensation_vat_rate: Optional[float] = None
+    capacity_lease_vat_rate: Optional[float] = None
+    subsidy_vat_rate: Optional[float] = None
+    intervention_compensation_vat_rate: Optional[float] = None
+    income_tax_rate: Optional[float] = None
 
 
 @dataclass(frozen=True)

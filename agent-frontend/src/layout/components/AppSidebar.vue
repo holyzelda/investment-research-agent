@@ -1,8 +1,9 @@
 <template>
   <!-- 固定定位上下文：折叠态悬浮预览以此为锚点展开，而非相对整页居中 -->
-  <div v-if="!hidden" class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : '300px' }">
+  <div v-if="!hidden" class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : 'var(--xc-sidebar-w)' }">
     <aside
       class="ir-sider"
+      data-testid="history-sidebar"
       :class="{ 'ir-sider--collapsed': isCollapsed, 'ir-sider--hover-expand': isHoverExpand }"
       @mouseenter="handleMouseEnter"
       @mouseleave="handleMouseLeave"
@@ -55,21 +56,30 @@
               :title="h.title || '未命名会话'"
               @click.stop="$emit('open-history', h.conversationId)"
             >
+              <span v-if="h.createdAt" class="ir-sider__hist-date xc-num">{{ formatDateLabel(h.createdAt) }}</span>
               <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
-              <span class="ir-sider__hist-actions" @click.stop>
-                <button
-                  class="ir-sider__hist-more"
-                  aria-label="更多"
-                  @click.stop="toggleMenu(h.conversationId)"
-                >
-                  <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
-                  </svg>
-                </button>
-                <div v-show="openMenu === h.conversationId" class="ir-sider__hist-menu">
-                  <button class="ir-sider__hist-del" @click.stop="onDelete(h.conversationId)">删除</button>
-                </div>
-              </span>
+              <button
+                class="ir-sider__hist-action ir-sider__hist-edit"
+                aria-label="编辑标题"
+                @click.stop="$emit('rename-history', h)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+                </svg>
+              </button>
+              <button
+                class="ir-sider__hist-action ir-sider__hist-delete"
+                aria-label="删除"
+                @click.stop="$emit('delete-history', h.conversationId)"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                </svg>
+              </button>
             </li>
           </ul>
         </div>
@@ -95,15 +105,20 @@ const props = defineProps({
   hidden: { type: Boolean, default: false },
   canHide: { type: Boolean, default: false },
 })
-const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'collapse-change', 'visibility-change'])
+const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'rename-history', 'collapse-change', 'visibility-change'])
 
-const openMenu = ref(null)
-function toggleMenu(id) {
-  openMenu.value = openMenu.value === id ? null : id
-}
-function onDelete(id) {
-  openMenu.value = null
-  emit('delete-history', id)
+// 历史条目时间标签：今日 / 昨天 / M/D（对齐 trader fullscreen-chat 历史栏）
+function formatDateLabel(value) {
+  if (!value) return ''
+  const d = new Date(String(value).replace(' ', 'T'))
+  if (Number.isNaN(d.getTime())) return ''
+  const key = (dt) => `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`
+  const today = new Date()
+  if (key(d) === key(today)) return '今日'
+  const yesterday = new Date(today)
+  yesterday.setDate(today.getDate() - 1)
+  if (key(d) === key(yesterday)) return '昨天'
+  return `${d.getMonth() + 1}/${d.getDate()}`
 }
 
 // ---------- 折叠 / 悬浮预览 / 点击展开 ----------
@@ -119,7 +134,6 @@ watch(() => props.hidden, (hidden) => {
   clearTimeout(hoverTimer)
   isCollapsed.value = false
   isHoverExpand.value = false
-  openMenu.value = null
 })
 onBeforeUnmount(() => clearTimeout(hoverTimer))
 
@@ -164,19 +178,20 @@ function handleClick() {
 }
 
 .ir-sider {
-  width: 300px;
+  width: var(--xc-sidebar-w);
   height: calc(100% - 60px);
   margin: 30px 0;
   display: flex;
   flex-direction: column;
   gap: var(--xc-space-3);
   padding: var(--xc-space-5) var(--xc-space-4);
-  background: var(--xc-surface-raised);
-  border: 1px solid var(--xc-border-card);
+  /* 毛玻璃：深海军蓝半透 + 背景模糊，透出全屏底图的光色又压暗背景保证文字清晰，
+     海军蓝调与底图和谐、不像灰底那样跳出成独立分区 */
+  background: var(--xc-surface-sider);
+  border: 1px solid var(--xc-border-soft);
   border-radius: var(--xc-radius-xl);
   backdrop-filter: blur(var(--xc-blur-lg));
   -webkit-backdrop-filter: blur(var(--xc-blur-lg));
-  box-shadow: var(--xc-shadow-raised);
   overflow: hidden;
   transition: width var(--xc-dur-base) var(--xc-ease-out),
               height var(--xc-dur-base) var(--xc-ease-out),
@@ -201,13 +216,14 @@ function handleClick() {
   position: absolute;
   top: 0;
   left: 0;
-  width: 300px;
+  width: var(--xc-sidebar-w);
   height: calc(100% - 130px);
   margin: 100px 0 0;
   padding: var(--xc-space-5) var(--xc-space-4);
   border-radius: var(--xc-radius-xl);
   cursor: default;
-  background: var(--xc-surface-raised);
+  /* 悬浮预览是临时浮层，用不透明暗底保证内容可读（不同于常态透明历史栏） */
+  background: var(--xc-surface-workspace);
   box-shadow: var(--xc-shadow-xl);
   z-index: var(--xc-z-overlay);
 }
@@ -296,7 +312,7 @@ function handleClick() {
   border: 0;
   border-radius: var(--xc-radius-md);
   background: var(--xc-grad-brand);
-  color: #fff;
+  color: var(--xc-text-strong);
   font-size: var(--xc-fs-sm);
   font-weight: var(--xc-fw-medium);
   letter-spacing: 0.02em;
@@ -356,7 +372,13 @@ function handleClick() {
   background: var(--xc-accent-blue-soft);
   color: var(--xc-text-strong);
 }
-.ir-sider__hist-item.is-current .ir-sider__hist-more { opacity: 1; }
+.ir-sider__hist-item.is-current .ir-sider__hist-action { opacity: 1; }
+.ir-sider__hist-date {
+  flex: 0 0 auto;
+  font-size: var(--xc-fs-2xs);
+  color: var(--xc-text-faint);
+  user-select: none;
+}
 .ir-sider__hist-title {
   flex: 1 1 auto;
   min-width: 0;
@@ -364,8 +386,9 @@ function handleClick() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ir-sider__hist-actions { position: relative; flex: 0 0 auto; display: flex; }
-.ir-sider__hist-more {
+/* 悬浮才出现的行内操作：编辑标题 / 删除，替代原三点菜单 */
+.ir-sider__hist-action {
+  flex: 0 0 auto;
   width: 22px;
   height: 22px;
   display: grid;
@@ -376,34 +399,10 @@ function handleClick() {
   color: var(--xc-text-mute);
   cursor: pointer;
   opacity: 0;
-  transition: opacity var(--xc-dur-fast), background var(--xc-dur-fast);
+  transition: opacity var(--xc-dur-fast), background var(--xc-dur-fast), color var(--xc-dur-fast);
 }
-.ir-sider__hist-item:hover .ir-sider__hist-more { opacity: 1; }
-.ir-sider__hist-more:hover { background: var(--xc-surface-2); color: var(--xc-text-strong); }
-.ir-sider__hist-more svg { width: 15px; height: 15px; }
-.ir-sider__hist-menu {
-  position: absolute;
-  top: 100%;
-  right: 0;
-  z-index: 20;
-  margin-top: 2px;
-  padding: var(--xc-space-1);
-  border: 1px solid var(--xc-border-soft);
-  border-radius: var(--xc-radius-sm);
-  background: var(--xc-surface-2);
-  box-shadow: var(--xc-shadow-md);
-}
-.ir-sider__hist-del {
-  display: block;
-  width: 100%;
-  padding: var(--xc-space-1) var(--xc-space-4);
-  border: 0;
-  border-radius: var(--xc-radius-xs);
-  background: transparent;
-  color: var(--xc-status-danger, #e95a4f);
-  font-size: var(--xc-fs-sm);
-  text-align: left;
-  cursor: pointer;
-}
-.ir-sider__hist-del:hover { background: var(--xc-surface-frosted); }
+.ir-sider__hist-action svg { width: 15px; height: 15px; }
+.ir-sider__hist-item:hover .ir-sider__hist-action { opacity: 1; }
+.ir-sider__hist-edit:hover { background: var(--xc-surface-2); color: var(--xc-accent-blue); }
+.ir-sider__hist-delete:hover { background: var(--xc-surface-2); color: var(--xc-status-danger); }
 </style>

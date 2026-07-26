@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any, Optional
+from uuid import uuid4
 
 from sqlalchemy import (
     JSON,
@@ -41,26 +42,21 @@ class _PkTimestamp:
     )
 
 
-class ConversationORM(_PkTimestamp, Base):
-    """会话：归属字段 user_id/username 来自平台注入 header（不做登录校验）。"""
+class ConversationORM(Base):
+    """会话：UUID 同时作为本应用会话标识与中台 session_id。"""
 
     __tablename__ = "ir_conversation"
-    __table_args__ = (
-        Index(
-            "uq_ir_conversation_user_middle_session",
-            "user_id",
-            "middle_platform_session_id",
-            unique=True,
-        ),
-    )
 
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     username: Mapped[str] = mapped_column(String(128), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    middle_platform_session_id: Mapped[Optional[str]] = mapped_column(
-        String(255), nullable=True
-    )
 
 
 class MessageSnapshotORM(_PkTimestamp, Base):
@@ -68,8 +64,8 @@ class MessageSnapshotORM(_PkTimestamp, Base):
 
     __tablename__ = "ir_message_snapshot"
 
-    conversation_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_conversation.id"), nullable=False, index=True
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ir_conversation.id"), nullable=False, index=True
     )
     role: Mapped[str] = mapped_column(String(16), nullable=False)  # user/assistant/system
     content: Mapped[str] = mapped_column(Text, nullable=False)
@@ -84,8 +80,8 @@ class CalculationTaskORM(_PkTimestamp, Base):
 
     __tablename__ = "ir_calculation_task"
 
-    conversation_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_conversation.id"), nullable=False, index=True
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ir_conversation.id"), nullable=False, index=True
     )
     version: Mapped[str] = mapped_column(String(16), nullable=False)  # V1/V2/V3…
     # created→copying→writing→computing→reading→validating→snapshotting→completed / failed / timeout
@@ -162,8 +158,8 @@ class ReportGenerationTaskORM(_PkTimestamp, Base):
     task_id: Mapped[int] = mapped_column(
         BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False, unique=True, index=True
     )
-    conversation_id: Mapped[int] = mapped_column(
-        BigInteger, ForeignKey("ir_conversation.id"), nullable=False, index=True
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ir_conversation.id"), nullable=False, index=True
     )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     status: Mapped[str] = mapped_column(

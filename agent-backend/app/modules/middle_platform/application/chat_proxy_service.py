@@ -22,7 +22,7 @@ from app.modules.platform_access.domain.models import CurrentUser
 
 @dataclass(frozen=True)
 class ChatStream:
-    conversation_id: int
+    conversation_id: str
     chunks: AsyncIterator[bytes]
 
 
@@ -45,7 +45,7 @@ class ChatProxyService:
         session: AsyncSession,
         user: CurrentUser,
         message: str,
-        conversation_id: int | None,
+        conversation_id: str | None,
     ) -> ChatStream:
         content = message.strip()
         if not content:
@@ -77,13 +77,15 @@ class ChatProxyService:
             token = issued.value
             self._token_cache.put(token_key, token, issued.expires_in)
 
+        context = json.dumps(
+            {"conversation_id": conversation.id},
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
         payload = {
             "app_id": self._config.app_id,
-            "message": (
-                f'{content}\n<ir_system_context>{{"conversation_id":{conversation.id}}}'
-                "</ir_system_context>"
-            ),
-            "session_id": conversation.middle_platform_session_id,
+            "message": f"{content}\n<ir_system_context>{context}</ir_system_context>",
+            "session_id": conversation.id,
             "end_user_id": user.user_id,
             "end_user_name": user.username,
             "locale": "zh-CN",
@@ -116,21 +118,21 @@ class ChatProxyService:
         buffer = b""
         async for chunk in self._client.stream_chat(access_token=token, payload=payload):
             buffer += chunk
-            while b"\n\n" in buffer:
-                record, buffer = buffer.split(b"\n\n", 1)
-                record = record.replace(b"\r\n", b"\n")
-                error = await self._persist_session_start(
-                    session=session,
+            while True:
+                separator = b"\r\n\r\n" if b"\r\n\r\n" in buffer else b"\n\n"
+                if separator not in buffer:
+                    break
+                record, buffer = buffer.split(separator, 1)
+                error = self._validate_session_start(
                     conversation=conversation,
-                    record=record,
+                    record=record.replace(b"\r\n", b"\n"),
                 )
                 if error is not None:
                     yield error
                     return
-                yield record + b"\n\n"
+                yield record + separator
         if buffer:
-            error = await self._persist_session_start(
-                session=session,
+            error = self._validate_session_start(
                 conversation=conversation,
                 record=buffer.replace(b"\r\n", b"\n"),
             )
@@ -139,10 +141,9 @@ class ChatProxyService:
                 return
             yield buffer
 
-    async def _persist_session_start(
+    def _validate_session_start(
         self,
         *,
-        session: AsyncSession,
         conversation: ConversationORM,
         record: bytes,
     ) -> bytes | None:
@@ -157,18 +158,8 @@ class ChatProxyService:
             return self._error_frame("中台会话协议异常")
         if not isinstance(session_id, str) or not session_id.strip() or len(session_id) > 255:
             return self._error_frame("中台会话协议异常")
-        if (
-            conversation.middle_platform_session_id is not None
-            and conversation.middle_platform_session_id != session_id
-        ):
-            return self._error_frame("中台会话映射冲突")
-        if conversation.middle_platform_session_id is None:
-            conversation.middle_platform_session_id = session_id
-            try:
-                await session.commit()
-            except Exception:  # noqa: BLE001
-                await session.rollback()
-                return self._error_frame("中台会话映射保存失败")
+        if session_id != conversation.id:
+            return self._error_frame("中台会话协议异常：session_id不一致")
         return None
 
     @staticmethod

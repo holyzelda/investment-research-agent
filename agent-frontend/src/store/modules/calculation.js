@@ -8,6 +8,7 @@ import {
   getParamDict,
   getStations,
   listConversations,
+  renameConversation,
 } from '@/api/calc'
 import { createReport, getReportTask } from '@/api/report'
 import { streamReportEvents } from '@/utils/reportSse'
@@ -154,6 +155,13 @@ export const useCalculationStore = defineStore('calculation', {
       await deleteConversation(conversationId)
       this.history = this.history.filter((item) => item.conversationId !== conversationId)
       if (this.conversationId === conversationId) this.resetConversation()
+    },
+    async renameConversation(conversationId, title) {
+      const cleaned = String(title || '').trim()
+      if (!cleaned) return
+      await renameConversation(conversationId, cleaned)
+      const item = this.history.find((entry) => entry.conversationId === conversationId)
+      if (item) item.title = cleaned
     },
     _pushUser(text) {
       this.messages.push({ id: nextId(), role: 'user', kind: 'text', text })
