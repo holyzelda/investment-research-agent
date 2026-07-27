@@ -6,7 +6,7 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -122,7 +122,6 @@ class TaskCreateReq(BaseModel):
     duration_hours: Optional[float] = Field(default=None, gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
-    conversation_id: Optional[UUID] = None  # 空=新会话(V1)；给定=同会话追加(版本递增)
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
 
 
@@ -131,8 +130,13 @@ async def create_task(
     req: TaskCreateReq,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    conversation_id: Optional[str] = Header(default=None, alias="conversation_id"),
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
+    try:
+        conv_id = str(UUID(conversation_id)) if conversation_id else None
+    except ValueError:
+        conv_id = None
     svc = build_task_service()
     out = await svc.create_and_run(
         session,
@@ -146,7 +150,7 @@ async def create_task(
             node_name=req.node_name,
             voltage_kv=req.voltage_kv,
         ),
-        conversation_id=str(req.conversation_id) if req.conversation_id else None,
+        conversation_id=conv_id,
         param_overrides=req.param_overrides,
     )
     return ok(out)
