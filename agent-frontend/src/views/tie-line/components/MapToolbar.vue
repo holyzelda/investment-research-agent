@@ -49,25 +49,21 @@ defineEmits(['zoom-in', 'zoom-out', 'reset', 'toggle-fullscreen', 'toggle-list']
 <style scoped>
 .tl-map-tools {
   display: inline-flex;
-  overflow: hidden;
-  border: 1px solid rgba(9, 24, 43, 0.18);
-  border-radius: var(--xc-radius-md);
-  background: rgba(245, 239, 220, 0.92);
-  box-shadow: 0 10px 28px rgba(9, 24, 43, 0.28);
-  backdrop-filter: blur(var(--xc-blur-lg));
+  gap: var(--xc-space-2);
 }
 .tl-map-tools .xc-btn--icon {
-  border: 0;
-  border-right: 1px solid rgba(9, 24, 43, 0.16);
-  border-radius: 0;
-  background: transparent;
+  border: 1px solid rgba(9, 24, 43, 0.16);
+  border-radius: var(--xc-radius-sm);
+  background: rgba(245, 239, 220, 0.88);
+  box-shadow: 0 8px 22px rgba(9, 24, 43, 0.22);
+  backdrop-filter: blur(var(--xc-blur-lg));
   color: var(--xc-map-ocean);
 }
-.tl-map-tools .xc-btn--icon:last-child { border-right: 0; }
 .tl-map-tools .xc-btn--icon:hover,
 .tl-map-tools .xc-btn--icon.is-active {
   color: var(--xc-map-ocean);
-  background: rgba(9, 24, 43, 0.12);
+  background: rgba(255, 247, 223, 0.94);
+  border-color: rgba(9, 24, 43, 0.24);
 }
 .tl-map-tools .xc-btn--icon:focus-visible {
   outline: 2px solid var(--xc-accent-blue);

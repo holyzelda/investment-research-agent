@@ -6,7 +6,7 @@ const styles = tieLinePageSource.match(/<style scoped>([\s\S]*)<\/style>/)?.[1] 
 describe('联络线页面主体布局', () => {
   it('桌面端使用地图主体和 380-440px 右侧详情栏', () => {
     expect(styles).toContain('grid-template-columns: minmax(680px, 1fr) clamp(380px, 31vw, 440px)')
-    expect(styles).toContain('gap: 12px')
+    expect(styles).toContain('gap: 18px')
   })
 
   it('小屏切换为单列上下布局，避免横向溢出', () => {

@@ -1,4 +1,5 @@
-export const TIE_LINE_DEFAULT_ZOOM = 1.2
+export const TIE_LINE_DEFAULT_ZOOM = 1.38
+export const TIE_LINE_DEFAULT_CENTER = [104, 34]
 export const TIE_LINE_ZOOM_LIMIT = { min: 1, max: 8 }
 
 function fmtMw(value) {
@@ -360,6 +361,7 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
     geo: {
       map: 'china',
       roam: true,
+      center: TIE_LINE_DEFAULT_CENTER,
       zoom: TIE_LINE_DEFAULT_ZOOM,
       scaleLimit: TIE_LINE_ZOOM_LIMIT,
       tooltip: { show: false },

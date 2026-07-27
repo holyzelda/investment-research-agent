@@ -113,10 +113,9 @@ describe('联络线筛选栏', () => {
     const styles = tieLineFilterBarSource.match(/<style scoped>([\s\S]*)<\/style>/)?.[1] || ''
 
     expect(wrapper.find('.tl-filter-control.is-active').exists()).toBe(true)
-    expect(styles).toContain('--tl-filter-bg: var(--xc-surface-control)')
-    expect(styles).toContain('--tl-filter-bg-hover: var(--xc-surface-frosted)')
+    expect(styles).toContain('--tl-filter-bg: rgba(255, 255, 255, 0.035)')
+    expect(styles).toContain('--tl-filter-bg-hover: rgba(255, 255, 255, 0.065)')
     expect(styles).toContain('color: var(--xc-text-default)')
-    expect(styles).not.toContain('--tl-filter-bg: rgba(255, 255, 255')
     expect(styles).not.toContain('background: rgba(255, 255, 255, 0.94)')
   })
 

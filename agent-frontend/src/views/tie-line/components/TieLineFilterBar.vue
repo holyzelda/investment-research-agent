@@ -242,14 +242,14 @@ function handleSwap() {
 .tl-filterbar {
   --tl-filter-border: var(--xc-border-soft);
   --tl-filter-border-hover: var(--xc-border-strong);
-  --tl-filter-bg: var(--xc-surface-control);
-  --tl-filter-bg-hover: var(--xc-surface-frosted);
+  --tl-filter-bg: rgba(255, 255, 255, 0.035);
+  --tl-filter-bg-hover: rgba(255, 255, 255, 0.065);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 44px;
-  padding: 8px 0;
+  min-height: 36px;
+  padding: 0;
   box-sizing: border-box;
 }
 
@@ -274,16 +274,17 @@ function handleSwap() {
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: 36px;
+  height: 32px;
   min-width: 172px;
   padding: 0 10px;
   gap: 8px;
-  border: 1px solid var(--tl-filter-border);
+  border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 6px;
   background: var(--tl-filter-bg);
   color: var(--xc-text-default);
   box-sizing: border-box;
-  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+  box-shadow: none;
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease, transform 160ms ease;
 }
 
 .tl-filter-control:hover {
@@ -354,12 +355,13 @@ function handleSwap() {
 
 .tl-filterbar__swap,
 .tl-filterbar__reset {
-  width: 32px;
-  height: 32px;
+  width: 30px;
+  height: 30px;
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
   border: 0;
+  border: 1px solid transparent;
   border-radius: 6px;
   background: transparent;
   color: var(--xc-text-mute);
@@ -371,7 +373,8 @@ function handleSwap() {
 
 .tl-filterbar__swap:hover,
 .tl-filterbar__reset:not(:disabled):hover {
-  background: rgba(15, 23, 42, 0.06);
+  border-color: rgba(232, 206, 139, 0.24);
+  background: rgba(232, 206, 139, 0.055);
   color: var(--xc-text-strong);
 }
 
@@ -395,7 +398,7 @@ function handleSwap() {
 }
 
 .tl-filterbar__result {
-  color: var(--xc-text-mute);
+  color: rgba(232, 206, 139, 0.72);
   font-size: var(--xc-fs-2xs);
   line-height: 1;
   white-space: nowrap;

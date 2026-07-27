@@ -1,5 +1,9 @@
 <template>
   <div ref="mapRoot" class="china-tie-line-map">
+    <div class="china-tie-line-map__signature" aria-hidden="true">
+      <span>INTERREGIONAL GRID</span>
+      <strong>POWER CORRIDOR</strong>
+    </div>
     <div ref="el" class="china-tie-line-map__canvas"></div>
     <MapToolbar
       class="china-tie-line-map__tools"
@@ -20,6 +24,19 @@
       @select="emit('select', $event)"
       @close="closeList"
     />
+    <div class="china-tie-line-map__legend" aria-label="电压等级图例">
+      <span class="china-tie-line-map__legend-title">电压等级</span>
+      <div class="china-tie-line-map__legend-items">
+        <span
+          v-for="item in voltageLegendItems"
+          :key="item.text"
+          class="china-tie-line-map__legend-item"
+        >
+          <i :style="{ background: `var(${item.token})` }" aria-hidden="true" />
+          {{ item.text }}
+        </span>
+      </div>
+    </div>
     <div class="china-tie-line-map__note" aria-live="off">箭头表示线路资料起点至终点，不代表实时潮流或功率方向</div>
   </div>
 </template>
@@ -54,10 +71,16 @@ const voltageColors = computed(() => {
     Object.entries(tokenByText).map(([text, token]) => [text, xcVar(token)]),
   )
 })
+const voltageLegendItems = computed(() => {
+  const options = props.voltageOptions.length
+    ? props.voltageOptions
+    : [...new Set(props.lines.map((line) => line.voltageText).filter(Boolean))]
+  return buildVoltagePresentation(options).legendItems.slice(0, 6)
+})
 
 const mapRoot = ref(null)
 const el = ref(null)
-const isListOpen = ref(true)
+const isListOpen = ref(false)
 const isFullscreen = ref(false)
 let chart = null
 let resizeObserver = null
@@ -189,10 +212,18 @@ watch(
 </script>
 
 <style scoped>
-.china-tie-line-map { position: relative; width: 100%; height: 100%; min-height: 0; background: var(--xc-map-ocean); box-shadow: inset 0 0 40px var(--xc-map-ocean-shade); }
+.china-tie-line-map { position: relative; isolation: isolate; width: 100%; height: 100%; min-height: 0; overflow: visible; background: transparent; }
 .china-tie-line-map:fullscreen { width: 100%; height: 100%; background: var(--xc-map-ocean); box-shadow: inset 0 0 56px var(--xc-map-ocean-shade); }
-.china-tie-line-map__canvas { width: 100%; height: 100%; min-height: 0; }
+.china-tie-line-map__canvas { position: relative; z-index: 1; width: 100%; height: 100%; min-height: 0; }
+.china-tie-line-map__signature { position: absolute; left: var(--xc-space-4); top: var(--xc-space-4); z-index: 2; display: grid; gap: 2px; color: rgba(232, 206, 139, 0.42); pointer-events: none; }
+.china-tie-line-map__signature span { font-size: 10px; letter-spacing: 0.12em; }
+.china-tie-line-map__signature strong { color: rgba(255, 255, 255, 0.20); font-size: 22px; font-weight: 600; line-height: 1; }
 .china-tie-line-map__tools { position: absolute; top: var(--xc-space-4); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
 .china-tie-line-map__list { position: absolute; top: calc(var(--xc-space-4) + 44px); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
-.china-tie-line-map__note { position: absolute; left: var(--xc-space-4); bottom: var(--xc-space-4); z-index: var(--xc-z-raised); max-width: 260px; padding: var(--xc-space-2) var(--xc-space-3); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--xc-surface-glass); box-shadow: var(--xc-shadow-sm); backdrop-filter: blur(var(--xc-blur-sm)); color: var(--xc-text-mute); font-size: var(--xc-fs-3xs); line-height: var(--xc-lh-snug); }
+.china-tie-line-map__legend { position: absolute; left: var(--xc-space-4); bottom: calc(var(--xc-space-4) + 46px); z-index: var(--xc-z-raised); display: grid; gap: var(--xc-space-2); max-width: min(520px, 58%); color: var(--xc-text-mute); pointer-events: none; }
+.china-tie-line-map__legend-title { color: rgba(232, 206, 139, 0.70); font-size: var(--xc-fs-3xs); }
+.china-tie-line-map__legend-items { display: flex; flex-wrap: wrap; gap: var(--xc-space-2) var(--xc-space-3); }
+.china-tie-line-map__legend-item { display: inline-flex; align-items: center; gap: var(--xc-space-2); font-size: var(--xc-fs-3xs); line-height: 1; }
+.china-tie-line-map__legend-item i { width: 22px; height: 2px; box-shadow: 0 0 12px currentColor; }
+.china-tie-line-map__note { position: absolute; left: var(--xc-space-4); bottom: var(--xc-space-4); z-index: var(--xc-z-raised); max-width: 360px; padding: 0; color: rgba(255, 255, 255, 0.42); font-size: var(--xc-fs-3xs); line-height: var(--xc-lh-snug); }
 </style>

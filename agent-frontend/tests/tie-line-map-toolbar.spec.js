@@ -37,9 +37,11 @@ describe('联络线地图工具栏', () => {
   it('地图浅色区域上使用高对比深色图标和浅色工具底', () => {
     const styles = mapToolbarSource.match(/<style scoped>([\s\S]*)<\/style>/)?.[1] || ''
 
-    expect(styles).toContain('background: rgba(245, 239, 220, 0.92)')
+    expect(styles).toContain('gap: var(--xc-space-2)')
+    expect(styles).toContain('background: rgba(245, 239, 220, 0.88)')
     expect(styles).toContain('color: var(--xc-map-ocean)')
-    expect(styles).toContain('box-shadow: 0 10px 28px rgba(9, 24, 43, 0.28)')
+    expect(styles).toContain('box-shadow: 0 8px 22px rgba(9, 24, 43, 0.22)')
+    expect(styles).not.toContain('overflow: hidden')
     expect(styles).not.toContain('color: var(--xc-text-soft)')
     expect(styles).not.toContain('background: var(--xc-surface-glass)')
   })

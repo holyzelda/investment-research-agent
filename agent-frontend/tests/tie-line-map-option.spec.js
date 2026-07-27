@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  TIE_LINE_DEFAULT_CENTER,
   TIE_LINE_DEFAULT_ZOOM,
   TIE_LINE_ZOOM_LIMIT,
   buildTieLineMapOption,
@@ -72,6 +73,7 @@ describe('联络线地图 option', () => {
   it('使用共享的全国视图缩放常量', () => {
     const chartOption = option()
 
+    expect(chartOption.geo.center).toEqual(TIE_LINE_DEFAULT_CENTER)
     expect(chartOption.geo.zoom).toBe(TIE_LINE_DEFAULT_ZOOM)
     expect(chartOption.geo.scaleLimit).toEqual(TIE_LINE_ZOOM_LIMIT)
   })

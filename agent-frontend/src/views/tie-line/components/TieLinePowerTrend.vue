@@ -179,13 +179,13 @@ const { el } = useEcharts(buildOption)
 </script>
 
 <style scoped>
-.tl-power-trend { margin-top: var(--xc-space-4); padding-top: var(--xc-space-3); border-top: 1px solid var(--xc-border-soft); }
+.tl-power-trend { margin-top: var(--xc-space-4); padding-top: var(--xc-space-3); border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .tl-power-trend__head { display: flex; align-items: start; justify-content: space-between; gap: var(--xc-space-3); }
 .tl-power-trend__eyebrow { display: block; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
 .tl-power-trend__caption { display: block; margin-top: var(--xc-space-1); color: var(--xc-text-strong); font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-semi); }
 .tl-power-trend__ranges { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: var(--xc-space-1); margin-top: var(--xc-space-2); }
-.tl-power-trend__range { min-width: 0; padding: var(--xc-space-1); color: var(--xc-text-mute); background: var(--xc-surface-tinted); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-xs); font-size: var(--xc-fs-2xs); cursor: pointer; }
-.tl-power-trend__range--active { color: var(--xc-text-strong); border-color: var(--xc-accent-blue); background: var(--xc-surface-raised); }
+.tl-power-trend__range { min-width: 0; padding: var(--xc-space-1); color: var(--xc-text-mute); background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--xc-radius-xs); font-size: var(--xc-fs-2xs); cursor: pointer; }
+.tl-power-trend__range--active { color: var(--xc-text-strong); border-color: rgba(232, 206, 139, 0.38); background: rgba(232, 206, 139, 0.09); }
 .tl-power-trend__canvas { width: 100%; height: 188px; margin-top: var(--xc-space-2); }
 .tl-power-trend__canvas--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
 .tl-power-trend__skeleton, .tl-power-trend__state { display: grid; place-content: center; min-height: 188px; gap: var(--xc-space-3); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); text-align: center; }
