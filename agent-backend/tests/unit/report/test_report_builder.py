@@ -22,7 +22,7 @@ def _snapshots(*, report_sources=None, basic_info=None):
             "basicInfo": basic_info or {
                 "province": "甘肃", "nodeName": "兰州东", "powerMw": 200.0, "capacityMwh": 800.0,
             },
-            "financial": {"projectIrr": 8.5},
+            "financial": {"projectIrr": 8.5, "averageRevenue": 4500.5},
         }),
     }
 
@@ -38,7 +38,6 @@ def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
         "charts": {
             "available": True,
             "series": {"debtServiceCoverage": [1.2, None, 1.4]},
-            "averageRevenue": [100, 200, 300],
             "sensitivity": {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1},
         },
     }
@@ -70,7 +69,6 @@ def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
         "operationYears": 20,
         "available": True,
         "series": {"debtServiceCoverage": [1.2, None, 1.4]},
-        "averageRevenue": [100, 200, 300],
         "sensitivity": {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1},
     }
     assert payload["aiSections"] == {}
@@ -153,11 +151,11 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
         },
         "financial": {
             "projectIrr": 8.5, "capitalIrr": 12.3, "projectStaticPayback": 9.1,
-            "averageProfit": 3200, "totalInvestmentRoi": 7.8,
+            "averageProfit": 3200, "averageRevenue": 4500.5, "totalInvestmentRoi": 7.8,
         },
     })
     snapshots["data_snapshot"].payload["reportSources"] = {
-        "charts": {"averageRevenue": [100, None, 300]},
+        "charts": {},
     }
 
     payload = build_report_payload(**snapshots, generated_on=date(2026, 7, 23))
@@ -188,7 +186,7 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
         "capitalIrr": 12.3,
         "projectStaticPayback": 9.1,
         "averageProfit": 3200,
-        "averageRevenue": 200.0,
+        "averageRevenue": 4500.5,
         "totalInvestmentRoi": 7.8,
     }
 

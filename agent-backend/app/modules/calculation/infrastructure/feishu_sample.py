@@ -13,6 +13,7 @@ SAMPLE_API_OUTPUT: dict = {
     "capital_irr": 12.3,
     "capital_static_payback": 7.1,
     "average_profit": 3200.0,
+    "average_revenue": 4500.5,
     # ③-a 首年收入（环形图）
     "first_year_total_revenue": 8600.0,
     "first_year_energy_revenue": 5200.0,

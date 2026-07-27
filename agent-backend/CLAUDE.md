@@ -60,4 +60,4 @@ Controlled overrides accept only dictionary parameters marked `g=1`, `direction=
 - For async integration tests, pass `-o asyncio_mode=auto` to the pytest wrapper when the project configuration is not applied.
 - HTTP headers must be ASCII. The frontend URL-encodes `username`; the backend decodes it before persistence. Never restore anonymous/visitor identity fallback.
 
-当前会话执行，当前main执行
+在当前 main 工作区实施，不创建 worktree、不使用子智能体、不执行 Git 写操作；

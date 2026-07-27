@@ -2,7 +2,6 @@
   <div class="ir-chart ir-chart--report">
     <div class="ir-chart__head">
       <span class="ir-chart__title">首年收入结构</span>
-      <span class="ir-chart__total xc-num">首年总收入 {{ formatNumber(donut.totalRevenue) }} 万元</span>
     </div>
     <div ref="el" class="ir-chart__canvas" />
   </div>
@@ -31,6 +30,7 @@ const buildOption = () => {
   const data = SLICES
     .map((s) => ({ name: s.name, value: d[s.key] }))
     .filter((x) => typeof x.value === 'number' && x.value > 0)
+  const totalText = `{label|首年总收入}\n{value|${formatNumber(d.totalRevenue)}}`
   return {
     color: xcChartColors(),
     tooltip: {
@@ -42,18 +42,35 @@ const buildOption = () => {
     legend: {
       type: 'scroll',
       orient: 'vertical',
-      right: 8,
+      right: 0,
       top: 'center',
-      textStyle: { color: xcVar('--xc-text-soft'), fontSize: 12 },
+      icon: 'circle',
+      itemWidth: 8,
+      itemHeight: 8,
+      itemGap: 10,
+      textStyle: { color: xcVar('--xc-text-soft'), fontSize: 11 },
     },
     series: [
       {
         type: 'pie',
-        radius: ['46%', '70%'],
-        center: ['38%', '50%'],
+        radius: ['48%', '68%'],
+        center: ['34%', '50%'],
         avoidLabelOverlap: true,
         itemStyle: { borderColor: 'rgba(36, 36, 36, 0.9)', borderWidth: 2 },
-        label: { show: false },
+        // 环心两行文本用 position:'center' 的标签渲染——由 ECharts 自动锚到环心，
+        // 不依赖 graphic 的百分比定位，保证在任意容器尺寸下都居中。
+        label: {
+          show: true,
+          position: 'center',
+          formatter: totalText,
+          rich: {
+            label: { fontSize: 11, lineHeight: 18, color: xcVar('--xc-text-mute') },
+            value: { fontSize: 16, lineHeight: 24, fontWeight: 600, color: xcVar('--xc-text-strong') },
+          },
+        },
+        // 悬停某扇区时不放大标签、不覆盖环心文本
+        emphasis: { label: { show: true, position: 'center', formatter: totalText } },
+        labelLine: { show: false },
         data,
       },
     ],
@@ -80,10 +97,6 @@ const { el } = useEcharts(buildOption)
 .ir-chart__title {
   font-size: var(--xc-fs-sm);
   color: var(--xc-text-strong);
-}
-.ir-chart__total {
-  font-size: var(--xc-fs-xs);
-  color: var(--xc-text-soft);
 }
 .ir-chart__canvas {
   width: 100%;

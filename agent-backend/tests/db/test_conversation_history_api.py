@@ -229,6 +229,7 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
         "status": "completed",
         "result": {"marker": "v2"},
         "input": {"spot_charge_avg": 0.22},
+        "calculatedAt": "2026-07-15T09:07:00",
     }
     assert "reports" not in data
 

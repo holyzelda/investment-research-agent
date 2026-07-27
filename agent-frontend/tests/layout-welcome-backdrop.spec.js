@@ -1,5 +1,13 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount } from '@vue/test-utils'
+
+const layoutSource = readFileSync(resolve(process.cwd(), 'src/layout/index.vue'), 'utf8')
+const welcomeBackdropStyles = layoutSource.slice(
+  layoutSource.indexOf('.ir-layout__welcome-backdrop {'),
+  layoutSource.indexOf('.ir-layout__topbar {'),
+)
 
 // 可变的路由与会话状态：每个用例重挂载前调整
 const route = { name: 'Home', path: '/home', fullPath: '/home', meta: {} }
@@ -60,6 +68,12 @@ describe('layout 首页欢迎态全屏背景', () => {
     expect(backdrop.attributes('aria-hidden')).toBe('true')
     // 通过 CSS 变量注入图片，供 background 合成使用
     expect(backdrop.attributes('style')).toContain('--ir-welcome-bg')
+    expect(welcomeBackdropStyles).not.toContain('filter: blur(')
+    expect(welcomeBackdropStyles).not.toContain('transform: scale(')
+    expect(welcomeBackdropStyles).toContain('.ir-layout__welcome-backdrop::after')
+    expect(welcomeBackdropStyles).toContain('linear-gradient(90deg, var(--xc-surface-workspace) 0%, transparent 72%)')
+    expect(welcomeBackdropStyles).toContain('linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%)')
+    expect(welcomeBackdropStyles).toContain('var(--ir-welcome-bg) 150% center / cover no-repeat')
   })
 
   it('首页欢迎态在顶部栏展示五项平台指标', () => {

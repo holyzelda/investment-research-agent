@@ -41,6 +41,14 @@ describe('result chart series contract', () => {
       '电能量: 12.35 万元 (33.33%)',
     )
     expect(option.color).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6'])
+
+    // 首年总收入两行文本用 position:'center' 的环心标签渲染（由 ECharts 自动锚到环心，
+    // 不用 graphic 百分比定位），保证在任意容器尺寸下都居中
+    expect(option.graphic).toBeUndefined()
+    expect(option.series[0].center).toEqual(['34%', '50%'])
+    expect(option.series[0].label.position).toBe('center')
+    expect(option.series[0].label.formatter).toBe('{label|首年总收入}\n{value|100}')
+    expect(option.series[0].emphasis.label.formatter).toBe('{label|首年总收入}\n{value|100}')
   })
 
   it('builds a debt-service-coverage line with a threshold and a middle break', () => {

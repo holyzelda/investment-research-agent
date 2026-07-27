@@ -4,19 +4,23 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+import httpx
+from loguru import logger
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
+    ConversationORM,
     DataSnapshotORM,
     InputSnapshotORM,
     MessageSnapshotORM,
     ReportGenerationTaskORM,
     ReportSnapshotORM,
 )
+from app.modules.report.application.frozen_section_context import build_section_context
 from app.modules.report.application.report_builder import build_report_payload
 from app.modules.report.application.report_rules import AI_FALLBACK_TEXT, AI_SECTION_RULES
 
@@ -26,7 +30,7 @@ class ReportGenerationService:
         self._ai_client = ai_client
         self._history = ConversationHistoryService()
 
-    async def start(self, session: AsyncSession, *, task_id: int, user_id: str) -> dict:
+    async def start(self, session: AsyncSession, *, task_id: int, user_id: str, username: str | None = None) -> dict:
         task = await self._history.require_owned_task(session, task_id=task_id, user_id=user_id)
         if task.status != "completed":
             raise NotFoundException("测算任务不存在")
@@ -45,6 +49,7 @@ class ReportGenerationService:
                 task_id=task.id,
                 conversation_id=task.conversation_id,
                 user_id=user_id,
+                username=username,
                 steps=[self._step(1, "prepare", "读取冻结测算快照", "active")],
                 current_step="prepare",
             )
@@ -87,10 +92,22 @@ class ReportGenerationService:
                 result_snapshot=result_snapshot,
             )
             self._complete_step(generation, "prepare", "读取冻结测算快照")
-            for rule in AI_SECTION_RULES:
-                payload["aiSections"][rule["key"]] = await self._generate_section(
-                    generation, rule, payload
-                )
+            generation.current_step = "ai"
+            generation.steps = [*generation.steps, self._step(
+                len(generation.steps) + 1, "ai", "生成智能分析", "active"
+            )]
+            await session.commit()
+            username = generation.username
+            if not username:
+                conversation = await session.get(ConversationORM, generation.conversation_id)
+                username = conversation.username if conversation is not None else None
+            if not username:
+                raise RuntimeError("报告生成身份信息缺失")
+            generation.username = username
+            payload["aiSections"] = await self._generate_ai_sections(
+                payload, user_id=generation.user_id, username=username
+            )
+            self._complete_step(generation, "ai", "生成智能分析")
             report_id = uuid.uuid4().hex
             report = ReportSnapshotORM(
                 report_id=report_id,
@@ -128,6 +145,62 @@ class ReportGenerationService:
                 )]
                 await session.commit()
 
+    async def _generate_ai_sections(self, payload: dict, *, user_id: str, username: str) -> dict:
+        sections = {}
+        for rule in AI_SECTION_RULES:
+            key = rule["key"]
+            context = build_section_context(rule, payload)
+            try:
+                logger.info("报告 AI 调用开始：section={}", key)
+                text = await self._ai_client.generate_section(
+                    rule, context, user_id=user_id, username=username
+                )
+                text = self._validate_ai_text(text, rule)
+                sections[key] = {
+                    "status": "generated",
+                    "attempts": 1,
+                    "usedFallback": False,
+                    "text": text,
+                }
+                logger.info("报告 AI 调用成功：section={}", key)
+            except Exception as exc:
+                code = self._ai_failure_code(exc)
+                logger.warning("报告 AI 调用降级：section={} reason={} error={}", key, code, type(exc).__name__)
+                sections[key] = self._fallback(code, attempts=1)
+        return sections
+
+    @staticmethod
+    def _ai_failure_code(exc: Exception) -> str:
+        if isinstance(exc, httpx.TimeoutException):
+            return "ai_timeout"
+        if isinstance(exc, httpx.HTTPStatusError):
+            return "ai_upstream_rejected"
+        if isinstance(exc, httpx.HTTPError):
+            return "ai_transport_error"
+        if isinstance(exc, ValidationException):
+            return "ai_invalid_response"
+        return "ai_output_validation_failed"
+
+    @staticmethod
+    def _fallback(code: str, *, attempts: int) -> dict:
+        return {
+            "status": "fallback",
+            "attempts": attempts,
+            "usedFallback": True,
+            "failureCode": code,
+            "text": AI_FALLBACK_TEXT,
+        }
+
+    @staticmethod
+    def _validate_ai_text(text: str, rule: dict) -> str:
+        if not isinstance(text, str) or not (cleaned := text.strip()):
+            raise ValueError("AI 正文为空")
+        if any(metric in cleaned for metric in rule["forbiddenMetrics"]):
+            raise ValueError("AI 正文包含禁用指标")
+        if len(cleaned) > rule["maxWords"] * 3:
+            raise ValueError("AI 正文超过长度限制")
+        return cleaned
+
     async def get_task(self, session: AsyncSession, *, report_task_id: int, user_id: str) -> dict:
         generation = await self._owned_generation(session, report_task_id, user_id)
         return self.serialize_task(generation)
@@ -155,22 +228,6 @@ class ReportGenerationService:
             raise NotFoundException("报告生成任务不存在")
         await self._history.require_owned_task(session, task_id=generation.task_id, user_id=user_id)
         return generation
-
-    async def _generate_section(self, generation, rule, payload):
-        attempts = 0
-        for attempts in range(1, 4):
-            generation.current_step = rule["key"]
-            generation.steps = [*generation.steps, self._step(
-                len(generation.steps) + 1, rule["key"], rule["title"], "active", attempts
-            )]
-            try:
-                text = await self._ai_client.generate_section(rule, payload)
-                self._complete_step(generation, rule["key"], rule["title"], attempts)
-                return {"status": "completed", "attempts": attempts, "usedFallback": False, "text": text}
-            except Exception:
-                continue
-        self._complete_step(generation, rule["key"], rule["title"], attempts)
-        return {"status": "fallback", "attempts": attempts, "usedFallback": True, "text": AI_FALLBACK_TEXT}
 
     @staticmethod
     def _step(seq, key, title, state, attempt=None):

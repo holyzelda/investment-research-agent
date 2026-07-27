@@ -37,6 +37,7 @@ class FinancialMetrics:
     capital_irr: Optional[float] = None              # 资本金IRR %
     capital_static_payback: Optional[float] = None   # 资本金静态回收期 年
     average_profit: Optional[float] = None           # 年均利润 万元
+    average_revenue: Optional[float] = None          # 年均收入 万元
     total_investment_roi: Optional[float] = None     # 总投资收益率 %
 
 

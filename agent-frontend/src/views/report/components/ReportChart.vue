@@ -41,27 +41,180 @@ const option = () => {
     return { color: colors, tooltip: { trigger: 'item', formatter: ({ name, value, percent }) => `${name}: ${formatNumber(value, 4)} 万元 (${formatNumber(percent, 2)}%)` }, series: [{ type: 'pie', radius: ['42%', '68%'], center: ['50%', '50%'], itemStyle: { borderColor: xcVar('--xc-surface-raised'), borderWidth: 2 }, label: { show: false }, data: slices }] }
   }
   if (props.kind === 'coverage') {
-    const values = numbers(d.coverage)
-    return { color: [colors[0]], tooltip, grid: { left: 52, right: 24, top: 26, bottom: 42 }, xAxis: { type: 'category', data: years(values.length), ...axis }, yAxis: { type: 'value', name: '倍数', ...axis }, series: [{ name: '偿债覆盖倍数', type: 'line', data: values, symbol: 'circle', symbolSize: 7, lineStyle: { width: 2 }, markLine: { symbol: 'none', lineStyle: { color: xcVar('--xc-status-danger'), type: 'dashed' }, label: { formatter: '1.0 警戒线' }, data: [{ yAxis: 1 }] } }] }
+    const coverage = numbers(d.coverage)
+    const lastDataIndex = coverage.reduce((lastIndex, value, index) => (
+      value === null ? lastIndex : index
+    ), -1)
+    const ratios = lastDataIndex < 0 ? [] : coverage.slice(0, lastDataIndex + 1)
+    const toDisplayValue = (value) => Math.round((value <= 1 ? value / 0.5 : 2 + (value - 1) / 0.2) * 10) / 10
+    const toRatioValue = (value) => (value <= 2 ? value * 0.5 : 1 + (value - 2) * 0.2)
+    const displayValues = ratios.map((value) => (value === null ? null : toDisplayValue(value)))
+    const safetyAreaValues = ratios.map((value, index) => (
+      value === null ? null : Math.max(2, displayValues[index])
+    ))
+    const maxRatio = Math.max(1, ...ratios.filter((value) => value !== null))
+    const displayMax = Math.max(2, Math.ceil((maxRatio - 1) / 0.2) + 2)
+    return {
+      color: [colors[0]],
+      tooltip: {
+        ...tooltip,
+        formatter: (params) => {
+          const point = params.find((item) => ratios[item.dataIndex] !== null)
+          return point ? `${point.axisValue}<br/>偿债倍数：${formatNumber(ratios[point.dataIndex])} 倍` : ''
+        },
+      },
+      grid: { left: 52, right: 24, top: 26, bottom: 42 },
+      xAxis: { type: 'category', boundaryGap: false, data: years(ratios.length), ...axis },
+      yAxis: {
+        type: 'value', name: '倍数', nameLocation: 'middle', nameGap: 38,
+        min: 0, max: displayMax, interval: 1, ...axis,
+        axisLabel: { color: ink, formatter: (value) => toRatioValue(value).toFixed(1) },
+      },
+      series: ratios.length ? [
+        {
+          name: '偿债覆盖倍数', type: 'line', data: displayValues, smooth: true,
+          symbol: 'circle', symbolSize: 7, connectNulls: false, lineStyle: { width: 2 },
+          markLine: {
+            symbol: 'none', lineStyle: { color: xcVar('--xc-status-danger'), type: 'dashed' },
+            label: { show: true, formatter: '警戒线 1.0', position: 'insideEndTop', color: xcVar('--xc-status-danger') },
+            data: [{ yAxis: 2 }],
+          },
+          markArea: {
+            silent: true,
+            data: [[{ yAxis: 0, itemStyle: { color: xcVar('--xc-status-danger-soft') } }, { yAxis: 2 }]],
+          },
+        },
+        {
+          type: 'line', data: safetyAreaValues, showSymbol: false, lineStyle: { opacity: 0 },
+          areaStyle: { color: xcVar('--xc-accent-blue-soft'), origin: 2 }, tooltip: { show: false },
+          silent: true, z: 0,
+        },
+      ] : [],
+    }
   }
   if (props.kind === 'cashflow') {
-    const count = Math.max(...['principal', 'interest', 'freeCashflow', 'operatingCashflow'].map((key) => (d[key] || []).length), 0)
-    return { color: [colors[1], colors[2], colors[4], colors[0]], tooltip, legend: { bottom: 0, textStyle: { color: ink } }, grid: { left: 58, right: 24, top: 28, bottom: 48 }, xAxis: { type: 'category', data: years(count), ...axis }, yAxis: { type: 'value', name: '万元', ...axis }, series: [
-      { name: '还本', type: 'bar', stack: 'debt', data: numbers(d.principal) }, { name: '付息', type: 'bar', stack: 'debt', data: numbers(d.interest) },
-      { name: '偿债后自由现金流', type: 'bar', stack: 'debt', data: numbers(d.freeCashflow) }, { name: '经营性现金流', type: 'line', data: numbers(d.operatingCashflow), symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 } },
-    ] }
+    const keys = ['principal', 'interest', 'freeCashflow', 'operatingCashflow']
+    const rawSeries = Object.fromEntries(keys.map((key) => [key, numbers(d[key])]))
+    const lastDataIndex = Math.max(-1, ...keys.map((key) => rawSeries[key].reduce((lastIndex, value, index) => (
+      value === null ? lastIndex : index
+    ), -1)))
+    const count = lastDataIndex + 1
+    const values = Object.fromEntries(keys.map((key) => [key, rawSeries[key].slice(0, count)]))
+    return {
+      color: [xcVar('--xc-accent-blue-2'), xcVar('--xc-status-warn'), xcVar('--xc-accent-blue'), xcVar('--xc-chart-7')],
+      tooltip: {
+        ...tooltip,
+        formatter: (params) => `${params[0]?.axisValue || ''}${params.map((item) => (
+          `<br/>${item.marker}${item.seriesName}：${formatNumber(item.value, 4)} 万元`
+        )).join('')}`,
+      },
+      legend: { bottom: 0, textStyle: { color: ink } },
+      grid: { left: 58, right: 24, top: 28, bottom: 48 },
+      xAxis: { type: 'category', data: years(count), ...axis },
+      yAxis: { type: 'value', name: '万元', nameLocation: 'middle', nameGap: 42, ...axis },
+      series: [
+        { name: '还本', type: 'bar', stack: 'debt', data: values.principal, itemStyle: { borderRadius: [2, 2, 0, 0] } },
+        { name: '付息', type: 'bar', stack: 'debt', data: values.interest },
+        { name: '偿债后自由现金流', type: 'bar', stack: 'debt', data: values.freeCashflow },
+        { name: '经营性现金流', type: 'line', data: values.operatingCashflow, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2.5 } },
+      ],
+    }
   }
   if (props.kind === 'profit') {
-    const count = Math.max((d.netProfit || []).length, (d.depreciationAmortization || []).length)
-    return { color: [colors[1], colors[0]], tooltip, legend: { bottom: 0, textStyle: { color: ink } }, grid: { left: 58, right: 24, top: 28, bottom: 48 }, xAxis: { type: 'category', data: years(count), ...axis }, yAxis: { type: 'value', name: '万元', ...axis }, series: [{ name: '净利润', type: 'bar', data: numbers(d.netProfit), itemStyle: { borderRadius: [3, 3, 0, 0] } }, { name: '折旧摊销', type: 'line', data: numbers(d.depreciationAmortization), symbol: 'circle', symbolSize: 6, lineStyle: { width: 2 } }] }
+    const netProfit = numbers(d.netProfit)
+    const depreciationAmortization = numbers(d.depreciationAmortization)
+    return {
+      color: [xcVar('--xc-accent-blue-2'), xcVar('--xc-chart-7')],
+      tooltip: {
+        ...tooltip,
+        formatter: (params) => `${params[0]?.axisValue || ''}${params.map((item) => (
+          `<br/>${item.marker}${item.seriesName}：${formatNumber(item.value, 4)} 万元`
+        )).join('')}`,
+      },
+      legend: { bottom: 0, textStyle: { color: ink } },
+      grid: { left: 58, right: 24, top: 28, bottom: 48 },
+      xAxis: { type: 'category', data: years(Math.max(netProfit.length, depreciationAmortization.length)), ...axis },
+      yAxis: { type: 'value', name: '万元', nameLocation: 'middle', nameGap: 42, ...axis },
+      series: [
+        { name: '净利润', type: 'bar', data: netProfit, itemStyle: { borderRadius: [3, 3, 0, 0] } },
+        { name: '折旧摊销', type: 'line', data: depreciationAmortization, symbol: 'circle', symbolSize: 6, lineStyle: { width: 2.5 } },
+      ],
+    }
   }
   if (props.kind === 'sensitivity') {
     const values = [['基准场景', d.baseline], ['乐观场景', d.optimistic], ['悲观场景', d.pessimistic]]
-    return { color: [colors[0]], tooltip: { trigger: 'axis' }, grid: { left: 84, right: 28, top: 24, bottom: 30 }, xAxis: { type: 'value', name: '平均偿债倍数', ...axis }, yAxis: { type: 'category', data: values.map(([name]) => name), ...axis }, series: [{ type: 'bar', data: values.map(([, value]) => value), itemStyle: { borderRadius: [0, 4, 4, 0] }, markLine: { symbol: 'none', lineStyle: { color: xcVar('--xc-status-danger'), type: 'dashed' }, label: { formatter: '1.0 警戒线' }, data: [{ xAxis: 1 }] } }] }
+    return {
+      color: [xcVar('--xc-accent-blue-2')],
+      tooltip: { show: false },
+      grid: { left: 84, right: '18%', top: 24, bottom: 42 },
+      xAxis: { type: 'value', show: false, min: 0, ...axis },
+      yAxis: { type: 'category', data: values.map(([name]) => name), ...axis },
+      series: [
+        {
+          type: 'bar',
+          data: values.map(([, value]) => ({ value, itemStyle: { borderRadius: [0, 4, 4, 0], color: xcVar('--xc-accent-blue-2') } })),
+          barWidth: 28,
+          label: {
+            show: true, position: 'right', color: ink,
+            formatter: ({ value }) => `${formatNumber(value, 2)} 倍`,
+          },
+          z: 2, zlevel: 1,
+        },
+        {
+          type: 'line', data: [], silent: true, symbol: 'none', z: 0, zlevel: 0,
+          markLine: {
+            silent: true, z: -1, zlevel: -1,
+            symbol: 'none', lineStyle: { color: xcVar('--xc-status-danger'), type: 'dashed' },
+            label: {
+              show: true, formatter: '警戒线 1.0', position: 'end', distance: 8,
+              color: xcVar('--xc-status-danger'), align: 'left', verticalAlign: 'top',
+            },
+            data: [{ xAxis: 1 }],
+          },
+        },
+      ],
+    }
   }
   const baseline = d.baseline
   const pessimistic = d.pessimistic
-  return { color: [colors[0]], tooltip: { trigger: 'item' }, grid: { left: 52, right: 26, top: 28, bottom: 42 }, xAxis: { type: 'value', name: '悲观情景平均偿债倍数', ...axis }, yAxis: { type: 'value', name: '基准情景平均偿债倍数', ...axis }, series: [{ type: 'scatter', name: '本项目', data: typeof baseline === 'number' && typeof pessimistic === 'number' ? [[pessimistic, baseline]] : [], symbolSize: 16, markLine: { symbol: 'none', data: [{ xAxis: 1, lineStyle: { type: 'dashed', color: xcVar('--xc-status-danger') } }, { yAxis: 1.5, lineStyle: { type: 'dashed', color: xcVar('--xc-status-ok') } }] } }] }
+  const investmentAdvice = (() => {
+    if (typeof baseline !== 'number' || typeof pessimistic !== 'number') return ''
+    if (baseline < 1) return '不建议投资'
+    if (pessimistic < 1) return '暂缓'
+    if (baseline >= 1.1 && pessimistic >= 1.1) return '建议投资'
+    if (baseline >= 1.1) return '可投但需锁定风险'
+    if (baseline >= 1.05) return '观察'
+    return '暂缓'
+  })()
+  const axisMax = (value, threshold) => Math.ceil(Math.max(value, threshold) * 1.1 / 0.5) * 0.5
+  const projectPoint = typeof baseline === 'number' && typeof pessimistic === 'number'
+    ? {
+        value: [pessimistic, baseline],
+        label: { show: true, formatter: investmentAdvice, position: 'right', distance: 10, color: ink },
+      }
+    : null
+  return {
+    color: [xcVar('--xc-accent-blue-2')],
+    tooltip: {
+      trigger: 'item',
+      formatter: (params) => {
+        const [pessimisticValue, baselineValue] = params.data?.value || params.value || []
+        return `悲观情景平均偿债倍数：${formatNumber(pessimisticValue, 2)} 倍<br/>基准情景平均偿债倍数：${formatNumber(baselineValue, 2)} 倍`
+      },
+    },
+    grid: { left: 94, right: 88, top: 28, bottom: 42 },
+    xAxis: {
+      type: 'value', name: '悲观情景平均偿债倍数', min: 0, interval: 0.5,
+      max: typeof pessimistic === 'number' ? axisMax(pessimistic, 1) : undefined, ...axis,
+    },
+    yAxis: {
+      type: 'value', name: '基准情景平均偿债倍数', min: 0, interval: 0.5,
+      max: typeof baseline === 'number' ? axisMax(baseline, 1.1) : undefined, ...axis,
+    },
+    series: [{
+      type: 'scatter', name: '本项目', data: projectPoint ? [projectPoint] : [], symbolSize: 16,
+    }],
+  }
 }
 const { el } = useEcharts(option)
 </script>

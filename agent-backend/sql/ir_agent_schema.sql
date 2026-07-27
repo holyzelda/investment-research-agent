@@ -266,6 +266,7 @@ CREATE TABLE ir_report_generation_task (
     task_id BIGINT NOT NULL,
     conversation_id CHAR(36) NOT NULL,
     user_id VARCHAR(64) NOT NULL,
+    username VARCHAR(128),
     status VARCHAR(16) NOT NULL DEFAULT 'generating',
     steps JSON NOT NULL,
     current_step VARCHAR(64),

@@ -129,6 +129,7 @@ class ConversationHistoryService:
                     "status": task.status,
                     "result": calculation_result_by_task.get(task.id),
                     "input": input_by_task.get(task.id),
+                    "calculatedAt": task.created_at.isoformat(),
                     **({"report": summary} if (summary := self._report_summary(
                         report_by_task.get(task.id), generations.get(task.id), task.version
                     )) else {}),

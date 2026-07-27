@@ -33,6 +33,7 @@ def to_report_payload(r: CalculationResult) -> dict:
             "capitalIrr": f.capital_irr,
             "capitalStaticPayback": f.capital_static_payback,
             "averageProfit": f.average_profit,
+            "averageRevenue": f.average_revenue,
             "totalInvestmentRoi": f.total_investment_roi,
         },
         "boundary": {

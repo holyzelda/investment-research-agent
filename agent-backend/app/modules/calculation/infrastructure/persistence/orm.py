@@ -162,6 +162,7 @@ class ReportGenerationTaskORM(_PkTimestamp, Base):
         String(36), ForeignKey("ir_conversation.id"), nullable=False, index=True
     )
     user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    username: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(
         String(16), nullable=False, default="generating", server_default="generating"
     )

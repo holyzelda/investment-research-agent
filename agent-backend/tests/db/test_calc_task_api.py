@@ -51,6 +51,7 @@ async def test_task_create_status_result_and_versioning(client):
     rep = rr.json()["data"]
     assert rep["basicInfo"]["province"] == "甘肃"
     assert rep["basicInfo"]["nodeName"] == "兰州东"
+    assert "calculatedAt" in rep  # 结果附带任务落库时间，供前端结果卡展示
     assert rep["advanced"]["debtServiceCoverage"]["cashflowRatio"] == [
         1.12, 1.24, 0.0, None, 1.36, 1.48,
     ]

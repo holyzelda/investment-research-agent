@@ -33,6 +33,8 @@ def _param_dict() -> ParamDictionary:
          "api_cell": "API_OUTPUT!C5"},
         {"id": "first_year_total_revenue", "cn": "首年总收益", "source": "output",
          "direction": "output", "api_cell": "API_OUTPUT!C6"},
+        {"id": "average_revenue", "cn": "年均收入", "source": "output",
+         "direction": "output", "api_cell": "API_OUTPUT!B33"},
         {"id": "cashflow_debt_service_coverage_ratio", "cn": "现金流口径下偿债倍数(贷款期序列)", "source": "output",
          "direction": "output", "api_cell": "画图数据!C3:Q3"},
     ]})
@@ -197,12 +199,13 @@ async def test_write_input_skips_operation_years_even_when_mapping_exists():
 @pytest.mark.asyncio
 async def test_read_output_maps_cells_to_param_ids():
     # 标量取首格；区间（15 年序列同理）展平为列表
-    fake = FakeFeishu(get_values=[[[8.5]], [[8600]], [[1.1, 0, None, 1.3]]])
+    fake = FakeFeishu(get_values=[[[8.5]], [[8600]], [[4500.5]], [[1.1, 0, None, 1.3]]])
     gw = _gateway(fake)
     out = await gw.read_output("doc1")
     assert out == {
         "project_irr": 8.5,
         "first_year_total_revenue": 8600,
+        "average_revenue": 4500.5,
         "cashflow_debt_service_coverage_ratio": [1.1, 0, None, 1.3],
     }
     assert "shtChart!C3:Q3" in fake.get_params["ranges"]
@@ -312,7 +315,6 @@ async def test_report_source_reader_preserves_chart_null_positions_and_maps_prov
         ("各省能源结构", "A1:F100"): [["地区", "新能源装机"], ["甘肃", 123]],
         ("各省电力市场情况", "A1:G100"): [["地区", "现货市场"], ["甘肃", 1]],
         ("画图数据", "C3:Q12"): [[1.2, None, 1.4]] + [[None, None, None]] * 9,
-        ("画图数据", "C4:Q4"): [[100, None, 300]],
         ("画图数据", "B27"): [[1.5]],
         ("画图数据", "B29"): [[1.7]],
         ("画图数据", "B31"): [[1.1]],
@@ -333,6 +335,6 @@ async def test_report_source_reader_preserves_chart_null_positions_and_maps_prov
     assert sources["provinceSources"]["energy"] == {"地区": "甘肃", "新能源装机": 123}
     assert sources["provinceSources"]["marketStatus"] == {"地区": "甘肃", "现货市场": 1}
     assert sources["charts"]["series"]["debtServiceCoverage"] == [1.2, None, 1.4]
-    assert sources["charts"]["averageRevenue"] == [100, None, 300]
+    assert "averageRevenue" not in sources["charts"]
     assert sources["charts"]["sensitivity"] == {"baseline": 1.5, "optimistic": 1.7, "pessimistic": 1.1}
     await gateway._client.aclose()

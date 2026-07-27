@@ -89,6 +89,7 @@
               <ResultCard
                 :result="m.result"
                 :version="m.version"
+                :calculated-at="m.calculatedAt"
                 :seed-input="m.input || {}"
                 :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
                 :switches="calc.switches"
@@ -118,47 +119,59 @@
     <aside v-if="hasConversation" class="ir-home__side">
       <section class="ir-home__side-section">
         <div class="ir-home__side-title">测算记录</div>
-        <div v-if="!calc.versions.length" class="ir-home__side-empty">
-          暂无版本，发起测算后在此追踪 V1 / V2 / V3…
+        <div class="ir-home__side-scroll">
+          <div v-if="!calc.versions.length" class="ir-home__side-empty">
+            暂无版本，发起测算后在此追踪 V1 / V2 / V3…
+          </div>
+          <ul v-else class="ir-ver">
+            <li
+              v-for="v in reversedVersions"
+              :key="v.version"
+              class="ir-ver__item"
+              :class="{
+                'ir-ver__item--selected': v.version === calc.selectedVersion,
+              }"
+              tabindex="0"
+              @click="selectVersion(v.version)"
+              @keydown.enter="selectVersion(v.version)"
+            >
+              <div class="ir-ver__row">
+                <span class="ir-ver__tag">{{ v.version }}</span>
+                <span v-if="v.version === calc.latestVersion?.version" class="ir-ver__dot">● 最新</span>
+              </div>
+              <div class="ir-ver__spec">{{ versionSpec(v) }}</div>
+              <div class="ir-ver__metric xc-num">
+                项目全投资IRR {{ formatNumber(v.result?.financial?.projectIrr) }}%
+              </div>
+              <div class="ir-ver__time">测算时间：{{ formatRecordTime(v.calculatedAt) }}</div>
+              <button
+                class="ir-report-list__view ir-report-list__view--full"
+                :disabled="v.report?.status === 'generating'"
+                @click.stop="v.report?.status === 'completed' ? jumpToReportRecord(v.report.reportId) : calc.generateReport(v.taskId)"
+              >{{ v.report?.status === 'completed' ? '跳转报告记录' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}</button>
+            </li>
+          </ul>
         </div>
-        <ul v-else class="ir-ver">
-        <li
-          v-for="v in reversedVersions"
-          :key="v.version"
-          class="ir-ver__item"
-          :class="{
-            'ir-ver__item--selected': v.version === calc.selectedVersion,
-          }"
-          tabindex="0"
-          @click="selectVersion(v.version)"
-          @keydown.enter="selectVersion(v.version)"
-        >
-          <div class="ir-ver__row">
-            <span class="ir-ver__tag">{{ v.version }}</span>
-            <span v-if="v.version === calc.latestVersion?.version" class="ir-ver__dot">● 最新</span>
-          </div>
-          <div class="ir-ver__metric xc-num">
-            项目全投资IRR {{ formatNumber(v.result?.financial?.projectIrr) }}%
-          </div>
-          <button
-            class="ir-ver__report"
-            :disabled="v.report?.status === 'generating'"
-            @click.stop="v.report?.status === 'completed' ? openReport(v.report.reportId) : calc.generateReport(v.taskId)"
-          >{{ v.report?.status === 'completed' ? '查看报告' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}</button>
-        </li>
-      </ul>
       </section>
       <section class="ir-home__side-section">
         <div class="ir-home__side-title">报告记录</div>
-        <div v-if="!reversedReports.length" class="ir-home__side-empty">暂无已生成报告</div>
-        <ul v-else class="ir-report-list">
-          <li v-for="report in reversedReports" :key="report.reportId" class="ir-report-list__item">
-            <strong>{{ report.title || '正式报告' }}</strong>
-            <span>关联测算：{{ report.version }}</span>
-            <span>{{ report.createdAt }}</span>
-            <button class="ir-ver__report" @click="openReport(report.reportId)">查看报告</button>
-          </li>
-        </ul>
+        <div ref="reportListEl" class="ir-home__side-scroll">
+          <div v-if="!reversedReports.length" class="ir-home__side-empty">暂无已生成报告</div>
+          <ul v-else class="ir-report-list">
+            <li
+              v-for="report in reversedReports"
+              :key="report.reportId"
+              class="ir-report-list__item"
+              :class="{ 'ir-report-list__item--highlighted': highlightedReportId === report.reportId }"
+              :data-report-id="report.reportId"
+            >
+              <strong>{{ report.title || '正式报告' }}</strong>
+              <span>关联测算：{{ report.version }}</span>
+              <span>{{ formatRecordTime(report.createdAt) }}</span>
+              <button class="ir-report-list__view ir-report-list__view--full" @click="openReport(report.reportId)">查看报告</button>
+            </li>
+          </ul>
+        </div>
       </section>
     </aside>
   </div>
@@ -180,13 +193,22 @@ const session = useSessionStore()
 const router = useRouter()
 const calc = useCalculationStore()
 const scrollEl = ref(null)
+const reportListEl = ref(null)
+const highlightedReportId = ref(null)
+let reportHighlightTimer
 
 const hasConversation = computed(() => calc.messages.length > 0)
 const reversedVersions = computed(() => [...calc.versions].reverse())
 const reversedReports = computed(() => calc.reports
   .filter((report) => report.status === 'completed' && report.reportId)
-  .slice()
-  .reverse())
+  .map((report, index) => ({ report, index, time: recordTimeValue(report.createdAt) }))
+  .sort((a, b) => {
+    if (a.time === null && b.time === null) return a.index - b.index
+    if (a.time === null) return 1
+    if (b.time === null) return -1
+    return b.time - a.time || a.index - b.index
+  })
+  .map(({ report }) => report))
 
 const examples = [
   '测算甘肃 200MW/800MWh 独立储能项目',
@@ -212,12 +234,48 @@ async function selectVersion(version) {
 function openReport(reportId) {
   if (reportId) router.push(`/reports/${reportId}`)
 }
+
+async function jumpToReportRecord(reportId) {
+  await nextTick()
+  const target = reportListEl.value?.querySelector(`[data-report-id="${reportId}"]`)
+  if (!target) return
+  target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  highlightedReportId.value = reportId
+  clearTimeout(reportHighlightTimer)
+  reportHighlightTimer = setTimeout(() => { highlightedReportId.value = null }, 1600)
+}
+
+function formatRecordTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const pad = (number) => String(number).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
+}
+
+function recordTimeValue(value) {
+  if (!value) return null
+  const time = new Date(value).getTime()
+  return Number.isNaN(time) ? null : time
+}
+
+// 右侧测算记录条目摘要：测算{省份} {功率}MW/{容量}MWh，缺省时优雅降级
+function versionSpec(v) {
+  const b = v.result?.basicInfo || {}
+  const province = b.province ?? v.input?.province ?? ''
+  const power = b.powerMw ?? v.input?.power_mw
+  const capacity = b.capacityMwh ?? v.input?.capacity_mwh
+  const scale = [power, capacity].every((x) => x !== null && x !== undefined)
+    ? `${formatNumber(power)}MW/${formatNumber(capacity)}MWh`
+    : ''
+  return `测算${province} ${scale}`.trim()
+}
 </script>
 
 <style scoped>
 .ir-home {
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 20%);
   gap: var(--xc-space-6);
   height: 100%;
   padding: 0 var(--xc-gutter-x);
@@ -424,7 +482,8 @@ function openReport(reportId) {
   grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--xc-space-6);
 }
-.ir-home__side-section { min-height: 0; overflow-y: auto; }
+.ir-home__side-section { min-height: 0; display: flex; flex-direction: column; }
+.ir-home__side-scroll { min-height: 0; overflow-y: auto; padding-right: var(--xc-space-2); }
 .ir-home__side-title {
   font-size: var(--xc-fs-sm);
   font-weight: var(--xc-fw-medium);
@@ -439,6 +498,9 @@ function openReport(reportId) {
 .ir-ver { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--xc-space-3); }
 .ir-report-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--xc-space-3); }
 .ir-report-list__item { display: flex; flex-direction: column; gap: var(--xc-space-2); border: 1px solid var(--xc-border-card); border-radius: var(--xc-radius-md); background: var(--xc-surface-card); padding: var(--xc-space-4); font-size: var(--xc-fs-2xs); color: var(--xc-text-soft); }
+.ir-report-list__item--highlighted {
+  background: color-mix(in srgb, var(--xc-accent-blue) 14%, transparent);
+}
 .ir-report-list__item strong { color: var(--xc-text-strong); font-size: var(--xc-fs-xs); }
 .ir-ver__item {
   border: 1px solid var(--xc-border-card);
@@ -461,7 +523,20 @@ function openReport(reportId) {
   padding: 1px var(--xc-space-3);
 }
 .ir-ver__dot { font-size: var(--xc-fs-3xs); color: var(--xc-status-ok); }
-.ir-ver__metric { font-size: var(--xc-fs-xs); color: var(--xc-text-soft); margin: var(--xc-space-3) 0; }
+.ir-ver__spec { font-size: var(--xc-fs-xs); color: var(--xc-text-default); margin-top: var(--xc-space-2); }
+.ir-ver__time { margin: var(--xc-space-2) 0; font-size: var(--xc-fs-3xs); color: var(--xc-text-mute); }
+.ir-ver__metric { font-size: var(--xc-fs-xs); color: var(--xc-text-soft); margin: var(--xc-space-2) 0 var(--xc-space-3); }
+.ir-report-list__view {
+  min-height: 28px;
+  padding: 4px var(--xc-space-3);
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-control);
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-3xs);
+  cursor: pointer;
+}
+.ir-report-list__view--full { width: 100%; }
 .ir-ver__report {
   font-size: var(--xc-fs-3xs);
   color: var(--xc-text-mute);

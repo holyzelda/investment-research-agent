@@ -90,16 +90,49 @@
             </tr>
           </tbody>
         </table>
+
+        <h3>4.2 基准方案测算结果</h3>
+        <p class="ir-report-intro">按上述边界条件运行测算模型，得到的基准方案核心财务指标如下：</p>
+        <table class="ir-report-table ir-report-financial-table">
+          <thead><tr><th>指标名称</th><th>单位</th><th>数值</th><th>说明</th></tr></thead>
+          <tbody>
+            <tr v-for="item in financialMetricRows" :key="item.name">
+              <td>{{ item.name }}</td><td>{{ item.unit }}</td><td class="xc-num">{{ item.value }}</td><td>{{ item.note }}</td>
+            </tr>
+          </tbody>
+        </table>
       </section>
 
       <section class="ir-report-section">
         <h2 class="ir-report-chapter-heading">第五章 主模型分析</h2>
-        <div class="ir-report-chart-grid">
+
+        <section class="ir-report-model-section">
+          <h3>5.1 偿债能力｜现金流口径下偿债倍数</h3>
           <ReportChart title="现金流口径下偿债倍数" unit="单位：倍" kind="coverage" :data="{ coverage: charts.series?.debtServiceCoverage }" />
+          <div class="ir-report-interpretation">
+            <h4>如何解读这张图</h4>
+            <p>偿债覆盖倍数 = 年度经营性现金流 ÷ 当年还本付息。</p>
+          </div>
+          <AiSection :section="report.aiSections?.debt_service_coverage" :fallback="aiFallback" />
+        </section>
+
+        <section class="ir-report-model-section">
+          <h3>5.2 偿债能力｜经营性现金流对还本付息覆盖能力</h3>
           <ReportChart title="经营性现金流对还本付息覆盖能力" unit="单位：万元" kind="cashflow" :data="charts.series" />
+          <div class="ir-report-interpretation">
+            <h4>如何解读这张图</h4>
+          </div>
+          <AiSection :section="report.aiSections?.operating_cashflow" :fallback="aiFallback" />
+        </section>
+
+        <section class="ir-report-model-section">
+          <h3>5.3 财务报表口径｜会计净利润</h3>
           <ReportChart title="会计净利润" unit="单位：万元" kind="profit" :data="charts.series" />
-        </div>
-        <AiSection v-for="key in ['debt_service_coverage', 'operating_cashflow', 'accounting_profit']" :key="key" :section="report.aiSections?.[key]" :fallback="aiFallback" />
+          <div class="ir-report-interpretation">
+            <h4>如何解读这张图</h4>
+          </div>
+          <AiSection :section="report.aiSections?.accounting_profit" :fallback="aiFallback" />
+        </section>
       </section>
 
       <section class="ir-report-section">
@@ -111,11 +144,12 @@
       <section class="ir-report-section">
         <h2 class="ir-report-chapter-heading">第七章 结论与投资建议</h2>
         <ReportChart title="风险 - 收益决策矩阵" kind="matrix" :data="charts.sensitivity" />
-        <h3>6.2 投资判断阈值</h3>
+        <h3>7.2 投资判断阈值</h3>
         <table class="ir-report-table">
           <thead><tr><th>判断条件</th><th>投资建议</th><th>后续动作</th></tr></thead>
           <tbody><tr v-for="item in decisionRows" :key="item.advice"><td>{{ item.condition }}</td><td>{{ item.advice }}</td><td>{{ item.action }}</td></tr></tbody>
         </table>
+        <h3>7.3 风险提示与后续动作</h3>
         <AiSection :section="report.aiSections?.investment_conclusion" :fallback="aiFallback" />
       </section>
     </article>
@@ -135,13 +169,14 @@ const route = useRoute()
 const router = useRouter()
 const report = ref(null)
 const loaded = ref(false)
-const missing = computed(() => report.value?.missingDataText || '需补充核实：____')
+const missing = '——'
 const aiFallback = '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。'
 const project = computed(() => report.value?.project || {})
 const projectName = computed(() => project.value.name || String(report.value?.title || '').replace(/测算方案$/, ''))
 const market = computed(() => report.value?.marketSupplyDemand || {})
 const operations = computed(() => report.value?.marketOperations || {})
 const boundary = computed(() => report.value?.measurementBoundary || {})
+const financialMetrics = computed(() => report.value?.financialMetrics || {})
 const calculation = computed(() => report.value?.calculation?.result || {})
 const charts = computed(() => report.value?.charts || { series: {}, sensitivity: {} })
 const policyRows = computed(() => report.value?.policyEnvironment?.rows || [])
@@ -183,12 +218,20 @@ const measurementBoundaryRows = computed(() => [
   ['税率类', '干预补偿收入增值税', boundary.value.interventionCompensationVatRate, 'percent', ''],
   ['税率类', '所得税', boundary.value.incomeTaxRate, 'percent', '西部大开发地区可适用15%'],
 ].map(([category, name, value, format, rationale]) => ({ category, name, value: formatBoundaryValue(value, format), rationale })))
+const financialMetricRows = computed(() => [
+  ['全投资财务内部收益率（IRR）', '%', financialMetrics.value.projectIrr, '项目整体盈利能力'],
+  ['资本金财务内部收益率（IRR）', '%', financialMetrics.value.capitalIrr, '股东实际回报水平'],
+  ['全投资静态回收期', '年', financialMetrics.value.projectStaticPayback, '考虑货币时间价值的回本时间'],
+  ['年均利润', '万元', financialMetrics.value.averageProfit, '全周期年均利润'],
+  ['年均收入', '万元', financialMetrics.value.averageRevenue, '经营期年均不含税收入'],
+  ['总投资收益率（ROI）', '%', financialMetrics.value.totalInvestmentRoi, '年均利润÷动态总投资'],
+].map(([name, unit, value, note]) => ({ name, unit, value: formatFixedNumber(value), note })))
 const decisionRows = [
-  { condition: '基准平均偿债倍数 ≥ 1.50 且 悲观平均偿债倍数 ≥ 1.20', advice: '建议投资', action: '进入详细尽调、设备选型与商务条款固化' },
-  { condition: '基准平均偿债倍数 ≥ 1.50，悲观平均偿债倍数为 1.00-1.20', advice: '可投但需锁定风险', action: '锁定EPC合同价、主要收入来源和政策保障边界' },
-  { condition: '基准平均偿债倍数为 1.30-1.50 且 悲观平均偿债倍数 ≥ 1.00', advice: '观察', action: '等待收入政策明朗或寻找成本改善空间' },
-  { condition: '基准平均偿债倍数为 1.20-1.30 或 悲观平均偿债倍数 < 1.00', advice: '暂缓', action: '重新校核收入假设、融资结构和还款节奏' },
-  { condition: '基准平均偿债倍数 < 1.20，或贷款期内出现年度偿债缺口', advice: '不建议投资', action: '项目偿债安全边际不足，暂不具备投资价值' },
+  { condition: '基准平均偿债倍数 ≥ 1.1 且 悲观平均偿债倍数 ≥ 1.1', advice: '建议投资', action: '进入详细尽调、设备选型与商务条款固化' },
+  { condition: '基准平均偿债倍数 ≥ 1.1，但悲观平均偿债倍数为 1.0-1.1', advice: '可投但需锁定风险', action: '锁定EPC合同价、主要收入来源和政策保障边界' },
+  { condition: '基准平均偿债倍数为 1.05 且 悲观平均偿债倍数 ≥ 1.00', advice: '观察', action: '等待收入政策明朗或寻找造价、运维成本改善空间' },
+  { condition: '基准平均偿债倍数为 1.0-1.05 或 悲观平均偿债倍数 < 1.00', advice: '暂缓', action: '重新校核收入假设、融资结构和还款节奏' },
+  { condition: '基准平均偿债倍数 < 1，或贷款期内出现年度偿债覆盖倍数 < 1.00且无明确补足机制', advice: '不建议投资', action: '项目偿债安全边际不足，暂不具备投资价值' },
 ]
 
 onMounted(async () => { try { report.value = (await getReport(route.params.reportId)).data || null } finally { loaded.value = true } })
@@ -198,13 +241,17 @@ function blankUnit(value, unit) { return value == null ? '' : `${formatNumber(va
 function checkbox(checked, label) { return `${checked ? '☑' : '□'} ${label}` }
 function marketStatus(enabled) { return `${checkbox(enabled, '已启动')}　${checkbox(!enabled, '未启动')}` }
 function projectImpact(enabled) { return `${checkbox(enabled, '纳入测算')}　${checkbox(!enabled, '不纳入')}` }
-function price(value) { return value == null ? missing.value : `${formatPrice(value)} 元/kWh` }
+function price(value) { return value == null ? missing : `${formatPrice(value)} 元/kWh` }
 function formatBoundaryValue(value, format) {
-  if (value == null || value === '') return missing.value
+  if (value == null || value === '') return '——'
   if (format === 'percent') return `${formatNumber(Number(value) * 100, 2)}%`
   if (format === 'days') return `${formatNumber(value)}天`
   if (format === 'years') return `${formatNumber(value)}年`
   return format === 'text' ? String(value) : formatNumber(value)
+}
+function formatFixedNumber(value) {
+  const number = Number(value)
+  return Number.isFinite(number) ? number.toFixed(2) : '——'
 }
 </script>
 
@@ -215,10 +262,10 @@ function formatBoundaryValue(value, format) {
 .ir-report-cover { min-height: 257mm; display: flex; flex-direction: column; justify-content: center; padding: 0 16mm; break-after: page; }.ir-report-cover h1 { margin: 0 0 72mm; color: var(--xc-text-strong); text-align: center; font-size: 30px; font-weight: var(--xc-fw-semi); line-height: 1.5; letter-spacing: 2px; }.ir-report-cover h1 span { display: block; }.ir-report-cover dl { width: 100%; margin: 0; font-size: 15px; }.ir-report-cover dl div { display: flex; margin: 14px 0; }.ir-report-cover dt { min-width: 86px; }.ir-report-cover dd { margin: 0; }
 .ir-report-section { margin-top: 64px; padding-top: 18px; break-before: page; }.ir-report-section--chapter { margin-top: 0; padding-top: 0; }.ir-report-chapter-heading { display: block; margin: 0 0 26px; padding: 14px 0 12px; border-top: 2px solid var(--xc-text-strong); border-bottom: 1px solid var(--xc-border-line); color: var(--xc-text-strong); font-size: 22px; font-weight: var(--xc-fw-semi); letter-spacing: .5px; line-height: 1.4; }
 h3 { margin: 24px 0 12px; color: var(--xc-text-strong); font-size: 15px; font-weight: var(--xc-fw-semi); } h4 { margin: 0; font-size: 14px; font-weight: var(--xc-fw-semi); }
-.ir-report-table { width: 100%; border-collapse: collapse; font-size: 12px; break-inside: avoid; }.ir-report-table th, .ir-report-table td { padding: 8px 10px; border: 1px solid var(--xc-border-line); text-align: left; vertical-align: top; }.ir-report-table th { background: var(--xc-surface-control); color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); }.ir-report-table td { color: var(--xc-text-default); }.ir-report-table--four th { width: 16%; }.ir-report-table--four td { width: 34%; }.ir-report-boundary-table th:nth-child(1) { width: 13%; }.ir-report-boundary-table th:nth-child(2) { width: 28%; }.ir-report-boundary-table th:nth-child(3) { width: 18%; }.ir-report-boundary-table th:nth-child(4) { width: 41%; }.ir-report-boundary-table th { white-space: nowrap; }.ir-report-boundary-table td { break-inside: avoid; }.ir-report-role { line-height: 1.8; }.ir-report-policy-table td:nth-child(2), .ir-report-policy-table td:nth-child(3) { white-space: nowrap; }
+.ir-report-table { width: 100%; border-collapse: collapse; font-size: 12px; break-inside: avoid; }.ir-report-table th, .ir-report-table td { padding: 8px 10px; border: 1px solid var(--xc-border-line); text-align: left; vertical-align: top; }.ir-report-table th { background: var(--xc-surface-control); color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); }.ir-report-table td { color: var(--xc-text-default); }.ir-report-table--four th { width: 16%; }.ir-report-table--four td { width: 34%; }.ir-report-boundary-table th:nth-child(1) { width: 13%; }.ir-report-boundary-table th:nth-child(2) { width: 28%; }.ir-report-boundary-table th:nth-child(3) { width: 18%; }.ir-report-boundary-table th:nth-child(4) { width: 41%; }.ir-report-financial-table th:nth-child(1) { width: 33%; }.ir-report-financial-table th:nth-child(2) { width: 12%; }.ir-report-financial-table th:nth-child(3) { width: 18%; }.ir-report-financial-table th:nth-child(4) { width: 37%; }.ir-report-boundary-table th, .ir-report-financial-table th { white-space: nowrap; }.ir-report-boundary-table td, .ir-report-financial-table td { break-inside: avoid; }.ir-report-role { line-height: 1.8; }.ir-report-policy-table td:nth-child(2), .ir-report-policy-table td:nth-child(3) { white-space: nowrap; }
 .ir-report-market-copy p { margin: 0 0 12px; white-space: pre-line; text-align: justify; text-indent: 2em; }.ir-report-market-copy__label { margin-bottom: 0 !important; font-weight: var(--xc-fw-semi); text-indent: 0 !important; }
 .ir-report-operation-group { margin: 14px 0 18px; break-inside: avoid; }.ir-report-operation-group dl { margin: 8px 0 0; }.ir-report-operation-group dl div { display: flex; padding: 3px 0; }.ir-report-operation-group dt { min-width: 156px; }.ir-report-operation-group dd { margin: 0; }
 .ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); gap: 16px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-layout :deep(.ir-report-chart) { min-height: 312px; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
-.ir-report-chart-grid { display: grid; gap: 16px; }.ir-report-ai { margin-top: 10px; padding: 12px 14px; border-left: 3px solid var(--xc-accent-blue); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-ai p { margin: 0; }.ir-report-empty { width: 700px; margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
+.ir-report-model-section { margin-top: 34px; break-inside: avoid; }.ir-report-model-section h3 { margin-top: 0; }.ir-report-interpretation { margin-top: 14px; padding: 10px 14px; border-left: 3px solid var(--xc-border-line); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-interpretation h4 { margin: 0 0 4px; color: var(--xc-text-strong); }.ir-report-interpretation p { margin: 0; }.ir-report-ai { margin-top: 10px; padding: 12px 14px; border-left: 3px solid var(--xc-accent-blue); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-ai p { margin: 0; }.ir-report-empty { width: 700px; margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
 @media (max-width: 1000px) { .ir-report-page { padding: 16px; }.ir-report-actions { right: 16px; top: 16px; }.ir-report-document { width: 210mm; margin: 0; }.ir-report-cover { min-height: 257mm; }.ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); } }
 </style>

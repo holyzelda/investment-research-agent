@@ -79,6 +79,7 @@ def map_output_to_result(
         capital_irr=_f(api_output, "capital_irr"),
         capital_static_payback=_f(api_output, "capital_static_payback"),
         average_profit=_f(api_output, "average_profit"),
+        average_revenue=_f(api_output, "average_revenue"),
         total_investment_roi=_f(api_output, "total_investment_roi"),
     )
 

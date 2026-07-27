@@ -30,7 +30,9 @@ async def create_report(
     session: AsyncSession = Depends(get_db_session),
 ):
     service = build_report_generation_service()
-    data = await service.start(session, task_id=task_id, user_id=user.user_id)
+    data = await service.start(
+        session, task_id=task_id, user_id=user.user_id, username=user.username
+    )
     if data.pop("shouldRun", False):
         asyncio.create_task(_run_in_background(data["reportTaskId"]))
     return ok(data)

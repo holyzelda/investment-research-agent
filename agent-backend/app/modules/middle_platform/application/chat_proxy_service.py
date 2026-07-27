@@ -84,7 +84,7 @@ class ChatProxyService:
         )
         payload = {
             "app_id": self._config.app_id,
-            "message": f"{content}\n<ir_system_context>{context}</ir_system_context>",
+            "message": f"{content}\n",
             "session_id": conversation.id,
             "end_user_id": user.user_id,
             "end_user_name": user.username,

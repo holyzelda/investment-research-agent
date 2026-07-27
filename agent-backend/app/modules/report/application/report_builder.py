@@ -16,11 +16,6 @@ def _number(value):
     return value
 
 
-def _average(values) -> float | None:
-    numbers = [value for value in values if isinstance(value, (int, float))]
-    return sum(numbers) / len(numbers) if numbers else None
-
-
 def _difference(left, right) -> float | None:
     if isinstance(left, (int, float)) and isinstance(right, (int, float)):
         return round(left - right, 4)
@@ -60,7 +55,7 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
     power = basic.get("powerMw") or minimum.get("powerMw") or MISSING_DATA_TEXT
     capacity = basic.get("capacityMwh") or minimum.get("capacityMwh") or MISSING_DATA_TEXT
     duration = capacity / power if isinstance(capacity, (int, float)) and isinstance(power, (int, float)) and power else MISSING_DATA_TEXT
-    title = f"{province}{_number(power)}MW/{_number(capacity)}MWh储能项目测算方案"
+    title = f"{province}{_number(power)}MW/{_number(capacity)}MWh储能项目报告"
     project_name = f"{province}{_number(power)}MW/{_number(capacity)}MWh独立储能项目"
     sources = reports.get("provinceSources", {})
     charts = reports.get("charts", {})
@@ -142,7 +137,7 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "capitalIrr": result.get("financial", {}).get("capitalIrr"),
             "projectStaticPayback": result.get("financial", {}).get("projectStaticPayback"),
             "averageProfit": result.get("financial", {}).get("averageProfit"),
-            "averageRevenue": _average(charts.get("averageRevenue", [])),
+            "averageRevenue": result.get("financial", {}).get("averageRevenue"),
             "totalInvestmentRoi": result.get("financial", {}).get("totalInvestmentRoi"),
         },
         "calculation": {
@@ -154,7 +149,6 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "operationYears": reports.get("operationYears", api_input.get("operation_years", 15)),
             "available": bool(charts.get("available")),
             "series": charts.get("series", {}),
-            "averageRevenue": charts.get("averageRevenue", []),
             "sensitivity": charts.get("sensitivity", {}),
         },
         "aiSections": {},

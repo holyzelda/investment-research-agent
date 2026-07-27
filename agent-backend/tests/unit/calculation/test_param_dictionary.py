@@ -9,7 +9,7 @@ def _dict():
 
 def test_dictionary_loads():
     d = _dict()
-    assert len(d) == 65  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+22输出
+    assert len(d) == 66  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+30输出
 
 def test_f_column_only_controls_display_not_write():
     """表2开关 F=0，但仍应写入 API_INPUT（F 列只管展示）。"""
@@ -79,13 +79,14 @@ def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
 
 def test_outputs_count():
     d = _dict()
-    assert len(d.outputs()) == 32
+    assert len(d.outputs()) == 33
     assert [(d.get(pid).api_cell, d.get(pid).dtype) for pid in [
         "repayment_method", "discount_rate", "energy_revenue_vat_rate", "ancillary_service_vat_rate",
         "capacity_compensation_vat_rate", "capacity_lease_vat_rate", "subsidy_vat_rate",
-        "intervention_compensation_vat_rate", "income_tax_rate",
+        "intervention_compensation_vat_rate", "income_tax_rate", "average_revenue",
     ]] == [
         ("API_OUTPUT!B24", "string"), ("API_OUTPUT!B25", "float"), ("API_OUTPUT!B26", "float"),
         ("API_OUTPUT!B27", "float"), ("API_OUTPUT!B28", "float"), ("API_OUTPUT!B29", "float"),
         ("API_OUTPUT!B30", "float"), ("API_OUTPUT!B31", "float"), ("API_OUTPUT!B32", "float"),
+        ("API_OUTPUT!B33", "float"),
     ]

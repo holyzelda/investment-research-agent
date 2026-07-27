@@ -24,7 +24,7 @@
   .ir-report-section--chapter { break-before: page !important; }
   .ir-report-table, .ir-report-operation-group, .ir-report-revenue-layout { break-inside: avoid !important; }
   .ir-report-boundary-table { break-inside: auto !important; }
-  .ir-report-boundary-table thead { display: table-header-group; }
-  .ir-report-boundary-table tr { break-inside: avoid; page-break-inside: avoid; }
+  .ir-report-boundary-table thead, .ir-report-financial-table thead { display: table-header-group; }
+  .ir-report-boundary-table tr, .ir-report-financial-table tr { break-inside: avoid; page-break-inside: avoid; }
   .ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr) !important; }
 }

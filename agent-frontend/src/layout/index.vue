@@ -215,6 +215,15 @@ onMounted(() => {
   pointer-events: none;
   background: var(--xc-grad-atmosphere), var(--ir-welcome-bg) center / cover no-repeat;
 }
+.ir-layout__welcome-backdrop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, var(--xc-surface-workspace) 0%, transparent 72%),
+    linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%);
+  opacity: 0.48;
+}
 /* 顶栏透明融入全屏背景，保持低调的品牌分量 */
 .ir-layout__topbar {
   position: relative;

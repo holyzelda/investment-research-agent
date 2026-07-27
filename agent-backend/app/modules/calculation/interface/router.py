@@ -190,7 +190,7 @@ async def get_task_result(
     session: AsyncSession = Depends(get_db_session),
 ):
     """结果三模块（数据源 report_snapshot，不依赖飞书副本）。"""
-    await ConversationHistoryService().require_owned_task(
+    task = await ConversationHistoryService().require_owned_task(
         session, task_id=task_id, user_id=user.user_id
     )
     row = (await session.execute(
@@ -198,4 +198,5 @@ async def get_task_result(
     )).scalar_one_or_none()
     if row is None:
         raise NotFoundException(f"该任务无结果快照（可能失败或不存在）：{task_id}")
-    return ok(row.payload)
+    # 测算时间取任务落库时间（成功任务在测算完成后落库），供前端结果卡展示
+    return ok({**row.payload, "calculatedAt": task.created_at.isoformat()})

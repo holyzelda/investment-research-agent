@@ -120,7 +120,7 @@ export const useCalculationStore = defineStore('calculation', {
           return {
             id: nextId(), role: 'assistant', kind: 'result',
             version: version.version, result: version.result, input: version.input,
-            report: version.report,
+            report: version.report, calculatedAt: version.calculatedAt,
           }
         }
         if (message.messageType === 'report_generated') {
@@ -136,6 +136,7 @@ export const useCalculationStore = defineStore('calculation', {
         result: version.result,
         input: version.input,
         report: version.report,
+        calculatedAt: version.calculatedAt,
       }))
       this.reports = detail.reports || []
       this.reportTasks = Object.fromEntries(
@@ -249,6 +250,7 @@ export const useCalculationStore = defineStore('calculation', {
                 progressMessage.kind = 'report-generated'
                 progressMessage.text = '报告已生成'
                 progressMessage.payload = { event_type: 'report_generated', report_id: data.reportId, task_id: taskId }
+                this.syncReportsFromConversation().catch(() => {})
               }
             } else {
               const next = { ...this.reportTasks[created.reportTaskId], steps: [...(this.reportTasks[created.reportTaskId]?.steps || []), data] }
@@ -262,6 +264,21 @@ export const useCalculationStore = defineStore('calculation', {
         this._applyReport(recovered)
       }
       return this.reportTasks[created.reportTaskId]
+    },
+    async syncReportsFromConversation() {
+      if (!this.conversationId) return
+      const response = await getConversation(this.conversationId)
+      const detail = response.data || {}
+      this.reports = detail.reports || []
+      for (const version of this.versions) {
+        const remote = (detail.versions || []).find((item) => item.taskId === version.taskId)
+        if (remote?.report) version.report = remote.report
+      }
+      this.reportTasks = Object.fromEntries(
+        [...this.reports, ...this.versions.map((version) => version.report)].filter(Boolean)
+          .filter((report) => report.reportTaskId)
+          .map((report) => [report.reportTaskId, report]),
+      )
     },
     _applyReport(report) {
       if (report.reportTaskId) this.reportTasks[report.reportTaskId] = report
@@ -298,6 +315,7 @@ export const useCalculationStore = defineStore('calculation', {
           status: 'completed',
           result,
           input: created.input,
+          calculatedAt: result.calculatedAt,
         }
         this.versions.push(entry)
         this.selectedVersion = version
@@ -306,6 +324,7 @@ export const useCalculationStore = defineStore('calculation', {
         pending.result = result
         pending.version = version
         pending.input = created.input
+        pending.calculatedAt = result.calculatedAt
         // 成功后刷新左侧历史（新会话出现、既有会话最新版本/排序更新）与调整面板元数据
         this.loadHistory().catch(() => {})
         if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})

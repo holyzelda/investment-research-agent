@@ -9,7 +9,9 @@ class FakeReportAiClient(ReportAiPort):
         self._remaining_failures = dict(failures or {})
         self.calls = defaultdict(int)
 
-    async def generate_section(self, rule: dict, context: dict) -> str:
+    async def generate_section(
+        self, rule: dict, context: dict, *, user_id: str = "", username: str = ""
+    ) -> str:
         key = rule["key"]
         self.calls[key] += 1
         if self._remaining_failures.get(key, 0) > 0:

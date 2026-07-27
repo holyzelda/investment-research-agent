@@ -33,21 +33,40 @@ describe('result card three modules', () => {
     for (const label of ['项目全投资IRR', '全投资静态回收期', '资本金IRR', '资本金静态回收期', '年均利润']) {
       expect(text).toContain(label)
     }
-    expect(text).toContain('收益数据深度分析')
     expect(text).toContain('首年收入结构')
     expect(text).toContain('偿债覆盖倍数')
-    expect(text).toContain('0.2000 元/kWh')
-    expect(text).toContain('0.6123 元/kWh')
-    expect(text).toContain('0.0300 元/kWh')
+    expect(text).toContain('0.2000元/kWh')
+    expect(text).toContain('0.6123元/kWh')
+    expect(text).toContain('0.0300元/kWh')
     expect(text).toContain('8.26')
     expect(text).toContain('6年')
     expect(text).not.toContain('6.00年')
     expect(wrapper.findAll('.ir-report-module')).toHaveLength(3)
-    expect(wrapper.find('.ir-result__head--complete').exists()).toBe(true)
+    expect(wrapper.find('.ir-result--complete').exists()).toBe(true)
     expect(wrapper.find('.ir-fin__kpi--signature').text()).toContain('项目全投资IRR')
     expect(wrapper.findAll('.ir-fin__kpi')).toHaveLength(5)
     expect(snapshot.basicInfo.dischargeReturn).toBe(0.61234)
     expect(snapshot.financial.projectStaticPayback).toBe(8.256)
+  })
+
+  it('renders the project banner with province title, formatted time and version', () => {
+    const wrapper = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', calculatedAt: '2026-07-15T09:07:03' },
+    })
+    const banner = wrapper.find('.ir-result__banner')
+
+    expect(banner.exists()).toBe(true)
+    // 横幅插在头部之后、基础条件之前，且不计入三大模块
+    expect(wrapper.findAll('.ir-report-module')).toHaveLength(3)
+    expect(banner.find('.ir-result__banner-title').text()).toBe('甘肃储能项目测算结果')
+    const sub = banner.find('.ir-result__banner-sub').text()
+    expect(sub).toContain('测算时间 2026年07月15日 09:07:03')
+    expect(sub).toContain('测算版本 V1')
+  })
+
+  it('shows a placeholder time when calculatedAt is missing', () => {
+    const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
+    expect(wrapper.find('.ir-result__banner-sub').text()).toContain('测算时间 —')
   })
 
   it('renders the adjustment panel when param dict is provided, hides it otherwise', async () => {

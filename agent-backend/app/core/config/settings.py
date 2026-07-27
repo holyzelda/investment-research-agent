@@ -143,7 +143,10 @@ class MiddlePlatformConfig(BaseModel):
     base_url: str = "http://internal-2-58.example.invalid"
     app_id: str = "ir-agent"
     app_secret: str = ""
-
+    auth_token_path: str = "/api/v1/auth/token"
+    report_model_path: str = "/api/v1/model-pool/chat"
+    report_model_name: str = "qwen-plus"
+    report_model_timeout_seconds: float = 30.0
 
 class CalcConfig(BaseModel):
     """测算执行参数（Nacos 可配）：轮询间隔/总超时/重试上限。"""
@@ -282,6 +285,15 @@ def _build_settings() -> Settings:
             "IR_MIDDLE_PLATFORM_APP_ID", y, ["middle_platform", "app_id"], _mpd.app_id),
         app_secret=_business_value(
             "IR_MIDDLE_PLATFORM_APP_SECRET", y, ["middle_platform", "app_secret"], _mpd.app_secret),
+        auth_token_path=_business_value(
+            "IR_MIDDLE_PLATFORM_AUTH_TOKEN_PATH", y, ["middle_platform", "auth_token_path"], _mpd.auth_token_path),
+        report_model_path=_business_value(
+            "IR_MIDDLE_PLATFORM_REPORT_MODEL_PATH", y, ["middle_platform", "report_model_path"], _mpd.report_model_path),
+        report_model_name=_business_value(
+            "IR_MIDDLE_PLATFORM_REPORT_MODEL_NAME", y, ["middle_platform", "report_model_name"], _mpd.report_model_name),
+        report_model_timeout_seconds=float(_business_value(
+            "IR_MIDDLE_PLATFORM_REPORT_MODEL_TIMEOUT_SECONDS", y,
+            ["middle_platform", "report_model_timeout_seconds"], _mpd.report_model_timeout_seconds)),
     )
     _fd = FeishuConfig()
     feishu = FeishuConfig(

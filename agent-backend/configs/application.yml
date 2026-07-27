@@ -34,9 +34,13 @@ feishu:
   report_chart_sheet: "画图数据"
 
 middle_platform:
-  base_url: http://internal-2-58.example.invalid
+  base_url: http://internal-2-58.example.invalid:8180
   app_id: ir-agent
-  app_secret: ""
+  app_secret: "example-value-0020"
+  auth_token_path: /gateway/agent-middle/api/v1/auth/token
+  report_model_path: /gateway/agent-middle/api/v1/model-pool/chat
+  report_model_name: qwen-plus
+  report_model_timeout_seconds: 30
 
 spot_price:
   # 现货电价库（多循环 DP，离线预计算）。enabled=true → 测算查 ir_agent 预计算表(PrecomputeSpotPriceAlgo)；

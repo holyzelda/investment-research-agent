@@ -14,7 +14,7 @@ def _assembled():
 
 
 SAMPLE = {
-    "project_irr": 8.5, "capital_irr": 12.3, "average_profit": 3200.0,
+    "project_irr": 8.5, "capital_irr": 12.3, "average_profit": 3200.0, "average_revenue": 4500.5,
     "first_year_total_revenue": 8600.0, "first_year_energy_revenue": 5200.0,
     "first_year_intervention_revenue": 200.0,
     "cashflow_debt_service_coverage_ratio": [1, 2, 3],
@@ -26,6 +26,8 @@ def test_maps_financial():
     assert r.financial.project_irr == 8.5
     assert r.financial.capital_irr == 12.3
     assert r.financial.average_profit == 3200.0
+    assert r.financial.average_revenue == 4500.5
+    assert to_report_payload(r)["financial"]["averageRevenue"] == 4500.5
 
 
 def test_maps_donut_and_intervention_key():

@@ -137,7 +137,6 @@ const { el } = useEcharts(buildOption)
   background: var(--xc-surface-control);
   box-shadow: var(--xc-shadow-sm);
   padding: var(--xc-space-7);
-  margin-top: var(--xc-space-5);
 }
 .ir-chart__head { margin-bottom: var(--xc-space-2); }
 .ir-chart__title { font-size: var(--xc-fs-sm); color: var(--xc-text-strong); }
