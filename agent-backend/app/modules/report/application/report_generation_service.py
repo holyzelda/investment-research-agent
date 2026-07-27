@@ -165,7 +165,7 @@ class ReportGenerationService:
                 logger.info("报告 AI 调用成功：section={}", key)
             except Exception as exc:
                 code = self._ai_failure_code(exc)
-                logger.warning("报告 AI 调用降级：section={} reason={} error={}", key, code, type(exc).__name__)
+                logger.warning("报告 AI 调用降级：section={} reason={} error={} detail={}", key, code, type(exc).__name__, str(exc))
                 sections[key] = self._fallback(code, attempts=1)
         return sections
 
