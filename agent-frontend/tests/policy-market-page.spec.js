@@ -12,9 +12,11 @@ describe('政策与市场页面集成', () => {
     expect(layoutSource).toContain("'/policy-market': 'policy'")
   })
 
-  it('使用三栏布局并在窄屏切换为单列', () => {
-    expect(pageSource).toContain('grid-template-columns: 248px minmax(0, 1fr) 336px')
-    expect(pageSource).toContain('@media (max-width: 1180px)')
+  it('使用轻量三栏布局，并在中窄屏依次切换为双栏和单栏', () => {
+    expect(pageSource).toContain('grid-template-columns: minmax(172px, 204px) minmax(520px, 760px) minmax(260px, 304px)')
+    expect(pageSource).toContain('@media (max-width: 1020px)')
+    expect(pageSource).toContain('grid-template-columns: minmax(180px, 220px) minmax(0, 1fr)')
+    expect(pageSource).toContain('@media (max-width: 720px)')
     expect(pageSource).toContain('grid-template-columns: 1fr')
   })
 

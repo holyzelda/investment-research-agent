@@ -35,8 +35,8 @@ defineProps({
 </script>
 
 <style scoped>
-.pm-result { min-height: 220px; display: grid; place-items: stretch; border-top: 2px solid var(--xc-border-accent); border-radius: 0; background: transparent; }
-.pm-result__empty, .pm-result__state { display: grid; place-content: center; min-height: 220px; padding: var(--xc-space-6); color: var(--xc-text-mute); text-align: center; }
+.pm-result { min-height: 180px; display: grid; place-items: stretch; border-top: 1px solid var(--xc-border-soft); border-radius: 0; background: transparent; }
+.pm-result__empty, .pm-result__state { display: grid; place-content: center; min-height: 180px; padding: var(--xc-space-6); color: var(--xc-text-mute); text-align: center; }
 .pm-result__state { gap: var(--xc-space-2); color: var(--xc-text-soft); }
 .pm-result__state--error strong { color: var(--xc-status-danger); }
 .pm-result__card { padding: var(--xc-space-5) 2px; }
