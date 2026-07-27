@@ -63,7 +63,7 @@ describe('政策与市场咨询组件', () => {
     const result = mount(ConsultationResult, { props: { consultation: null } })
     await composer.get('[aria-label="提交咨询"]').trigger('click')
     expect(composer.emitted('submit-question')).toBeUndefined()
-    expect(result.text()).toContain('你的咨询结果将展示在这里')
+    expect(result.text()).toContain('等待研究问题')
   })
 
   it('按咨询状态显示处理中、失败和完成结果', () => {
@@ -87,6 +87,14 @@ describe('政策与市场咨询组件', () => {
     expect(completed.text()).toContain('https://example.test/source')
     expect(completed.text()).toContain('宁夏')
     expect(completed.text()).toContain('关注政策更新')
+  })
+
+  it('案卷阅读模式不重复渲染当前问题标题', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: { consultation: { status: 'completed', title: '问题', answer: '完整回答' }, readerMode: true },
+    })
+    expect(wrapper.text()).toContain('完整回答')
+    expect(wrapper.text()).not.toContain('关于「问题」')
   })
 
   it('动态资讯主题和真实趋势按接口结果展示', () => {

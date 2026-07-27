@@ -12,11 +12,14 @@ describe('政策与市场页面集成', () => {
     expect(layoutSource).toContain("'/policy-market': 'policy'")
   })
 
-  it('使用轻量三栏布局，并在中窄屏依次切换为双栏和单栏', () => {
-    expect(pageSource).toContain('grid-template-columns: minmax(172px, 204px) minmax(520px, 760px) minmax(260px, 304px)')
-    expect(pageSource).toContain('@media (max-width: 1020px)')
-    expect(pageSource).toContain('grid-template-columns: minmax(180px, 220px) minmax(0, 1fr)')
-    expect(pageSource).toContain('@media (max-width: 720px)')
+  it('使用案卷式三栏布局，并在中窄屏依次切换为双栏和单栏', () => {
+    expect(pageSource).toContain('grid-template-columns: minmax(196px, 228px) minmax(0, 1fr) minmax(296px, 340px)')
+    expect(pageSource).toContain('width: min(100%, 1760px)')
+    expect(pageSource).toContain('@media (max-width: 1280px)')
+    expect(pageSource).toContain('grid-template-columns: 192px minmax(0, 1fr)')
+    expect(pageSource).toContain('@media (max-width: 1100px)')
+    expect(pageSource).toContain('grid-template-columns: minmax(0, 1fr)')
+    expect(pageSource).toContain('@media (max-width: 640px)')
     expect(pageSource).toContain('grid-template-columns: 1fr')
   })
 
@@ -25,5 +28,13 @@ describe('政策与市场页面集成', () => {
     expect(pageSource).toContain('store.startNewConsultation()')
     expect(pageSource).toContain('store.submitQuestion(question)')
     expect(pageSource).toContain('store.setStatsFilters(filters)')
+  })
+
+  it('新建状态显示提问器，选择历史后切换为完整案卷阅读状态', () => {
+    expect(pageSource).toContain("const isReading = computed(() => store.selectedConsultationId !== null)")
+    expect(pageSource).toContain('v-if="!isReading" ref="composerRef"')
+    expect(pageSource).toContain('v-else class="policy-market-page__reader-bar"')
+    expect(pageSource).toContain('@select="handleSelectConsultation"')
+    expect(pageSource).toContain("matchMedia('(max-width: 1100px)')")
   })
 })

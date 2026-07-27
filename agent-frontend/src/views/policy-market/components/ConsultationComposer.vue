@@ -1,5 +1,9 @@
 <template>
   <div class="pm-composer">
+    <div class="pm-composer__heading">
+      <span class="pm-composer__icon"><FileSearch :size="17" /></span>
+      <div><strong>研究问题</strong><span>说明地区、时间或关注对象，结论会更准确</span></div>
+    </div>
     <textarea
       ref="textareaRef"
       v-model="question"
@@ -8,19 +12,20 @@
       rows="2"
       @keydown="onKeydown"
     />
-    <div class="pm-composer__tools">
-      <span>Ctrl / Cmd + Enter 提交咨询</span>
-      <button type="button" aria-label="提交咨询" @click="submit">提交</button>
-    </div>
     <div class="pm-composer__quick">
-      <span>试试这些：</span>
+      <span>相关问题</span>
       <button v-for="item in quickQuestions" :key="item" type="button" data-quick-question @click="question = item">{{ item }}</button>
+    </div>
+    <div class="pm-composer__tools">
+      <span>{{ question.length ? `${question.length} 字` : '等待输入' }}</span>
+      <button type="button" aria-label="提交咨询" @click="submit"><Send :size="16" />提交研究</button>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import { FileSearch, Send } from '@lucide/vue'
 
 const emit = defineEmits(['submit-question'])
 const textareaRef = ref(null)
@@ -30,6 +35,10 @@ const quickQuestions = [
   '本月电价机制如何影响制造业？',
   '查找储能行业最新政策',
 ]
+
+function setQuestion(value = '') {
+  question.value = String(value || '')
+}
 
 function submit() {
   const normalizedQuestion = question.value.trim()
@@ -45,48 +54,51 @@ function onKeydown(event) {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') submit()
 }
 
-defineExpose({ focus: () => textareaRef.value?.focus() })
+defineExpose({ focus: () => textareaRef.value?.focus(), setQuestion })
 </script>
 
 <style scoped>
 .pm-composer {
   position: relative;
   display: grid;
-  gap: var(--xc-space-4);
-  padding: 30px 22px 18px;
-  border: 1px solid var(--xc-border-accent);
+  gap: 16px;
+  padding: 20px 22px 18px 26px;
+  border: 1px solid var(--xc-border-soft);
+  border-left: 3px solid var(--pm-accent, var(--xc-accent-blue));
   border-radius: var(--xc-radius-sm);
-  background: var(--xc-surface-raised);
-  box-shadow: 0 10px 28px rgb(0 0 0 / 16%), 0 0 0 4px var(--xc-accent-blue-soft);
-  transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+  background: var(--pm-surface, var(--xc-surface-raised));
+  box-shadow: 0 14px 32px rgb(0 0 0 / 18%);
+  transition: border-color 240ms cubic-bezier(.16, 1, .3, 1), box-shadow 240ms cubic-bezier(.16, 1, .3, 1);
 }
 
-.pm-composer::before {
-  position: absolute;
-  top: 11px;
-  left: 22px;
-  color: var(--xc-accent-blue);
-  content: '开始一次研究';
-  font-size: var(--xc-fs-2xs);
-  font-weight: var(--xc-fw-semi);
-  letter-spacing: .08em;
+.pm-composer__heading { display: flex; align-items: center; gap: 10px; }
+.pm-composer__heading > div { display: grid; gap: 2px; }
+.pm-composer__heading strong { color: var(--xc-text-strong); font-size: var(--xc-fs-sm); }
+.pm-composer__heading div span { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-composer__icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-sm);
+  color: var(--pm-accent, var(--xc-accent-blue));
 }
 
 .pm-composer:focus-within {
-  border-color: var(--xc-accent-blue);
-  box-shadow: 0 14px 34px rgb(0 0 0 / 22%), 0 0 0 5px var(--xc-accent-blue-soft);
-  transform: translateY(-1px);
+  border-color: var(--pm-accent, var(--xc-accent-blue));
+  box-shadow: 0 18px 40px rgb(0 0 0 / 24%);
 }
 
 .pm-composer__input {
   width: 100%;
-  min-height: 92px;
+  min-height: 96px;
   resize: vertical;
   box-sizing: border-box;
   border: 0;
   border-bottom: 1px solid var(--xc-border-soft);
   outline: 0;
-  padding: 12px 0 14px;
+  padding: 8px 0 16px;
   background: transparent;
   color: var(--xc-text-strong);
   font: inherit;
@@ -95,11 +107,14 @@ defineExpose({ focus: () => textareaRef.value?.focus() })
 }
 
 .pm-composer__input::placeholder { color: var(--xc-text-mute); }
-.pm-composer__tools { display: flex; align-items: center; justify-content: space-between; gap: var(--xc-space-3); color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
-.pm-composer__tools button { min-width: 96px; min-height: 40px; border: 1px solid var(--xc-accent-blue); border-radius: var(--xc-radius-sm); padding: 10px 18px; background: var(--xc-accent-blue); color: #06131a; font-weight: var(--xc-fw-bold); cursor: pointer; }
-.pm-composer__tools button:hover, .pm-composer__tools button:focus-visible { outline: none; box-shadow: var(--xc-glow-blue); }
-.pm-composer__quick { display: flex; flex-wrap: wrap; align-items: center; gap: var(--xc-space-2); padding-top: 2px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
-.pm-composer__quick button { border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); padding: 6px 10px; background: var(--xc-surface-control); color: var(--xc-text-soft); cursor: pointer; }
+.pm-composer__tools { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--xc-text-mute); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); }
+.pm-composer__tools button { min-width: 124px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--pm-accent, var(--xc-accent-blue)); border-radius: var(--xc-radius-sm); padding: 10px 18px; background: var(--pm-accent, var(--xc-accent-blue)); color: #132326; font-weight: var(--xc-fw-bold); cursor: pointer; }
+.pm-composer__tools button:hover, .pm-composer__tools button:focus-visible { outline: 2px solid var(--pm-accent, var(--xc-accent-blue)); outline-offset: 3px; }
+.pm-composer__quick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-composer__quick > span { margin-right: 2px; font-family: var(--xc-font-mono); }
+.pm-composer__quick button { border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); padding: 7px 10px; background: transparent; color: var(--xc-text-soft); cursor: pointer; }
 .pm-composer__quick button:hover, .pm-composer__quick button:focus-visible { border-color: var(--xc-border-accent); outline: none; background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
-@media (max-width: 520px) { .pm-composer { padding-inline: 16px; }.pm-composer::before { left: 16px; }.pm-composer__tools span { display: none; }.pm-composer__quick > span { flex-basis: 100%; } }
+@media (max-width: 720px) { .pm-composer__quick > span { width: 100%; } }
+@media (max-width: 520px) { .pm-composer { padding: 18px 16px 16px 18px; }.pm-composer__heading div span { display: none; }.pm-composer__tools span { display: none; }.pm-composer__tools button { width: 100%; } }
+@media (prefers-reduced-motion: reduce) { .pm-composer { transition: none; } }
 </style>

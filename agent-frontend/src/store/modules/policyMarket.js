@@ -54,7 +54,6 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
       try {
         const records = await getConsultations()
         this.consultations = records
-        if (!this.selectedConsultationId && records.length) this.selectedConsultationId = records[0].id
       } catch (error) {
         this.consultationsError = error?.message || '咨询记录加载失败'
         throw error

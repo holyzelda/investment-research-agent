@@ -37,7 +37,8 @@ describe('政策与市场 Store', () => {
     expect(store.news).toHaveLength(1)
     expect(store.stats.total).toBe(10)
     expect(store.topicOptions).toEqual([{ value: '储能', label: '储能', count: 6 }])
-    expect(store.selectedConsultationId).toBe('c-1')
+    expect(store.selectedConsultationId).toBeNull()
+    expect(store.selectedConsultation).toBeNull()
   })
 
   it('选择历史项时按需加载并替换为完整详情', async () => {
