@@ -113,7 +113,7 @@
             <h4>如何解读这张图</h4>
             <p>偿债覆盖倍数 = 年度经营性现金流 ÷ 当年还本付息。</p>
           </div>
-          <AiSection :section="report.aiSections?.debt_service_coverage" :fallback="aiFallback" />
+          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.debt_service_coverage?.text" :fallback="aiFallback" /></div>
         </section>
 
         <section class="ir-report-model-section">
@@ -122,7 +122,7 @@
           <div class="ir-report-interpretation">
             <h4>如何解读这张图</h4>
           </div>
-          <AiSection :section="report.aiSections?.operating_cashflow" :fallback="aiFallback" />
+          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.operating_cashflow?.text" :fallback="aiFallback" /></div>
         </section>
 
         <section class="ir-report-model-section">
@@ -131,14 +131,14 @@
           <div class="ir-report-interpretation">
             <h4>如何解读这张图</h4>
           </div>
-          <AiSection :section="report.aiSections?.accounting_profit" :fallback="aiFallback" />
+          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.accounting_profit?.text" :fallback="aiFallback" /></div>
         </section>
       </section>
 
       <section class="ir-report-section">
         <h2 class="ir-report-chapter-heading">第六章 敏感情景测试</h2>
         <ReportChart title="压力情景下的平均偿债覆盖倍数" unit="单位：倍" kind="sensitivity" :data="charts.sensitivity" />
-        <AiSection :section="report.aiSections?.sensitivity" :fallback="aiFallback" />
+        <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.sensitivity?.text" :fallback="aiFallback" /></div>
       </section>
 
       <section class="ir-report-section">
@@ -150,7 +150,7 @@
           <tbody><tr v-for="item in decisionRows" :key="item.advice"><td>{{ item.condition }}</td><td>{{ item.advice }}</td><td>{{ item.action }}</td></tr></tbody>
         </table>
         <h3>7.3 风险提示与后续动作</h3>
-        <AiSection :section="report.aiSections?.investment_conclusion" :fallback="aiFallback" />
+        <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" /></div>
       </section>
     </article>
     <div v-else-if="loaded" class="ir-report-empty">报告不存在或当前用户无权查看。</div>
@@ -158,13 +158,13 @@
 </template>
 
 <script setup>
-import { computed, h, onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getReport } from '@/api/report'
 import { formatNumber, formatPrice } from '@/utils/formatNumber'
 import ReportChart from './components/ReportChart.vue'
+import AiAnswerContent from '@/views/home/components/AiAnswerContent.vue'
 
-const AiSection = { props: ['section', 'fallback'], render() { return h('div', { class: 'ir-report-ai' }, h('p', this.section?.text || this.fallback)) } }
 const route = useRoute()
 const router = useRouter()
 const report = ref(null)
@@ -266,6 +266,6 @@ h3 { margin: 24px 0 12px; color: var(--xc-text-strong); font-size: 15px; font-we
 .ir-report-market-copy p { margin: 0 0 12px; white-space: pre-line; text-align: justify; text-indent: 2em; }.ir-report-market-copy__label { margin-bottom: 0 !important; font-weight: var(--xc-fw-semi); text-indent: 0 !important; }
 .ir-report-operation-group { margin: 14px 0 18px; break-inside: avoid; }.ir-report-operation-group dl { margin: 8px 0 0; }.ir-report-operation-group dl div { display: flex; padding: 3px 0; }.ir-report-operation-group dt { min-width: 156px; }.ir-report-operation-group dd { margin: 0; }
 .ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); gap: 16px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-layout :deep(.ir-report-chart) { min-height: 312px; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
-.ir-report-model-section { margin-top: 34px; break-inside: avoid; }.ir-report-model-section h3 { margin-top: 0; }.ir-report-interpretation { margin-top: 14px; padding: 10px 14px; border-left: 3px solid var(--xc-border-line); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-interpretation h4 { margin: 0 0 4px; color: var(--xc-text-strong); }.ir-report-interpretation p { margin: 0; }.ir-report-ai { margin-top: 10px; padding: 12px 14px; border-left: 3px solid var(--xc-accent-blue); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-ai p { margin: 0; }.ir-report-empty { width: 700px; margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
+.ir-report-model-section { margin-top: 34px; break-inside: avoid; }.ir-report-model-section h3 { margin-top: 0; }.ir-report-interpretation { margin-top: 14px; padding: 10px 14px; border-left: 3px solid var(--xc-border-line); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-interpretation h4 { margin: 0 0 4px; color: var(--xc-text-strong); }.ir-report-interpretation p { margin: 0; }.ir-report-ai { margin-top: 10px; break-inside: avoid; }.ir-report-ai :deep(.ir-ai-answer) { padding: 12px 14px; border-left: 3px solid var(--xc-accent-blue); border-radius: var(--xc-radius-sm); background: var(--xc-surface-control); font-size: 13px; }.ir-report-empty { width: 700px; margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
 @media (max-width: 1000px) { .ir-report-page { padding: 16px; }.ir-report-actions { right: 16px; top: 16px; }.ir-report-document { width: 210mm; margin: 0; }.ir-report-cover { min-height: 257mm; }.ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); } }
 </style>

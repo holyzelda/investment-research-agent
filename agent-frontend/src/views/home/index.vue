@@ -80,10 +80,16 @@
                 :bootstrapping="m.phase === 'streaming' && !m.hasThinkingStarted"
                 :started-at="m.startedAt"
                 :finished-at="m.finishedAt"
+                :active-title="m.flow === 'report' ? '正在生成正式报告' : '正在深度推理'"
+                :completed-title="m.flow === 'report' ? '报告生成完成' : '推理完成'"
+                :bootstrapping-title="m.flow === 'report' ? '正在启动报告生成…' : '正在唤醒推理内核…'"
+                :bootstrap-text="m.flow === 'report' ? '正在准备报告生成上下文…' : '正在准备分析上下文…'"
               />
-              <div v-if="m.answerText" class="ir-msg__bubble" :class="{ 'ir-msg__error': m.error }">
-                <span style="white-space: pre-wrap">{{ m.answerText }}</span>
-              </div>
+              <AiAnswerContent v-if="m.answerText" :text="m.answerText" :error="Boolean(m.error)">
+                <template v-if="m.flow === 'report' && m.reportId" #actions>
+                  <button type="button" @click="openReport(m.reportId)">查看报告</button>
+                </template>
+              </AiAnswerContent>
               <div v-if="m.result" class="ir-msg__result">
                 <ResultCard
                   :result="m.result"
@@ -106,17 +112,11 @@
                 </li>
               </ul>
             </div>
-            <div v-else-if="m.kind === 'report-progress'" class="ir-msg__bubble ir-msg__report-progress">
-              <strong>正在生成正式报告</strong>
-              <ol>
-                <li v-for="step in m.steps" :key="`${step.seq || step.key}-${step.at || step.title}`">{{ step.title }}</li>
-              </ol>
-            </div>
-            <div v-else-if="m.kind === 'report-generated'" class="ir-msg__bubble ir-msg__report-card">
-              <strong>报告已生成</strong>
-              <span>已基于冻结测算快照生成正式报告。</span>
-              <button type="button" @click="openReport(m.payload?.report_id)">查看报告</button>
-            </div>
+            <AiAnswerContent v-else-if="m.kind === 'report-generated'" :text="m.text || '正式报告已生成，可查看完整报告。'">
+              <template #actions>
+                <button type="button" @click="openReport(m.payload?.report_id)">查看报告</button>
+              </template>
+            </AiAnswerContent>
             <div v-else-if="m.kind === 'result'" class="ir-msg__result">
               <!-- 调整参数并重新测算仅在最新版本卡片开放：
                    现货依赖比较/受控覆盖以“会话最新已完成版本”为基线，
@@ -220,6 +220,7 @@ import { useCalculationStore } from '@/store/modules/calculation'
 import ResultCard from './components/ResultCard.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import ThinkingChain from './components/ThinkingChain.vue'
+import AiAnswerContent from './components/AiAnswerContent.vue'
 import { thinkingNodes, hasActiveNode } from '@/utils/thinkingChain'
 import orbSrc from '@/assets/ai-sphere.png'
 import agentAvatar from '@/assets/agent.png'
@@ -258,18 +259,20 @@ function stopScrollAnchor() {
   scrollRetryTimer = null
 }
 
+const conversationActive = computed(() => calc.responding || calc.hasActiveReportGeneration)
+
 function startScrollAnchor() {
   stopScrollAnchor()
   const tick = () => {
     forceScrollToBottom()
-    if (calc.responding) scrollFrame = requestAnimationFrame(tick)
+    if (conversationActive.value) scrollFrame = requestAnimationFrame(tick)
   }
   scrollFrame = requestAnimationFrame(tick)
 }
 
-watch(() => calc.responding, async (responding) => {
+watch(conversationActive, async (active) => {
   await nextTick()
-  if (responding) startScrollAnchor()
+  if (active) startScrollAnchor()
   else {
     stopScrollAnchor()
     scheduleScrollToBottom()
@@ -280,7 +283,7 @@ watch(scrollEl, (element) => {
   streamObserver?.disconnect()
   if (!element || typeof MutationObserver === 'undefined') return
   streamObserver = new MutationObserver(() => {
-    if (calc.responding) scheduleScrollToBottom()
+    if (conversationActive.value) scheduleScrollToBottom()
   })
   streamObserver.observe(element, { childList: true, subtree: true, characterData: true })
 }, { flush: 'post' })
@@ -290,6 +293,7 @@ onBeforeUnmount(() => {
   stopScrollAnchor()
   streamObserver?.disconnect()
   calc.disposeActiveTurn({ visible: false })
+  calc.disposeReportStreams()
 })
 
 const hasConversation = computed(() => calc.messages.length > 0)
@@ -558,12 +562,6 @@ function versionSpec(v) {
   background: var(--xc-surface-card);
 }
 .ir-msg__pending { color: var(--xc-text-mute); }
-.ir-msg__report-progress, .ir-msg__report-card { display: flex; flex-direction: column; gap: var(--xc-space-3); }
-.ir-msg__report-progress strong, .ir-msg__report-card strong { color: var(--xc-text-strong); font-size: var(--xc-fs-sm); }
-.ir-msg__report-progress ol { margin: 0; padding-left: 20px; color: var(--xc-text-soft); font-size: var(--xc-fs-xs); }
-.ir-msg__report-card { border-left: 3px solid var(--xc-accent-blue); }
-.ir-msg__report-card span { color: var(--xc-text-soft); font-size: var(--xc-fs-xs); }
-.ir-msg__report-card button { align-self: flex-start; padding: 5px 10px; border: 1px solid var(--xc-accent-blue); border-radius: var(--xc-radius-xs); background: transparent; color: var(--xc-accent-blue); font-size: var(--xc-fs-xs); cursor: pointer; }
 .ir-msg__result { width: 100%; }
 .ir-msg__stream { width: 100%; display: flex; flex-direction: column; gap: var(--xc-space-3); }
 .ir-msg__error { color: var(--xc-status-danger); }

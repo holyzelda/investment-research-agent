@@ -37,6 +37,7 @@
 
     <ParamAdjustPanel
       v-if="paramDict.length"
+      ref="paramAdjustPanel"
       :param-dict="paramDict"
       :switches="switches"
       :seed-input="seedInput"
@@ -44,14 +45,16 @@
       :version="version"
       :responding="responding"
       :advanced-overrides="advancedOverrides"
+      :advanced-override-count="advancedOverrideCount"
       @recalculate="$emit('recalculate', $event)"
-      @open-advanced="advancedOpen = true"
+      @open-advanced="openAdvanced"
     />
 
     <AdvancedParamDialog
       v-model="advancedOpen"
       :param-dict="paramDict"
       :seed-input="seedInput"
+      @update:model-value="handleAdvancedOpenChange"
       @save="saveAdvancedDraft"
     />
 
@@ -72,7 +75,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import BasicInfoBlock from './BasicInfoBlock.vue'
 import FinancialBlock from './FinancialBlock.vue'
 import RevenueDonut from './RevenueDonut.vue'
@@ -80,6 +83,7 @@ import DebtServiceCoverage from './DebtServiceCoverage.vue'
 import ParamAdjustPanel from './ParamAdjustPanel.vue'
 import AdvancedParamDialog from './AdvancedParamDialog.vue'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
+import { roundToStep } from '@/utils/paramAdjust'
 
 const props = defineProps({
   result: { type: Object, required: true },
@@ -110,9 +114,35 @@ const calculatedAtText = computed(() => {
 })
 const advancedOpen = ref(false)
 const advancedOverrides = ref({})
+const paramAdjustPanel = ref(null)
+const ADVANCED_IDS = new Set([
+  'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
+  'strategy_achievement_rate', 'capacity_achievement_rate',
+  'battery_replace_cost', 'maint_cost', 'opex_cost',
+])
+const advancedOverrideCount = computed(() => props.paramDict.reduce((count, spec) => {
+  if (!ADVANCED_IDS.has(spec.id) || spec.g !== 1 || !['slider', 'dynamic_slider', 'select'].includes(spec.control)) return count
+  if (!(spec.id in advancedOverrides.value)) return count
+  const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], spec.step)
+  const baselineValue = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+  const baseline = normalizeAdvancedValue(baselineValue, spec.step)
+  return draft === baseline ? count : count + 1
+}, 0))
 
 // 高级参数仅是当前结果卡的未提交草稿：新版本/历史版本切换到其他入参时自动清空。
 watch(() => [props.version, props.seedInput], () => { advancedOverrides.value = {} }, { deep: true })
+function normalizeAdvancedValue(value, step) {
+  return typeof value === 'number' && step ? roundToStep(value, step) : value
+}
+function openAdvanced() {
+  advancedOpen.value = true
+}
+async function handleAdvancedOpenChange(open) {
+  advancedOpen.value = open
+  if (open) return
+  await nextTick()
+  paramAdjustPanel.value?.focusAdvancedTrigger()
+}
 function saveAdvancedDraft(overrides) {
   advancedOverrides.value = overrides
 }

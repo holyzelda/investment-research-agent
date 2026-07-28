@@ -27,6 +27,24 @@ let turnId = 0
 const nextId = () => `m${++messageId}`
 const nextTurnId = () => ++turnId
 const answerTimers = new Map()
+const reportStreams = new Map()
+
+function createReportStreamMessage(taskId) {
+  return {
+    ...createStreamMessage(),
+    flow: 'report',
+    taskId,
+    reportTaskId: null,
+    reportId: null,
+    steps: [],
+  }
+}
+
+function reportStepStatus(state) {
+  if (['completed', 'succeeded', 'done'].includes(state)) return 'completed'
+  if (['failed', 'error', 'cancelled'].includes(state)) return 'aborted'
+  return 'active'
+}
 
 function createStreamMessage(id = nextTurnId()) {
   return {
@@ -74,6 +92,7 @@ export const useCalculationStore = defineStore('calculation', {
     stationOptions: [],
     reports: [],
     reportTasks: {},
+    activeReportCount: 0,
     activeStream: null,
     activeTurnId: null,
     conversationEpoch: 0,
@@ -84,10 +103,12 @@ export const useCalculationStore = defineStore('calculation', {
     selectedVersionEntry: (state) => (
       state.versions.find((item) => item.version === state.selectedVersion) || null
     ),
+    hasActiveReportGeneration: (state) => state.activeReportCount > 0,
   },
   actions: {
     resetConversation() {
       this.disposeActiveTurn({ visible: false })
+      this.disposeReportStreams()
       this.conversationEpoch += 1
       this.historyOpenEpoch += 1
       this.messages = []
@@ -97,6 +118,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.responding = false
       this.reports = []
       this.reportTasks = {}
+      this.activeReportCount = 0
     },
     selectVersion(version) {
       if (this.versions.some((item) => item.version === version)) this.selectedVersion = version
@@ -120,6 +142,7 @@ export const useCalculationStore = defineStore('calculation', {
     },
     async openConversation(conversationId) {
       this.disposeActiveTurn({ visible: false })
+      this.disposeReportStreams()
       const openEpoch = ++this.historyOpenEpoch
       const conversationEpoch = ++this.conversationEpoch
       const response = await getConversation(conversationId)
@@ -284,6 +307,11 @@ export const useCalculationStore = defineStore('calculation', {
     },
     stopStream() {
       this.disposeActiveTurn({ visible: true })
+    },
+    disposeReportStreams() {
+      for (const stream of reportStreams.values()) stream.controller.abort()
+      reportStreams.clear()
+      this.activeReportCount = 0
     },
     // 主对话：经我方 /ir/chat/diag 流式接入中台。前端不做参数解析/校验，原样发送。
     async sendAndCalculate(text) {
@@ -539,46 +567,136 @@ export const useCalculationStore = defineStore('calculation', {
       }
     },
     async generateReport(taskId) {
-      const created = (await createReport(taskId)).data || {}
-      if (created.status === 'completed') {
-        const report = { reportId: created.reportId, taskId, status: 'completed' }
-        this._applyReport(report)
-        return report
-      }
-      this.reportTasks[created.reportTaskId] = created
-      const progressMessage = {
-        id: nextId(), role: 'assistant', kind: 'report-progress', taskId,
-        reportTaskId: created.reportTaskId, steps: created.steps || [],
-      }
-      this.messages.push(progressMessage)
-      this._applyReport({ taskId, reportTaskId: created.reportTaskId, status: 'generating' })
+      if (!taskId) return null
+      const active = reportStreams.get(taskId)
+      if (active) return active.promise
+
+      const epoch = this.conversationEpoch
+      const pendingMessage = createReportStreamMessage(taskId)
+      this.messages.push(pendingMessage)
+      const progressMessage = this._messageForTurn(pendingMessage.turnId)
+      if (!progressMessage) return null
+      applyThinkingFrame(progressMessage.thinkingState, 1, {
+        node_id: 'report:prepare',
+        node_seq: 1,
+        node_title: '读取冻结测算快照',
+        node_status: 'active',
+        node_subtitle: '正在准备正式报告…',
+      })
+      progressMessage.hasThinkingStarted = true
+
       const controller = new AbortController()
-      try {
-        await streamReportEvents(created.reportTaskId, {
-          signal: controller.signal,
-          onEvent: ({ type, data }) => {
-            if (type === 'complete' || type === 'failed') {
-              const observedSteps = this.reportTasks[created.reportTaskId]?.steps || []
-              this._applyReport(data)
-              progressMessage.steps = [...observedSteps, ...((data.steps || []).filter((step) => step.state !== 'active'))]
-              if (type === 'complete' && data.reportId) {
-                progressMessage.kind = 'report-generated'
-                progressMessage.text = '报告已生成'
-                progressMessage.payload = { event_type: 'report_generated', report_id: data.reportId, task_id: taskId }
-                this.syncReportsFromConversation().catch(() => {})
-              }
-            } else {
-              const next = { ...this.reportTasks[created.reportTaskId], steps: [...(this.reportTasks[created.reportTaskId]?.steps || []), data] }
-              this.reportTasks[created.reportTaskId] = next
-              progressMessage.steps = next.steps
-            }
-          },
+      let frameId = 1
+      const isCurrent = () => (
+        this.conversationEpoch === epoch
+        && reportStreams.get(taskId)?.messageId === progressMessage.id
+      )
+      const applyStep = (step) => {
+        if (!step || !isCurrent()) return
+        const key = step.key || `step-${step.seq || frameId + 1}`
+        frameId += 1
+        applyThinkingFrame(progressMessage.thinkingState, frameId, {
+          node_id: `report:${key}`,
+          node_seq: Number.isFinite(step.seq) ? step.seq : frameId,
+          node_title: step.title || '生成正式报告',
+          node_status: reportStepStatus(step.state),
+          node_subtitle: step.state === 'completed' ? '已完成' : step.state === 'failed' ? '执行失败' : '正在执行…',
         })
-      } catch (error) {
-        const recovered = (await getReportTask(created.reportTaskId)).data || {}
-        this._applyReport(recovered)
       }
-      return this.reportTasks[created.reportTaskId]
+      const finish = (report, failed = false) => {
+        if (!isCurrent()) return
+        for (const step of report.steps || []) applyStep(step)
+        if (failed) {
+          const activeNode = thinkingNodes(progressMessage.thinkingState).find((node) => node.status === 'active')
+          if (activeNode) {
+            frameId += 1
+            applyThinkingFrame(progressMessage.thinkingState, frameId, {
+              node_id: activeNode.nodeId,
+              node_status: 'aborted',
+              node_subtitle: '报告生成失败',
+            })
+          }
+        }
+        finalizeThinking(progressMessage.thinkingState)
+        progressMessage.finishedAt = Date.now()
+        progressMessage.phase = failed ? 'error' : 'completed'
+        progressMessage.error = failed ? (report.error?.message || '报告生成失败') : null
+        progressMessage.answerText = failed
+          ? `报告生成失败：${progressMessage.error}`
+          : '正式报告已生成，可查看完整报告。'
+        progressMessage.reportId = report.reportId || null
+        progressMessage.payload = report.reportId
+          ? { event_type: 'report_generated', report_id: report.reportId, task_id: taskId }
+          : null
+        progressMessage.done = true
+      }
+
+      const promise = (async () => {
+        try {
+          const created = (await createReport(taskId)).data || {}
+          if (!isCurrent()) return null
+          progressMessage.reportTaskId = created.reportTaskId || null
+          progressMessage.steps = created.steps || []
+          for (const step of progressMessage.steps) applyStep(step)
+
+          if (created.status === 'completed') {
+            const report = { ...created, taskId, status: 'completed' }
+            this._applyReport(report)
+            finish(report)
+            this.syncReportsFromConversation().catch(() => {})
+            return report
+          }
+
+          this.reportTasks[created.reportTaskId] = created
+          this._applyReport({ taskId, reportTaskId: created.reportTaskId, status: 'generating', steps: created.steps || [] })
+          await streamReportEvents(created.reportTaskId, {
+            signal: controller.signal,
+            onEvent: ({ type, data }) => {
+              if (!isCurrent()) return
+              if (type === 'complete' || type === 'failed') {
+                this._applyReport(data)
+                progressMessage.steps = data.steps || progressMessage.steps
+                finish(data, type === 'failed')
+                if (type === 'complete' && data.reportId) this.syncReportsFromConversation().catch(() => {})
+                return
+              }
+              const steps = [...(this.reportTasks[created.reportTaskId]?.steps || []), data]
+              this.reportTasks[created.reportTaskId] = { ...this.reportTasks[created.reportTaskId], steps }
+              progressMessage.steps = steps
+              applyStep(data)
+            },
+          })
+          return this.reportTasks[created.reportTaskId]
+        } catch (error) {
+          if (!isCurrent() || error?.name === 'AbortError') return null
+          try {
+            const recovered = (await getReportTask(progressMessage.reportTaskId)).data || {}
+            if (!isCurrent()) return null
+            this._applyReport(recovered)
+            progressMessage.steps = recovered.steps || progressMessage.steps
+            if (recovered.status === 'completed') {
+              finish(recovered)
+              this.syncReportsFromConversation().catch(() => {})
+            } else {
+              finish({ ...recovered, error: recovered.error || { message: error?.message } }, true)
+            }
+            return recovered
+          } catch (recoveryError) {
+            if (isCurrent()) finish({ error: { message: recoveryError?.message || error?.message } }, true)
+            return null
+          }
+        } finally {
+          const current = reportStreams.get(taskId)
+          if (current?.messageId === progressMessage.id) {
+            reportStreams.delete(taskId)
+            this.activeReportCount = reportStreams.size
+          }
+        }
+      })()
+
+      reportStreams.set(taskId, { controller, messageId: progressMessage.id, promise })
+      this.activeReportCount = reportStreams.size
+      return promise
     },
     async syncReportsFromConversation() {
       if (!this.conversationId) return

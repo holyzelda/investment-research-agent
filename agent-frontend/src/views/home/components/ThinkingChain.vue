@@ -11,7 +11,7 @@
       </svg>
     </button>
     <div v-if="chainOpen" class="ir-thinking__body">
-      <div v-if="bootstrapping" class="ir-thinking__placeholder"><span class="ir-thinking__pulse" />正在准备分析上下文…</div>
+      <div v-if="bootstrapping" class="ir-thinking__placeholder"><span class="ir-thinking__pulse" />{{ bootstrapText }}</div>
       <ThinkingNodeItem v-for="(node, i) in nodes" :key="node.nodeId" :node="node" :ordinal="nodes.length > 1 ? `${i + 1}/${nodes.length}` : ''" @toggle="toggleNode" />
       <div v-if="streaming && nodes.length && !hasActive" class="ir-thinking__placeholder ir-thinking__placeholder--bridge"><span class="ir-thinking__pulse" />正在推进下一步…</div>
       <button v-if="terminal && nodes.length > 1" type="button" class="ir-thinking__toggle" @click.stop="toggleAll">{{ allExpanded ? '全部折叠' : '全部展开' }}</button>
@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, onUnmounted, watch } from 'vue'
 import ThinkingNodeItem from './ThinkingNodeItem.vue'
 
 const props = defineProps({
@@ -30,6 +30,10 @@ const props = defineProps({
   bootstrapping: { type: Boolean, default: false },
   startedAt: { type: Number, default: null },
   finishedAt: { type: Number, default: null },
+  activeTitle: { type: String, default: '正在深度推理' },
+  completedTitle: { type: String, default: '推理完成' },
+  bootstrappingTitle: { type: String, default: '正在唤醒推理内核…' },
+  bootstrapText: { type: String, default: '正在准备分析上下文…' },
 })
 
 const now = ref(Date.now())
@@ -38,10 +42,13 @@ let timer = setInterval(() => { now.value = Date.now() }, 100)
 onUnmounted(() => { clearInterval(timer); timer = null })
 
 const terminal = computed(() => !props.streaming && Boolean(props.finishedAt))
+watch(terminal, (isTerminal) => {
+  if (isTerminal) chainOpen.value = false
+}, { immediate: true })
 const visible = computed(() => props.bootstrapping || props.nodes.length > 0 || props.streaming)
 const title = computed(() => {
-  if (props.bootstrapping) return '正在唤醒推理内核…'
-  return terminal.value ? '推理完成' : '正在深度推理'
+  if (props.bootstrapping) return props.bootstrappingTitle
+  return terminal.value ? props.completedTitle : props.activeTitle
 })
 const elapsed = computed(() => {
   if (!props.startedAt) return 0

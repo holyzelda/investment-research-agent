@@ -47,7 +47,7 @@ async function expandedPanel(stationOptions = []) {
 }
 
 describe('ParamAdjustPanel approved layout', () => {
-  it('renders 项目信息 as four evenly distributed information cards in one row, in the requested order', async () => {
+  it('renders 项目信息 as a lightweight four-column data grid in the requested order', async () => {
     const wrapper = await expandedPanel(['祥泰站', '乌达站'])
     const project = wrapper.find('.ir-adjust__zone--project_definition')
 
@@ -58,10 +58,9 @@ describe('ParamAdjustPanel approved layout', () => {
       expect.stringContaining('装机功率'),
       expect.stringContaining('装机容量'),
     ])
-    expect(project.findAll('.ir-adjust__info-card')).toHaveLength(4)
-    // 单行分布容器：卡片宽度贴合内容、由 CSS space-between 均匀分布，而非堆叠在最左侧
-    expect(project.find('.ir-adjust__row--cards').exists()).toBe(true)
-    expect(project.findAll('.ir-adjust__row--cards > .ir-adjust__field')).toHaveLength(4)
+    expect(project.findAll('.ir-adjust__project-item')).toHaveLength(4)
+    expect(project.find('.ir-adjust__row--project').exists()).toBe(true)
+    expect(project.findAll('.ir-adjust__row--project > .ir-adjust__field')).toHaveLength(4)
     expect(project.find('.ir-adjust__select').exists()).toBe(true)
     expect(project.findAll('.ir-adjust__select option').map((option) => option.text())).toEqual(['祥泰站', '乌达站'])
   })
@@ -71,7 +70,7 @@ describe('ParamAdjustPanel approved layout', () => {
     const project = wrapper.find('.ir-adjust__zone--project_definition')
 
     expect(project.text()).not.toContain('节点名称')
-    expect(project.findAll('.ir-adjust__info-card')).toHaveLength(3)
+    expect(project.findAll('.ir-adjust__project-item')).toHaveLength(3)
   })
 
   it('drops 项目运营期 everywhere even though the backend dictionary still returns it', async () => {

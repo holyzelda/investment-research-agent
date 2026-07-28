@@ -1,16 +1,16 @@
 <template>
-  <div v-if="modelValue" class="ir-advanced__mask" @click.self="close">
-    <section class="ir-advanced" role="dialog" aria-modal="true" aria-labelledby="advanced-param-title">
+  <div v-if="modelValue" class="ir-advanced__mask" @click.self="close" @keydown.esc="close">
+    <section ref="dialog" class="ir-advanced" role="dialog" aria-modal="true" aria-labelledby="advanced-param-title" tabindex="-1">
       <header class="ir-advanced__head">
         <div>
           <h3 id="advanced-param-title">高级参数</h3>
           <p>修改后暂存，点击“重新测算”时统一提交。</p>
         </div>
-        <button class="ir-advanced__close" aria-label="关闭高级参数" @click="close">×</button>
+        <button ref="closeButton" type="button" class="ir-advanced__close" aria-label="关闭高级参数" @click="close">×</button>
       </header>
 
       <div class="ir-advanced__body">
-        <section v-for="section in sections" :key="section.title" class="ir-advanced__section ir-advanced__section-card">
+        <section v-for="section in sections" :key="section.title" class="ir-advanced__section">
           <h4>{{ section.title }}</h4>
           <div class="ir-advanced__fields" :class="`ir-advanced__fields--${section.key}`">
             <div
@@ -31,7 +31,7 @@
                     {{ option.label }}
                   </option>
                 </select>
-                <span v-else-if="isEditable(spec)" class="ir-advanced__value">
+                <span v-else-if="isEditable(spec)" class="ir-advanced__value xc-num">
                   <input
                     v-model.number="values[spec.id]"
                     class="ir-advanced__number"
@@ -66,15 +66,15 @@
       </div>
 
       <footer class="ir-advanced__footer">
-        <button class="ir-advanced__cancel" @click="close">取消</button>
-        <button class="ir-advanced__save" @click="save">暂存修改</button>
+        <button type="button" class="ir-advanced__cancel" @click="close">取消</button>
+        <button type="button" class="ir-advanced__save" @click="save">暂存修改</button>
       </footer>
     </section>
   </div>
 </template>
 
 <script setup>
-import { computed, reactive, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { decimalsForStep, dynamicRange, roundToStep } from '@/utils/paramAdjust'
 import { formatNumber } from '@/utils/formatNumber'
 
@@ -91,6 +91,8 @@ const ADVANCED_SECTION_IDS = [
   { key: 'cost', title: '成本边界', ids: ['battery_replace_cost', 'maint_cost', 'opex_cost'] },
 ]
 const values = reactive({})
+const dialog = ref(null)
+const closeButton = ref(null)
 
 function resetValues() {
   Object.keys(values).forEach((key) => delete values[key])
@@ -100,6 +102,11 @@ function resetValues() {
   }
 }
 watch(() => [props.modelValue, props.seedInput, props.paramDict], resetValues, { immediate: true, deep: true })
+watch(() => props.modelValue, async (open) => {
+  if (!open) return
+  await nextTick()
+  closeButton.value?.focus() || dialog.value?.focus()
+})
 
 const sections = computed(() => {
   const byId = new Map(props.paramDict.map((spec) => [spec.id, spec]))
@@ -161,42 +168,58 @@ function save() {
 </script>
 
 <style scoped>
-.ir-advanced__mask { position:fixed; inset:0; z-index:var(--xc-z-modal); display:grid; place-items:center; padding:var(--xc-space-6); background:rgba(0,0,0,.58); backdrop-filter:blur(8px); }
+.ir-advanced__mask { position:fixed; inset:0; z-index:var(--xc-z-modal); display:grid; place-items:center; padding:var(--xc-space-6); background:var(--xc-surface-overlay); backdrop-filter:blur(var(--xc-blur-sm)); }
 .ir-advanced { width:min(680px,100%); max-height:min(760px,calc(100vh - 48px)); display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--xc-border-card); border-radius:var(--xc-radius-xl); background:var(--xc-surface-raised); box-shadow:var(--xc-shadow-raised); }
+.ir-advanced:focus { outline:none; }
 .ir-advanced__head { display:flex; justify-content:space-between; gap:var(--xc-space-5); padding:var(--xc-space-6); border-bottom:1px solid var(--xc-border-soft); }
 .ir-advanced__head h3 { margin:0; color:var(--xc-text-strong); font-size:var(--xc-fs-lg); font-weight:var(--xc-fw-semi); }
 .ir-advanced__head p { margin:var(--xc-space-2) 0 0; color:var(--xc-text-mute); font-size:var(--xc-fs-xs); }
-.ir-advanced__close { width:28px; height:28px; border:0; border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-mute); font-size:22px; line-height:1; cursor:pointer; }
-.ir-advanced__close:hover { background:var(--xc-surface-2); color:var(--xc-text-strong); }
-.ir-advanced__body { overflow-y:auto; display:grid; gap:var(--xc-space-5); padding:var(--xc-space-6); }
-.ir-advanced__section + .ir-advanced__section { margin-top:0; }
-.ir-advanced__section-card { padding:var(--xc-space-5); border:1px solid var(--xc-border-card); border-radius:var(--xc-radius-md); background:var(--xc-surface-card); }
-.ir-advanced__section h4 { display:flex; align-items:center; gap:var(--xc-space-2); margin:0 0 var(--xc-space-4); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); }
-.ir-advanced__section h4::before { content:''; width:4px; height:14px; border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); }
+.ir-advanced__close { width:36px; height:36px; border:0; border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-mute); font-size:22px; line-height:1; cursor:pointer; }
+.ir-advanced__close:hover { background:var(--xc-surface-control); color:var(--xc-text-strong); }
+.ir-advanced__close:focus-visible,.ir-advanced__cancel:focus-visible,.ir-advanced__save:focus-visible,.ir-advanced__select:focus-visible,.ir-advanced__number:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; }
+.ir-advanced__body { overflow-y:auto; padding:0 var(--xc-space-6); }
+.ir-advanced__section { padding:var(--xc-space-7) 0 var(--xc-space-6); border-bottom:1px solid var(--xc-border-soft); }
+.ir-advanced__section:last-child { border-bottom:0; }
+.ir-advanced__section h4 { display:flex; align-items:center; gap:var(--xc-space-3); margin:0 0 var(--xc-space-5); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); }
+.ir-advanced__section h4::before { content:''; width:3px; height:16px; border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); box-shadow:var(--xc-glow-blue); }
 .ir-advanced__fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--xc-space-6) var(--xc-space-5); }
 .ir-advanced__fields--revenue .ir-advanced__field:nth-child(n+3),.ir-advanced__fields--cost .ir-advanced__field { grid-column:1 / -1; width:min(280px,100%); }
 .ir-advanced__field { min-width:0; }
-.ir-advanced__field-head { display:flex; align-items:center; justify-content:space-between; min-height:28px; gap:var(--xc-space-3); color:var(--xc-text-soft); font-size:var(--xc-fs-xs); }
-.ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__field-head { justify-content:flex-start; min-height:52px; gap:var(--xc-space-5); padding:var(--xc-space-4) var(--xc-space-5); border-left:2px solid var(--xc-border-accent); border-radius:0 var(--xc-radius-sm) var(--xc-radius-sm) 0; background:rgba(255,255,255,.025); }
+.ir-advanced__field-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:32px; gap:var(--xc-space-4); color:var(--xc-text-soft); font-size:var(--xc-fs-xs); }
+.ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__field-head { min-height:52px; padding-left:var(--xc-space-4); border-left:2px solid var(--xc-border-accent); }
 .ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__readonly { color:var(--xc-text-strong); font-size:var(--xc-fs-xs); }
-.ir-advanced__value { display:inline-flex; align-items:center; gap:2px; }
-.ir-advanced__number { width:62px; height:24px; padding:0 var(--xc-space-2); border:1px solid transparent; border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); text-align:center; appearance:textfield; -moz-appearance:textfield; }
-.ir-advanced__select { min-width:88px; height:28px; padding:0 var(--xc-space-2); border:1px solid var(--xc-border-soft); border-radius:var(--xc-radius-sm); background:var(--xc-surface-2); color:var(--xc-text-strong); font-size:var(--xc-fs-xs); cursor:pointer; }
-.ir-advanced__select:focus { outline:none; border-color:var(--xc-border-accent); }
-.ir-advanced__number:hover,.ir-advanced__number:focus { outline:none; border-color:var(--xc-border-accent); background:rgba(255,255,255,.04); }
+.ir-advanced__value { display:inline-flex; align-items:baseline; justify-content:flex-end; gap:2px; min-width:112px; padding:var(--xc-space-2) var(--xc-space-3); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-surface-tinted); }
+.ir-advanced__number { width:68px; height:22px; padding:0; border:0; background:transparent; color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); text-align:center; appearance:textfield; -moz-appearance:textfield; }
+.ir-advanced__select { min-width:96px; height:32px; padding:0 var(--xc-space-3); border:1px solid var(--xc-inline-border); border-radius:var(--xc-radius-sm); background:var(--xc-inline-bg); color:var(--xc-text-strong); font-size:var(--xc-fs-xs); cursor:pointer; }
 .ir-advanced__number::-webkit-inner-spin-button,.ir-advanced__number::-webkit-outer-spin-button { margin:0; -webkit-appearance:none; }
 .ir-advanced__value small,.ir-advanced__readonly { color:var(--xc-text-mute); font-size:var(--xc-fs-3xs); }
-.ir-advanced__readonly { color:var(--xc-text-soft); }
-.ir-advanced__slider { -webkit-appearance:none; appearance:none; width:100%; height:4px; margin-top:var(--xc-space-4); border-radius:var(--xc-radius-full); cursor:pointer; background:linear-gradient(90deg,var(--xc-accent-blue) var(--pct,0%),rgba(255,255,255,.12) var(--pct,0%)); }
-.ir-advanced__slider::-webkit-slider-thumb { width:14px; height:14px; -webkit-appearance:none; appearance:none; border:3px solid var(--xc-accent-blue); border-radius:50%; background:#fff; box-shadow:var(--xc-shadow-sm); }
-.ir-advanced__slider::-moz-range-thumb { width:14px; height:14px; border:3px solid var(--xc-accent-blue); border-radius:50%; background:#fff; }
+.ir-advanced__readonly { color:var(--xc-text-soft); white-space:nowrap; }
+.ir-advanced__slider { -webkit-appearance:none; appearance:none; width:100%; height:4px; margin-top:var(--xc-space-4); border-radius:var(--xc-radius-full); cursor:pointer; background:linear-gradient(90deg,var(--xc-accent-blue) var(--pct,0%),var(--xc-border-soft) var(--pct,0%)); transition:filter var(--xc-dur-base),box-shadow var(--xc-dur-base); }
+.ir-advanced__slider:hover { filter:brightness(1.2); }
+.ir-advanced__slider:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:5px; box-shadow:var(--xc-glow-blue); }
+.ir-advanced__slider::-webkit-slider-thumb { width:16px; height:16px; -webkit-appearance:none; appearance:none; border:3px solid var(--xc-accent-blue); border-radius:50%; background:var(--xc-text-strong); box-shadow:var(--xc-shadow-sm); transition:transform var(--xc-dur-base),box-shadow var(--xc-dur-base); }
+.ir-advanced__slider::-moz-range-thumb { width:12px; height:12px; border:3px solid var(--xc-accent-blue); border-radius:50%; background:var(--xc-text-strong); transition:transform var(--xc-dur-base),box-shadow var(--xc-dur-base); }
+.ir-advanced__slider:active::-webkit-slider-thumb { transform:scale(1.15); box-shadow:var(--xc-glow-blue); }
+.ir-advanced__slider:active::-moz-range-thumb { transform:scale(1.15); box-shadow:var(--xc-glow-blue); }
 .ir-advanced__delta-row { display:flex; justify-content:flex-end; min-height:16px; margin-top:var(--xc-space-2); font-size:var(--xc-fs-3xs); }
 .ir-advanced__delta { padding:1px var(--xc-space-2); border-radius:var(--xc-radius-full); font-weight:var(--xc-fw-semi); }
 .ir-advanced__delta.up { color:var(--xc-status-ok); background:var(--xc-status-ok-soft); }
 .ir-advanced__delta.down { color:var(--xc-status-danger); background:var(--xc-status-danger-soft); }
-@media (max-width:560px) { .ir-advanced__fields { grid-template-columns:1fr; } .ir-advanced__fields--revenue .ir-advanced__field:nth-child(n+3),.ir-advanced__fields--cost .ir-advanced__field { grid-column:auto; width:100%; } }
 .ir-advanced__footer { display:flex; justify-content:flex-end; gap:var(--xc-space-3); padding:var(--xc-space-5) var(--xc-space-6); border-top:1px solid var(--xc-border-soft); }
-.ir-advanced__cancel,.ir-advanced__save { height:34px; padding:0 var(--xc-space-5); border-radius:var(--xc-radius-md); font-size:var(--xc-fs-xs); cursor:pointer; }
+.ir-advanced__cancel,.ir-advanced__save { min-height:40px; padding:0 var(--xc-space-5); border-radius:var(--xc-radius-md); font-size:var(--xc-fs-xs); cursor:pointer; }
 .ir-advanced__cancel { border:1px solid var(--xc-border-soft); background:transparent; color:var(--xc-text-soft); }
-.ir-advanced__save { border:0; background:var(--xc-grad-brand); color:#fff; }
+.ir-advanced__save { border:0; background:var(--xc-grad-brand); color:var(--xc-text-strong); }
+.ir-advanced__save:hover,.ir-advanced__cancel:hover { box-shadow:var(--xc-glow-blue); }
+@media (max-width:560px) {
+  .ir-advanced__mask { place-items:stretch; padding:var(--xc-space-3); }
+  .ir-advanced { max-height:calc(100vh - var(--xc-space-2) * 2); }
+  .ir-advanced__head,.ir-advanced__body,.ir-advanced__footer { padding-inline:var(--xc-space-5); }
+  .ir-advanced__fields { grid-template-columns:1fr; }
+  .ir-advanced__fields--revenue .ir-advanced__field:nth-child(n+3),.ir-advanced__fields--cost .ir-advanced__field { grid-column:auto; width:100%; }
+  .ir-advanced__footer { align-items:stretch; }
+  .ir-advanced__cancel,.ir-advanced__save { flex:1; }
+}
+@media (prefers-reduced-motion:reduce) {
+  .ir-advanced__slider,.ir-advanced__slider::-webkit-slider-thumb,.ir-advanced__slider::-moz-range-thumb { transition:none; }
+}
 </style>

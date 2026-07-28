@@ -1,7 +1,7 @@
 schema_version: '1'
 owner_app_id: ir_agent
 display_name: 朱雀投研智能体
-description: 储能项目经济性测算。根据用户描述收集项目省份、功率、容量、系统时长、节点、电压等级和运营周期，调用飞书权威测算并返回结构化结果。
+description: 储能项目经济性测算。根据用户描述收集项目省份、功率、容量、系统时长、节点、电压等级和运营周期，调用测算核心算法并返回结构化结果。
 skip_station_required_check: true
 
 domains:
@@ -19,13 +19,13 @@ domains:
         - 储能测算
         - 项目测算
         - 经济性测算
-        - 收益测算
         - 储能项目收益
         - 储能项目IRR
       secondary_terms:
     default_recommended_questions:
-    - 测算？
-    - 本月收益月报怎么看？
+    - 测算山西 100MW/400MWh 储能
+    - 测算山西 100MW/200MWh 储能
+    - 测算宁夏 100MW/200MWh 储能
     prompts:
       domain_guard: |
         【储能项目测算规则】
@@ -44,7 +44,7 @@ domains:
     tools:
       - name: create_calculation_task
         description: |
-          发起储能项目飞书经济性测算。
+          发起储能项目经济性测算。
           province 为项目所在省份；规模可由功率 power_mw（MW）、容量 capacity_mwh（MWh）、
           系统时长 duration_hours（小时）任意有效组合提供；node_name 为可选节点名称；
           voltage_kv 仅支持 110 或 220；operation_years 仅支持 15 或 20。

@@ -21,7 +21,7 @@ describe('AdvancedParamDialog', () => {
     const sections = wrapper.findAll('.ir-advanced__section')
 
     expect(sections.map((section) => section.find('h4').text())).toEqual(['金融边界', '收益边界', '成本边界'])
-    expect(sections.every((section) => section.classes().includes('ir-advanced__section-card'))).toBe(true)
+    expect(sections.every((section) => !section.classes().includes('ir-advanced__section-card'))).toBe(true)
     expect(sections.map((section) => section.findAll('.ir-advanced__field').map((field) => field.text()))).toEqual([
       [expect.stringContaining('项目运营期')],
       [expect.stringContaining('中长期充电均价'), expect.stringContaining('中长期放电均价'), expect.stringContaining('现货策略达成率'), expect.stringContaining('容量市场达成率')],
@@ -44,6 +44,15 @@ describe('AdvancedParamDialog', () => {
     expect(text).toContain('中长期放电均价—')
     expect(text).toContain('项目运营期')
     expect(text).toContain('换电成本0元/Wh')
+  })
+
+  it('uses fixed-right value badges for editable sliders and closes on Escape', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED }, attachTo: document.body })
+
+    expect(wrapper.findAll('.ir-advanced__field--slider .ir-advanced__value').length).toBeGreaterThan(0)
+    await wrapper.find('.ir-advanced').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
+    wrapper.unmount()
   })
 
   it('renders operation years as the metadata-defined select and saves 20', async () => {

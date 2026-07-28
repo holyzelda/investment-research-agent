@@ -31,8 +31,9 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.text()).toContain('项目信息')
     expect(wrapper.text()).toContain('金融边界')
     expect(wrapper.text()).toContain('收益边界')
-    expect(wrapper.findAll('.ir-adjust__zone-card').length).toBeGreaterThan(0)
-    expect(wrapper.findAll('.ir-adjust__info-card').length).toBeGreaterThan(0)
+    expect(wrapper.findAll('.ir-adjust__zone')).toHaveLength(3)
+    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(3)
+    expect(wrapper.find('.ir-adjust__zone-card').exists()).toBe(false)
   })
 
   it('V1 中省份只读，节点/容量/功率为可编辑控件', async () => {
@@ -51,7 +52,7 @@ describe('ParamAdjustPanel', () => {
     expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true)
     expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
 
-    const projectFields = wrapper.findAll('.ir-adjust__info-card')
+    const projectFields = wrapper.findAll('.ir-adjust__project-item')
     const capacityField = projectFields.find((field) => field.text().includes('装机容量'))
     const powerField = projectFields.find((field) => field.text().includes('储能装机功率'))
     expect(capacityField?.find('input.ir-adjust__number').exists()).toBe(true)
@@ -72,7 +73,7 @@ describe('ParamAdjustPanel', () => {
 
     expect(wrapper.findAll('.ir-adjust__ro').some((node) => node.text().includes('甘肃'))).toBe(true)
     expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
-    expect(wrapper.findAll('.ir-adjust__info-card input.ir-adjust__number')).toHaveLength(2)
+    expect(wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')).toHaveLength(2)
   })
 
   it('高级参数字段（如换电成本）不在内联调整面板重复展示', async () => {
@@ -154,16 +155,35 @@ describe('ParamAdjustPanel', () => {
     })
   })
 
-  it('renders 高级参数 beside the primary recalculation action and emits open-advanced', async () => {
+  it('renders 高级参数 in the persistent header and emits open-advanced while collapsed', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
     })
 
-    await wrapper.find('.ir-adjust__toggle').trigger('click')
-    const footer = wrapper.find('.ir-adjust__footer')
-    expect(footer.find('.ir-adjust__advanced').exists()).toBe(true)
-    await footer.find('.ir-adjust__advanced').trigger('click')
+    const header = wrapper.find('.ir-adjust__header')
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+    expect(header.find('.ir-adjust__advanced').exists()).toBe(true)
+    await header.find('.ir-adjust__advanced').trigger('click')
     expect(wrapper.emitted('open-advanced')).toHaveLength(1)
+  })
+
+  it('exposes disclosure state and staged advanced-change count accessibly', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED,
+        version: 'V2', advancedOverrideCount: 2,
+      },
+    })
+    const toggle = wrapper.find('.ir-adjust__toggle')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(toggle.attributes('aria-controls')).toBe('ir-adjust-panel-body')
+    expect(wrapper.find('.ir-adjust__draft-count').text()).toBe('2')
+    expect(wrapper.find('.ir-adjust__advanced').attributes('aria-label')).toContain('已暂存 2 项修改')
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(wrapper.find('#ir-adjust-panel-body').exists()).toBe(true)
+    expect(wrapper.text()).toContain('2 项高级修改将在重新测算时生效')
   })
 
   it('提交时携带面板当前完整值作为 overrides 与基础字段', async () => {
@@ -195,7 +215,7 @@ describe('ParamAdjustPanel', () => {
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     await wrapper.find('.ir-adjust__select').setValue('新节点')
-    const projectInputs = wrapper.findAll('.ir-adjust__info-card input.ir-adjust__number')
+    const projectInputs = wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')
     await projectInputs[0].setValue(250)
     await projectInputs[1].setValue(1000)
     await wrapper.find('.ir-adjust__submit').trigger('click')
