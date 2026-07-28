@@ -131,7 +131,7 @@ function saveAdvancedDraft(overrides) {
   box-shadow: var(--xc-shadow-raised);
   overflow: hidden;
 }
-.ir-result__ok { font-size:var(--xc-fs-sm); color:var(--xc-status-ok); font-weight:var(--xc-fw-semi); }
+.ir-result__ok { font-size:var(--xc-fs-base); color:var(--xc-status-ok); font-weight:var(--xc-fw-semi); }
 .ir-result__ver { font-size:var(--xc-fs-2xs); color:var(--xc-text-inverse); background:var(--xc-accent-blue); border-radius:var(--xc-radius-full); padding:1px var(--xc-space-3); }
 /* 顶部图靠右对齐占 66% 宽，高度压短；图垂直方向居中裁剪（上下各裁一点），
    左侧 34% 为深蓝黑填充，放标题/时间内容。 */
@@ -156,7 +156,7 @@ function saveAdvancedDraft(overrides) {
   left: var(--xc-space-7);
   display: flex;
   align-items: center;
-  gap: var(--xc-space-3);
+  gap: var(--xc-space-4);
 }
 /* 左深右透遮罩：左侧压暗保证标题可读，右侧图面保持清晰 */
 .ir-result__banner-mask {

@@ -13,7 +13,10 @@ const api = vi.hoisted(() => ({
   getStations: vi.fn(),
 }))
 
+const chat = vi.hoisted(() => ({ openChatStream: vi.fn() }))
+
 vi.mock('@/api/calc', () => api)
+vi.mock('@/utils/chatSse', () => chat)
 
 const resultOf = (province) => ({
   basicInfo: { province }, financial: { capitalIrr: 8 }, advanced: { donut: {}, lines: {} },
@@ -29,13 +32,26 @@ describe('param adjustment: recalculate + param meta', () => {
   })
 
   it('sendAndCalculate 成功后版本携带本次冻结 input，并加载参数元数据', async () => {
-    api.createCalculationTask.mockResolvedValue({
-      data: { conversationId: 1, taskId: 10, version: 'V1', status: 'completed', input: { province: '甘肃', spot_charge_avg: 0.2 } },
+    let handlers
+    chat.openChatStream.mockImplementation((_path, _body, options) => {
+      handlers = options
+      return { close: vi.fn() }
     })
     api.getCalculationResult.mockResolvedValue({ data: resultOf('甘肃') })
     const store = useCalculationStore()
 
-    await store.sendAndCalculate('测算甘肃 200MW/800MWh')
+    const sent = store.sendAndCalculate('测算甘肃 200MW/800MWh')
+    handlers.onEvent({
+      type: 'answer', id: '1', data: { data: { answer: '', biz: [{
+        tool: 'create_calculation_task',
+        payload: { data: { conversationId: 1, taskId: 10, version: 'V1', status: 'completed', input: { province: '甘肃', spot_charge_avg: 0.2 } } },
+      }] } },
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+    handlers.onEvent({ type: 'done', id: '2', data: { data: {} } })
+    await sent
+    await Promise.resolve()
 
     expect(store.versions[0].input).toEqual({ province: '甘肃', spot_charge_avg: 0.2 })
     expect(api.getParamDict).toHaveBeenCalledWith('甘肃')

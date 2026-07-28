@@ -23,6 +23,9 @@ domains:
         - 储能项目收益
         - 储能项目IRR
       secondary_terms:
+    default_recommended_questions:
+    - 测算？
+    - 本月收益月报怎么看？
     prompts:
       domain_guard: |
         【储能项目测算规则】

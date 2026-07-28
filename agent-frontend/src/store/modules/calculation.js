@@ -23,7 +23,39 @@ import {
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let messageId = 0
+let turnId = 0
 const nextId = () => `m${++messageId}`
+const nextTurnId = () => ++turnId
+const answerTimers = new Map()
+
+function createStreamMessage(id = nextTurnId()) {
+  return {
+    id: nextId(),
+    turnId: id,
+    role: 'assistant',
+    kind: 'assistant-stream',
+    phase: 'streaming',
+    startedAt: Date.now(),
+    finishedAt: null,
+    hasThinkingStarted: false,
+    thinkingState: createThinkingState(),
+    answerBuffer: '',
+    answerText: '',
+    pendingRecommendedQuestions: [],
+    recommendedQuestions: [],
+    pendingResult: null,
+    result: null,
+    version: null,
+    input: null,
+    calculatedAt: null,
+    taskId: null,
+    handledTaskIds: [],
+    doneReceived: false,
+    done: false,
+    cancelled: false,
+    error: null,
+  }
+}
 
 function failureText(message, requestId) {
   return `测算失败：${message || '未知错误'}\nrequest_id：${requestId || '未返回'}`
@@ -43,6 +75,9 @@ export const useCalculationStore = defineStore('calculation', {
     reports: [],
     reportTasks: {},
     activeStream: null,
+    activeTurnId: null,
+    conversationEpoch: 0,
+    historyOpenEpoch: 0,
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -52,7 +87,9 @@ export const useCalculationStore = defineStore('calculation', {
   },
   actions: {
     resetConversation() {
-      this.stopStream()
+      this.disposeActiveTurn({ visible: false })
+      this.conversationEpoch += 1
+      this.historyOpenEpoch += 1
       this.messages = []
       this.versions = []
       this.conversationId = null
@@ -82,7 +119,11 @@ export const useCalculationStore = defineStore('calculation', {
       }
     },
     async openConversation(conversationId) {
+      this.disposeActiveTurn({ visible: false })
+      const openEpoch = ++this.historyOpenEpoch
+      const conversationEpoch = ++this.conversationEpoch
       const response = await getConversation(conversationId)
+      if (openEpoch !== this.historyOpenEpoch || conversationEpoch !== this.conversationEpoch) return
       const detail = response.data || {}
       const completed = (detail.versions || []).filter((version) => version.result)
       let cursor = 0
@@ -140,11 +181,109 @@ export const useCalculationStore = defineStore('calculation', {
     _pushUser(text) {
       this.messages.push({ id: nextId(), role: 'user', kind: 'text', text })
     },
-    stopStream() {
-      if (this.activeStream) {
-        this.activeStream.close()
-        this.activeStream = null
+    _messageForTurn(id) {
+      return this.messages.find((message) => message.turnId === id) || null
+    },
+    _isCurrentTurn(id, epoch) {
+      return this.activeTurnId === id && this.conversationEpoch === epoch
+    },
+    _clearAnswerTimer(id) {
+      const timer = answerTimers.get(id)
+      if (timer) clearInterval(timer)
+      answerTimers.delete(id)
+    },
+    _releaseTurn(id) {
+      this._clearAnswerTimer(id)
+      if (this.activeTurnId !== id) return
+      this.activeTurnId = null
+      this.activeStream = null
+      this.responding = false
+    },
+    _finishTyping(streamMsg) {
+      if (!streamMsg || streamMsg.done || streamMsg.error || streamMsg.cancelled) return
+      streamMsg.recommendedQuestions = [...streamMsg.pendingRecommendedQuestions]
+      streamMsg.pendingRecommendedQuestions = []
+      streamMsg.phase = 'completed'
+      streamMsg.done = true
+      this._releaseTurn(streamMsg.turnId)
+    },
+    _startAnswerTyping(streamMsg, epoch) {
+      if (!this._isCurrentTurn(streamMsg.turnId, epoch) || streamMsg.error || streamMsg.cancelled) return
+      if (!streamMsg.answerBuffer) {
+        this._finishTyping(streamMsg)
+        return
       }
+      if (answerTimers.has(streamMsg.turnId)) return
+      const chars = streamMsg.answerBuffer.split('')
+      streamMsg.answerBuffer = ''
+      const timer = setInterval(() => {
+        if (!this._isCurrentTurn(streamMsg.turnId, epoch) || streamMsg.error || streamMsg.cancelled) {
+          this._clearAnswerTimer(streamMsg.turnId)
+          return
+        }
+        if (!chars.length) {
+          this._clearAnswerTimer(streamMsg.turnId)
+          this._finishTyping(streamMsg)
+          return
+        }
+        const pending = chars.length
+        const batchSize = pending > 300 ? 15 : pending > 100 ? 6 : pending > 30 ? 2 : 1
+        streamMsg.answerText += chars.splice(0, batchSize).join('')
+      }, 16)
+      answerTimers.set(streamMsg.turnId, timer)
+    },
+    _showPendingResult(streamMsg, epoch) {
+      if (!streamMsg.doneReceived || !streamMsg.pendingResult || streamMsg.result) return
+      if (this.conversationEpoch !== epoch || streamMsg.cancelled || streamMsg.error) return
+      const { entry, result } = streamMsg.pendingResult
+      if (!this.versions.some((item) => item.taskId === entry.taskId)) this.versions.push(entry)
+      this.selectedVersion = entry.version
+      streamMsg.result = result
+      streamMsg.version = entry.version
+      streamMsg.input = entry.input
+      streamMsg.calculatedAt = entry.calculatedAt
+      streamMsg.taskId = entry.taskId
+      streamMsg.pendingResult = null
+      this.loadHistory().catch(() => {})
+      if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
+    },
+    _failTurn(streamMsg, message) {
+      if (!streamMsg || streamMsg.done || streamMsg.cancelled) return
+      this._clearAnswerTimer(streamMsg.turnId)
+      finalizeThinking(streamMsg.thinkingState)
+      streamMsg.finishedAt ||= Date.now()
+      streamMsg.error = message || '对话出错'
+      streamMsg.answerBuffer = ''
+      streamMsg.pendingResult = null
+      streamMsg.pendingRecommendedQuestions = []
+      streamMsg.answerText = failureText(streamMsg.error)
+      streamMsg.phase = 'error'
+      streamMsg.done = true
+      this._releaseTurn(streamMsg.turnId)
+    },
+    disposeActiveTurn({ visible = false } = {}) {
+      const id = this.activeTurnId
+      if (!id) return
+      const streamMsg = this._messageForTurn(id)
+      if (this.activeStream?.turnId === id) this.activeStream.close?.()
+      this._clearAnswerTimer(id)
+      if (streamMsg && !streamMsg.done) {
+        finalizeThinking(streamMsg.thinkingState)
+        streamMsg.finishedAt ||= Date.now()
+        streamMsg.cancelled = true
+        streamMsg.phase = 'cancelled'
+        streamMsg.answerBuffer = ''
+        streamMsg.pendingResult = null
+        streamMsg.pendingRecommendedQuestions = []
+        streamMsg.done = true
+        if (visible && !streamMsg.answerText && !streamMsg.result) streamMsg.answerText = '已停止生成'
+      }
+      this.activeTurnId = null
+      this.activeStream = null
+      this.responding = false
+    },
+    stopStream() {
+      this.disposeActiveTurn({ visible: true })
     },
     // 主对话：经我方 /ir/chat/diag 流式接入中台。前端不做参数解析/校验，原样发送。
     async sendAndCalculate(text) {
@@ -153,117 +292,139 @@ export const useCalculationStore = defineStore('calculation', {
       if (!content) return
 
       this._pushUser(content)
-
-      // 流式助手消息：承载思考节点链、流式文本、以及测算完成后内嵌的结果卡片。
-      const streamMsg = {
-        id: nextId(),
-        role: 'assistant',
-        kind: 'assistant-stream',
-        thinkingState: createThinkingState(),
-        answerText: '',
-        recommendedQuestions: [],
-        result: null,
-        version: null,
-        input: null,
-        calculatedAt: null,
-        taskId: null,
-        done: false,
-        error: null,
-      }
-      this.messages.push(streamMsg)
+      const epoch = this.conversationEpoch
+      const pendingStreamMsg = createStreamMessage()
+      const currentTurnId = pendingStreamMsg.turnId
+      this.messages.push(pendingStreamMsg)
+      const streamMsg = this._messageForTurn(currentTurnId)
+      if (!streamMsg) return
+      this.activeTurnId = currentTurnId
       this.responding = true
 
       await new Promise((resolve) => {
-        const finish = () => {
-          finalizeThinking(streamMsg.thinkingState)
-          streamMsg.done = true
-          this.responding = false
-          this.activeStream = null
+        let resolved = false
+        const resolveOnce = () => {
+          if (resolved) return
+          resolved = true
           resolve()
         }
+        const releaseAndResolve = () => {
+          this._releaseTurn(currentTurnId)
+          resolveOnce()
+        }
+        const fail = (message) => {
+          if (!this._isCurrentTurn(currentTurnId, epoch)) {
+            resolveOnce()
+            return
+          }
+          this._failTurn(streamMsg, message)
+          resolveOnce()
+        }
+        const completeSuccess = () => {
+          if (!this._isCurrentTurn(currentTurnId, epoch) || streamMsg.doneReceived) return
+          streamMsg.doneReceived = true
+          streamMsg.finishedAt = Date.now()
+          streamMsg.phase = 'typing'
+          finalizeThinking(streamMsg.thinkingState)
+          this._showPendingResult(streamMsg, epoch)
+          const recommendations = streamMsg.pendingRecommendedQuestions
+          streamMsg.pendingRecommendedQuestions = Array.isArray(recommendations) ? recommendations : []
+          this._startAnswerTyping(streamMsg, epoch)
+          resolveOnce()
+        }
 
-        this.activeStream = openChatStream(
+        const handle = openChatStream(
           '/ir/chat/diag',
           { message: content, conversation_id: this.conversationId || undefined },
           {
             onOpen: ({ conversationId }) => {
-              // 我方会话 id 以响应头为准（中台 session_id 不暴露给前端）
+              if (!this._isCurrentTurn(currentTurnId, epoch)) return
               if (conversationId && !this.conversationId) this.conversationId = conversationId
             },
             onEvent: (e) => {
+              if (!this._isCurrentTurn(currentTurnId, epoch)) return
               const data = e.data && typeof e.data === 'object' ? e.data : {}
               const inner = data.data && typeof data.data === 'object' ? data.data : {}
 
               switch (e.type) {
                 case 'session_start':
-                  // 会话 id 已由响应头确定；此处无需额外处理
                   break
                 case 'thinking':
-                  // 节点字段位于 data.data（node_id/node_status/text/substeps）
+                  streamMsg.hasThinkingStarted = true
                   applyThinkingFrame(streamMsg.thinkingState, e.id, inner)
                   break
                 case 'answer':
-                  this._applyAnswerEvent(streamMsg, inner).catch(() => {})
+                  this._applyAnswerEvent(streamMsg, inner, epoch).catch((error) => {
+                    if (this._isCurrentTurn(currentTurnId, epoch)) fail(error?.message || '测算结果读取失败')
+                  })
                   break
                 case 'recommended_questions':
-                  streamMsg.recommendedQuestions = inner.recommended_questions || []
+                  streamMsg.pendingRecommendedQuestions = inner.recommended_questions || []
                   break
                 case 'error':
-                  streamMsg.error = data.msg || '对话出错'
-                  streamMsg.answerText = failureText(streamMsg.error)
-                  finish()
+                  fail(data.msg || inner.message || '对话出错')
                   break
                 case 'done':
-                  finish()
+                  if (Array.isArray(inner.suggestions) && inner.suggestions.length) {
+                    streamMsg.pendingRecommendedQuestions = inner.suggestions
+                  }
+                  completeSuccess()
                   break
                 default:
                   break
               }
             },
+            onComplete: ({ reason }) => {
+              if (!this._isCurrentTurn(currentTurnId, epoch)) {
+                resolveOnce()
+                return
+              }
+              if (reason === 'eof' && streamMsg.doneReceived) return
+              if (reason === 'aborted') {
+                releaseAndResolve()
+                return
+              }
+              if (!streamMsg.doneReceived && !streamMsg.error) fail('连接已中断，请重试')
+            },
           },
         )
+        this.activeStream = { turnId: currentTurnId, close: handle.close }
       })
     },
-    // 处理 answer 事件：命中测算工具则据 taskId 拉结果并升级为版本；否则累加文本答案。
-    async _applyAnswerEvent(streamMsg, inner) {
+    // 处理 answer：文本先缓冲；测算结果据 taskId 预取，done 后再展示。
+    async _applyAnswerEvent(streamMsg, inner, epoch) {
       const answerText = inner.answer || ''
-      if (answerText) streamMsg.answerText += answerText
+      if (answerText) streamMsg.answerBuffer += answerText
 
       const biz = Array.isArray(inner.biz) ? inner.biz : []
       const calcTool = biz.find((item) => item.tool === 'create_calculation_task')
       if (!calcTool) return
 
       const created = calcTool.payload?.data || {}
-      if (!created.taskId || created.status !== 'completed') {
-        // 未完成或无 taskId：仅记录冻结入参，结果留待后续
-        if (created.conversationId && !this.conversationId) this.conversationId = created.conversationId
-        return
+      if (created.conversationId && !this.conversationId && this.conversationEpoch === epoch) {
+        this.conversationId = created.conversationId
       }
-      if (created.conversationId && !this.conversationId) this.conversationId = created.conversationId
+      if (!created.taskId || created.status !== 'completed') return
+      if (streamMsg.handledTaskIds.includes(created.taskId)) return
+      streamMsg.handledTaskIds.push(created.taskId)
 
-      // 方案1：据 taskId 另调 result 接口取三模块
       const resultResponse = await getCalculationResult(created.taskId)
+      if (this.conversationEpoch !== epoch || streamMsg.cancelled || streamMsg.error) return
       const result = resultResponse.data || {}
       const version = created.version || result.version
-      const entry = {
-        conversationId: created.conversationId || this.conversationId,
-        taskId: created.taskId,
-        version,
-        status: 'completed',
+      streamMsg.pendingResult = {
         result,
-        input: created.input,
-        calculatedAt: result.calculatedAt,
+        entry: {
+          conversationId: created.conversationId || this.conversationId,
+          taskId: created.taskId,
+          version,
+          status: 'completed',
+          result,
+          input: created.input,
+          calculatedAt: result.calculatedAt,
+        },
       }
-      this.versions.push(entry)
-      this.selectedVersion = version
-      streamMsg.result = result
-      streamMsg.version = version
-      streamMsg.input = created.input
-      streamMsg.calculatedAt = result.calculatedAt
-      streamMsg.taskId = created.taskId
-      // 成功后刷新左侧历史与调整面板元数据（尽力而为）
-      this.loadHistory().catch(() => {})
-      if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
+      this._showPendingResult(streamMsg, epoch)
     },
     async _waitForTerminal(task) {
       if (task.status === 'completed' || task.status === 'failed') return task
@@ -296,22 +457,15 @@ export const useCalculationStore = defineStore('calculation', {
     },
     // 直调测算 + 统一进度展示：以「测算进行中」思考样式占位，完成后升级为结果卡片。
     async _submitAndTrack(payload) {
+      const epoch = this.conversationEpoch
+      const pendingStreamMsg = createStreamMessage()
+      const currentTurnId = pendingStreamMsg.turnId
+      this.messages.push(pendingStreamMsg)
+      const streamMsg = this._messageForTurn(currentTurnId)
+      if (!streamMsg) return
+      this.activeTurnId = currentTurnId
+      this.activeStream = { turnId: currentTurnId, close: null }
       this.responding = true
-      const streamMsg = {
-        id: nextId(),
-        role: 'assistant',
-        kind: 'assistant-stream',
-        thinkingState: createThinkingState(),
-        answerText: '',
-        recommendedQuestions: [],
-        result: null,
-        version: null,
-        input: null,
-        calculatedAt: null,
-        taskId: null,
-        done: false,
-        error: null,
-      }
       // 单节点进度占位（与思考链同款展示）
       applyThinkingFrame(streamMsg.thinkingState, '1', {
         node_id: 'recalc',
@@ -320,13 +474,14 @@ export const useCalculationStore = defineStore('calculation', {
         node_status: 'active',
         node_subtitle: '正在按调整后的参数重新测算…',
       })
-      this.messages.push(streamMsg)
       try {
         const createdResponse = await createCalculationTask(payload)
+        if (!this._isCurrentTurn(currentTurnId, epoch)) return
         const created = createdResponse.data || {}
         if (created.conversationId) this.conversationId = created.conversationId
 
         const terminal = await this._waitForTerminal(created)
+        if (!this._isCurrentTurn(currentTurnId, epoch)) return
         if (terminal.status !== 'completed') {
           const error = terminal.error || created.error || {}
           applyThinkingFrame(streamMsg.thinkingState, '2', {
@@ -340,6 +495,7 @@ export const useCalculationStore = defineStore('calculation', {
         }
 
         const resultResponse = await getCalculationResult(created.taskId)
+        if (!this._isCurrentTurn(currentTurnId, epoch)) return
         const result = resultResponse.data || {}
         const version = created.version || result.version
         const entry = {
@@ -363,9 +519,12 @@ export const useCalculationStore = defineStore('calculation', {
         streamMsg.calculatedAt = result.calculatedAt
         streamMsg.taskId = created.taskId
         streamMsg.done = true
+        streamMsg.phase = 'completed'
+        streamMsg.finishedAt = Date.now()
         this.loadHistory().catch(() => {})
         if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
       } catch (error) {
+        if (!this._isCurrentTurn(currentTurnId, epoch)) return
         applyThinkingFrame(streamMsg.thinkingState, '3', {
           node_id: 'recalc', node_status: 'aborted', node_subtitle: '测算失败',
         })
@@ -373,8 +532,10 @@ export const useCalculationStore = defineStore('calculation', {
         streamMsg.error = error?.response?.data?.msg || error?.message
         streamMsg.answerText = failureText(streamMsg.error)
         streamMsg.done = true
+        streamMsg.phase = 'error'
+        streamMsg.finishedAt = Date.now()
       } finally {
-        this.responding = false
+        if (this.activeTurnId === currentTurnId) this._releaseTurn(currentTurnId)
       }
     },
     async generateReport(taskId) {

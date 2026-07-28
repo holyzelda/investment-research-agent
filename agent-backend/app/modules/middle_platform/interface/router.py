@@ -36,5 +36,9 @@ async def chat_diag(
     return StreamingResponse(
         stream.chunks,
         media_type="text/event-stream",
-        headers={"X-IR-Conversation-Id": str(stream.conversation_id)},
+        headers={
+            "X-IR-Conversation-Id": str(stream.conversation_id),
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+        },
     )

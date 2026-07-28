@@ -52,12 +52,13 @@ npm run test:watch     # vitest watch 模式
 ### 状态管理：两个 Pinia store
 - `store/modules/session.js` —— 保存 ecenter 当前用户（`userId`/`username`）和 Token；登录后通过 ecenter `getInfo` 加载并缓存身份，供请求层传递给 IR 后端。
 - `store/modules/calculation.js` —— 核心业务 store，驱动整个"对话 → 测算"流程：
-  - `messages`：有序对话记录（`{id, role, kind: 'text'|'result', text|result, version}`）。消息顺序只增不改，选择不同版本**不会**重排消息流（见 `tests/version-list.spec.js`）。
-  - `versions`：某会话下已完成的测算结果（`V1`、`V2`……），可通过 `selectedVersion`/`selectVersion` 独立于对话流选中 —— 选中某版本会在（顺序不变的）消息流中高亮对应卡片，而不是重新排序。
-  - `extractMinInput(text)`：不依赖 NLP，通过正则从自由文本中轻量提取省份（对照硬编码的 `PROVINCES` 全称/简称表）、功率 MW、容量 MWh，以及明确的 15/20 年运营期表述。运营期未提及时返回 `operation_years: null`，`sendAndCalculate()` 不提交覆盖、由后端默认 15；命中时沿既有 `param_overrides.operation_years` 提交，不新增请求字段或在前端补默认值。字段缺失时会用中文提示补充，并阻止提交 —— 这就是这个对话式 UI 的全部“表单”逻辑。
-  - `sendAndCalculate(text)`：推入用户消息 → 校验提取出的输入 → 创建任务（`POST /ir/calc/tasks`）→ 若未立即终态则每 1 秒轮询一次 `getCalculationTask`，最多 60 次 → 完成后拉取完整结果（`GET /ir/calc/tasks/:id/result`），并**原地修改**那条待定的助手消息（`kind` 从 `'text'` 变为 `'result'`），而不是新推入一条 → 刷新侧边栏历史列表（尽力而为，自行吞掉异常）。
-  - 会话延续：一旦存在 `conversationId`，后续 `sendAndCalculate` 调用会在请求体中带上它，使后端能把新版本挂载到同一会话下。
-  - 历史侧栏（`listConversations`/`getConversation`/`deleteConversation`）：用户从 `AppSidebar` 重新打开某个历史会话时，会根据拉取到的会话详情重建完整的 `messages`/`versions` 数组。
+  - `messages`：有序对话记录；实时主链使用 `kind: 'assistant-stream'` 原地承载思考链、打字答案和内嵌结果卡，历史恢复仍使用静态 `text` / `result`。消息顺序只增不改，选择不同版本不会重排消息流。
+  - `versions`：某会话下已完成的测算结果（`V1`、`V2`……），可通过 `selectedVersion`/`selectVersion` 独立于对话流选中。
+  - `sendAndCalculate(text)`：不在前端解析或校验测算参数，原样调用 `POST /ir/chat/diag`。`thinking` 实时更新节点链；`answer` 文本先缓冲，`done` 后打字输出；命中 `create_calculation_task` 后按 `taskId` 拉取结果并渲染现有 `ResultCard`，结果卡不等待打字完成。
+  - 流式生命周期：单活跃回合通过回合令牌隔离异步回调；`done`、`error`、停止和异常 EOF 统一收束。响应期间 Composer 提供停止按钮，首页强制自动滚动；推荐问题在答案打字结束后展示。
+  - `recalculate()` 是例外：参数调整继续直调 `/ir/calc/tasks`、轮询终态并拉结果，但复用同款思考进度和失效保护。
+  - 会话延续：一旦存在 `conversationId`，后续 `/ir/chat/diag` 请求体带 `conversation_id`；切换历史会话或新建会话会先终止旧流。
+  - 历史侧栏（`listConversations`/`getConversation`/`deleteConversation`）：用户从 `AppSidebar` 重新打开历史会话时，根据详情重建 `messages`/`versions`，快速切换通过请求序号避免旧响应覆盖新会话。
 
 ### 视图结构
 - `layout/index.vue` + `layout/components/AppSidebar.vue`：整体外壳 —— 侧边栏（新建会话、4 个导航项中有 3 个是 `disabled` 的占位项，对应后续 PRD 中的三大模块：全国指数地图/联络线地图/政策与市场）、带删除确认的历史会话列表、顶栏（品牌 + 当前用户）。

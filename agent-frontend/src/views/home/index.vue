@@ -29,6 +29,7 @@
             :responding="calc.responding"
             placeholder="描述你的储能项目，例如：测算甘肃 200MW/800MWh 独立储能项目"
             @send="onSend"
+            @stop="calc.stopStream"
           />
 
           <div class="ir-welcome__chips">
@@ -75,6 +76,10 @@
               <ThinkingChain
                 :nodes="thinkingNodesOf(m)"
                 :has-active="hasActiveThinkingOf(m)"
+                :streaming="m.phase === 'streaming'"
+                :bootstrapping="m.phase === 'streaming' && !m.hasThinkingStarted"
+                :started-at="m.startedAt"
+                :finished-at="m.finishedAt"
               />
               <div v-if="m.answerText" class="ir-msg__bubble" :class="{ 'ir-msg__error': m.error }">
                 <span style="white-space: pre-wrap">{{ m.answerText }}</span>
@@ -141,7 +146,7 @@
           </div>
         </div>
 
-        <ChatComposer class="ir-home__composer" :responding="calc.responding" @send="onSend" />
+        <ChatComposer class="ir-home__composer" :responding="calc.responding" @send="onSend" @stop="calc.stopStream" />
       </template>
     </section>
 
@@ -208,7 +213,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
@@ -228,6 +233,64 @@ const scrollEl = ref(null)
 const reportListEl = ref(null)
 const highlightedReportId = ref(null)
 let reportHighlightTimer
+let scrollFrame
+let scrollRetryTimer
+let streamObserver
+
+function forceScrollToBottom() {
+  if (!scrollEl.value) return
+  scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+}
+
+function scheduleScrollToBottom() {
+  cancelAnimationFrame(scrollFrame)
+  scrollFrame = requestAnimationFrame(() => {
+    forceScrollToBottom()
+    clearTimeout(scrollRetryTimer)
+    scrollRetryTimer = setTimeout(forceScrollToBottom, 60)
+  })
+}
+
+function stopScrollAnchor() {
+  cancelAnimationFrame(scrollFrame)
+  scrollFrame = null
+  clearTimeout(scrollRetryTimer)
+  scrollRetryTimer = null
+}
+
+function startScrollAnchor() {
+  stopScrollAnchor()
+  const tick = () => {
+    forceScrollToBottom()
+    if (calc.responding) scrollFrame = requestAnimationFrame(tick)
+  }
+  scrollFrame = requestAnimationFrame(tick)
+}
+
+watch(() => calc.responding, async (responding) => {
+  await nextTick()
+  if (responding) startScrollAnchor()
+  else {
+    stopScrollAnchor()
+    scheduleScrollToBottom()
+  }
+}, { flush: 'post' })
+
+watch(scrollEl, (element) => {
+  streamObserver?.disconnect()
+  if (!element || typeof MutationObserver === 'undefined') return
+  streamObserver = new MutationObserver(() => {
+    if (calc.responding) scheduleScrollToBottom()
+  })
+  streamObserver.observe(element, { childList: true, subtree: true, characterData: true })
+}, { flush: 'post' })
+
+onBeforeUnmount(() => {
+  clearTimeout(reportHighlightTimer)
+  stopScrollAnchor()
+  streamObserver?.disconnect()
+  calc.disposeActiveTurn({ visible: false })
+})
 
 const hasConversation = computed(() => calc.messages.length > 0)
 const reversedVersions = computed(() => [...calc.versions].reverse())
@@ -249,9 +312,10 @@ const examples = [
 ]
 
 async function onSend(text) {
+  scheduleScrollToBottom()
   await calc.sendAndCalculate(text)
   await nextTick()
-  if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+  scheduleScrollToBottom()
 }
 
 function thinkingNodesOf(message) {

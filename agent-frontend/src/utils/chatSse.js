@@ -36,14 +36,25 @@ function handleUnauthorized() {
  * 打开一条 POST-SSE 流。
  * @param {string} path - 接口路径，如 /ir/chat/diag
  * @param {object} body - 请求体
- * @param {{ onEvent: (e: {type:string, id:string|null, data:any}) => void, onOpen?: (info: {conversationId: string|null}) => void, signal?: AbortSignal }} opts
+ * @param {{ onEvent: (e: {type:string, id:string|null, data:any}) => void, onOpen?: (info: {conversationId: string|null}) => void, onComplete?: (info: {reason: 'eof'|'aborted'|'transport-error'}) => void, signal?: AbortSignal }} opts
  * @returns {{ close: () => void }}
  */
-export function openChatStream(path, body, { onEvent, onOpen, signal: externalSignal } = {}) {
+export function openChatStream(path, body, {
+  onEvent,
+  onOpen,
+  onComplete,
+  signal: externalSignal,
+} = {}) {
   const controller = new AbortController()
-  if (externalSignal) {
-    externalSignal.addEventListener('abort', () => controller.abort())
+  let completed = false
+
+  const complete = (reason) => {
+    if (completed) return
+    completed = true
+    if (typeof onComplete === 'function') onComplete({ reason })
   }
+  const abortFromExternal = () => controller.abort()
+  if (externalSignal) externalSignal.addEventListener('abort', abortFromExternal, { once: true })
 
   async function run() {
     let response
@@ -55,18 +66,24 @@ export function openChatStream(path, body, { onEvent, onOpen, signal: externalSi
         signal: controller.signal,
       })
     } catch (err) {
-      if (err.name === 'AbortError') return
+      if (err.name === 'AbortError') {
+        complete('aborted')
+        return
+      }
       onEvent({ type: 'error', id: null, data: { code: 0, msg: '网络连接失败', data: null } })
+      complete('transport-error')
       return
     }
 
     if (response.status === 401) {
       handleUnauthorized()
       onEvent({ type: 'error', id: null, data: { code: 401, msg: '登录状态已失效', data: null } })
+      complete('transport-error')
       return
     }
     if (!response.ok || !response.body) {
       onEvent({ type: 'error', id: null, data: { code: response.status, msg: `连接失败 ${response.status}`, data: null } })
+      complete('transport-error')
       return
     }
 
@@ -86,7 +103,14 @@ export function openChatStream(path, body, { onEvent, onOpen, signal: externalSi
       const raw = dataLines.join('\n')
       let parsed
       try { parsed = JSON.parse(raw) } catch { parsed = raw }
-      onEvent({ type: eventType, id: eventId, data: parsed })
+      const fallbackType = parsed && typeof parsed === 'object'
+        ? parsed.event || parsed.type
+        : null
+      onEvent({
+        type: eventType === 'message' ? fallbackType || 'message' : eventType,
+        id: eventId,
+        data: parsed,
+      })
       eventType = 'message'
       eventId = null
       dataLines = []
@@ -110,12 +134,25 @@ export function openChatStream(path, body, { onEvent, onOpen, signal: externalSi
             dataLines.push(line.slice(5).trimStart())
           }
         }
-        if (done) { dispatch(); break }
+        if (done) {
+          const finalLine = buffer.replace(/\r$/, '')
+          if (finalLine.startsWith('event:')) eventType = finalLine.slice(6).trim()
+          else if (finalLine.startsWith('id:')) eventId = finalLine.slice(3).trim()
+          else if (finalLine.startsWith('data:')) dataLines.push(finalLine.slice(5).trimStart())
+          dispatch()
+          complete('eof')
+          break
+        }
       }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        onEvent({ type: 'error', id: null, data: { code: 0, msg: '流读取中断', data: null } })
+      if (err.name === 'AbortError') {
+        complete('aborted')
+        return
       }
+      onEvent({ type: 'error', id: null, data: { code: 0, msg: '流读取中断', data: null } })
+      complete('transport-error')
+    } finally {
+      if (externalSignal) externalSignal.removeEventListener('abort', abortFromExternal)
     }
   }
 

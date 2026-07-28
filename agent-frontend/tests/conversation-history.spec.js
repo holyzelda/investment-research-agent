@@ -14,7 +14,10 @@ const api = vi.hoisted(() => ({
   renameConversation: vi.fn(),
 }))
 
+const chat = vi.hoisted(() => ({ openChatStream: vi.fn() }))
+
 vi.mock('@/api/calc', () => api)
+vi.mock('@/utils/chatSse', () => chat)
 
 const detail = {
   conversationId: 7,
@@ -155,19 +158,24 @@ describe('conversation history sidebar and replay', () => {
 
   it('replayed conversation keeps its id for the next calculation', async () => {
     api.getConversation.mockResolvedValue({ data: detail })
-    api.createCalculationTask.mockResolvedValue({
-      data: { conversationId: 7, taskId: 13, version: 'V3', status: 'completed' },
+    let handlers
+    chat.openChatStream.mockImplementation((_path, _body, options) => {
+      handlers = options
+      return { close: vi.fn() }
     })
-    api.getCalculationResult.mockResolvedValue({ data: { basicInfo: { province: '甘肃' }, financial: {} } })
     const store = useCalculationStore()
 
     await store.openConversation(7)
-    await store.sendAndCalculate('测算甘肃 300MW/600MWh')
+    const next = store.sendAndCalculate('测算甘肃 300MW/600MWh')
 
-    expect(api.createCalculationTask).toHaveBeenCalledWith(
-      expect.objectContaining({ conversation_id: 7 }),
+    expect(chat.openChatStream).toHaveBeenCalledWith(
+      '/ir/chat/diag',
+      { message: '测算甘肃 300MW/600MWh', conversation_id: 7 },
+      expect.any(Object),
     )
-    expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2', 'V3'])
+    handlers.onEvent({ type: 'done', id: '1', data: { data: {} } })
+    await next
+    expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
   })
 
   it('removeConversation soft-deletes and drops it from history', async () => {

@@ -1,45 +1,47 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { extractMinInput, useCalculationStore } from '@/store/modules/calculation'
 
 const api = vi.hoisted(() => ({
-  createCalculationTask: vi.fn(),
-  getCalculationTask: vi.fn(),
-  getCalculationResult: vi.fn(),
+  createCalculationTask: vi.fn(), deleteConversation: vi.fn(), getCalculationResult: vi.fn(),
+  getCalculationTask: vi.fn(), getConversation: vi.fn(), getParamDict: vi.fn(), getStations: vi.fn(),
+  listConversations: vi.fn(), renameConversation: vi.fn(),
 }))
-
+const chat = vi.hoisted(() => ({ openChatStream: vi.fn() }))
 vi.mock('@/api/calc', () => api)
+vi.mock('@/utils/chatSse', () => chat)
+vi.mock('@/api/report', () => ({ createReport: vi.fn(), getReportTask: vi.fn() }))
+vi.mock('@/utils/reportSse', () => ({ streamReportEvents: vi.fn() }))
 
-describe('home conversation and minimum input extraction', () => {
+import { useCalculationStore } from '@/store/modules/calculation'
+
+describe('home conversation input', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('extracts province, power and capacity regardless of order', () => {
-    expect(extractMinInput('测算甘肃 200MW/800MWh 独立储能项目')).toEqual({
-      province: '甘肃',
-      power_mw: 200,
-      capacity_mwh: 800,
-      operation_years: null,
-      missing: [],
+  it('sends any non-empty user text unchanged to the chat stream', async () => {
+    let handlers
+    chat.openChatStream.mockImplementation((_path, _body, options) => {
+      handlers = options
+      return { close: vi.fn() }
     })
-    expect(extractMinInput('宁夏项目容量 400 MWh，功率 100 mw')).toMatchObject({
-      province: '宁夏',
-      power_mw: 100,
-      capacity_mwh: 400,
-      missing: [],
-    })
+    const store = useCalculationStore()
+    const sent = store.sendAndCalculate('  测算甘肃储能项目  ')
+
+    expect(chat.openChatStream).toHaveBeenCalledWith(
+      '/ir/chat/diag',
+      { message: '测算甘肃储能项目', conversation_id: undefined },
+      expect.any(Object),
+    )
+    handlers.onEvent({ type: 'done', id: '1', data: { data: {} } })
+    await sent
   })
 
-  it('prompts for every missing required field without making a request', async () => {
+  it('ignores blank input', async () => {
     const store = useCalculationStore()
-
-    await store.sendAndCalculate('测算甘肃储能项目')
-
-    expect(api.createCalculationTask).not.toHaveBeenCalled()
-    expect(store.messages.at(-1).text).toContain('项目功率（MW）')
-    expect(store.messages.at(-1).text).toContain('项目容量（MWh）')
-    expect(store.responding).toBe(false)
+    await store.sendAndCalculate('   ')
+    expect(chat.openChatStream).not.toHaveBeenCalled()
+    expect(store.messages).toEqual([])
   })
 })

@@ -1,102 +1,178 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { extractMinInput, useCalculationStore } from '@/store/modules/calculation'
+import { nextTick, watch } from 'vue'
 
 const api = vi.hoisted(() => ({
   createCalculationTask: vi.fn(),
-  getCalculationTask: vi.fn(),
+  deleteConversation: vi.fn(),
   getCalculationResult: vi.fn(),
+  getCalculationTask: vi.fn(),
+  getConversation: vi.fn(),
+  getParamDict: vi.fn(),
+  getStations: vi.fn(),
+  listConversations: vi.fn(),
+  renameConversation: vi.fn(),
 }))
+const chat = vi.hoisted(() => ({ openChatStream: vi.fn() }))
 
 vi.mock('@/api/calc', () => api)
+vi.mock('@/api/report', () => ({ createReport: vi.fn(), getReportTask: vi.fn() }))
+vi.mock('@/utils/reportSse', () => ({ streamReportEvents: vi.fn() }))
+vi.mock('@/utils/chatSse', () => chat)
+
+import { useCalculationStore } from '@/store/modules/calculation'
 
 const result = {
   version: 'V1',
+  calculatedAt: '2026-07-28T10:00:00Z',
   basicInfo: { province: '甘肃', powerMw: 200, capacityMwh: 800 },
   financial: { capitalIrr: 8.6 },
-  advanced: { donut: {}, lines: {} },
+  advanced: {},
 }
 
-describe('operation years extraction', () => {
-  it.each([
-    ['测算甘肃 200MW/800MWh，运营期20年', 20],
-    ['按15年测算甘肃 200MW/800MWh', 15],
-  ])('extracts explicit operation years from %s', (text, operationYears) => {
-    expect(extractMinInput(text).operation_years).toBe(operationYears)
+let handlers
+let close
+function installStream() {
+  close = vi.fn()
+  chat.openChatStream.mockImplementation((_path, _body, opts) => {
+    handlers = opts
+    return { close }
   })
+}
 
-  it('leaves operation years unset when not mentioned', () => {
-    expect(extractMinInput('测算甘肃 200MW/800MWh').operation_years).toBeNull()
-  })
-})
+function answerEvent(answer, biz = []) {
+  handlers.onEvent({ type: 'answer', id: '2', data: { data: { answer, biz } } })
+}
 
+async function flush() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
 
-describe('calculation submit-poll-result flow', () => {
+describe('calculation chat stream flow', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    installStream()
     api.getCalculationResult.mockResolvedValue({ data: result })
+    api.listConversations.mockResolvedValue({ data: { items: [] } })
+    api.getParamDict.mockResolvedValue({ data: { parameters: [], switches: {} } })
+    api.getStations.mockResolvedValue({ data: { items: [] } })
   })
 
-  it('uses terminal POST result without polling and keeps backend identifiers', async () => {
-    api.createCalculationTask.mockResolvedValue({
-      data: { conversationId: 'c1', taskId: 't1', version: 'V1', status: 'completed' },
-    })
-    const store = useCalculationStore()
-
-    await store.sendAndCalculate('测算甘肃 200MW/800MWh')
-
-    expect(api.createCalculationTask).toHaveBeenCalledWith({
-      province: '甘肃', capacity_mwh: 800, power_mw: 200,
-    })
-    expect(api.getCalculationTask).not.toHaveBeenCalled()
-    expect(api.getCalculationResult).toHaveBeenCalledWith('t1')
-    expect(store.versions[0]).toMatchObject({
-      conversationId: 'c1', taskId: 't1', version: 'V1', result,
-    })
-    expect(store.selectedVersion).toBe('V1')
-  })
-
-  it('polls a non-terminal task and includes conversation_id next time', async () => {
-    vi.useFakeTimers()
-    api.createCalculationTask
-      .mockResolvedValueOnce({
-        data: { conversationId: 'c1', taskId: 't1', version: 'V1', status: 'created' },
-      })
-      .mockResolvedValueOnce({
-        data: { conversationId: 'c1', taskId: 't2', version: 'V2', status: 'completed' },
-      })
-    api.getCalculationTask.mockResolvedValue({
-      data: { taskId: 't1', status: 'completed', requestId: 'r1' },
-    })
-    const store = useCalculationStore()
-
-    const first = store.sendAndCalculate('测算甘肃 200MW/800MWh')
-    await vi.advanceTimersByTimeAsync(1000)
-    await first
-    await store.sendAndCalculate('测算宁夏 100MW/400MWh')
-
-    expect(api.getCalculationTask).toHaveBeenCalledWith('t1')
-    expect(api.createCalculationTask).toHaveBeenLastCalledWith({
-      province: '宁夏', capacity_mwh: 400, power_mw: 100, conversation_id: 'c1',
-    })
-    expect(store.versions.map((item) => item.version)).toEqual(['V1', 'V2'])
+  afterEach(() => {
+    vi.runOnlyPendingTimers()
     vi.useRealTimers()
   })
 
-  it('shows backend failure reason and request id without fetching result', async () => {
-    api.createCalculationTask.mockResolvedValue({
-      data: {
-        conversationId: 'c1', taskId: 't1', version: 'V1', status: 'failed',
-        error: { message: '底稿接口区损坏', requestId: 'req-123' },
-      },
-    })
+  it('publishes each thinking frame reactively before done', async () => {
     const store = useCalculationStore()
+    const observedText = []
+    const stopWatching = watch(
+      () => store.messages.at(-1)?.thinkingState?.nodesById?.n1?.text || '',
+      (text) => observedText.push(text),
+    )
+    const promise = store.sendAndCalculate('开始分析')
 
-    await store.sendAndCalculate('测算甘肃 200MW/800MWh')
+    handlers.onEvent({
+      type: 'thinking', id: '1',
+      data: { data: { node_id: 'n1', node_status: 'active', node_title: '识别需求' } },
+    })
+    handlers.onEvent({
+      type: 'thinking', id: '2',
+      data: { data: { node_id: 'n1', text: '正在提取参数' } },
+    })
+    await nextTick()
 
-    expect(api.getCalculationResult).not.toHaveBeenCalled()
-    expect(store.messages.at(-1).text).toContain('底稿接口区损坏')
-    expect(store.messages.at(-1).text).toContain('req-123')
+    const message = store.messages.at(-1)
+    expect(message.doneReceived).toBe(false)
+    expect(message.thinkingState.nodesById.n1.text).toBe('正在提取参数')
+    expect(observedText).toContain('正在提取参数')
+    expect(store.responding).toBe(true)
+
+    handlers.onEvent({
+      type: 'thinking', id: '3',
+      data: { data: { node_id: 'n1', text: '，正在校验' } },
+    })
+    await nextTick()
+    expect(observedText).toContain('正在提取参数，正在校验')
+
+    handlers.onEvent({ type: 'done', id: '4', data: { data: {} } })
+    await promise
+    stopWatching()
+  })
+
+  it('buffers answer until done and shows result without waiting for typing', async () => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('测算甘肃 200MW/800MWh')
+    handlers.onOpen({ conversationId: 'c1' })
+    handlers.onEvent({
+      type: 'thinking', id: '1',
+      data: { data: { node_id: 'n1', node_status: 'active', node_title: '测算' } },
+    })
+    const biz = [{
+      tool: 'create_calculation_task',
+      payload: { data: { conversationId: 'c1', taskId: 't1', version: 'V1', status: 'completed', input: { province: '甘肃' } } },
+    }]
+    answerEvent('测算完成。', biz)
+    answerEvent('', biz)
+    handlers.onEvent({ type: 'recommended_questions', id: '3', data: { data: { recommended_questions: ['继续调整吗？'] } } })
+    await flush()
+
+    const message = store.messages.at(-1)
+    expect(message.answerText).toBe('')
+    expect(api.getCalculationResult).toHaveBeenCalledTimes(1)
+    expect(message.result).toBeNull()
+
+    handlers.onEvent({ type: 'done', id: '4', data: { data: { reason: 'normal' } } })
+    await promise
+    await flush()
+
+    expect(message.result).toEqual(result)
+    expect(store.versions).toHaveLength(1)
+    expect(message.answerText).toBe('')
+    expect(message.recommendedQuestions).toEqual([])
+    expect(store.responding).toBe(true)
+
+    await vi.runAllTimersAsync()
+    expect(message.answerText).toBe('测算完成。')
+    expect(message.recommendedQuestions).toEqual(['继续调整吗？'])
+    expect(store.responding).toBe(false)
+  })
+
+  it('stops the active stream and finalizes the message', async () => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('开始')
+    handlers.onEvent({ type: 'thinking', id: '1', data: { data: { node_id: 'n1', node_status: 'active' } } })
+
+    store.stopStream()
+    handlers.onComplete({ reason: 'aborted' })
+    await promise
+
+    const message = store.messages.at(-1)
+    expect(close).toHaveBeenCalledOnce()
+    expect(message).toMatchObject({ phase: 'cancelled', cancelled: true, done: true, answerText: '已停止生成' })
+    expect(message.thinkingState.nodesById.n1.status).toBe('completed')
+    expect(store.responding).toBe(false)
+  })
+
+  it('treats eof before done as an error and ignores a late result after reset', async () => {
+    let resolveResult
+    api.getCalculationResult.mockReturnValue(new Promise((resolve) => { resolveResult = resolve }))
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('开始')
+    answerEvent('', [{
+      tool: 'create_calculation_task',
+      payload: { data: { conversationId: 'c1', taskId: 't1', version: 'V1', status: 'completed', input: {} } },
+    }])
+    handlers.onComplete({ reason: 'eof' })
+    await promise
+    expect(store.messages.at(-1).answerText).toContain('连接已中断')
+
+    store.resetConversation()
+    resolveResult({ data: result })
+    await flush()
+    expect(store.versions).toEqual([])
   })
 })
