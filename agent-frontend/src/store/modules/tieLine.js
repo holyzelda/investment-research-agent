@@ -32,6 +32,10 @@ export function getRollingDateRange(days, now = new Date()) {
   return { startDate: formatLocalDate(start), endDate: formatLocalDate(end) }
 }
 
+export function getDefaultPowerRange() {
+  return { key: 'thirtyDays', ...getRollingDateRange(30) }
+}
+
 export function isValidCustomPowerRange(startDate, endDate, now = new Date()) {
   if (!startDate || !endDate || startDate > endDate) return false
   return endDate <= formatLocalDate(yesterdayDate(now))
@@ -53,7 +57,7 @@ export const useTieLineStore = defineStore('tieLine', {
     powerTrend: null,
     powerTrendLoading: false,
     powerTrendError: '',
-    powerRange: { key: 'yesterday', ...getRollingDateRange(1) },
+    powerRange: getDefaultPowerRange(),
     powerRequestVersion: 0,
     loading: false,
     error: '',
@@ -103,7 +107,7 @@ export const useTieLineStore = defineStore('tieLine', {
       if (lineId == null) return
       await this._loadPowerTrendForLine(lineId, range, () => this.selectedId ?? this.recommendedLine?.id)
     },
-    async loadRecommendedPowerTrend(range = { key: 'yesterday', ...getRollingDateRange(1) }) {
+    async loadRecommendedPowerTrend(range = getDefaultPowerRange()) {
       if (this.selectedId != null) return
       const lineId = this.recommendedLine?.id
       if (lineId == null) {
@@ -160,7 +164,7 @@ export const useTieLineStore = defineStore('tieLine', {
       this.selectedId = id
       this.detail = null
       this._clearPowerTrend()
-      const defaultRange = { key: 'yesterday', ...getRollingDateRange(1) }
+      const defaultRange = getDefaultPowerRange()
       const trendRequest = this.loadPowerTrend(defaultRange)
       const requestVersion = this.powerRequestVersion
       const detailRequest = getTieLineDetail(id)

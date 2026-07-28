@@ -247,8 +247,8 @@ function handleSwap() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 36px;
+  gap: 8px;
+  min-height: 34px;
   padding: 0;
   box-sizing: border-box;
 }
@@ -256,8 +256,8 @@ function handleSwap() {
 .tl-filterbar__primary {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-wrap: nowrap;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -274,10 +274,10 @@ function handleSwap() {
   position: relative;
   display: inline-flex;
   align-items: center;
-  height: 32px;
-  min-width: 172px;
-  padding: 0 10px;
-  gap: 8px;
+  height: 30px;
+  min-width: 142px;
+  padding: 0 9px;
+  gap: 7px;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 6px;
   background: var(--tl-filter-bg);
@@ -337,7 +337,7 @@ function handleSwap() {
 }
 
 .tl-filter-control--capacity {
-  min-width: 190px;
+  min-width: 172px;
   border-color: var(--tl-filter-border);
   cursor: pointer;
 }
@@ -351,6 +351,8 @@ function handleSwap() {
   font-weight: var(--xc-fw-medium);
   text-align: left;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .tl-filterbar__swap,
@@ -557,7 +559,8 @@ function handleSwap() {
 }
 
 @media (max-width: 1180px) {
-  .tl-filterbar { align-items: flex-start; }
+  .tl-filterbar { align-items: flex-start; flex-wrap: wrap; }
+  .tl-filterbar__primary { flex-wrap: wrap; }
   .tl-filterbar__actions {
     width: 100%;
     margin-left: 0;

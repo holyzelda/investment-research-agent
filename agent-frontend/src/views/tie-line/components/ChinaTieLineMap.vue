@@ -65,17 +65,18 @@ const props = defineProps({
 })
 const emit = defineEmits(['select'])
 
+const voltagePresentationOptions = computed(() => {
+  const actualOptions = [...new Set(props.lines.map((line) => line.voltageText).filter(Boolean))]
+  return actualOptions.length ? actualOptions : props.voltageOptions
+})
 const voltageColors = computed(() => {
-  const { tokenByText } = buildVoltagePresentation(props.voltageOptions)
+  const { tokenByText } = buildVoltagePresentation(voltagePresentationOptions.value)
   return Object.fromEntries(
     Object.entries(tokenByText).map(([text, token]) => [text, xcVar(token)]),
   )
 })
 const voltageLegendItems = computed(() => {
-  const options = props.voltageOptions.length
-    ? props.voltageOptions
-    : [...new Set(props.lines.map((line) => line.voltageText).filter(Boolean))]
-  return buildVoltagePresentation(options).legendItems.slice(0, 6)
+  return buildVoltagePresentation(voltagePresentationOptions.value).legendItems
 })
 
 const mapRoot = ref(null)
@@ -220,10 +221,10 @@ watch(
 .china-tie-line-map__signature strong { color: rgba(255, 255, 255, 0.20); font-size: 22px; font-weight: 600; line-height: 1; }
 .china-tie-line-map__tools { position: absolute; top: var(--xc-space-4); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
 .china-tie-line-map__list { position: absolute; top: calc(var(--xc-space-4) + 44px); right: var(--xc-space-4); z-index: var(--xc-z-raised); }
-.china-tie-line-map__legend { position: absolute; left: var(--xc-space-4); bottom: calc(var(--xc-space-4) + 46px); z-index: var(--xc-z-raised); display: grid; gap: var(--xc-space-2); max-width: min(520px, 58%); color: var(--xc-text-mute); pointer-events: none; }
+.china-tie-line-map__legend { position: absolute; left: var(--xc-space-4); bottom: calc(var(--xc-space-4) + 46px); z-index: var(--xc-z-raised); display: grid; gap: var(--xc-space-2); max-width: 180px; color: var(--xc-text-mute); pointer-events: none; }
 .china-tie-line-map__legend-title { color: rgba(232, 206, 139, 0.70); font-size: var(--xc-fs-3xs); }
-.china-tie-line-map__legend-items { display: flex; flex-wrap: wrap; gap: var(--xc-space-2) var(--xc-space-3); }
-.china-tie-line-map__legend-item { display: inline-flex; align-items: center; gap: var(--xc-space-2); font-size: var(--xc-fs-3xs); line-height: 1; }
+.china-tie-line-map__legend-items { display: grid; grid-template-columns: 1fr; gap: var(--xc-space-2); }
+.china-tie-line-map__legend-item { display: inline-flex; align-items: center; width: max-content; gap: var(--xc-space-2); font-size: var(--xc-fs-3xs); line-height: 1; }
 .china-tie-line-map__legend-item i { width: 22px; height: 2px; box-shadow: 0 0 12px currentColor; }
 .china-tie-line-map__note { position: absolute; left: var(--xc-space-4); bottom: var(--xc-space-4); z-index: var(--xc-z-raised); max-width: 360px; padding: 0; color: rgba(255, 255, 255, 0.42); font-size: var(--xc-fs-3xs); line-height: var(--xc-lh-snug); }
 </style>

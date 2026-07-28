@@ -102,15 +102,12 @@ const basisSummary = computed(() => {
   position: relative;
   height: 100%;
   box-sizing: border-box;
-  padding: var(--xc-space-4) var(--xc-space-2) var(--xc-space-4) var(--xc-space-5);
+  padding: var(--xc-space-4) 0 var(--xc-space-4) var(--xc-space-5);
   overflow-y: auto;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.025));
-  border-left: 1px solid rgba(232, 206, 139, 0.28);
-  box-shadow: -18px 0 42px rgba(0, 0, 0, 0.18), inset 1px 0 0 rgba(255, 255, 255, 0.035);
-  backdrop-filter: blur(var(--xc-blur-md));
+  background: transparent;
+  border: 0;
+  box-shadow: none;
 }
-.tl-detail::before { content:''; position:absolute; left:-1px; top:0; width:1px; height:128px; background:linear-gradient(180deg, rgba(232, 206, 139, 0.86), transparent); }
-.tl-detail::after { content:''; position:absolute; inset:0; pointer-events:none; background:linear-gradient(135deg, rgba(88, 214, 207, 0.08), transparent 42%); opacity:0.62; }
 .tl-detail > * { position: relative; z-index: 1; }
 .tl-profile__head { display:flex; align-items:flex-start; justify-content:space-between; gap:var(--xc-space-3); }
 .tl-profile__identity { min-width:0; }
@@ -138,7 +135,7 @@ const basisSummary = computed(() => {
 .tl-data-basis__body p { margin:0; overflow-wrap:anywhere; }
 .tl-detail__placeholder { height: 100%; display: grid; place-items: center; color: var(--xc-text-mute); font-size: var(--xc-fs-sm); text-align: center; }
 @media (max-width: 1180px) {
-  .tl-detail { height:auto; border-left:0; border-top:1px solid rgba(232, 206, 139, 0.24); padding:var(--xc-space-4); }
+  .tl-detail { height:auto; border:0; padding:var(--xc-space-4); }
   .tl-mini-route { grid-template-columns:1fr; }
   .tl-mini-route__link { width:24px; height:38px; margin-left:4px; }
   .tl-mini-route__link::before { left:4px; right:auto; top:0; bottom:8px; border-top:0; border-left:1px solid var(--tl-accent); }

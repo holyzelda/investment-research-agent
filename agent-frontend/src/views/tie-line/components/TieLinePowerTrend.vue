@@ -59,12 +59,12 @@
 <script setup>
 import { computed, ref } from 'vue'
 import { formatNumber } from '@/utils/formatNumber'
-import { getRollingDateRange, isValidCustomPowerRange } from '@/store/modules/tieLine'
+import { getDefaultPowerRange, getRollingDateRange, isValidCustomPowerRange } from '@/store/modules/tieLine'
 import { useEcharts, xcVar } from '@/views/home/composables/useEcharts'
 
 const props = defineProps({
   trend: { type: Object, default: null },
-  range: { type: Object, default: () => ({ key: 'yesterday', ...getRollingDateRange(1) }) },
+  range: { type: Object, default: () => getDefaultPowerRange() },
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
   accentToken: { type: String, default: '--xc-chart-1' },
