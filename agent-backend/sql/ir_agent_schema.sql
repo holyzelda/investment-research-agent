@@ -131,6 +131,35 @@ CREATE INDEX ix_ir_tie_line_map_start_region ON ir_tie_line_map (start_region);
 CREATE INDEX ix_ir_tie_line_map_end_region ON ir_tie_line_map (end_region);
 CREATE INDEX ix_ir_tie_line_map_name ON ir_tie_line_map (name);
 
+CREATE TABLE ir_index_map_period (
+    period VARCHAR(32) NOT NULL,
+    label VARCHAR(64) NOT NULL,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (period)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX ix_ir_index_map_period_updated_at ON ir_index_map_period (updated_at);
+
+CREATE TABLE ir_index_map_province (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    period VARCHAR(32) NOT NULL,
+    province_code VARCHAR(32) NOT NULL,
+    province_name VARCHAR(64) NOT NULL,
+    map_name VARCHAR(64) NOT NULL,
+    index_score DECIMAL(8,2),
+    grade VARCHAR(8),
+    opened TINYINT(1) NOT NULL DEFAULT 0,
+    `rank` INT,
+    annualized_return DECIMAL(8,2),
+    detail_payload JSON,
+    updated_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    CONSTRAINT fk_ir_index_map_province_period
+        FOREIGN KEY (period) REFERENCES ir_index_map_period (period),
+    UNIQUE KEY uk_ir_index_map_province_period_code (period, province_code),
+    KEY ix_ir_index_map_province_period_rank (period, `rank`),
+    KEY ix_ir_index_map_province_period_score (period, index_score)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE ir_tie_line_power (
     line_id BIGINT COMMENT '匹配 ir_tie_line_map 的线路 ID，无外键约束',
     data_date DATE NOT NULL COMMENT 'Excel 日期',

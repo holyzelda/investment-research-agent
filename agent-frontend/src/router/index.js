@@ -29,6 +29,12 @@ const routes = [
         meta: { title: '正式报告', collapseSidebar: true },
       },
       {
+        path: 'index-map',
+        name: 'IndexMap',
+        component: () => import('@/views/index-map/index.vue'),
+        meta: { title: '全国储能投资指数', collapseSidebar: true },
+      },
+      {
         path: 'tie-line',
         name: 'TieLineMap',
         component: () => import('@/views/tie-line/index.vue'),

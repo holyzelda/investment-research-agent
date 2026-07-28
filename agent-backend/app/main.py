@@ -22,6 +22,7 @@ from app.modules.calculation.infrastructure.spot_daily_scheduler import (
 from app.modules.calculation.interface.conversation_router import router as conversation_router
 from app.modules.calculation.interface.router import router as calculation_router
 from app.modules.middle_platform.interface.router import router as middle_platform_router
+from app.modules.index_map.interface.router import router as index_map_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 from app.modules.platform_access.interface.router import router as platform_access_router
 from app.modules.policy_market.infrastructure.policy_ask_loader import (
@@ -43,6 +44,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(middle_platform_router)
     app.include_router(report_router)
     app.include_router(tie_line_router)
+    app.include_router(index_map_router)
     app.include_router(policy_market_router)
 
 

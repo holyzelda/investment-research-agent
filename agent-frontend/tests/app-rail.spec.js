@@ -10,14 +10,14 @@ describe('AppRail (outer module rail)', () => {
     expect(labels).toEqual(['首页', '全国指数地图', '联络线地图', '政策与市场'])
   })
 
-  it('marks the active item and keeps only the nationwide index module disabled', () => {
+  it('marks the active item and enables the nationwide index module', () => {
     const wrapper = mount(AppRail, { props: { active: 'home' } })
 
     const buttons = wrapper.findAll('.ir-rail-btn')
     expect(buttons[0].classes()).toContain('is-active')
     expect(buttons[0].attributes('disabled')).toBeUndefined()
-    expect(buttons[1].classes()).toContain('is-disabled')
-    expect(buttons[1].attributes('disabled')).toBeDefined()
+    expect(buttons[1].classes()).not.toContain('is-disabled')
+    expect(buttons[1].attributes('disabled')).toBeUndefined()
     expect(buttons[2].classes()).not.toContain('is-active')
     expect(buttons[2].classes()).not.toContain('is-disabled')
     expect(buttons[2].attributes('disabled')).toBeUndefined()
@@ -33,14 +33,14 @@ describe('AppRail (outer module rail)', () => {
     await buttons[1].trigger('click')
     await buttons[2].trigger('click')
     await buttons[3].trigger('click')
-    expect(wrapper.emitted('nav')).toEqual([['home'], ['line'], ['policy']])
+    expect(wrapper.emitted('nav')).toEqual([['home'], ['index'], ['line'], ['policy']])
   })
 
-  it('tags disabled items with a 待建 hint for the hover tooltip', () => {
+  it('uses the module label as the hover tooltip after enabling it', () => {
     const wrapper = mount(AppRail)
     const buttons = wrapper.findAll('.ir-rail-btn')
 
     expect(buttons[0].attributes('data-tip')).toBe('首页')
-    expect(buttons[1].attributes('data-tip')).toBe('全国指数地图（待建）')
+    expect(buttons[1].attributes('data-tip')).toBe('全国指数地图')
   })
 })
