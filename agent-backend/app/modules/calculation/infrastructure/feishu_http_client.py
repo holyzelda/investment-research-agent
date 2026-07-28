@@ -77,8 +77,9 @@ class HttpFeishuGateway(FeishuGateway):
         # 已识别的飞书短暂状态共用同一组局部避让策略。
         self._transient_retries = transient_retries
         self._transient_backoff = transient_backoff
-        self._initial_sheet_query_retries = transient_retries
-        self._initial_sheet_query_backoff = transient_backoff
+        # 新副本的工作表元数据通常只需等待亚秒级；短间隔条件轮询，最多保留约 10 秒就绪窗口。
+        self._initial_sheet_query_retries = 10
+        self._initial_sheet_query_backoff = 1
         self._processing_retries = transient_retries
         self._processing_backoff = transient_backoff
 

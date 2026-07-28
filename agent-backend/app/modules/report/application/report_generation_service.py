@@ -1,6 +1,7 @@
 """报告生成服务：任务状态、AI 降级与正式快照原子落库。"""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import datetime
 
@@ -26,8 +27,11 @@ from app.modules.report.application.report_rules import AI_FALLBACK_TEXT, AI_SEC
 
 
 class ReportGenerationService:
-    def __init__(self, ai_client):
+    def __init__(self, ai_client, *, ai_concurrency: int = 5):
+        if ai_concurrency < 1:
+            raise ValueError("报告 AI 并发数必须大于 0")
         self._ai_client = ai_client
+        self._ai_concurrency = ai_concurrency
         self._history = ConversationHistoryService()
 
     async def start(self, session: AsyncSession, *, task_id: int, user_id: str, username: str | None = None) -> dict:
@@ -146,28 +150,52 @@ class ReportGenerationService:
                 await session.commit()
 
     async def _generate_ai_sections(self, payload: dict, *, user_id: str, username: str) -> dict:
-        sections = {}
-        for rule in AI_SECTION_RULES:
-            key = rule["key"]
-            context = build_section_context(rule, payload)
-            try:
+        semaphore = asyncio.Semaphore(self._ai_concurrency)
+        results = await asyncio.gather(*[
+            self._generate_one_ai_section(
+                rule,
+                payload,
+                user_id=user_id,
+                username=username,
+                semaphore=semaphore,
+            )
+            for rule in AI_SECTION_RULES
+        ])
+        by_key = dict(results)
+        return {rule["key"]: by_key[rule["key"]] for rule in AI_SECTION_RULES}
+
+    async def _generate_one_ai_section(
+        self,
+        rule: dict,
+        payload: dict,
+        *,
+        user_id: str,
+        username: str,
+        semaphore: asyncio.Semaphore,
+    ) -> tuple[str, dict]:
+        key = rule["key"]
+        context = build_section_context(rule, payload)
+        try:
+            async with semaphore:
                 logger.info("报告 AI 调用开始：section={}", key)
                 text = await self._ai_client.generate_section(
                     rule, context, user_id=user_id, username=username
                 )
-                text = self._validate_ai_text(text, rule)
-                sections[key] = {
-                    "status": "generated",
-                    "attempts": 1,
-                    "usedFallback": False,
-                    "text": text,
-                }
-                logger.info("报告 AI 调用成功：section={}", key)
-            except Exception as exc:
-                code = self._ai_failure_code(exc)
-                logger.warning("报告 AI 调用降级：section={} reason={} error={} detail={}", key, code, type(exc).__name__, str(exc))
-                sections[key] = self._fallback(code, attempts=1)
-        return sections
+            text = self._validate_ai_text(text, rule)
+            logger.info("报告 AI 调用成功：section={}", key)
+            return key, {
+                "status": "generated",
+                "attempts": 1,
+                "usedFallback": False,
+                "text": text,
+            }
+        except Exception as exc:
+            code = self._ai_failure_code(exc)
+            logger.warning(
+                "报告 AI 调用降级：section={} reason={} error={} detail={}",
+                key, code, type(exc).__name__, str(exc),
+            )
+            return key, self._fallback(code, attempts=1)
 
     @staticmethod
     def _ai_failure_code(exc: Exception) -> str:

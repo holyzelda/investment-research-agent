@@ -1,5 +1,3 @@
-import asyncio
-
 from app.modules.policy_market.domain.models import ConsultationRecord
 from app.modules.policy_market.domain.ports import ConsultationRepository, PolicyAskExecutor
 
@@ -21,7 +19,7 @@ class ConsultationService:
     async def create(self, *, user_id: str, question: str) -> ConsultationRecord:
         record = await self._repository.create_processing(user_id=user_id, question=question)
         try:
-            answer = await asyncio.to_thread(self._executor.ask, question)
+            answer = await self._executor.ask(question)
         except Exception as exc:
             await self._repository.mark_failed(record_id=record.id)
             raise ConsultationExecutionError("政策与市场咨询暂时不可用，请稍后重试") from exc

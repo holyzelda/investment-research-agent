@@ -8,11 +8,6 @@ from dotenv import load_dotenv
 env_file = os.getenv("ENV_FILE", ".env.test")
 load_dotenv(env_file)
 
-from app.main import create_app  # noqa: E402
-
-# 创建应用实例
-app = create_app()
-
 
 if __name__ == "__main__":
     # 获取配置

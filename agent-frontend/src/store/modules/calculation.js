@@ -12,47 +12,18 @@ import {
 } from '@/api/calc'
 import { createReport, getReportTask } from '@/api/report'
 import { streamReportEvents } from '@/utils/reportSse'
-
-const PROVINCES = [
-  ['内蒙古自治区', '内蒙古'], ['广西壮族自治区', '广西'], ['宁夏回族自治区', '宁夏'],
-  ['新疆维吾尔自治区', '新疆'], ['西藏自治区', '西藏'],
-  ...[
-    '北京', '天津', '上海', '重庆', '河北', '山西', '辽宁', '吉林', '黑龙江',
-    '江苏', '浙江', '安徽', '福建', '江西', '山东', '河南', '湖北', '湖南',
-    '广东', '海南', '四川', '贵州', '云南', '陕西', '甘肃', '青海', '台湾',
-    '香港', '澳门',
-  ].map((name) => [name, name]),
-]
+import { openChatStream } from '@/utils/chatSse'
+import {
+  createThinkingState,
+  applyThinkingFrame,
+  finalizeThinking,
+  thinkingNodes,
+  hasActiveNode,
+} from '@/utils/thinkingChain'
 
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 let messageId = 0
 const nextId = () => `m${++messageId}`
-
-export function extractMinInput(text) {
-  const content = String(text || '')
-  const province = PROVINCES.find(([full, short]) => content.includes(full) || content.includes(short))?.[1]
-  const power = content.match(/(\d+(?:\.\d+)?)\s*MW(?!H)/i)
-  const capacity = content.match(/(\d+(?:\.\d+)?)\s*MWH/i)
-  const powerMw = power ? Number(power[1]) : null
-  const capacityMwh = capacity ? Number(capacity[1]) : null
-  const operationYearsMatch = content.match(/(?:运营期|经营年限|按)\s*(15|20)\s*年|(?:15|20)\s*年\s*(?:运营期|经营年限|测算)/)
-  const operationYears = operationYearsMatch
-    ? Number(operationYearsMatch[1] || operationYearsMatch[0].match(/15|20/)[0])
-    : null
-  const missing = []
-
-  if (!province) missing.push('省份')
-  if (!(powerMw > 0)) missing.push('项目功率（MW）')
-  if (!(capacityMwh > 0)) missing.push('项目容量（MWh）')
-
-  return {
-    province: province || null,
-    power_mw: powerMw > 0 ? powerMw : null,
-    capacity_mwh: capacityMwh > 0 ? capacityMwh : null,
-    operation_years: operationYears,
-    missing,
-  }
-}
 
 function failureText(message, requestId) {
   return `测算失败：${message || '未知错误'}\nrequest_id：${requestId || '未返回'}`
@@ -71,6 +42,7 @@ export const useCalculationStore = defineStore('calculation', {
     stationOptions: [],
     reports: [],
     reportTasks: {},
+    activeStream: null,
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -80,6 +52,7 @@ export const useCalculationStore = defineStore('calculation', {
   },
   actions: {
     resetConversation() {
+      this.stopStream()
       this.messages = []
       this.versions = []
       this.conversationId = null
@@ -167,10 +140,130 @@ export const useCalculationStore = defineStore('calculation', {
     _pushUser(text) {
       this.messages.push({ id: nextId(), role: 'user', kind: 'text', text })
     },
-    _pushAssistantText(text) {
-      const message = { id: nextId(), role: 'assistant', kind: 'text', text }
-      this.messages.push(message)
-      return message
+    stopStream() {
+      if (this.activeStream) {
+        this.activeStream.close()
+        this.activeStream = null
+      }
+    },
+    // 主对话：经我方 /ir/chat/diag 流式接入中台。前端不做参数解析/校验，原样发送。
+    async sendAndCalculate(text) {
+      if (this.responding) return
+      const content = String(text || '').trim()
+      if (!content) return
+
+      this._pushUser(content)
+
+      // 流式助手消息：承载思考节点链、流式文本、以及测算完成后内嵌的结果卡片。
+      const streamMsg = {
+        id: nextId(),
+        role: 'assistant',
+        kind: 'assistant-stream',
+        thinkingState: createThinkingState(),
+        answerText: '',
+        recommendedQuestions: [],
+        result: null,
+        version: null,
+        input: null,
+        calculatedAt: null,
+        taskId: null,
+        done: false,
+        error: null,
+      }
+      this.messages.push(streamMsg)
+      this.responding = true
+
+      await new Promise((resolve) => {
+        const finish = () => {
+          finalizeThinking(streamMsg.thinkingState)
+          streamMsg.done = true
+          this.responding = false
+          this.activeStream = null
+          resolve()
+        }
+
+        this.activeStream = openChatStream(
+          '/ir/chat/diag',
+          { message: content, conversation_id: this.conversationId || undefined },
+          {
+            onOpen: ({ conversationId }) => {
+              // 我方会话 id 以响应头为准（中台 session_id 不暴露给前端）
+              if (conversationId && !this.conversationId) this.conversationId = conversationId
+            },
+            onEvent: (e) => {
+              const data = e.data && typeof e.data === 'object' ? e.data : {}
+              const inner = data.data && typeof data.data === 'object' ? data.data : {}
+
+              switch (e.type) {
+                case 'session_start':
+                  // 会话 id 已由响应头确定；此处无需额外处理
+                  break
+                case 'thinking':
+                  // 节点字段位于 data.data（node_id/node_status/text/substeps）
+                  applyThinkingFrame(streamMsg.thinkingState, e.id, inner)
+                  break
+                case 'answer':
+                  this._applyAnswerEvent(streamMsg, inner).catch(() => {})
+                  break
+                case 'recommended_questions':
+                  streamMsg.recommendedQuestions = inner.recommended_questions || []
+                  break
+                case 'error':
+                  streamMsg.error = data.msg || '对话出错'
+                  streamMsg.answerText = failureText(streamMsg.error)
+                  finish()
+                  break
+                case 'done':
+                  finish()
+                  break
+                default:
+                  break
+              }
+            },
+          },
+        )
+      })
+    },
+    // 处理 answer 事件：命中测算工具则据 taskId 拉结果并升级为版本；否则累加文本答案。
+    async _applyAnswerEvent(streamMsg, inner) {
+      const answerText = inner.answer || ''
+      if (answerText) streamMsg.answerText += answerText
+
+      const biz = Array.isArray(inner.biz) ? inner.biz : []
+      const calcTool = biz.find((item) => item.tool === 'create_calculation_task')
+      if (!calcTool) return
+
+      const created = calcTool.payload?.data || {}
+      if (!created.taskId || created.status !== 'completed') {
+        // 未完成或无 taskId：仅记录冻结入参，结果留待后续
+        if (created.conversationId && !this.conversationId) this.conversationId = created.conversationId
+        return
+      }
+      if (created.conversationId && !this.conversationId) this.conversationId = created.conversationId
+
+      // 方案1：据 taskId 另调 result 接口取三模块
+      const resultResponse = await getCalculationResult(created.taskId)
+      const result = resultResponse.data || {}
+      const version = created.version || result.version
+      const entry = {
+        conversationId: created.conversationId || this.conversationId,
+        taskId: created.taskId,
+        version,
+        status: 'completed',
+        result,
+        input: created.input,
+        calculatedAt: result.calculatedAt,
+      }
+      this.versions.push(entry)
+      this.selectedVersion = version
+      streamMsg.result = result
+      streamMsg.version = version
+      streamMsg.input = created.input
+      streamMsg.calculatedAt = result.calculatedAt
+      streamMsg.taskId = created.taskId
+      // 成功后刷新左侧历史与调整面板元数据（尽力而为）
+      this.loadHistory().catch(() => {})
+      if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
     },
     async _waitForTerminal(task) {
       if (task.status === 'completed' || task.status === 'failed') return task
@@ -186,29 +279,7 @@ export const useCalculationStore = defineStore('calculation', {
         error: { message: '测算等待超时' },
       }
     },
-    async sendAndCalculate(text) {
-      if (this.responding) return
-      const content = String(text || '').trim()
-      if (!content) return
-
-      this._pushUser(content)
-      const input = extractMinInput(content)
-      if (input.missing.length) {
-        this._pushAssistantText(`请补充${input.missing.join('、')}。`)
-        return
-      }
-
-      const payload = {
-        province: input.province,
-        capacity_mwh: input.capacity_mwh,
-        power_mw: input.power_mw,
-      }
-      if (input.operation_years !== null) {
-        payload.param_overrides = { operation_years: input.operation_years }
-      }
-      if (this.conversationId) payload.conversation_id = this.conversationId
-      await this._submitAndTrack(payload)
-    },
+    // 重新测算：保留直调 /ir/calc/tasks，但用与思考过程一致的进度态展示。
     async recalculate({ overrides, basics }) {
       if (this.responding || !this.conversationId) return
       // 省份在会话内永久锁定：以任一已成功版本的冻结入参为准，不允许调整面板改动
@@ -222,6 +293,89 @@ export const useCalculationStore = defineStore('calculation', {
         conversation_id: this.conversationId,
         param_overrides: overrides,
       })
+    },
+    // 直调测算 + 统一进度展示：以「测算进行中」思考样式占位，完成后升级为结果卡片。
+    async _submitAndTrack(payload) {
+      this.responding = true
+      const streamMsg = {
+        id: nextId(),
+        role: 'assistant',
+        kind: 'assistant-stream',
+        thinkingState: createThinkingState(),
+        answerText: '',
+        recommendedQuestions: [],
+        result: null,
+        version: null,
+        input: null,
+        calculatedAt: null,
+        taskId: null,
+        done: false,
+        error: null,
+      }
+      // 单节点进度占位（与思考链同款展示）
+      applyThinkingFrame(streamMsg.thinkingState, '1', {
+        node_id: 'recalc',
+        node_seq: 0,
+        node_title: '重新测算',
+        node_status: 'active',
+        node_subtitle: '正在按调整后的参数重新测算…',
+      })
+      this.messages.push(streamMsg)
+      try {
+        const createdResponse = await createCalculationTask(payload)
+        const created = createdResponse.data || {}
+        if (created.conversationId) this.conversationId = created.conversationId
+
+        const terminal = await this._waitForTerminal(created)
+        if (terminal.status !== 'completed') {
+          const error = terminal.error || created.error || {}
+          applyThinkingFrame(streamMsg.thinkingState, '2', {
+            node_id: 'recalc', node_status: 'aborted', node_subtitle: '测算失败',
+          })
+          finalizeThinking(streamMsg.thinkingState)
+          streamMsg.error = error.message
+          streamMsg.answerText = failureText(error.message, error.requestId || terminal.requestId)
+          streamMsg.done = true
+          return
+        }
+
+        const resultResponse = await getCalculationResult(created.taskId)
+        const result = resultResponse.data || {}
+        const version = created.version || result.version
+        const entry = {
+          conversationId: created.conversationId,
+          taskId: created.taskId,
+          version,
+          status: 'completed',
+          result,
+          input: created.input,
+          calculatedAt: result.calculatedAt,
+        }
+        this.versions.push(entry)
+        this.selectedVersion = version
+        applyThinkingFrame(streamMsg.thinkingState, '2', {
+          node_id: 'recalc', node_status: 'completed', node_subtitle: '测算完成',
+        })
+        finalizeThinking(streamMsg.thinkingState)
+        streamMsg.result = result
+        streamMsg.version = version
+        streamMsg.input = created.input
+        streamMsg.calculatedAt = result.calculatedAt
+        streamMsg.taskId = created.taskId
+        streamMsg.done = true
+        this.loadHistory().catch(() => {})
+        if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
+      } catch (error) {
+        applyThinkingFrame(streamMsg.thinkingState, '3', {
+          node_id: 'recalc', node_status: 'aborted', node_subtitle: '测算失败',
+        })
+        finalizeThinking(streamMsg.thinkingState)
+        streamMsg.error = error?.response?.data?.msg || error?.message
+        streamMsg.answerText = failureText(streamMsg.error)
+        streamMsg.done = true
+      } finally {
+        this.responding = false
+      }
     },
     async generateReport(taskId) {
       const created = (await createReport(taskId)).data || {}
@@ -289,50 +443,6 @@ export const useCalculationStore = defineStore('calculation', {
       else this.reports.push(merged)
       const version = this.versions.find((item) => item.taskId === report.taskId)
       if (version) version.report = merged
-    },
-    async _submitAndTrack(payload) {
-      this.responding = true
-      const pending = this._pushAssistantText('测算中…')
-      try {
-        const createdResponse = await createCalculationTask(payload)
-        const created = createdResponse.data || {}
-        if (created.conversationId) this.conversationId = created.conversationId
-
-        const terminal = await this._waitForTerminal(created)
-        if (terminal.status !== 'completed') {
-          const error = terminal.error || created.error || {}
-          pending.text = failureText(error.message, error.requestId || terminal.requestId)
-          return
-        }
-
-        const resultResponse = await getCalculationResult(created.taskId)
-        const result = resultResponse.data || {}
-        const version = created.version || result.version
-        const entry = {
-          conversationId: created.conversationId,
-          taskId: created.taskId,
-          version,
-          status: 'completed',
-          result,
-          input: created.input,
-          calculatedAt: result.calculatedAt,
-        }
-        this.versions.push(entry)
-        this.selectedVersion = version
-        pending.kind = 'result'
-        pending.text = undefined
-        pending.result = result
-        pending.version = version
-        pending.input = created.input
-        pending.calculatedAt = result.calculatedAt
-        // 成功后刷新左侧历史（新会话出现、既有会话最新版本/排序更新）与调整面板元数据
-        this.loadHistory().catch(() => {})
-        if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
-      } catch (error) {
-        pending.text = failureText(error?.response?.data?.msg || error?.message)
-      } finally {
-        this.responding = false
-      }
     },
   },
 })

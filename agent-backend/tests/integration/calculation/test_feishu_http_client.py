@@ -7,6 +7,7 @@
 4. read_meta 归一化 status（与业务约定值一致才置 done）并读回 request_id。
 5. 飞书错误码/HTTP 状态映射到 Retryable/NonRetryable；token 失效自动刷新一次后成功。
 """
+import asyncio
 import json
 
 import httpx
@@ -129,6 +130,38 @@ async def test_new_copy_retries_sheet_query_http_500_before_writing_input():
 
     assert fake.copy_calls == 1
     assert fake.query_calls == 2
+    assert len(fake.batch_updates) == 1
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_new_copy_readiness_poll_uses_short_interval(monkeypatch):
+    fake = FakeFeishu(query_responses=[(500, {"code": 1315201, "msg": "Server Error"})])
+    gw = _gateway(fake)
+    sleeps = []
+
+    async def record_sleep(delay):
+        sleeps.append(delay)
+
+    monkeypatch.setattr(asyncio, "sleep", record_sleep)
+
+    doc_token = await gw.copy_template("tmpl")
+    await gw.write_input(doc_token, {"power_mw": 100})
+
+    assert sleeps == [0.25]
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_new_copy_readiness_poll_keeps_ten_second_wait_budget():
+    fake = FakeFeishu(query_responses=[(500, {"code": 1315201, "msg": "Server Error"})] * 6)
+    gw = _gateway(fake)
+    gw._initial_sheet_query_backoff = 0
+
+    doc_token = await gw.copy_template("tmpl")
+    await gw.write_input(doc_token, {"power_mw": 100})
+
+    assert fake.query_calls == 7
     assert len(fake.batch_updates) == 1
     await gw._client.aclose()
 

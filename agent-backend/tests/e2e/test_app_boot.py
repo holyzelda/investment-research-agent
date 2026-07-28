@@ -5,6 +5,7 @@
 应用管控策略偶发拦截的问题。
 """
 import pytest
+from contextlib import asynccontextmanager
 from httpx import ASGITransport, AsyncClient
 
 from app import main
@@ -45,6 +46,50 @@ async def test_docs_available():
     async with await _client() as client:
         assert (await client.get("/docs")).status_code == 200
         assert (await client.get("/openapi.json")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_lifespan_starts_and_stops_policy_ask_warmup(monkeypatch):
+    calls = []
+
+    async def fake_init_nacos_config():
+        calls.append("nacos-start")
+
+    async def fake_recovery(session):
+        calls.append("recovery")
+        return 0
+
+    @asynccontextmanager
+    async def fake_session():
+        yield object()
+
+    def fake_get_sessionmaker():
+        return fake_session
+
+    async def fake_stop_warmup():
+        calls.append("policy-stop")
+
+    async def fake_dispose_engine():
+        calls.append("db-stop")
+
+    async def fake_cleanup_nacos():
+        calls.append("nacos-stop")
+
+    monkeypatch.setattr(main, "init_nacos_config", fake_init_nacos_config)
+    monkeypatch.setattr(main, "init_engine", lambda: calls.append("db-start"))
+    monkeypatch.setattr(main, "get_sessionmaker", fake_get_sessionmaker)
+    monkeypatch.setattr(main, "mark_interrupted_generations_failed", fake_recovery)
+    monkeypatch.setattr(main, "start_spot_daily_scheduler", lambda: calls.append("scheduler-start"))
+    monkeypatch.setattr(main, "stop_spot_daily_scheduler", lambda: calls.append("scheduler-stop"))
+    monkeypatch.setattr(main, "start_policy_ask_warmup", lambda: calls.append("policy-start"))
+    monkeypatch.setattr(main, "stop_policy_ask_warmup", fake_stop_warmup)
+    monkeypatch.setattr(main, "dispose_engine", fake_dispose_engine)
+    monkeypatch.setattr(main, "cleanup_nacos", fake_cleanup_nacos)
+
+    async with main.lifespan(app):
+        assert calls[-1] == "policy-start"
+
+    assert calls[-4:] == ["scheduler-stop", "policy-stop", "db-stop", "nacos-stop"]
 
 
 @pytest.mark.asyncio

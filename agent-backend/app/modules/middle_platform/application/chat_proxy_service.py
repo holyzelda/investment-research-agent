@@ -1,4 +1,9 @@
-"""中台对话代理：本应用会话与中台 session 的关联及 SSE 透传。"""
+"""中台对话代理：本应用会话与中台 session 的关联及 SSE 透传。
+
+两套会话标识：
+- 本应用 conversation_id（UUID）：会话与快照归属；中台回调 /ir/calc/tasks 时经 header 注入。
+- 中台 session_id：中台自有会话标识，首轮为空，session_start 事件回写映射列后多轮回填。
+"""
 from __future__ import annotations
 
 import json
@@ -77,24 +82,22 @@ class ChatProxyService:
             token = issued.value
             self._token_cache.put(token_key, token, issued.expires_in)
 
-        context = json.dumps(
-            {"conversation_id": conversation.id},
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
         payload = {
-            "app_id": self._config.app_id,
-            "message": f"{content}\n",
-            "session_id": conversation.id,
-            "end_user_id": user.user_id,
-            "end_user_name": user.username,
-            "locale": "zh-CN",
+            "session_id": conversation.middle_platform_session_id,
+            "injected_domain": None,
             "entry_type": "open_chat",
             "pinned_domain": None,
             "page_context": None,
+            "source_system": self._config.app_id,
+            "end_user_id": user.user_id,
+            "end_user_name": user.username,
+            "app_id": self._config.app_id,
+            "message": content,
+            "locale": "zh-CN",
             "header": {
-                "userId": user.user_id,
                 "username": quote(user.username, safe=""),
+                "userid": user.user_id,
+                "conversation_id": conversation.id,
             },
         }
         return ChatStream(
@@ -123,7 +126,8 @@ class ChatProxyService:
                 if separator not in buffer:
                     break
                 record, buffer = buffer.split(separator, 1)
-                error = self._validate_session_start(
+                error = await self._capture_session_start(
+                    session=session,
                     conversation=conversation,
                     record=record.replace(b"\r\n", b"\n"),
                 )
@@ -132,7 +136,8 @@ class ChatProxyService:
                     return
                 yield record + separator
         if buffer:
-            error = self._validate_session_start(
+            error = await self._capture_session_start(
+                session=session,
                 conversation=conversation,
                 record=buffer.replace(b"\r\n", b"\n"),
             )
@@ -141,13 +146,18 @@ class ChatProxyService:
                 return
             yield buffer
 
-    def _validate_session_start(
+    async def _capture_session_start(
         self,
         *,
+        session: AsyncSession,
         conversation: ConversationORM,
         record: bytes,
     ) -> bytes | None:
-        lines = record.decode("utf-8").split("\n")
+        """在 session_start 事件抓取中台 session_id 并写回映射列（不与本应用 UUID 比对）。"""
+        try:
+            lines = record.decode("utf-8").split("\n")
+        except UnicodeDecodeError:
+            return None
         event = next((line[7:].strip() for line in lines if line.startswith("event:")), None)
         if event != "session_start":
             return None
@@ -158,8 +168,10 @@ class ChatProxyService:
             return self._error_frame("中台会话协议异常")
         if not isinstance(session_id, str) or not session_id.strip() or len(session_id) > 255:
             return self._error_frame("中台会话协议异常")
-        if session_id != conversation.id:
-            return self._error_frame("中台会话协议异常：session_id不一致")
+        if conversation.middle_platform_session_id != session_id:
+            conversation.middle_platform_session_id = session_id
+            session.add(conversation)
+            await session.commit()
         return None
 
     @staticmethod

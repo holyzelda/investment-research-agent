@@ -1,7 +1,8 @@
 schema_version: '1'
-owner_app_id: ir-agent
+owner_app_id: ir_agent
 display_name: 朱雀投研智能体
 description: 储能项目经济性测算。根据用户描述收集项目省份、功率、容量、系统时长、节点、电压等级和运营周期，调用飞书权威测算并返回结构化结果。
+skip_station_required_check: true
 
 domains:
   - domain_code: energy_storage_calculation
@@ -12,6 +13,7 @@ domains:
       只处理储能项目测算，不处理历史结果查询、报告查询、参数调整或其他业务域。
     executor:
       mode: autonomous
+      clarify_on_no_tool_call: true
     domain_lexicon:
       primary_terms:
         - 储能测算
@@ -24,6 +26,7 @@ domains:
     prompts:
       domain_guard: |
         【储能项目测算规则】
+        - 用户原文中若已明确提及省份（如"宁夏""山东""内蒙"等），视为已提供 province，直接使用，禁止再追问省份或更细的地级市。
         - 调用 create_calculation_task 前必须取得 province。
         - 项目规模须满足下列任一组合：
           1. power_mw 与 capacity_mwh；
@@ -34,7 +37,6 @@ domains:
         - operation_years 未提及时不追问、不传该参数；明确提及时仅接受 15 或 20。
         - voltage_kv 未提及时不追问、不传该参数；明确提及时仅接受 110 或 220。
         - node_name 可为空。用户提及节点时，提取其标准名称；节点是否命中及省级数据回退由后端决定。
-        - conversation_id 从消息中的 <ir_system_context>{"conversation_id":"UUID"}</ir_system_context> 提取。它是 IR 生成的标准 UUID，同时也是当前中台会话 session_id，必须原样传入工具请求。
         - 调用工具后保留后端完整响应，不重算、不改写任何财务指标。
     tools:
       - name: create_calculation_task
@@ -43,7 +45,6 @@ domains:
           province 为项目所在省份；规模可由功率 power_mw（MW）、容量 capacity_mwh（MWh）、
           系统时长 duration_hours（小时）任意有效组合提供；node_name 为可选节点名称；
           voltage_kv 仅支持 110 或 220；operation_years 仅支持 15 或 20。
-          conversation_id 必须来自系统上下文中的 IR 标准 UUID，用于将测算任务、版本、快照和报告归入当前会话；不得转换为数字或另行生成。
         enable_ai_summary: false
         idempotent: false
         params:
@@ -67,9 +68,6 @@ domains:
           operation_years:
             type: int
             enum: [15, 20]
-          conversation_id:
-            type: str
-            required: true
         http:
           method: POST
           path: /ir/calc/tasks
@@ -80,7 +78,6 @@ domains:
             duration_hours: "{duration_hours}"
             node_name: "{node_name}"
             voltage_kv: "{voltage_kv}"
-            conversation_id: "{conversation_id}"
             param_overrides:
               operation_years: "{operation_years}"
         answer_type: energy_storage.calculation_task

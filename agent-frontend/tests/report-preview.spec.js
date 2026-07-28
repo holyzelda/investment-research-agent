@@ -74,7 +74,7 @@ describe('formal report preview', () => {
         sensitivity: { baseline: 1.4567, optimistic: 1.6789, pessimistic: 0.9876 },
       },
       aiSections: {
-        debt_service_coverage: { text: '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。' },
+        debt_service_coverage: { text: '偿债倍数首10年均值为1.05，第10年最低0.899。', status: 'generated' },
         operating_cashflow: { text: '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。' },
         accounting_profit: { text: '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。' },
       },
@@ -201,6 +201,7 @@ describe('formal report preview', () => {
     expect(wrapper.text()).toContain('基准平均偿债倍数 < 1，或贷款期内出现年度偿债覆盖倍数 < 1.00且无明确补足机制')
     expect(wrapper.findAll('.ir-report-model-section')).toHaveLength(3)
     expect(wrapper.findAll('.ir-report-model-section .ir-report-ai')).toHaveLength(3)
+    expect(wrapper.text()).toContain('偿债倍数首10年均值为1.05，第10年最低0.899。')
     expect(wrapper.text().match(/如何解读这张图/g)).toHaveLength(3)
     const profitOption = captured.factories[3]()
     expect(profitOption.series.map((series) => series.name)).toEqual(['净利润', '折旧摊销'])

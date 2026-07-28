@@ -43,7 +43,7 @@ class _PkTimestamp:
 
 
 class ConversationORM(Base):
-    """会话：UUID 同时作为本应用会话标识与中台 session_id。"""
+    """会话：UUID 为本应用会话标识；中台 session_id 独立存于映射列。"""
 
     __tablename__ = "ir_conversation"
 
@@ -57,6 +57,10 @@ class ConversationORM(Base):
     username: Mapped[str] = mapped_column(String(128), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # 中台会话 id：首轮对话未回传前为空，session_start 事件回写后多轮回填。
+    middle_platform_session_id: Mapped[Optional[str]] = mapped_column(
+        String(255), nullable=True
+    )
 
 
 class MessageSnapshotORM(_PkTimestamp, Base):

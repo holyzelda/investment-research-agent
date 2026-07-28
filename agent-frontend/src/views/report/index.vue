@@ -158,13 +158,13 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, h, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getReport } from '@/api/report'
 import { formatNumber, formatPrice } from '@/utils/formatNumber'
 import ReportChart from './components/ReportChart.vue'
 
-const AiSection = { props: ['section', 'fallback'], template: '<div class="ir-report-ai"><p>{{ section?.text || fallback }}</p></div>' }
+const AiSection = { props: ['section', 'fallback'], render() { return h('div', { class: 'ir-report-ai' }, h('p', this.section?.text || this.fallback)) } }
 const route = useRoute()
 const router = useRouter()
 const report = ref(null)

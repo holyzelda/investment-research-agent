@@ -71,7 +71,7 @@ class FakeRepository:
 
 
 class FakeExecutor:
-    def ask(self, question):
+    async def ask(self, question):
         return ConsultationAnswer(
             "结构化回答",
             "宁夏",
@@ -100,7 +100,7 @@ async def test_create_marks_record_failed_when_executor_raises():
     )
 
     class BrokenExecutor:
-        def ask(self, question):
+        async def ask(self, question):
             raise RuntimeError("上游不可用")
 
     repository = FakeRepository()

@@ -11,6 +11,7 @@ CREATE TABLE ir_conversation (
     username VARCHAR(128) NOT NULL,
     title VARCHAR(255),
     deleted_at DATETIME,
+    middle_platform_session_id VARCHAR(255),
     created_at DATETIME NOT NULL DEFAULT now(),
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

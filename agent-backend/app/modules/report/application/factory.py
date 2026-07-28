@@ -4,4 +4,8 @@ from app.modules.report.infrastructure.model_pool_ai_client import ModelPoolRepo
 
 
 def build_report_generation_service():
-    return ReportGenerationService(ai_client=ModelPoolReportAiClient(get_settings().middle_platform))
+    config = get_settings().middle_platform
+    return ReportGenerationService(
+        ai_client=ModelPoolReportAiClient(config),
+        ai_concurrency=config.report_model_concurrency,
+    )

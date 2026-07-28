@@ -1,3 +1,5 @@
+import types
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -11,14 +13,19 @@ from app.modules.policy_market.infrastructure.persistence.orm import Consultatio
 
 @pytest.fixture
 async def consultation_client(monkeypatch):
+    async def fake_get_policy_ask_module():
+        return types.SimpleNamespace(
+            ask=lambda question: {
+                "answer": "结构化回答",
+                "sources": ["https://example.test/source"],
+                "timeliness": {"province": "宁夏", "as_of": "2026-07", "status": "已核验"},
+                "reminders": ["关注更新"],
+            }
+        )
+
     monkeypatch.setattr(
-        "app.modules.policy_market.infrastructure.policy_ask_executor.policy_ask.ask",
-        lambda question: {
-            "answer": "结构化回答",
-            "sources": ["https://example.test/source"],
-            "timeliness": {"province": "宁夏", "as_of": "2026-07", "status": "已核验"},
-            "reminders": ["关注更新"],
-        },
+        "app.modules.policy_market.infrastructure.policy_ask_executor.get_policy_ask_module",
+        fake_get_policy_ask_module,
     )
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",

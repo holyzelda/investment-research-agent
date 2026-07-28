@@ -1,6 +1,8 @@
 """报告生成服务的可观察行为。"""
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -16,7 +18,7 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     ReportSnapshotORM,
 )
 from app.modules.report.application.report_generation_service import ReportGenerationService
-from app.modules.report.application.report_rules import AI_FALLBACK_TEXT
+from app.modules.report.application.report_rules import AI_FALLBACK_TEXT, AI_SECTION_RULES
 from app.modules.report.infrastructure.fake_ai_client import FakeReportAiClient
 
 
@@ -46,6 +48,104 @@ async def _completed_task(session):
     ])
     await session.commit()
     return task.id
+
+
+class BlockingAiClient:
+    def __init__(self, expected_active):
+        self.expected_active = expected_active
+        self.active = 0
+        self.max_active = 0
+        self.started = 0
+        self.batch_started = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def generate_section(self, rule, context, *, user_id="", username=""):
+        self.active += 1
+        self.started += 1
+        self.max_active = max(self.max_active, self.active)
+        if self.active == self.expected_active:
+            self.batch_started.set()
+        try:
+            await self.release.wait()
+            return f"{rule['key']} 正文"
+        finally:
+            self.active -= 1
+
+
+class YieldingAiClient:
+    def __init__(self):
+        self.active = 0
+        self.max_active = 0
+
+    async def generate_section(self, rule, context, *, user_id="", username=""):
+        self.active += 1
+        self.max_active = max(self.max_active, self.active)
+        try:
+            await asyncio.sleep(0.01)
+            return f"{rule['key']} 正文"
+        finally:
+            self.active -= 1
+
+
+class OutOfOrderAiClient:
+    async def generate_section(self, rule, context, *, user_id="", username=""):
+        key = rule["key"]
+        if key == "debt_service_coverage":
+            await asyncio.sleep(0.02)
+        if key == "sensitivity":
+            raise RuntimeError("单节失败")
+        return f"{key} 正文"
+
+
+@pytest.mark.asyncio
+async def test_generates_all_five_ai_sections_concurrently():
+    client = BlockingAiClient(expected_active=5)
+    service = ReportGenerationService(ai_client=client, ai_concurrency=5)
+
+    pending = asyncio.create_task(service._generate_ai_sections(
+        {}, user_id="report-user", username="报告用户"
+    ))
+    await asyncio.wait_for(client.batch_started.wait(), timeout=1)
+    assert client.started == 5
+    assert client.max_active == 5
+    client.release.set()
+
+    sections = await pending
+    assert list(sections) == [rule["key"] for rule in AI_SECTION_RULES]
+    assert all(section["status"] == "generated" for section in sections.values())
+
+
+@pytest.mark.asyncio
+async def test_report_ai_concurrency_respects_configured_limit():
+    client = YieldingAiClient()
+    service = ReportGenerationService(ai_client=client, ai_concurrency=2)
+
+    sections = await service._generate_ai_sections(
+        {}, user_id="report-user", username="报告用户"
+    )
+
+    assert client.max_active == 2
+    assert len(sections) == 5
+
+
+@pytest.mark.asyncio
+async def test_parallel_results_keep_rule_order_and_isolate_failure():
+    service = ReportGenerationService(
+        ai_client=OutOfOrderAiClient(), ai_concurrency=5
+    )
+
+    sections = await service._generate_ai_sections(
+        {}, user_id="report-user", username="报告用户"
+    )
+
+    assert list(sections) == [rule["key"] for rule in AI_SECTION_RULES]
+    assert sections["sensitivity"]["status"] == "fallback"
+    assert sections["sensitivity"]["failureCode"] == "ai_output_validation_failed"
+    assert all(
+        section["status"] == "generated"
+        for key, section in sections.items()
+        if key != "sensitivity"
+    )
 
 
 @pytest.mark.asyncio

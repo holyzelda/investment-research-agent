@@ -71,6 +71,36 @@
             <div v-if="m.kind === 'text'" class="ir-msg__bubble">
               <span :class="{ 'ir-msg__pending': m.text === '测算中…' }">{{ m.text }}</span>
             </div>
+            <div v-else-if="m.kind === 'assistant-stream'" class="ir-msg__stream">
+              <ThinkingChain
+                :nodes="thinkingNodesOf(m)"
+                :has-active="hasActiveThinkingOf(m)"
+              />
+              <div v-if="m.answerText" class="ir-msg__bubble" :class="{ 'ir-msg__error': m.error }">
+                <span style="white-space: pre-wrap">{{ m.answerText }}</span>
+              </div>
+              <div v-if="m.result" class="ir-msg__result">
+                <ResultCard
+                  :result="m.result"
+                  :version="m.version"
+                  :calculated-at="m.calculatedAt"
+                  :seed-input="m.input || {}"
+                  :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
+                  :switches="calc.switches"
+                  :station-options="calc.stationOptions"
+                  :responding="calc.responding"
+                  :report="calc.versions.find((item) => item.version === m.version)?.report"
+                  @recalculate="calc.recalculate($event)"
+                  @generate-report="calc.generateReport(m.taskId)"
+                  @view-report="openReport"
+                />
+              </div>
+              <ul v-if="m.recommendedQuestions && m.recommendedQuestions.length" class="ir-msg__recommend">
+                <li v-for="(q, qi) in m.recommendedQuestions" :key="qi">
+                  <button type="button" :disabled="calc.responding" @click="onSend(q)">{{ q }}</button>
+                </li>
+              </ul>
+            </div>
             <div v-else-if="m.kind === 'report-progress'" class="ir-msg__bubble ir-msg__report-progress">
               <strong>正在生成正式报告</strong>
               <ol>
@@ -184,6 +214,8 @@ import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
 import ResultCard from './components/ResultCard.vue'
 import ChatComposer from './components/ChatComposer.vue'
+import ThinkingChain from './components/ThinkingChain.vue'
+import { thinkingNodes, hasActiveNode } from '@/utils/thinkingChain'
 import orbSrc from '@/assets/ai-sphere.png'
 import agentAvatar from '@/assets/agent.png'
 import userAvatar from '@/assets/user.png'
@@ -220,6 +252,14 @@ async function onSend(text) {
   await calc.sendAndCalculate(text)
   await nextTick()
   if (scrollEl.value) scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+}
+
+function thinkingNodesOf(message) {
+  return message.thinkingState ? thinkingNodes(message.thinkingState) : []
+}
+
+function hasActiveThinkingOf(message) {
+  return message.thinkingState ? hasActiveNode(message.thinkingState) : false
 }
 
 async function selectVersion(version) {
@@ -461,6 +501,20 @@ function versionSpec(v) {
 .ir-msg__report-card span { color: var(--xc-text-soft); font-size: var(--xc-fs-xs); }
 .ir-msg__report-card button { align-self: flex-start; padding: 5px 10px; border: 1px solid var(--xc-accent-blue); border-radius: var(--xc-radius-xs); background: transparent; color: var(--xc-accent-blue); font-size: var(--xc-fs-xs); cursor: pointer; }
 .ir-msg__result { width: 100%; }
+.ir-msg__stream { width: 100%; display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-msg__error { color: var(--xc-status-danger); }
+.ir-msg__recommend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--xc-space-2); }
+.ir-msg__recommend button {
+  padding: 4px var(--xc-space-4);
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-full);
+  background: var(--xc-surface-card);
+  color: var(--xc-text-soft);
+  font-size: var(--xc-fs-xs);
+  cursor: pointer;
+}
+.ir-msg__recommend button:hover:not(:disabled) { border-color: var(--xc-border-accent); color: var(--xc-text-strong); }
+.ir-msg__recommend button:disabled { opacity: 0.5; cursor: default; }
 .ir-msg--selected-result .ir-msg__result {
   border-radius: var(--xc-radius-lg);
   box-shadow: 0 0 0 1px var(--xc-border-accent);

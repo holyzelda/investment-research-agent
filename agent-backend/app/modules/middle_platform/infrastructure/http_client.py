@@ -24,8 +24,8 @@ class MiddlePlatformHttpClient:
         if not self._config.app_secret:
             raise ValidationException("中台 app_secret 未配置")
 
-        async with httpx.AsyncClient(base_url=self._config.base_url) as client:
-            response = await client.post(self._config.auth_token_path, json={
+        async with httpx.AsyncClient() as client:
+            response = await client.post(self._config.auth_token_url, json={
                 "app_id": self._config.app_id,
                 "app_secret": self._config.app_secret,
                 "user_id": user_id,
@@ -41,18 +41,15 @@ class MiddlePlatformHttpClient:
         return PlatformAccessToken(value=token, expires_in=expires_in)
 
     async def chat_report_model(self, *, access_token: str, payload: dict) -> str:
-        async with httpx.AsyncClient(
-            base_url=self._config.base_url,
-            timeout=self._config.report_model_timeout_seconds,
-        ) as client:
+        async with httpx.AsyncClient(timeout=self._config.report_model_timeout_seconds) as client:
             response = await client.post(
-                self._config.report_model_path,
+                self._config.report_model_url,
                 headers={"Authorization": f"Bearer {access_token}"},
                 json=payload,
             )
         response.raise_for_status()
         body = response.json()
-        text = body.get("data")
+        text = body.get("data").get("content")
         if body.get("code") != 200 or not isinstance(text, str) or not text.strip():
             raise ValidationException(
                 f"中台模型池响应无有效正文：code={body.get('code')} msg={body.get('msg')}"
@@ -60,10 +57,10 @@ class MiddlePlatformHttpClient:
         return text.strip()
 
     async def stream_chat(self, *, access_token: str, payload: dict) -> AsyncIterator[bytes]:
-        async with httpx.AsyncClient(base_url=self._config.base_url, timeout=None) as client:
+        async with httpx.AsyncClient(timeout=None) as client:
             async with client.stream(
                 "POST",
-                "/api/v1/chat/diag",
+                self._config.chat_url,
                 headers={"Authorization": f"Bearer {access_token}"},
                 json=payload,
             ) as response:

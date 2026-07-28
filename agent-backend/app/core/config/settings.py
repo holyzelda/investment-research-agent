@@ -140,13 +140,15 @@ class CorsConfig(BaseModel):
 class MiddlePlatformConfig(BaseModel):
     """智能体中台对话代理配置。"""
 
-    base_url: str = "http://internal-2-58.example.invalid"
-    app_id: str = "ir-agent"
+    app_id: str = "ir_agent"
     app_secret: str = ""
-    auth_token_path: str = "/api/v1/auth/token"
-    report_model_path: str = "/api/v1/model-pool/chat"
+    # 各中台服务地址独立（不同端口），均配置完整 URL。
+    chat_url: str = "http://internal-2-58.example.invalid:8089/api/v1/chat/diag"
+    auth_token_url: str = "http://internal-2-58.example.invalid:8089/api/v1/auth/token"
+    report_model_url: str = "http://internal-2-58.example.invalid:8180/gateway/agent-middle/api/v1/model-pool/chat"
     report_model_name: str = "qwen-plus"
     report_model_timeout_seconds: float = 30.0
+    report_model_concurrency: int = Field(default=5, ge=1)
 
 class CalcConfig(BaseModel):
     """测算执行参数（Nacos 可配）：轮询间隔/总超时/重试上限。"""
@@ -279,21 +281,24 @@ def _build_settings() -> Settings:
     )
     _mpd = MiddlePlatformConfig()
     middle_platform = MiddlePlatformConfig(
-        base_url=_business_value(
-            "IR_MIDDLE_PLATFORM_BASE_URL", y, ["middle_platform", "base_url"], _mpd.base_url),
         app_id=_business_value(
             "IR_MIDDLE_PLATFORM_APP_ID", y, ["middle_platform", "app_id"], _mpd.app_id),
         app_secret=_business_value(
             "IR_MIDDLE_PLATFORM_APP_SECRET", y, ["middle_platform", "app_secret"], _mpd.app_secret),
-        auth_token_path=_business_value(
-            "IR_MIDDLE_PLATFORM_AUTH_TOKEN_PATH", y, ["middle_platform", "auth_token_path"], _mpd.auth_token_path),
-        report_model_path=_business_value(
-            "IR_MIDDLE_PLATFORM_REPORT_MODEL_PATH", y, ["middle_platform", "report_model_path"], _mpd.report_model_path),
+        chat_url=_business_value(
+            "IR_MIDDLE_PLATFORM_CHAT_URL", y, ["middle_platform", "chat_url"], _mpd.chat_url),
+        auth_token_url=_business_value(
+            "IR_MIDDLE_PLATFORM_AUTH_TOKEN_URL", y, ["middle_platform", "auth_token_url"], _mpd.auth_token_url),
+        report_model_url=_business_value(
+            "IR_MIDDLE_PLATFORM_REPORT_MODEL_URL", y, ["middle_platform", "report_model_url"], _mpd.report_model_url),
         report_model_name=_business_value(
             "IR_MIDDLE_PLATFORM_REPORT_MODEL_NAME", y, ["middle_platform", "report_model_name"], _mpd.report_model_name),
         report_model_timeout_seconds=float(_business_value(
             "IR_MIDDLE_PLATFORM_REPORT_MODEL_TIMEOUT_SECONDS", y,
             ["middle_platform", "report_model_timeout_seconds"], _mpd.report_model_timeout_seconds)),
+        report_model_concurrency=int(_business_value(
+            "IR_MIDDLE_PLATFORM_REPORT_MODEL_CONCURRENCY", y,
+            ["middle_platform", "report_model_concurrency"], _mpd.report_model_concurrency)),
     )
     _fd = FeishuConfig()
     feishu = FeishuConfig(
