@@ -394,5 +394,13 @@ onMounted(() => {
   min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.ir-layout__viewport::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 </style>

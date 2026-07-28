@@ -90,6 +90,14 @@ function formatReaderDate(value) {
   min-height: 100%;
   box-sizing: border-box;
   padding: 24px clamp(14px, 1.5vw, 28px) 48px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.policy-market-page::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .policy-market-page__grid {

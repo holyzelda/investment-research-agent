@@ -126,7 +126,8 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 .pm-pulse__trend { color: var(--xc-trade-up); }
 .pm-pulse__trend--down { color: var(--xc-trade-down); }
 .pm-pulse__trend--mute { color: var(--xc-text-mute); }
-.pm-pulse__news { display: grid; max-height: min(432px, 46vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.pm-pulse__news { display: grid; max-height: min(432px, 46vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
+.pm-pulse__news::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .pm-pulse__news-item { display: grid; gap: 8px; border-bottom: 1px solid var(--xc-border-soft); padding: 13px 10px 13px 0; color: var(--xc-text-soft); text-align: left; text-decoration: none; transition: background-color 120ms ease, padding 120ms ease; }
 .pm-pulse__news-item:hover, .pm-pulse__news-item:focus-visible { outline: none; background: var(--xc-surface-frosted); }
 .pm-pulse__news-item:focus-visible { box-shadow: inset 0 0 0 2px var(--pm-accent, var(--xc-accent-blue)); }
