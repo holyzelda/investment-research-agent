@@ -46,12 +46,27 @@ DETAIL_KEYS = {
     "放电量补贴": "discharge",
 }
 
+CAPACITY_KEYS = {
+    "新能源": "renewable",
+    "火电": "thermal",
+    "储能": "storage",
+}
+
+
+def _format_delta(value: float | str) -> str:
+    if isinstance(value, str):
+        return value
+    percentage = abs(value) * 100
+    digits = 0 if percentage >= 1 else 2
+    formatted = f"{percentage:.{digits}f}".rstrip("0").rstrip(".")
+    return f"{'↑' if value >= 0 else '↓'}{formatted}%"
+
 
 def _detail(
     *, region: str, advice: str, maturity_summary: str, maturity_scores: list[tuple[str, int]],
-    contributions: list[tuple[str, float]], total_gw: float, capacities: list[tuple[str, float, str]],
+    contributions: list[tuple[str, float]], total_gw: float,
+    capacities: list[tuple[str, float, float, float | None, float | None, str, float | str]],
 ) -> dict:
-    total = sum(value for _, value, _ in capacities)
     return {
         "regionDescription": region,
         "investmentAdvice": advice,
@@ -68,10 +83,11 @@ def _detail(
             "totalGw": total_gw,
             "items": [
                 {
-                    "key": f"item{index}", "label": label, "share": round(value / total * 100, 2) if total else 0,
-                    "capacityGw": value, "description": description, "deltaText": "—",
+                    "key": CAPACITY_KEYS[label], "label": label, "share": share,
+                    "windShare": wind_share, "solarShare": solar_share,
+                    "capacityGw": capacity_gw, "description": description, "deltaText": _format_delta(delta),
                 }
-                for index, (label, value, description) in enumerate(capacities, 1)
+                for label, share, capacity_gw, wind_share, solar_share, description, delta in capacities
             ],
         },
         "analysisText": maturity_summary,
@@ -84,35 +100,35 @@ DETAIL_PAYLOADS = {
         maturity_summary="全国唯一落地一次调频商业化省份，现货市场起步早、运行成熟。储能可通过现货价差套利，叠加一次/二次调频增收。",
         maturity_scores=[("电能量市场", 50), ("调频市场", 50)],
         contributions=[("电能量市场", 47.08), ("调频市场", 52.92)], total_gw=164.14,
-        capacities=[("新能源", 78.81, "风电 28.33 · 光伏 49.50"), ("火电", 84.05, "火电装机"), ("储能", 3.35, "新型储能")],
+        capacities=[("新能源", 48.01, 78.81, 35.95, 62.81, "", 0.3408), ("火电", 51.21, 84.05, None, None, "火电装机", 0.0017), ("储能", 2.04, 3.35, None, None, "新型储能", 0.1922)],
     ),
     "NX": _detail(
         region="宁夏", advice="强烈推荐·加速落地",
         maturity_summary="宁夏储能可双向参与中长期市场，通过跨周期价差套利；省内网架通畅，输电阻塞风险低。",
         maturity_scores=[("电能量市场", 54), ("调频市场", 30), ("干预补偿", 4), ("容量补偿", 10), ("容量租赁", 2)],
         contributions=[("电能量市场", 53.22), ("调频市场", 13.77), ("干预补偿", 8.69), ("容量补偿", 11.96), ("容量租赁", 12.36)], total_gw=91.13,
-        capacities=[("新能源", 59.64, "风电 15.66 · 光伏 43.98"), ("火电", 31.03, "火电装机"), ("储能", 10.13, "新型储能")],
+        capacities=[("新能源", 65.44, 59.64, 26.26, 73.74, "", 0.209), ("火电", 34.05, 31.03, None, None, "火电装机", 0.0444), ("储能", 11.12, 10.13, None, None, "新型储能", 0.7364)],
     ),
     "NMG": _detail(
         region="内蒙古·西部电网", advice="优先布局·抢抓优质区域",
         maturity_summary="国内独有独立电网，市场体系设有实时电能量市场并配套放电量补贴，有效增厚储能充放电价差收益。",
         maturity_scores=[("电能量市场", 60), ("放电量补贴", 40)],
         contributions=[("电能量市场", 29.02), ("放电量补贴", 70.98)], total_gw=168.87,
-        capacities=[("新能源", 94.35, "风电 50.47 · 光伏 43.88"), ("火电", 57, "火电装机"), ("储能", 15.43, "新型储能")],
+        capacities=[("新能源", 55.87, 94.35, 53.49, 46.51, "", 0.3791), ("火电", 33.75, 57, None, None, "火电装机", 0.0794), ("储能", 9.14, 15.43, None, None, "新型储能", 1.5283)],
     ),
     "GS": _detail(
         region="甘肃", advice="优先布局·稳步开发",
         maturity_summary="风光大基地配套储能需求旺盛，长期收益确定性强；调频收益核心取决于并网区位。",
         maturity_scores=[("电能量市场", 40), ("容量市场", 10), ("调频市场", 50)],
         contributions=[("电能量市场", 28.7), ("容量市场", 22.63), ("调频市场", 48.68)], total_gw=126.29,
-        capacities=[("新能源", 81.60, "风电 41.67 · 光伏 39.93"), ("火电", 34.64, "火电装机"), ("储能", 10.26, "新型储能")],
+        capacities=[("新能源", 64.61, 81.5985, 51.06, 42.45, "", 0.3112), ("火电", 27.43, 34.641, None, None, "火电装机", 0.2696), ("储能", 8.12, 10.26, None, None, "新型储能", 0.71)],
     ),
     "SN": _detail(
         region="陕西", advice="适度布局·择优筛选优质点位",
         maturity_summary="陕西储能现阶段现货、调频仅可二选一申报，短期收益承压；容量补偿政策已落地。",
         maturity_scores=[("电能量市场", 70), ("容量市场", 10), ("调频市场", 20)],
-        contributions=[("电能量市场", 73.48), ("容量市场", 15), ("调频市场", 11.52)], total_gw=128.85,
-        capacities=[("新能源", 59.26, "风电 17.33 · 光伏 41.93"), ("火电", 63.56, "火电装机"), ("储能", 0.098, "新增装机 0.098GW")],
+        contributions=[("电能量市场", 73.48), ("容量市场", 15), ("调频市场", 11.52)], total_gw=128.8514,
+        capacities=[("新能源", 45.99, 59.26, 29.24, 70.76, "", 0.2866), ("火电", 49.33, 63.56, None, None, "火电装机", -0.0034), ("储能", 0.08, 0.098, None, None, "新增装机 0.098GW", "新增")],
     ),
 }
 

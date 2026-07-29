@@ -13,7 +13,7 @@ defineEmits(['zoom-in', 'zoom-out', 'reset', 'toggle-fullscreen'])
 </script>
 
 <style scoped>
-.index-map-tools { display: inline-flex; gap: var(--xc-space-2); padding: var(--xc-space-2); border: 1px solid rgba(120, 198, 255, 0.18); border-radius: var(--xc-radius-md); background: rgba(8, 15, 28, 0.68); box-shadow: var(--xc-shadow-md); backdrop-filter: blur(14px); }
+.index-map-tools { display: inline-flex; gap: var(--xc-space-2); padding: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; }
 .index-map-tools .xc-btn { border: 1px solid var(--xc-border-soft); background: rgba(255, 255, 255, 0.08); color: var(--xc-text-strong); transition: border-color var(--xc-dur-base) var(--xc-ease-out), background var(--xc-dur-base) var(--xc-ease-out); }
 .index-map-tools .xc-btn:hover { border-color: rgba(34, 177, 253, 0.68); background: rgba(34, 177, 253, 0.18); }
 </style>

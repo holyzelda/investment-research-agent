@@ -36,3 +36,29 @@ async def test_mock_province_detail_returns_excel_derived_payload_and_validates_
         await IndexMapService().get_overview(None, period="missing")
     with pytest.raises(NotFoundException):
         await IndexMapService().get_province_detail(None, period="2026-07", province_code="missing")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("province_code", "renewable", "wind", "solar", "thermal", "storage"),
+    [
+        ("SX", 48.01, 35.95, 62.81, 51.21, 2.04),
+        ("NX", 65.44, 26.26, 73.74, 34.05, 11.12),
+        ("NMG", 55.87, 53.49, 46.51, 33.75, 9.14),
+        ("GS", 64.61, 51.06, 42.45, 27.43, 8.12),
+        ("SN", 45.99, 29.24, 70.76, 49.33, 0.08),
+    ],
+)
+async def test_mock_province_detail_uses_excel_installed_structure_shares(
+    province_code, renewable, wind, solar, thermal, storage,
+):
+    detail = await IndexMapService().get_province_detail(
+        None, period="2026-07", province_code=province_code,
+    )
+    items = {item["key"]: item for item in detail.payload["installedStructure"]["items"]}
+
+    assert items["renewable"]["share"] == renewable
+    assert items["renewable"]["windShare"] == wind
+    assert items["renewable"]["solarShare"] == solar
+    assert items["thermal"]["share"] == thermal
+    assert items["storage"]["share"] == storage
