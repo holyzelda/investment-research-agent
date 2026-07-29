@@ -1,30 +1,158 @@
-@page { size: A4 portrait; margin: 1in 1.25in; }
+@page {
+  size: A4 portrait;
+  margin: 16mm 17mm 18mm;
+}
+
 @media print {
-  body { background: #fff !important; }
-  .ir-report-actions { display: none !important; }
-  .ir-report-document {
-    --xc-surface-raised: #fff;
-    --xc-surface-control: #f4f6f8;
-    --xc-text-strong: #17212b;
-    --xc-text-default: #2f3a45;
-    --xc-text-soft: #526170;
-    --xc-text-mute: #6f7b88;
-    --xc-text-inverse: #fff;
-    --xc-border-line: #aeb8c1;
-    --xc-border-card: #cbd3da;
-    --xc-border-soft: #dce2e7;
-    --xc-accent-blue: #176b9c;
-    --xc-status-danger: #b63535;
-    --xc-status-ok: #397544;
+  html,
+  body,
+  #app {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: var(--xc-report-page) !important;
   }
-  .ir-report-chart { background: #fff !important; }
-  .ir-report-section { margin-top: 0 !important; padding-top: 0 !important; }
-  .ir-report-chapter-heading { margin-top: 0 !important; }
-  .ir-report-cover { break-after: page !important; }
-  .ir-report-section--chapter { break-before: page !important; }
-  .ir-report-table, .ir-report-operation-group, .ir-report-revenue-layout { break-inside: avoid !important; }
-  .ir-report-boundary-table { break-inside: auto !important; }
-  .ir-report-boundary-table thead, .ir-report-financial-table thead { display: table-header-group; }
-  .ir-report-boundary-table tr, .ir-report-financial-table tr { break-inside: avoid; page-break-inside: avoid; }
-  .ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr) !important; }
+
+  body {
+    margin: 0 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .ir-report-document,
+  .ir-report-document * {
+    visibility: visible !important;
+  }
+
+  .ir-report-document {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: var(--xc-report-page) !important;
+    box-shadow: none !important;
+  }
+
+  .ir-report-actions,
+  .app-header,
+  .app-sidebar,
+  .app-rail,
+  .layout-header,
+  .layout-sidebar,
+  .el-overlay,
+  .el-message,
+  .el-notification {
+    display: none !important;
+  }
+
+  .ir-report-cover {
+    width: calc(210mm - 34mm) !important;
+    height: calc(297mm - 34mm) !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  .ir-report-cover__image {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+
+  .ir-report-cover__title,
+  .ir-report-cover__summary {
+    position: absolute !important;
+  }
+
+  .ir-report-body {
+    padding: 0 !important;
+    background: var(--xc-report-page) !important;
+  }
+
+  .ir-report-section {
+    margin-top: 0 !important;
+    break-before: page !important;
+    page-break-before: always !important;
+  }
+
+  .ir-report-section:first-child {
+    break-before: auto !important;
+    page-break-before: auto !important;
+  }
+
+  .ir-report-chapter-heading,
+  .ir-report-heading {
+    break-after: avoid !important;
+    page-break-after: avoid !important;
+  }
+
+  .ir-report-table-wrap {
+    overflow: visible !important;
+  }
+
+  .ir-report-table {
+    width: 100% !important;
+  }
+
+  .ir-report-table thead {
+    display: table-header-group !important;
+  }
+
+  .ir-report-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .ir-report-table th,
+  .ir-report-table td {
+    padding: 9px 12px !important;
+    font-size: 11px !important;
+  }
+
+  .ir-report-table--short,
+  .ir-report-revenue-layout,
+  .ir-report-operation-group,
+  .ir-report-chart-card,
+  .ir-report-chart,
+  .ir-report-chart__canvas {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .ir-report-boundary-table,
+  .ir-report-policy-table {
+    break-inside: auto !important;
+    page-break-inside: auto !important;
+  }
+
+  .ir-report-model-section {
+    break-inside: auto !important;
+  }
+
+  .ir-report-ai-analysis {
+    break-inside: avoid-page !important;
+  }
+
+  .ir-report-revenue-layout {
+    grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr) !important;
+    gap: 14px !important;
+  }
+
+  .ir-report-chart__canvas {
+    height: 255px !important;
+  }
 }

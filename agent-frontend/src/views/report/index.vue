@@ -6,17 +6,10 @@
     </nav>
 
     <article v-if="report" class="ir-report-document">
-      <header class="ir-report-cover">
-        <h1><span>储能参与中国电力市场</span><span>前期项目测算方案</span></h1>
-        <dl>
-          <div><dt>项目名称：</dt><dd>{{ projectName }}</dd></div>
-          <div><dt>编制单位：</dt><dd>{{ project.preparer || '西安奇点能源股份有限公司' }}</dd></div>
-          <div><dt>编制日期：</dt><dd>{{ report.generatedDate }}</dd></div>
-        </dl>
-      </header>
+      <ReportCover :project-name="projectName" :preparer="preparer" :generated-date="report.generatedDate" />
 
-      <section class="ir-report-section ir-report-section--chapter">
-        <h2 class="ir-report-chapter-heading">第一章 项目基本信息</h2>
+      <div class="ir-report-body">
+      <ReportChapter :number="1" title="第一章 项目基本信息">
         <p class="ir-report-intro"></p>
         <table class="ir-report-table ir-report-table--four">
           <thead><tr><th>项目要素</th><th>内容</th><th>项目要素</th><th>内容</th></tr></thead>
@@ -29,10 +22,9 @@
             <tr><th>奇点能源定位</th><td class="ir-report-role">{{ singularityRole }}</td><td colspan="2" /></tr>
           </tbody>
         </table>
-      </section>
+      </ReportChapter>
 
-      <section class="ir-report-section ir-report-section--chapter">
-        <h2 class="ir-report-chapter-heading">第二章：市场供需分析</h2>
+      <ReportChapter :number="2" title="第二章 市场供需分析">
         <div class="ir-report-market-copy">
           <p>该项目处于{{ project.province }}，目前该省（地区）电力市场处于现货连续结算试运行阶段，该省能源结构如下：</p>
           <p v-if="market.energyStructure">{{ market.energyStructure }}</p>
@@ -41,12 +33,10 @@
             <p v-if="item.value">{{ item.value }}</p>
           </template>
         </div>
-      </section>
+      </ReportChapter>
 
-      <section class="ir-report-section ir-report-section--chapter">
-        <h2 class="ir-report-chapter-heading">第三章 政策环境分析</h2>
-        <p class="ir-report-intro"></p>
-        <h3>3.1 政策环境清单</h3>
+      <ReportChapter :number="3" title="第三章 政策环境分析">
+        <ReportSectionHeading title="3.1 政策环境清单" />
         <table class="ir-report-table ir-report-policy-table">
           <thead><tr><th>政策类型</th><th>市场状态</th><th>对项目影响</th></tr></thead>
           <tbody>
@@ -56,7 +46,7 @@
           </tbody>
         </table>
 
-        <h3>3.2 现货基础运营信息</h3>
+        <ReportSectionHeading title="3.2 现货基础运营信息" />
         <section v-for="group in operationGroups" :key="group.title" class="ir-report-operation-group">
           <h4>{{ group.title }}（单位：元/kWh）</h4>
           <dl>
@@ -64,9 +54,9 @@
           </dl>
         </section>
 
-        <h3>3.3 项目首年收益结构</h3>
+        <ReportSectionHeading title="3.3 项目首年收益结构" />
         <div class="ir-report-revenue-layout">
-          <ReportChart title="项目首年收益结构" unit="单位：万元" kind="revenue" :data="{ donut: calculation.advanced?.donut }" />
+          <ReportChartCard unit="单位：万元"><ReportChart kind="revenue" :data="{ donut: calculation.advanced?.donut }" /></ReportChartCard>
           <table class="ir-report-table ir-report-revenue-table">
             <thead><tr><th>收益项</th><th>金额（万元）</th><th>占比</th></tr></thead>
             <tbody>
@@ -76,11 +66,10 @@
             </tbody>
           </table>
         </div>
-      </section>
+      </ReportChapter>
 
-      <section class="ir-report-section">
-        <h2 class="ir-report-chapter-heading">第四章 项目测算边界</h2>
-        <h3>4.1 测算边界参数</h3>
+      <ReportChapter :number="4" title="第四章 项目测算边界">
+        <ReportSectionHeading title="4.1 测算边界参数" />
         <p class="ir-report-intro">本节固化所有输入参数的取值依据，确保不同项目间结果可比、可追溯。</p>
         <table class="ir-report-table ir-report-boundary-table">
           <thead><tr><th>参数类别</th><th>参数名称</th><th>基准值</th><th>取值依据</th></tr></thead>
@@ -91,7 +80,7 @@
           </tbody>
         </table>
 
-        <h3>4.2 基准方案测算结果</h3>
+        <ReportSectionHeading title="4.2 基准方案测算结果" />
         <p class="ir-report-intro">按上述边界条件运行测算模型，得到的基准方案核心财务指标如下：</p>
         <table class="ir-report-table ir-report-financial-table">
           <thead><tr><th>指标名称</th><th>单位</th><th>数值</th><th>说明</th></tr></thead>
@@ -101,57 +90,56 @@
             </tr>
           </tbody>
         </table>
-      </section>
+      </ReportChapter>
 
-      <section class="ir-report-section">
-        <h2 class="ir-report-chapter-heading">第五章 主模型分析</h2>
+      <ReportChapter :number="5" title="第五章 主模型分析">
 
         <section class="ir-report-model-section">
-          <h3>5.1 偿债能力｜现金流口径下偿债倍数</h3>
-          <ReportChart title="现金流口径下偿债倍数" unit="单位：倍" kind="coverage" :data="{ coverage: charts.series?.debtServiceCoverage }" />
-          <div class="ir-report-interpretation">
-            <h4>如何解读这张图</h4>
-            <p>偿债覆盖倍数 = 年度经营性现金流 ÷ 当年还本付息。</p>
-          </div>
-          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.debt_service_coverage?.text" :fallback="aiFallback" /></div>
+          <ReportSectionHeading title="5.1 偿债能力｜现金流口径下偿债倍数" />
+          <ReportChartCard unit="单位：倍">
+            <ReportChart kind="coverage" :data="{ coverage: charts.series?.debtServiceCoverage }" />
+            <template #interpretation><p>偿债覆盖倍数 = 年度经营性现金流 ÷ 当年还本付息。</p></template>
+          </ReportChartCard>
+          <ReportAiAnalysis :text="report.aiSections?.debt_service_coverage?.text" :fallback="aiFallback" />
         </section>
 
         <section class="ir-report-model-section">
-          <h3>5.2 偿债能力｜经营性现金流对还本付息覆盖能力</h3>
-          <ReportChart title="经营性现金流对还本付息覆盖能力" unit="单位：万元" kind="cashflow" :data="charts.series" />
-          <div class="ir-report-interpretation">
-            <h4>如何解读这张图</h4>
-          </div>
-          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.operating_cashflow?.text" :fallback="aiFallback" /></div>
+          <ReportSectionHeading title="5.2 偿债能力｜经营性现金流对还本付息覆盖能力" />
+          <ReportChartCard unit="单位：万元">
+            <ReportChart kind="cashflow" :data="charts.series" />
+            <template #interpretation><p>对比年度经营性现金流与还本、付息及偿债后自由现金流。</p></template>
+          </ReportChartCard>
+          <ReportAiAnalysis :text="report.aiSections?.operating_cashflow?.text" :fallback="aiFallback" />
         </section>
 
         <section class="ir-report-model-section">
-          <h3>5.3 财务报表口径｜会计净利润</h3>
-          <ReportChart title="会计净利润" unit="单位：万元" kind="profit" :data="charts.series" />
-          <div class="ir-report-interpretation">
-            <h4>如何解读这张图</h4>
-          </div>
-          <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.accounting_profit?.text" :fallback="aiFallback" /></div>
+          <ReportSectionHeading title="5.3 财务报表口径｜会计净利润" />
+          <ReportChartCard unit="单位：万元">
+            <ReportChart kind="profit" :data="charts.series" />
+            <template #interpretation><p>观察净利润与折旧摊销的年度变化及其对会计收益的影响。</p></template>
+          </ReportChartCard>
+          <ReportAiAnalysis :text="report.aiSections?.accounting_profit?.text" :fallback="aiFallback" />
         </section>
-      </section>
+      </ReportChapter>
 
-      <section class="ir-report-section">
-        <h2 class="ir-report-chapter-heading">第六章 敏感情景测试</h2>
-        <ReportChart title="压力情景下的平均偿债覆盖倍数" unit="单位：倍" kind="sensitivity" :data="charts.sensitivity" />
-        <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.sensitivity?.text" :fallback="aiFallback" /></div>
-      </section>
+      <ReportChapter :number="6" title="第六章 敏感情景测试">
+        <ReportSectionHeading title="6.1 压力情景下的平均偿债覆盖倍数" />
+        <ReportChartCard unit="单位：倍"><ReportChart kind="sensitivity" :data="charts.sensitivity" /></ReportChartCard>
+        <ReportAiAnalysis :text="report.aiSections?.sensitivity?.text" :fallback="aiFallback" />
+      </ReportChapter>
 
-      <section class="ir-report-section">
-        <h2 class="ir-report-chapter-heading">第七章 结论与投资建议</h2>
-        <ReportChart title="风险 - 收益决策矩阵" kind="matrix" :data="charts.sensitivity" />
-        <h3>7.2 投资判断阈值</h3>
+      <ReportChapter :number="7" title="第七章 结论与投资建议">
+        <ReportSectionHeading title="7.1 风险 - 收益决策矩阵" />
+        <ReportChartCard><ReportChart kind="matrix" :data="charts.sensitivity" /></ReportChartCard>
+        <ReportSectionHeading title="7.2 投资判断阈值" />
         <table class="ir-report-table">
           <thead><tr><th>判断条件</th><th>投资建议</th><th>后续动作</th></tr></thead>
           <tbody><tr v-for="item in decisionRows" :key="item.advice"><td>{{ item.condition }}</td><td>{{ item.advice }}</td><td>{{ item.action }}</td></tr></tbody>
         </table>
-        <h3>7.3 风险提示与后续动作</h3>
-        <div class="ir-report-ai"><AiAnswerContent :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" /></div>
-      </section>
+        <ReportSectionHeading title="7.3 风险提示与后续动作" />
+        <ReportAiAnalysis :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" />
+      </ReportChapter>
+      </div>
     </article>
     <div v-else-if="loaded" class="ir-report-empty">报告不存在或当前用户无权查看。</div>
   </main>
@@ -162,8 +150,12 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getReport } from '@/api/report'
 import { formatNumber, formatPrice } from '@/utils/formatNumber'
+import ReportAiAnalysis from './components/ReportAiAnalysis.vue'
+import ReportChapter from './components/ReportChapter.vue'
 import ReportChart from './components/ReportChart.vue'
-import AiAnswerContent from '@/views/home/components/AiAnswerContent.vue'
+import ReportChartCard from './components/ReportChartCard.vue'
+import ReportCover from './components/ReportCover.vue'
+import ReportSectionHeading from './components/ReportSectionHeading.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -173,6 +165,7 @@ const missing = '——'
 const aiFallback = '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。'
 const project = computed(() => report.value?.project || {})
 const projectName = computed(() => project.value.name || String(report.value?.title || '').replace(/测算方案$/, ''))
+const preparer = computed(() => project.value.preparer || '西安奇点能源股份有限公司')
 const market = computed(() => report.value?.marketSupplyDemand || {})
 const operations = computed(() => report.value?.marketOperations || {})
 const boundary = computed(() => report.value?.measurementBoundary || {})
@@ -256,16 +249,36 @@ function formatFixedNumber(value) {
 </script>
 
 <style scoped>
-.ir-report-page { min-height: 100%; overflow: auto; padding: 32px 96px 64px; background: var(--xc-surface-base); color: var(--xc-text-default); }
-.ir-report-actions { position: fixed; z-index: 10; right: 32px; top: 32px; display: flex; gap: 8px; }.ir-report-action { min-width: 82px; height: 34px; border: 1px solid var(--xc-border-card); border-radius: 4px; background: var(--xc-surface-raised); color: var(--xc-text-default); font-size: 13px; cursor: pointer; }.ir-report-action--primary { border-color: var(--xc-accent-blue); background: var(--xc-accent-blue); color: var(--xc-text-inverse); }
-.ir-report-document { width: 210mm; min-height: 297mm; box-sizing: border-box; margin: 0 auto; padding: 20mm 21mm 26mm; background: var(--xc-surface-raised); box-shadow: var(--xc-shadow-lg); font-family: var(--xc-font-zh); line-height: 1.7; }
-.ir-report-cover { min-height: 257mm; display: flex; flex-direction: column; justify-content: center; padding: 0 16mm; break-after: page; }.ir-report-cover h1 { margin: 0 0 72mm; color: var(--xc-text-strong); text-align: center; font-size: 30px; font-weight: var(--xc-fw-semi); line-height: 1.5; letter-spacing: 2px; }.ir-report-cover h1 span { display: block; }.ir-report-cover dl { width: 100%; margin: 0; font-size: 15px; }.ir-report-cover dl div { display: flex; margin: 14px 0; }.ir-report-cover dt { min-width: 86px; }.ir-report-cover dd { margin: 0; }
-.ir-report-section { margin-top: 64px; padding-top: 18px; break-before: page; }.ir-report-section--chapter { margin-top: 0; padding-top: 0; }.ir-report-chapter-heading { display: block; margin: 0 0 26px; padding: 14px 0 12px; border-top: 2px solid var(--xc-text-strong); border-bottom: 1px solid var(--xc-border-line); color: var(--xc-text-strong); font-size: 22px; font-weight: var(--xc-fw-semi); letter-spacing: .5px; line-height: 1.4; }
-h3 { margin: 24px 0 12px; color: var(--xc-text-strong); font-size: 15px; font-weight: var(--xc-fw-semi); } h4 { margin: 0; font-size: 14px; font-weight: var(--xc-fw-semi); }
-.ir-report-table { width: 100%; border-collapse: collapse; font-size: 12px; break-inside: avoid; }.ir-report-table th, .ir-report-table td { padding: 8px 10px; border: 1px solid var(--xc-border-line); text-align: left; vertical-align: top; }.ir-report-table th { background: var(--xc-surface-control); color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); }.ir-report-table td { color: var(--xc-text-default); }.ir-report-table--four th { width: 16%; }.ir-report-table--four td { width: 34%; }.ir-report-boundary-table th:nth-child(1) { width: 13%; }.ir-report-boundary-table th:nth-child(2) { width: 28%; }.ir-report-boundary-table th:nth-child(3) { width: 18%; }.ir-report-boundary-table th:nth-child(4) { width: 41%; }.ir-report-financial-table th:nth-child(1) { width: 33%; }.ir-report-financial-table th:nth-child(2) { width: 12%; }.ir-report-financial-table th:nth-child(3) { width: 18%; }.ir-report-financial-table th:nth-child(4) { width: 37%; }.ir-report-boundary-table th, .ir-report-financial-table th { white-space: nowrap; }.ir-report-boundary-table td, .ir-report-financial-table td { break-inside: avoid; }.ir-report-role { line-height: 1.8; }.ir-report-policy-table td:nth-child(2), .ir-report-policy-table td:nth-child(3) { white-space: nowrap; }
-.ir-report-market-copy p { margin: 0 0 12px; white-space: pre-line; text-align: justify; text-indent: 2em; }.ir-report-market-copy__label { margin-bottom: 0 !important; font-weight: var(--xc-fw-semi); text-indent: 0 !important; }
-.ir-report-operation-group { margin: 14px 0 18px; break-inside: avoid; }.ir-report-operation-group dl { margin: 8px 0 0; }.ir-report-operation-group dl div { display: flex; padding: 3px 0; }.ir-report-operation-group dt { min-width: 156px; }.ir-report-operation-group dd { margin: 0; }
-.ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); gap: 16px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-layout :deep(.ir-report-chart) { min-height: 312px; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
-.ir-report-model-section { margin-top: 34px; break-inside: avoid; }.ir-report-model-section h3 { margin-top: 0; }.ir-report-interpretation { margin-top: 14px; padding: 10px 14px; border-left: 3px solid var(--xc-border-line); background: var(--xc-surface-control); color: var(--xc-text-soft); font-size: 13px; }.ir-report-interpretation h4 { margin: 0 0 4px; color: var(--xc-text-strong); }.ir-report-interpretation p { margin: 0; }.ir-report-ai { margin-top: 10px; break-inside: avoid; }.ir-report-ai :deep(.ir-ai-answer) { padding: 12px 14px; border-left: 3px solid var(--xc-accent-blue); border-radius: var(--xc-radius-sm); background: var(--xc-surface-control); font-size: 13px; }.ir-report-empty { width: 700px; margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
-@media (max-width: 1000px) { .ir-report-page { padding: 16px; }.ir-report-actions { right: 16px; top: 16px; }.ir-report-document { width: 210mm; margin: 0; }.ir-report-cover { min-height: 257mm; }.ir-report-revenue-layout { grid-template-columns: minmax(0, 3fr) minmax(230px, 2fr); } }
+.ir-report-page { min-height: 100%; overflow: auto; padding: 32px 64px 72px; background: var(--xc-report-page); color: var(--xc-text-default); }
+.ir-report-actions { position: fixed; z-index: var(--xc-z-nav); right: 32px; top: 32px; display: flex; gap: 8px; }
+.ir-report-action { min-width: 82px; height: 36px; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-xs); background: var(--xc-report-card); color: var(--xc-text-default); font-size: 13px; cursor: pointer; }
+.ir-report-action:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+.ir-report-action--primary { border-color: var(--xc-accent-blue); background: var(--xc-accent-blue); color: var(--xc-text-inverse); }
+.ir-report-document { width: min(241.5mm, calc(100vw - 128px)); margin: 0 auto; background: var(--xc-report-page); box-shadow: var(--xc-shadow-lg); font-family: var(--xc-font-zh); line-height: var(--xc-lh-loose); }
+.ir-report-body { padding: 22mm 24mm 28mm; }
+.ir-report-intro { margin: 0 0 16px; color: var(--xc-text-soft); }
+.ir-report-table-wrap { width: 100%; overflow-x: auto; }
+.ir-report-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+.ir-report-table th, .ir-report-table td { min-height: 44px; padding: 12px 17px; border-right: 1px solid var(--xc-report-border); border-bottom: 1px solid var(--xc-report-border); text-align: left; vertical-align: middle; }
+.ir-report-table tr > :first-child { border-left: 1px solid var(--xc-report-border); }
+.ir-report-table thead th { border-top: 1px solid var(--xc-report-border); border-bottom-color: var(--xc-border-accent); background: var(--xc-report-table-head); color: var(--xc-text-strong); font-weight: var(--xc-fw-semi); }
+.ir-report-table thead th:first-child { border-top-left-radius: var(--xc-radius-xs); }
+.ir-report-table thead th:last-child { border-top-right-radius: var(--xc-radius-xs); }
+.ir-report-table tbody tr:nth-child(odd) > * { background: var(--xc-report-table-row); }
+.ir-report-table tbody tr:nth-child(even) > * { background: var(--xc-report-table-row-alt); }
+.ir-report-table tbody th { color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); }
+.ir-report-table td { color: var(--xc-text-default); }
+.ir-report-cell--number, .ir-report-revenue-table td:nth-child(n + 2), .ir-report-boundary-table td:nth-child(3), .ir-report-financial-table td:nth-child(3) { text-align: right; }
+.ir-report-financial-table td:nth-child(3) { color: var(--xc-accent-blue); font-weight: var(--xc-fw-semi); }
+.ir-report-table--four th { width: 16%; }.ir-report-table--four td { width: 34%; }
+.ir-report-boundary-table th:nth-child(1) { width: 13%; }.ir-report-boundary-table th:nth-child(2) { width: 28%; }.ir-report-boundary-table th:nth-child(3) { width: 18%; text-align: right; }.ir-report-boundary-table th:nth-child(4) { width: 41%; }
+.ir-report-financial-table th:nth-child(1) { width: 33%; }.ir-report-financial-table th:nth-child(2) { width: 12%; }.ir-report-financial-table th:nth-child(3) { width: 18%; text-align: right; }.ir-report-financial-table th:nth-child(4) { width: 37%; }
+.ir-report-boundary-table th, .ir-report-financial-table th { white-space: nowrap; }
+.ir-report-role { line-height: 1.8; }.ir-report-policy-table td:nth-child(2), .ir-report-policy-table td:nth-child(3) { white-space: nowrap; }
+.ir-report-market-copy p { margin: 0 0 16px; white-space: pre-line; text-align: justify; text-indent: 2em; }.ir-report-market-copy__label { margin-bottom: 0 !important; color: var(--xc-text-strong); font-weight: var(--xc-fw-semi); text-indent: 0 !important; }
+.ir-report-operation-group { margin: 16px 0 24px; padding: 18px 20px; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-sm); background: var(--xc-report-card); break-inside: avoid; }.ir-report-operation-group h4 { margin: 0; color: var(--xc-text-strong); font-size: 14px; }.ir-report-operation-group dl { margin: 10px 0 0; }.ir-report-operation-group dl div { display: flex; padding: 4px 0; }.ir-report-operation-group dt { min-width: 156px; color: var(--xc-text-soft); }.ir-report-operation-group dd { margin: 0; }
+.ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
+.ir-report-model-section { margin-top: 36px; }.ir-report-model-section:first-child { margin-top: 0; }
+.ir-report-empty { width: min(700px, 90vw); margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
+@media (max-width: 1000px) { .ir-report-page { padding: 16px; }.ir-report-actions { right: 16px; top: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-revenue-layout { grid-template-columns: 1fr; } }
 </style>

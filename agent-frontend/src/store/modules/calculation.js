@@ -479,12 +479,11 @@ export const useCalculationStore = defineStore('calculation', {
         capacity_mwh: basics.capacity_mwh,
         power_mw: basics.power_mw,
         node_name: basics.node_name || null,
-        conversation_id: this.conversationId,
         param_overrides: overrides,
-      })
+      }, this.conversationId)
     },
     // 直调测算 + 统一进度展示：以「测算进行中」思考样式占位，完成后升级为结果卡片。
-    async _submitAndTrack(payload) {
+    async _submitAndTrack(payload, conversationId) {
       const epoch = this.conversationEpoch
       const pendingStreamMsg = createStreamMessage()
       const currentTurnId = pendingStreamMsg.turnId
@@ -503,7 +502,7 @@ export const useCalculationStore = defineStore('calculation', {
         node_subtitle: '正在按调整后的参数重新测算…',
       })
       try {
-        const createdResponse = await createCalculationTask(payload)
+        const createdResponse = await createCalculationTask(payload, conversationId)
         if (!this._isCurrentTurn(currentTurnId, epoch)) return
         const created = createdResponse.data || {}
         if (created.conversationId) this.conversationId = created.conversationId

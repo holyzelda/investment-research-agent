@@ -1,10 +1,11 @@
 import request from '@/utils/request'
 
-export function createCalculationTask(payload) {
+export function createCalculationTask(payload, conversationId) {
   return request({
     url: '/ir/calc/tasks',
     method: 'post',
     data: payload,
+    headers: conversationId ? { conversation_id: conversationId } : undefined,
   })
 }
 

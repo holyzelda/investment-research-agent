@@ -54,6 +54,56 @@ describe('home thinking stream rendering', () => {
     vi.unstubAllGlobals()
   })
 
+  it('renders assistant Markdown while keeping user text literal and thinking separate', async () => {
+    const store = useCalculationStore()
+    store.messages = [
+      { id: 'u1', role: 'user', kind: 'text', text: '**用户原文**' },
+      {
+        id: 'a1',
+        role: 'assistant',
+        kind: 'assistant-stream',
+        phase: 'complete',
+        startedAt: 1,
+        finishedAt: 2,
+        hasThinkingStarted: true,
+        thinkingState: {
+          order: ['n1'],
+          nodesById: { n1: { nodeId: 'n1', title: '识别项目参数', status: 'completed', open: false, substeps: [], text: '' } },
+        },
+        answerText: '**投资结论**\n\n| 指标 | 数值 |\n| --- | --- |\n| IRR | 8.6% |',
+        recommendedQuestions: [],
+      },
+    ]
+    const wrapper = mount(Home)
+    await nextTick()
+
+    expect(wrapper.find('.ir-msg--user strong').exists()).toBe(false)
+    expect(wrapper.find('.ir-msg--user').text()).toContain('**用户原文**')
+    const stream = wrapper.find('.ir-msg__stream')
+    expect(stream.find('.ir-thinking').exists()).toBe(true)
+    expect(stream.find('.ir-ai-answer strong').text()).toBe('投资结论')
+    expect(stream.find('.ir-ai-answer table').exists()).toBe(true)
+    expect(stream.find('.ir-thinking').element.parentElement).toBe(stream.element)
+    expect(stream.find('.ir-ai-answer').element.parentElement).toBe(stream.element)
+    wrapper.unmount()
+  })
+
+  it('renders historical assistant text as Markdown without parsing user text', async () => {
+    const store = useCalculationStore()
+    store.messages = [
+      { id: 'u1', role: 'user', kind: 'text', text: '<b>用户原文</b>' },
+      { id: 'a1', role: 'assistant', kind: 'text', text: '## 历史结论\n\n| 版本 | IRR |\n| --- | --- |\n| V1 | 8.6% |' },
+    ]
+    const wrapper = mount(Home)
+    await nextTick()
+
+    expect(wrapper.find('.ir-msg--user b').exists()).toBe(false)
+    expect(wrapper.find('.ir-msg--user').text()).toContain('<b>用户原文</b>')
+    expect(wrapper.find('.ir-msg--assistant h2').text()).toBe('历史结论')
+    expect(wrapper.find('.ir-msg--assistant table').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('renders thinking node and token updates before done', async () => {
     const store = useCalculationStore()
     const wrapper = mount(Home)

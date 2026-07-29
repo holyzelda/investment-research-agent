@@ -83,14 +83,14 @@ describe('formal report preview', () => {
 
     expect(wrapper.text()).toContain('储能参与中国电力市场')
     expect(wrapper.text()).toContain('前期项目测算方案')
-    expect(wrapper.text()).toContain('项目名称：甘肃200MW/800MWh独立储能项目')
-    expect(wrapper.text()).toContain('编制单位：西安奇点能源股份有限公司')
-    expect(wrapper.text()).not.toContain('ENERGY STORAGE INVESTMENT REVIEW')
+    expect(wrapper.text()).toContain('项目名称甘肃200MW/800MWh独立储能项目')
+    expect(wrapper.text()).toContain('编制单位西安奇点能源股份有限公司')
+    expect(wrapper.text()).toContain('INVESTMENT ANALYSIS REPORT')
     expect(wrapper.text()).not.toContain('测算版本')
     expect(wrapper.text()).toContain('项目要素')
     expect(wrapper.text()).toContain('并网电压等级')
     expect(wrapper.text()).toContain('☑ 源网侧')
-    expect(wrapper.text()).toContain('第二章：市场供需分析')
+    expect(wrapper.text()).toContain('第二章 市场供需分析')
     expect(wrapper.text()).toContain('该项目处于甘肃，目前该省（地区）电力市场处于现货连续结算试运行阶段，该省能源结构如下：')
     expect(wrapper.text()).toContain('新能源与火电结构。')
     expect(wrapper.text()).toContain('储能：')
@@ -186,9 +186,12 @@ describe('formal report preview', () => {
     expect(matrixOption.yAxis).toMatchObject({ max: 2, interval: 0.5 })
     expect(matrixOption.series[0].markLine).toBeUndefined()
     expect(wrapper.findAll('.ir-report-chapter-heading')).toHaveLength(7)
-    expect(wrapper.findAll('.ir-report-chapter-heading').map((item) => item.text())).toEqual([
-      '第一章 项目基本信息', '第二章：市场供需分析', '第三章 政策环境分析', '第四章 项目测算边界',
+    expect(wrapper.findAll('.ir-report-chapter-heading h2').map((item) => item.text())).toEqual([
+      '第一章 项目基本信息', '第二章 市场供需分析', '第三章 政策环境分析', '第四章 项目测算边界',
       '第五章 主模型分析', '第六章 敏感情景测试', '第七章 结论与投资建议',
+    ])
+    expect(wrapper.findAll('.ir-report-chapter-heading p').map((item) => item.text())).toEqual([
+      'CHAPTER 01', 'CHAPTER 02', 'CHAPTER 03', 'CHAPTER 04', 'CHAPTER 05', 'CHAPTER 06', 'CHAPTER 07',
     ])
     expect(wrapper.text()).toContain('导出 PDF')
     expect(wrapper.text()).toContain('5.1 偿债能力｜现金流口径下偿债倍数')
@@ -200,9 +203,9 @@ describe('formal report preview', () => {
     expect(wrapper.text()).toContain('基准平均偿债倍数 ≥ 1.1 且 悲观平均偿债倍数 ≥ 1.1')
     expect(wrapper.text()).toContain('基准平均偿债倍数 < 1，或贷款期内出现年度偿债覆盖倍数 < 1.00且无明确补足机制')
     expect(wrapper.findAll('.ir-report-model-section')).toHaveLength(3)
-    expect(wrapper.findAll('.ir-report-model-section .ir-report-ai')).toHaveLength(3)
+    expect(wrapper.findAll('.ir-report-model-section .ir-report-ai-analysis')).toHaveLength(3)
     expect(wrapper.text()).toContain('偿债倍数首10年均值为1.05，第10年最低0.899。')
-    expect(wrapper.text().match(/如何解读这张图/g)).toHaveLength(3)
+    expect(wrapper.text().match(/如何解读/g)).toHaveLength(3)
     const profitOption = captured.factories[3]()
     expect(profitOption.series.map((series) => series.name)).toEqual(['净利润', '折旧摊销'])
   })

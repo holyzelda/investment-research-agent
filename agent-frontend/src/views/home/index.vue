@@ -69,9 +69,14 @@
               alt=""
               aria-hidden="true"
             />
-            <div v-if="m.kind === 'text'" class="ir-msg__bubble">
+            <div v-if="m.role === 'user' && m.kind === 'text'" class="ir-msg__bubble">
               <span :class="{ 'ir-msg__pending': m.text === '测算中…' }">{{ m.text }}</span>
             </div>
+            <AiAnswerContent
+              v-else-if="m.role === 'assistant' && m.kind === 'text'"
+              :text="m.text"
+              :error="Boolean(m.error)"
+            />
             <div v-else-if="m.kind === 'assistant-stream'" class="ir-msg__stream">
               <ThinkingChain
                 :nodes="thinkingNodesOf(m)"
@@ -519,51 +524,42 @@ function versionSpec(v) {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  /* 左右留出足够空间容纳对话框外侧的头像，不被裁切 */
-  padding: var(--xc-space-8) 72px var(--xc-space-7);
+  /* 为位于消息外侧 52px 的 32px 头像保留安全区。 */
+  padding: var(--xc-space-8) 84px var(--xc-space-7);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--xc-space-6);
+  gap: var(--xc-space-7);
 }
-/* 对话框本身的宽度 = 输入框宽度，头像绝对定位在框外，不占用/挤压对话框宽度 */
+/* 消息宽度继续服从投研结果布局；右侧记录栏会自然压缩主列。 */
 .ir-msg { position: relative; display: flex; width: 100%; max-width: var(--xc-content-fluid); }
 .ir-msg--user { justify-content: flex-end; }
 .ir-msg--assistant { justify-content: flex-start; }
 .ir-msg__avatar {
   position: absolute;
-  top: 2px;
+  top: 0;
   width: 32px;
   height: 32px;
   border-radius: 50%;
   object-fit: cover;
 }
-.ir-msg__avatar--ai { left: -44px; }
-.ir-msg__avatar--user { right: -44px; }
-/* 用户气泡：右对齐、灰底、克制 */
+.ir-msg__avatar--ai { left: -52px; }
+.ir-msg__avatar--user { right: -52px; }
+/* 用户文本始终通过 Vue 插值安全展示，不参与 Markdown 渲染。 */
 .ir-msg--user .ir-msg__bubble {
   max-width: 78%;
   padding: var(--xc-space-3) var(--xc-space-5);
-  border-radius: var(--xc-radius-lg);
-  font-size: var(--xc-fs-md);
-  line-height: var(--xc-lh-normal);
-  color: var(--xc-text-default);
-  background: var(--xc-surface-control);
-  word-break: break-word;
-}
-/* AI 消息：满宽、极淡底、无边框，头像在框外左侧（对齐 trader ai-bubble） */
-.ir-msg--assistant .ir-msg__bubble {
-  width: 100%;
-  padding: var(--xc-space-6);
-  border-radius: var(--xc-radius-lg);
-  font-size: var(--xc-fs-md);
-  line-height: var(--xc-lh-loose);
-  color: var(--xc-text-default);
-  background: var(--xc-surface-card);
+  border-radius: var(--xc-radius-sm);
+  font-size: var(--xc-fs-sm);
+  line-height: 1.6;
+  color: var(--xc-text-strong);
+  background: var(--xc-surface-frosted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .ir-msg__pending { color: var(--xc-text-mute); }
 .ir-msg__result { width: 100%; }
-.ir-msg__stream { width: 100%; display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-msg__stream { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: var(--xc-space-4); }
 .ir-msg__error { color: var(--xc-status-danger); }
 .ir-msg__recommend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: var(--xc-space-2); }
 .ir-msg__recommend button {
@@ -577,9 +573,9 @@ function versionSpec(v) {
 }
 .ir-msg__recommend button:hover:not(:disabled) { border-color: var(--xc-border-accent); color: var(--xc-text-strong); }
 .ir-msg__recommend button:disabled { opacity: 0.5; cursor: default; }
+/* 版本选择只用于定位记录，不再给结果卡叠加一圈高亮框。 */
 .ir-msg--selected-result .ir-msg__result {
-  border-radius: var(--xc-radius-lg);
-  box-shadow: 0 0 0 1px var(--xc-border-accent);
+  border-radius: var(--xc-radius-sm);
 }
 /* 对话态底部输入框：居中收窄，与消息流同宽 */
 .ir-home__composer {
@@ -661,5 +657,15 @@ function versionSpec(v) {
   border-radius: var(--xc-radius-sm);
   padding: 2px var(--xc-space-3);
   cursor: pointer;
+}
+@media (max-width: 1200px) {
+  .ir-home__stream { padding-inline: 60px; }
+  .ir-msg__avatar--ai { left: -44px; }
+  .ir-msg__avatar--user { right: -44px; }
+}
+@media (max-width: 760px) {
+  .ir-home__stream { padding-inline: 44px; }
+  .ir-msg__avatar--ai { left: -38px; }
+  .ir-msg__avatar--user { right: -38px; }
 }
 </style>

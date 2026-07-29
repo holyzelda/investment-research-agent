@@ -1,9 +1,5 @@
 <template>
   <section class="ir-report-chart">
-    <div class="ir-report-chart__head">
-      <h3>{{ title }}</h3>
-      <span v-if="unit" class="ir-report-chart__unit">{{ unit }}</span>
-    </div>
     <div ref="el" class="ir-report-chart__canvas" />
   </section>
 </template>
@@ -14,8 +10,6 @@ import { formatNumber } from '@/utils/formatNumber'
 import { useEcharts, xcChartColors, xcVar } from '@/views/home/composables/useEcharts'
 
 const props = defineProps({
-  title: { type: String, required: true },
-  unit: { type: String, default: '' },
   kind: { type: String, required: true },
   data: { type: Object, default: () => ({}) },
 })
@@ -27,7 +21,7 @@ const seriesData = computed(() => props.data || {})
 const option = () => {
   const d = seriesData.value
   const ink = xcVar('--xc-text-soft')
-  const grid = xcVar('--xc-border-soft')
+  const grid = xcVar('--xc-report-grid') || xcVar('--xc-border-soft')
   const colors = xcChartColors()
   const axis = { axisLine: { lineStyle: { color: grid } }, axisLabel: { color: ink }, splitLine: { lineStyle: { color: grid, type: 'dashed' } } }
   const tooltip = { trigger: 'axis', axisPointer: { type: 'cross' }, textStyle: { fontFamily: 'var(--xc-font-zh)' } }
@@ -216,13 +210,13 @@ const option = () => {
     }],
   }
 }
-const { el } = useEcharts(option)
+const { el, getDataURL } = useEcharts(option)
+defineExpose({
+  toPrintImage: () => getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: xcVar('--xc-report-card') }),
+})
 </script>
 
 <style scoped>
-.ir-report-chart { min-height: 280px; padding: 18px; border: 1px solid var(--xc-border-line); background: var(--xc-surface-raised); break-inside: avoid; }
-.ir-report-chart__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 6px; }
-.ir-report-chart__head h3 { margin: 0; font-size: 15px; color: var(--xc-text-strong); }
-.ir-report-chart__unit { font-size: 12px; color: var(--xc-text-mute); }
-.ir-report-chart__canvas { width: 100%; height: 245px; }
+.ir-report-chart { width: 100%; min-height: 300px; break-inside: avoid; }
+.ir-report-chart__canvas { width: 100%; height: 300px; }
 </style>

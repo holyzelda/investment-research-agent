@@ -30,6 +30,23 @@
   --xc-surface-control:   rgba(255, 255, 255, 0.075);
   --xc-border-card:       rgba(212, 217, 229, 0.16);
 
+  /* ---------- 1.2 INVESTMENT REPORT ----------
+   * 正式报告延续封面素材底部的深海军蓝，屏幕与打印共用同一语义层级。 */
+  --xc-report-page:              rgb(4, 24, 52);
+  --xc-report-card:              rgb(11, 35, 67);
+  --xc-report-raised:            rgb(17, 44, 78);
+  --xc-report-note:              rgba(34, 177, 253, 0.09);
+  --xc-report-ai:                rgba(15, 43, 77, 0.96);
+  --xc-report-table-head:        rgb(15, 48, 85);
+  --xc-report-table-row:         rgba(255, 255, 255, 0.018);
+  --xc-report-table-row-alt:     rgba(255, 255, 255, 0.045);
+  --xc-report-border:            rgba(212, 226, 244, 0.13);
+  --xc-report-grid:              rgba(212, 226, 244, 0.10);
+  --xc-report-cover-card:        rgba(3, 21, 47, 0.76);
+  --xc-report-cover-card-border: rgba(212, 226, 244, 0.18);
+  --xc-report-cover-eyebrow:     rgba(219, 235, 255, 0.72);
+  --xc-report-cover-overlay:     linear-gradient(180deg, rgba(2, 18, 43, 0.18) 0%, rgba(2, 18, 43, 0.02) 45%, var(--xc-report-page) 100%);
+
   /* ---------- 2. TEXT (on dark surface) ---------- */
   --xc-text-strong:  #ffffff;
   --xc-text-default: rgba(255, 255, 255, 0.86);

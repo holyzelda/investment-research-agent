@@ -11,7 +11,10 @@
 
       <div class="ir-advanced__body">
         <section v-for="section in sections" :key="section.title" class="ir-advanced__section">
-          <h4>{{ section.title }}</h4>
+          <h4>
+            <svg class="ir-advanced__section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="section.icon" />
+            {{ section.title }}
+          </h4>
           <div class="ir-advanced__fields" :class="`ir-advanced__fields--${section.key}`">
             <div
               v-for="spec in section.items"
@@ -20,7 +23,10 @@
               :class="{ 'ir-advanced__field--slider': isEditable(spec) && rangeOf(spec) }"
             >
               <div class="ir-advanced__field-head">
-                <span>{{ spec.cn || spec.id }}</span>
+                <span class="ir-advanced__field-label">
+                  <svg class="ir-advanced__field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="fieldIcon(spec.id)" />
+                  <span>{{ spec.cn || spec.id }}</span>
+                </span>
                 <select
                   v-if="spec.control === 'select'"
                   :data-param-id="spec.id"
@@ -95,10 +101,29 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'save'])
 
 const ADVANCED_SECTION_IDS = [
-  { key: 'financial', title: '金融边界', ids: ['operation_years'] },
-  { key: 'revenue', title: '收益边界', ids: ['mid_long_charge_avg', 'mid_long_discharge_avg', 'strategy_achievement_rate', 'capacity_achievement_rate'] },
-  { key: 'cost', title: '成本边界', ids: ['battery_replace_cost', 'maint_cost', 'opex_cost'] },
+  {
+    key: 'financial', title: '金融边界', ids: ['operation_years'],
+    icon: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/>',
+  },
+  {
+    key: 'revenue', title: '收益边界', ids: ['mid_long_charge_avg', 'mid_long_discharge_avg', 'strategy_achievement_rate', 'capacity_achievement_rate'],
+    icon: '<path d="M4 18 9 13l4 3 7-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke-linecap="round" stroke-linejoin="round"/>',
+  },
+  {
+    key: 'cost', title: '成本边界', ids: ['battery_replace_cost', 'maint_cost', 'opex_cost'],
+    icon: '<circle cx="12" cy="12" r="9"/><path d="M8 9.5c0-1.4 1.5-2.5 4-2.5s4 1.1 4 2.5-1.5 2.5-4 2.5-4 1.1-4 2.5S9.5 17 12 17s4-1.1 4-2.5M12 5v14" stroke-linecap="round"/>',
+  },
 ]
+const FIELD_ICONS = {
+  operation_years: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>',
+  mid_long_charge_avg: '<path d="M12 3v6m0 0 3-3m-3 3L9 6" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="11" width="14" height="10" rx="2"/>',
+  mid_long_discharge_avg: '<path d="M12 21v-6m0 0 3 3m-3-3-3 3" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="3" width="14" height="10" rx="2"/>',
+  strategy_achievement_rate: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
+  capacity_achievement_rate: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4M7 10v4M11 10v4M15 10v4" stroke-linecap="round"/>',
+  battery_replace_cost: '<path d="M13 2 4 14h7l-1 8 9-12h-7z" stroke-linejoin="round" stroke-linecap="round"/>',
+  maint_cost: '<path d="m14.7 6.3 3-3a4 4 0 0 1-5 5L6 15l-3 6 6-3 6.7-6.7a4 4 0 0 1 5-5l-3 3" stroke-linecap="round" stroke-linejoin="round"/>',
+  opex_cost: '<path d="M4 7h16M7 4v6M17 4v6M5 11h14v9H5z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 15h6" stroke-linecap="round"/>',
+}
 const values = reactive({})
 const dialog = ref(null)
 const closeButton = ref(null)
@@ -125,7 +150,7 @@ watch(() => props.modelValue, async (open) => {
 const sections = computed(() => {
   const byId = new Map(props.paramDict.map((spec) => [spec.id, spec]))
   return ADVANCED_SECTION_IDS
-    .map(({ key, title, ids }) => ({ key, title, items: ids.map((id) => byId.get(id)).filter(Boolean) }))
+    .map(({ key, title, ids, icon }) => ({ key, title, icon, items: ids.map((id) => byId.get(id)).filter(Boolean) }))
     .filter((section) => section.items.length)
 })
 const hasChangesFromSeed = computed(() => sections.value.some((section) => section.items.some((spec) => {
@@ -149,6 +174,9 @@ function resetToSeed() {
 
 function isEditable(spec) {
   return spec.control === 'slider' || spec.control === 'dynamic_slider' || spec.control === 'select'
+}
+function fieldIcon(id) {
+  return FIELD_ICONS[id] || '<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/>'
 }
 function rangeOf(spec) {
   if (spec.control === 'slider') return { min: spec.min, max: spec.max }
@@ -214,13 +242,15 @@ function save() {
 .ir-advanced__body { overflow-y:auto; padding:0 var(--xc-space-6); }
 .ir-advanced__section { padding:var(--xc-space-7) 0 var(--xc-space-6); border-bottom:1px solid var(--xc-border-soft); }
 .ir-advanced__section:last-child { border-bottom:0; }
-.ir-advanced__section h4 { display:flex; align-items:center; gap:var(--xc-space-3); margin:0 0 var(--xc-space-5); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); }
-.ir-advanced__section h4::before { content:''; width:3px; height:16px; border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); box-shadow:var(--xc-glow-blue); }
+.ir-advanced__section h4 { display:flex; align-items:center; gap:var(--xc-space-2); margin:0 0 var(--xc-space-5); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); }
+.ir-advanced__section-icon { width:18px; height:18px; flex:0 0 auto; color:var(--xc-accent-blue); }
 .ir-advanced__fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--xc-space-6) var(--xc-space-5); }
 .ir-advanced__fields--revenue .ir-advanced__field:nth-child(n+3),.ir-advanced__fields--cost .ir-advanced__field { grid-column:1 / -1; width:min(280px,100%); }
 .ir-advanced__field { min-width:0; }
 .ir-advanced__field-head { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; min-height:32px; gap:var(--xc-space-4); color:var(--xc-text-soft); font-size:var(--xc-fs-xs); }
-.ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__field-head { min-height:52px; padding-left:var(--xc-space-4); border-left:2px solid var(--xc-border-accent); }
+.ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__field-head { min-height:52px; }
+.ir-advanced__field-label { min-width:0; display:inline-flex; align-items:center; gap:var(--xc-space-2); }
+.ir-advanced__field-icon { width:15px; height:15px; flex:0 0 auto; color:var(--xc-accent-blue); }
 .ir-advanced__field:not(.ir-advanced__field--slider) .ir-advanced__readonly { color:var(--xc-text-strong); font-size:var(--xc-fs-xs); }
 .ir-advanced__value { display:inline-flex; align-items:baseline; justify-content:flex-end; gap:var(--xc-space-2); padding:0; background:transparent; }
 .ir-advanced__number { width:7ch; height:22px; padding:0; border:0; background:transparent; color:var(--xc-text-default); caret-color:var(--xc-accent-blue); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); text-align:right; appearance:textfield; -moz-appearance:textfield; transition:color var(--xc-dur-fast),text-shadow var(--xc-dur-fast); }

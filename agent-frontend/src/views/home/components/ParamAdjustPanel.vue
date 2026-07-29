@@ -36,7 +36,10 @@
         class="ir-adjust__zone"
         :class="`ir-adjust__zone--${group.zone}`"
       >
-        <h5 class="ir-adjust__zone-title">{{ group.label }}</h5>
+        <h5 class="ir-adjust__zone-title">
+          <svg class="ir-adjust__zone-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true" v-html="zoneIcon(group.zone)" />
+          {{ group.label }}
+        </h5>
         <div class="ir-adjust__rows">
           <div
             v-for="(row, idx) in rowsFor(group)"
@@ -53,6 +56,10 @@
               class="ir-adjust__field"
               :class="{ 'ir-adjust__project-item': group.zone === 'project_definition' }"
             >
+              <span v-if="group.zone === 'project_definition'" class="ir-adjust__project-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" v-html="projectFieldIcon(spec.id)" />
+              </span>
+              <div class="ir-adjust__field-content">
               <!-- 项目信息：仅当该省存在节点时显示节点选择卡；节点来源于 ir_spot_station。 -->
               <template v-if="spec.id === 'node_name'">
                 <span class="ir-adjust__label">节点名称</span>
@@ -77,6 +84,7 @@
                     v-model.number="localValues[spec.id]"
                     type="number"
                     class="ir-adjust__number"
+                    :style="{ width: projectNumberWidth(localValues[spec.id]) }"
                     @blur="roundField(spec)"
                   />
                   <small v-if="displayUnit(spec)">{{ displayUnit(spec) }}</small>
@@ -112,6 +120,7 @@
                 </div>
                 <span v-else class="ir-adjust__pending">数据待完善</span>
               </template>
+              </div>
             </div>
           </div>
         </div>
@@ -182,6 +191,17 @@ const ZONE_ROWS = {
   financial_boundary: FINANCIAL_ROWS,
   revenue_boundary: REVENUE_ROWS,
 }
+const ZONE_ICONS = {
+  project_definition: '<path d="M4 20V9l8-5 8 5v11" stroke-linejoin="round"/><path d="M9 20v-6h6v6M8 10h.01M16 10h.01" stroke-linecap="round"/>',
+  financial_boundary: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/>',
+  revenue_boundary: '<path d="M4 18 9 13l4 3 7-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke-linecap="round" stroke-linejoin="round"/>',
+}
+const PROJECT_FIELD_ICONS = {
+  province: '<path d="M12 21s7-6.1 7-12a7 7 0 1 0-14 0c0 5.9 7 12 7 12Z"/><circle cx="12" cy="9" r="2.3"/>',
+  node_name: '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m8.3 11 7.4-4M8.3 13l7.4 4" stroke-linecap="round"/>',
+  power_mw: '<path d="M13 2 4 14h7l-1 8 9-12h-7z" stroke-linejoin="round" stroke-linecap="round"/>',
+  capacity_mwh: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4M7 10v4M11 10v4M15 10v4" stroke-linecap="round"/>',
+}
 const DROPPED_FIELDS = new Set([
   'operation_years',
   'battery_replace_cost',
@@ -223,6 +243,8 @@ const hasLocalChanges = computed(() => zoneGroups.value.some((group) => group.it
 function normalizeValue(value, step) {
   return typeof value === 'number' && step ? roundToStep(value, step) : value
 }
+function zoneIcon(zone) { return ZONE_ICONS[zone] || ZONE_ICONS.financial_boundary }
+function projectFieldIcon(id) { return PROJECT_FIELD_ICONS[id] || PROJECT_FIELD_ICONS.node_name }
 
 // 项目信息整区就是"一行"，卡片按内容自适应宽度、由 CSS space-between 均匀分布；
 // 金融/收益边界按 ZONE_ROWS 固定行布局分组，行内 id 若因开关关闭而缺失则整行跳过。
@@ -262,6 +284,10 @@ function deltaOf(spec) {
 }
 function formatSpecValue(spec, value) { return formatNumber(value, decimalsForStep(spec.step)) }
 function displayUnit(spec) { return spec.unit && spec.unit !== '—' ? spec.unit : '' }
+function projectNumberWidth(value) {
+  const length = String(value ?? '').length
+  return `${Math.min(10, Math.max(3, length + 0.5))}ch`
+}
 function roundField(spec) {
   if (typeof localValues[spec.id] === 'number') localValues[spec.id] = roundToStep(localValues[spec.id], spec.step)
 }
@@ -298,8 +324,8 @@ defineExpose({ focusAdvancedTrigger })
 .ir-adjust__draft-count { display:grid; place-items:center; min-width:20px; height:20px; padding:0 var(--xc-space-1); border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); color:var(--xc-text-inverse); font-size:var(--xc-fs-3xs); font-weight:var(--xc-fw-bold); }
 .ir-adjust__body { padding: 0 var(--xc-space-5) var(--xc-space-5); }
 .ir-adjust__zone { padding:var(--xc-space-7) 0 var(--xc-space-6); border-top:1px solid var(--xc-border-soft); }
-.ir-adjust__zone-title { display:flex; align-items:center; gap:var(--xc-space-3); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); color:var(--xc-text-strong); margin:0 0 var(--xc-space-5); }
-.ir-adjust__zone-title::before { content:''; width:3px; height:16px; border-radius:var(--xc-radius-full); background:var(--xc-accent-blue); box-shadow:var(--xc-glow-blue); }
+.ir-adjust__zone-title { display:flex; align-items:center; gap:var(--xc-space-2); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); color:var(--xc-text-strong); margin:0 0 var(--xc-space-5); }
+.ir-adjust__zone-icon { width:18px; height:18px; flex:0 0 auto; color:var(--xc-accent-blue); }
 
 /* 行式布局：一行一项 = 半宽单独一行；一行多项 = 并排共享一行。行间距拉开，避免相邻两组滑块显得局促。 */
 .ir-adjust__rows { display:flex; flex-direction:column; gap: var(--xc-space-7); }
@@ -307,20 +333,36 @@ defineExpose({ focusAdvancedTrigger })
 .ir-adjust__row .ir-adjust__field { flex:1 1 0; min-width:0; }
 .ir-adjust__row--single .ir-adjust__field { flex:0 1 auto; width: calc(50% - var(--xc-space-3)); }
 
-/* 项目信息使用轻量数据网格，不再叠加独立卡片背景。 */
-.ir-adjust__row--project { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:var(--xc-space-5); }
+/* 项目信息使用铺满可用宽度的数据带：3/4 项自动均分，首项与分区标题共用左边界。 */
+.ir-adjust__row--project { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:var(--xc-space-7); width:100%; }
 .ir-adjust__row--project .ir-adjust__field { width:auto; }
 
 .ir-adjust__field { min-width:0; display:flex; flex-direction:column; gap:var(--xc-space-2); }
 .ir-adjust__project-item {
-  min-height:64px;
-  justify-content:center;
-  padding-left:var(--xc-space-4);
-  border-left:2px solid var(--xc-border-accent);
+  min-height:92px;
+  display:grid;
+  grid-template-columns:18px minmax(0,1fr);
+  grid-template-rows:auto auto;
+  align-content:center;
+  align-items:center;
+  column-gap:var(--xc-space-2);
+  row-gap:var(--xc-space-4);
+  padding:var(--xc-space-3) 0;
+  text-align:left;
 }
+.ir-adjust__project-icon { display:grid; place-items:center; width:18px; height:18px; color:var(--xc-accent-blue); }
+.ir-adjust__project-icon svg { width:16px; height:16px; }
+.ir-adjust__field-content { min-width:0; display:flex; flex-direction:column; gap:var(--xc-space-2); }
+.ir-adjust__project-item .ir-adjust__field-content { display:contents; }
+.ir-adjust__project-item .ir-adjust__label { grid-column:2; grid-row:1; }
+.ir-adjust__project-item .ir-adjust__ro,
+.ir-adjust__project-item .ir-adjust__select,
+.ir-adjust__project-item .ir-adjust__number-value { grid-column:1 / -1; grid-row:2; justify-self:start; margin-left:4px; }
 .ir-adjust__project-item .ir-adjust__number-value { justify-content:flex-start; }
 .ir-adjust__project-item .ir-adjust__number {
-  width:72px;
+  width:3.5ch;
+  min-width:3.5ch;
+  max-width:10ch;
   padding:0;
   border:0;
   border-radius:0;
@@ -329,8 +371,8 @@ defineExpose({ focusAdvancedTrigger })
   color:var(--xc-text-strong);
   caret-color:var(--xc-accent-blue);
   font-family:var(--xc-font-num);
-  font-size:var(--xc-fs-lg);
-  font-weight:var(--xc-fw-semi);
+  font-size:var(--xc-fs-kpi-md);
+  font-weight:var(--xc-fw-bold);
   text-align:left;
   transition:color var(--xc-dur-fast),text-shadow var(--xc-dur-fast);
 }

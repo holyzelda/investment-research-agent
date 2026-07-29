@@ -155,7 +155,7 @@ function saveAdvancedDraft(overrides) {
   flex-direction: column;
   gap: var(--xc-space-5);
   border: 1px solid var(--xc-border-card);
-  border-radius: var(--xc-radius-xl);
+  border-radius: var(--xc-radius-sm);
   /* 底层不再用灰色毛玻璃，改用贴近横幅底部（采样 #000516）的深蓝黑，
      让横幅图与下方内容区连成同一块深色面；轻微竖向渐变给一点纵深。 */
   background: linear-gradient(180deg, rgba(3, 8, 22, 0.97) 0%, rgba(8, 14, 30, 0.97) 100%);
@@ -172,7 +172,7 @@ function saveAdvancedDraft(overrides) {
   align-items: center;
   margin: 0;
   height: clamp(160px, 18vw, 220px);
-  border-radius: var(--xc-radius-xl) var(--xc-radius-xl) 0 0;
+  border-radius: var(--xc-radius-sm) var(--xc-radius-sm) 0 0;
   background-color: #010515;
   background-position: right center;
   background-size: 66% auto;

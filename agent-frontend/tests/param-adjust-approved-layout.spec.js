@@ -52,6 +52,8 @@ describe('ParamAdjustPanel approved layout', () => {
     const project = wrapper.find('.ir-adjust__zone--project_definition')
 
     expect(project.find('.ir-adjust__zone-title').text()).toBe('项目信息')
+    expect(project.find('.ir-adjust__zone-icon').exists()).toBe(true)
+    expect(project.findAll('.ir-adjust__project-icon')).toHaveLength(4)
     expect(project.findAll('.ir-adjust__field').map((field) => field.text())).toEqual([
       expect.stringContaining('所在省份'),
       expect.stringContaining('节点名称'),

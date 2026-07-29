@@ -13,6 +13,7 @@ export function useEcharts(optionFactory) {
     chart.setOption(optionFactory(), true)
   }
   const resize = () => chart && chart.resize()
+  const getDataURL = (options = {}) => chart?.getDataURL(options) || ''
 
   onMounted(() => {
     chart = echarts.init(el.value)
@@ -34,7 +35,7 @@ export function useEcharts(optionFactory) {
   // option 依赖变化时重绘
   watch(optionFactory, render, { deep: true })
 
-  return { el, resize }
+  return { el, resize, getDataURL }
 }
 
 // 读取 XC 图表色板（--xc-chart-1..8），供 ECharts 使用。

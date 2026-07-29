@@ -73,18 +73,46 @@ function toggleAll() {
 </script>
 
 <style scoped>
-.ir-thinking { margin: var(--xc-space-4) 0; padding: var(--xc-space-4); border-radius: var(--xc-radius-md); border: 1px solid var(--xc-border-strong); background: var(--xc-bg-subtle); }
-.ir-thinking__header { display: flex; align-items: center; gap: var(--xc-space-3); width: 100%; padding: 0 0 var(--xc-space-3); border: 0; border-bottom: 1px solid var(--xc-border-base); background: transparent; color: inherit; text-align: left; cursor: default; }
+.ir-thinking {
+  margin: 0 0 var(--xc-space-3);
+  padding: var(--xc-space-4) var(--xc-space-5);
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-sm);
+  background: color-mix(in srgb, var(--xc-surface-base) 78%, transparent);
+}
+.ir-thinking__header {
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-2);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: default;
+}
 .ir-thinking__header--toggleable { cursor: pointer; }
-.ir-thinking__header-icon { width: 18px; height: 18px; color: var(--xc-accent-blue); }
-.ir-thinking__header-title { font-size: var(--xc-fs-base); font-weight: var(--xc-fw-medium); color: var(--xc-text-strong); }
-.ir-thinking__duration { margin-left: auto; font-size: var(--xc-fs-xs); color: var(--xc-text-mute); font-variant-numeric: tabular-nums; }
-.ir-thinking__chain-chevron { width: 15px; height: 15px; color: var(--xc-text-mute); transition: transform var(--xc-dur-fast); }
+.ir-thinking__header-icon { width: 16px; height: 16px; flex: 0 0 auto; color: var(--xc-accent-blue); }
+.ir-thinking__header-title { font-size: var(--xc-fs-sm); font-weight: var(--xc-fw-medium); color: var(--xc-text-strong); }
+.ir-thinking__duration { margin-left: auto; font-size: var(--xc-fs-2xs); color: var(--xc-text-mute); font-variant-numeric: tabular-nums; }
+.ir-thinking__chain-chevron { width: 14px; height: 14px; color: var(--xc-text-mute); transition: transform var(--xc-dur-fast); }
 .ir-thinking__chain-chevron.is-open { transform: rotate(180deg); }
-.ir-thinking__body { display: flex; flex-direction: column; gap: var(--xc-space-1); padding-top: var(--xc-space-3); }
-.ir-thinking__placeholder { display: flex; align-items: center; gap: var(--xc-space-3); min-height: 30px; color: var(--xc-text-mute); font-size: var(--xc-fs-sm); }
-.ir-thinking__placeholder--bridge { padding-left: 28px; }
-.ir-thinking__pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--xc-accent-blue); animation: ir-thinking-pulse 1.2s ease-in-out infinite; }
+.ir-thinking__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--xc-space-1);
+  margin-top: var(--xc-space-3);
+  padding-top: var(--xc-space-3);
+  border-top: 1px solid var(--xc-border-soft);
+}
+.ir-thinking__placeholder { display: flex; align-items: center; gap: var(--xc-space-3); min-height: 28px; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
+.ir-thinking__placeholder--bridge { padding-left: 26px; }
+.ir-thinking__pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--xc-accent-blue); animation: ir-thinking-pulse 1.2s ease-in-out infinite; }
 @keyframes ir-thinking-pulse { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1); } }
-.ir-thinking__toggle { align-self: flex-end; margin-top: var(--xc-space-2); padding: var(--xc-space-1) var(--xc-space-3); font-size: var(--xc-fs-xs); color: var(--xc-accent-blue); background: transparent; border: 1px solid var(--xc-border-strong); border-radius: var(--xc-radius-sm); cursor: pointer; }
+.ir-thinking__toggle { align-self: flex-end; margin-top: var(--xc-space-2); padding: var(--xc-space-1) var(--xc-space-3); font-size: var(--xc-fs-2xs); color: var(--xc-accent-blue); background: transparent; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); cursor: pointer; }
+@media (prefers-reduced-motion: reduce) {
+  .ir-thinking__chain-chevron { transition: none; }
+  .ir-thinking__pulse { animation: none; }
+}
 </style>
