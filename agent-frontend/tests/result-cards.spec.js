@@ -91,6 +91,30 @@ describe('result card three modules', () => {
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
   })
 
+  it('restores the saved advanced draft when reopening and discards unsaved edits', async () => {
+    const paramDict = [
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+      { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 } },
+    })
+
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.findAll('.ir-advanced__number')[0].setValue(0.85)
+    await wrapper.find('.ir-advanced__save').trigger('click')
+
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('20')
+    expect(wrapper.findAll('.ir-advanced__number')[0].element.value).toBe('0.85')
+
+    await wrapper.findAll('.ir-advanced__number')[0].setValue(0.8)
+    await wrapper.find('.ir-advanced__cancel').trigger('click')
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    expect(wrapper.findAll('.ir-advanced__number')[0].element.value).toBe('0.85')
+  })
+
   it('renders the adjustment panel when param dict is provided, hides it otherwise', async () => {
     const withDict = mount(ResultCard, {
       props: {

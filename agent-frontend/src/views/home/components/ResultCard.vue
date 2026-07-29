@@ -54,6 +54,7 @@
       v-model="advancedOpen"
       :param-dict="paramDict"
       :seed-input="seedInput"
+      :draft-input="advancedOverrides"
       @update:model-value="handleAdvancedOpenChange"
       @save="saveAdvancedDraft"
     />

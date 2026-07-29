@@ -46,13 +46,49 @@ describe('AdvancedParamDialog', () => {
     expect(text).toContain('换电成本0元/Wh')
   })
 
-  it('uses fixed-right value badges for editable sliders and closes on Escape', async () => {
+  it('uses aligned inline value editors for editable sliders and closes on Escape', async () => {
     const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED }, attachTo: document.body })
 
     expect(wrapper.findAll('.ir-advanced__field--slider .ir-advanced__value').length).toBeGreaterThan(0)
     await wrapper.find('.ir-advanced').trigger('keydown', { key: 'Escape' })
     expect(wrapper.emitted('update:modelValue')).toContainEqual([false])
     wrapper.unmount()
+  })
+
+  it('prefills editable values from the saved draft before frozen input defaults', () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: {
+        modelValue: true,
+        paramDict: PARAM_DICT,
+        seedInput: SEED,
+        draftInput: { operation_years: 20, strategy_achievement_rate: 0.85 },
+      },
+    })
+
+    expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('20')
+    expect(wrapper.findAll('.ir-advanced__number').some((input) => input.element.value === '0.85')).toBe(true)
+  })
+
+  it('restores editable fields to frozen input without saving until confirmed', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: {
+        modelValue: true,
+        paramDict: PARAM_DICT,
+        seedInput: SEED,
+        draftInput: { operation_years: 20, strategy_achievement_rate: 0.85 },
+      },
+    })
+    const reset = wrapper.find('.ir-advanced__reset')
+    expect(reset.attributes('disabled')).toBeUndefined()
+
+    await reset.trigger('click')
+    expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('15')
+    expect(wrapper.findAll('.ir-advanced__number').some((input) => input.element.value === '0.9')).toBe(true)
+    expect(reset.attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('save')).toBeUndefined()
+
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 15, strategy_achievement_rate: 0.9 })
   })
 
   it('renders operation years as the metadata-defined select and saves 20', async () => {

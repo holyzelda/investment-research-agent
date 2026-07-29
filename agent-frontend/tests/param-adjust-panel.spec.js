@@ -227,6 +227,28 @@ describe('ParamAdjustPanel', () => {
     })
   })
 
+  it('恢复本次测算值只重置常用参数且不影响高级草稿', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
+        advancedOverrides: { maint_cost: 0.006 }, advancedOverrideCount: 1,
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    const reset = wrapper.find('.ir-adjust__reset')
+    expect(reset.attributes('disabled')).toBeDefined()
+
+    const projectInputs = wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')
+    await projectInputs[0].setValue(250)
+    expect(reset.attributes('disabled')).toBeUndefined()
+    await reset.trigger('click')
+
+    expect(projectInputs[0].element.value).toBe('200')
+    expect(reset.attributes('disabled')).toBeDefined()
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+    expect(wrapper.emitted('recalculate')[0][0].overrides).toMatchObject({ maint_cost: 0.006 })
+  })
+
   it('测算中禁用展开与提交按钮', () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: {}, seedInput: SEED, version: 'V2', responding: true },
