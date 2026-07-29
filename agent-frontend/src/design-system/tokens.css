@@ -243,10 +243,10 @@
   --xc-map-voltage-4:      #f29b4b;
   --xc-map-voltage-5:      #ef6f61;
   --xc-map-voltage-unknown:#91a0aa;
-  --xc-map-index-s:       var(--xc-chart-3);
+  --xc-map-index-s:       var(--xc-chart-6);
   --xc-map-index-a:       var(--xc-chart-1);
-  --xc-map-index-b:       var(--xc-chart-2);
-  --xc-map-index-c:       var(--xc-chart-6);
+  --xc-map-index-b:       var(--xc-chart-4);
+  --xc-map-index-c:       var(--xc-chart-2);
 
   /* Chart palette — categorical series on dark bg. Charts default to --xc-chart-1 then cycle. */
   --xc-chart-1: rgb(34, 177, 253);
@@ -308,10 +308,10 @@
   --xc-map-voltage-4:      #c46b1d;
   --xc-map-voltage-5:      #c94f45;
   --xc-map-voltage-unknown:#657680;
-  --xc-map-index-s:       var(--xc-chart-3);
+  --xc-map-index-s:       var(--xc-chart-6);
   --xc-map-index-a:       var(--xc-chart-1);
-  --xc-map-index-b:       var(--xc-chart-2);
-  --xc-map-index-c:       var(--xc-chart-6);
+  --xc-map-index-b:       var(--xc-chart-4);
+  --xc-map-index-c:       var(--xc-chart-2);
 }
 
 /* Utility resets used across the system. */

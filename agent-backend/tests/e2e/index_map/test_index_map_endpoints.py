@@ -60,7 +60,7 @@ async def test_index_map_query_contract(seeded_client):
 
     detail = await seeded_client.get("/ir/index-map/provinces/NMG", params={"period": "2026-07"})
     assert detail.status_code == 200
-    assert detail.json()["data"]["maturity"]["scores"][0]["key"] == "spot"
+    assert detail.json()["data"]["maturity"]["scores"][0]["key"] == "energy"
 
 
 @pytest.mark.asyncio
