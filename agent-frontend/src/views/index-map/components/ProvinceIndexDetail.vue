@@ -9,16 +9,20 @@
           <div><h2>{{ detail.provinceName }}</h2><span>重点投资区域</span></div>
           <p>{{ detail.regionDescription || '—' }}</p>
         </div>
-        <div class="province-detail__grade-ring" aria-label="投资指数评级">
+        <div
+          class="province-detail__grade-ring"
+          :style="{ '--grade-progress': `${gradeProgress(detail.grade, detail.indexScore)}%` }"
+          :aria-label="`投资指数评级 ${detail.grade || '未知'}`"
+        >
           <div><strong class="xc-num">{{ detail.grade || '—' }}</strong><span>投资指数</span></div>
         </div>
       </header>
       <section class="province-detail__score">
         <div class="province-detail__score-value"><strong class="xc-num">{{ formatNumber(detail.indexScore) }}</strong><span>/ 100</span></div>
-        <div class="province-detail__score-advice"><span>投资建议</span><b>{{ detail.investmentAdvice || '—' }}</b><small v-if="detail.annualizedReturn != null">年化 {{ formatNumber(detail.annualizedReturn) }}%</small></div>
+        <p v-if="detail.investmentAdvice" class="province-detail__score-advice">{{ detail.investmentAdvice }}</p>
       </section>
       <section class="province-detail__maturity">
-        <h3><span>归因分析 · 市场化成熟度</span><b class="xc-num">{{ detail.maturity?.grade || detail.grade || '—' }}</b></h3>
+        <h3><span>归因分析 · 市场化成熟度</span></h3>
         <p>{{ detail.maturity?.summary || '—' }}</p>
         <div class="province-detail__grid">
           <article v-for="item in detail.maturity?.scores || []" :key="item.key">
@@ -68,13 +72,19 @@ function clampPercent(value) {
   return Number.isFinite(number) ? Math.min(100, Math.max(0, number)) : 0
 }
 
+function gradeProgress(grade, indexScore) {
+  const progressByGrade = { S: 100, A: 80, B: 60, C: 40 }
+  const normalizedGrade = String(grade || '').trim().toUpperCase()
+  return progressByGrade[normalizedGrade] ?? clampPercent(indexScore)
+}
+
 defineProps({ detail: { type: Object, default: null }, loading: Boolean, error: { type: String, default: '' } })
 defineEmits(['retry'])
 </script>
 <style scoped>
 .province-detail { display: grid; align-content: start; gap: 16px; min-height: 0; height: 100%; padding: 18px; box-sizing: border-box; border: 1px solid rgba(130, 154, 166, 0.2); border-radius: 8px; background: #222a2e; box-shadow: inset 0 1px rgba(255, 255, 255, 0.025); overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--xc-border-strong) transparent; }
 .province-detail__state { display: grid; min-height: 240px; place-items: center; gap: 12px; color: var(--xc-text-mute); font-size: 13px; }
-header, .province-detail__score { display: flex; justify-content: space-between; gap: 14px; }
+header { display: flex; justify-content: space-between; gap: 14px; }
 .province-detail__hero { align-items: flex-start; min-height: 86px; }
 .province-detail__identity { min-width: 0; padding-top: 2px; }
 .province-detail__identity > div { display: flex; align-items: center; gap: 8px; }
@@ -86,18 +96,15 @@ h3 > span { display: flex; align-items: center; gap: 8px; }
 h3 > span::before { width: 3px; height: 13px; background: linear-gradient(#4fd8e2, #8067ff); content: ''; }
 p, small { color: var(--xc-text-mute); font-size: 11px; }
 header p { max-width: 24ch; margin-top: 7px; line-height: 1.5; }
-.province-detail__grade-ring { display: grid; width: 72px; height: 72px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: conic-gradient(#56d9e4 0 46%, #8167ff 46% 94%, rgba(255, 255, 255, 0.08) 94% 100%); box-shadow: 0 0 18px rgba(93, 201, 225, 0.09); }
+.province-detail__grade-ring { display: grid; width: 72px; height: 72px; flex: 0 0 auto; place-items: center; border-radius: 50%; background: conic-gradient(from -90deg, #56d9e4 0%, #8167ff var(--grade-progress), rgba(255, 255, 255, 0.08) var(--grade-progress) 100%); box-shadow: 0 0 18px rgba(93, 201, 225, 0.09); }
 .province-detail__grade-ring > div { display: grid; width: 60px; height: 60px; place-content: center; justify-items: center; border-radius: 50%; background: #222a2e; }
 .province-detail__grade-ring strong { color: #f1f6f7; font-size: 24px; line-height: 1; }
 .province-detail__grade-ring span { margin-top: 4px; color: #8da0a7; font-size: 9px; }
-.province-detail__score { align-items: stretch; padding: 13px 14px; border: 1px solid rgba(103, 130, 141, 0.18); border-radius: 6px; background: #2b3438; }
-.province-detail__score-value { display: flex; align-items: baseline; min-width: 98px; }
+.province-detail__score { container-type: inline-size; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; min-height: 64px; padding: 13px 14px; border: 1px solid rgba(79, 216, 226, 0.22); border-radius: 6px; background: linear-gradient(105deg, rgba(79, 216, 226, 0.1), rgba(128, 103, 255, 0.06) 48%, rgba(43, 52, 56, 0.96) 78%); box-shadow: inset 0 1px rgba(255, 255, 255, 0.035); }
+.province-detail__score-value { display: flex; align-items: baseline; min-width: 78px; }
 .province-detail__score-value strong { color: #f3f7f8; font-size: 34px; line-height: 1; }
 .province-detail__score-value span { margin-left: 4px; color: #71868e; font-size: 10px; }
-.province-detail__score-advice { display: grid; min-width: 0; align-content: center; justify-items: end; gap: 3px; }
-.province-detail__score-advice > span { color: #758991; font-size: 9px; }
-.province-detail__score-advice b { max-width: 18ch; color: #62dae3; font-size: 12px; text-align: right; }
-.province-detail__score-advice small { color: #b4c0c4; font-family: var(--xc-font-mono); }
+.province-detail__score-advice { min-width: 0; justify-self: end; color: #f3c66f; font-size: clamp(11px, 3.5cqi, 13px); font-weight: 600; line-height: 1.45; text-align: right; text-shadow: 0 0 12px rgba(244, 180, 75, 0.14); white-space: nowrap; }
 section { display: grid; gap: 9px; padding-top: 1px; }
 section + section { padding-top: 15px; border-top: 1px solid rgba(130, 154, 166, 0.14); }
 h3 b { color: #dce5e7; font-size: 11px; font-weight: 500; }

@@ -13,7 +13,10 @@ describe('省份指数详情', () => {
   it('完整显示原型定义的省份详情分区', () => {
     const wrapper = mount(ProvinceIndexDetail, { props: { detail, loading: false, error: '' } })
     expect(wrapper.text()).toContain('蒙西')
+    expect(wrapper.text()).not.toContain('投资建议')
     expect(wrapper.text()).toContain('强烈推荐·立即布局')
+    expect(wrapper.get('.province-detail__score-advice').text()).toBe('强烈推荐·立即布局')
+    expect(wrapper.text()).not.toContain('年化')
     expect(wrapper.text()).toContain('市场化成熟度')
     expect(wrapper.text()).toContain('因子贡献度')
     expect(wrapper.text()).toContain('装机结构')
@@ -27,6 +30,20 @@ describe('省份指数详情', () => {
     expect(wrapper.find('.province-detail__capacity--renewable').exists()).toBe(true)
     expect(wrapper.find('.province-detail__capacity--thermal .is-down').text()).toBe('↓0.34%')
     expect(wrapper.find('.province-detail__capacity--storage .province-detail__capacity-value > span').exists()).toBe(false)
+    expect(wrapper.find('.province-detail__maturity h3 b').exists()).toBe(false)
+    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain('--grade-progress: 100%')
+  })
+
+  it.each([
+    ['A', 80],
+    ['B', 60],
+    ['C', 40],
+  ])('%s 评级显示 %s%% 的圆环进度', (grade, progress) => {
+    const wrapper = mount(ProvinceIndexDetail, {
+      props: { detail: { ...detail, grade }, loading: false, error: '' },
+    })
+
+    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain(`--grade-progress: ${progress}%`)
   })
 
   it('详情请求失败时发出重试事件', async () => {
