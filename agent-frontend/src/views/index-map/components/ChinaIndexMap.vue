@@ -65,7 +65,7 @@ function onClick(params) {
 
 onMounted(() => {
   if (!registered) { echarts.registerMap('china', chinaGeo); registered = true }
-  chart = echarts.init(element.value)
+  chart = echarts.init(element.value, null, { renderer: 'svg' })
   chart.setOption(option())
   chart.on('click', onClick)
   observer = new ResizeObserver(resize)
@@ -86,9 +86,10 @@ watch(() => [props.provinces, props.selectedProvinceCode], () => chart?.setOptio
 .china-index-map { position: relative; width: 100%; height: 100%; min-height: 0; overflow: hidden; background: transparent; font-family: var(--xc-font-zh); }
 .china-index-map:fullscreen { width: 100%; height: 100%; border: 0; border-radius: 0; }
 .china-index-map__canvas { position: relative; z-index: 1; width: 100%; height: 100%; }
-.china-index-map__tools { position: absolute; z-index: 3; top: var(--xc-space-4); right: var(--xc-space-4); }
-.china-index-map__legend { position: absolute; z-index: 3; left: var(--xc-space-4); bottom: var(--xc-space-4); display: grid; gap: var(--xc-space-2); padding: var(--xc-space-3) var(--xc-space-4); border: 1px solid rgba(120, 198, 255, 0.22); border-radius: var(--xc-radius-sm); background: rgba(10, 18, 32, 0.78); box-shadow: var(--xc-shadow-md); color: var(--xc-text-soft); font-size: var(--xc-fs-2xs); backdrop-filter: blur(14px); }
-.china-index-map__legend span { display: inline-flex; align-items: center; gap: var(--xc-space-2); white-space: nowrap; }
-.china-index-map__legend i { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 14px currentColor; }
+.china-index-map__tools { position: absolute; z-index: 3; top: 12px; right: 12px; }
+.china-index-map__legend { position: absolute; z-index: 3; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 7px 12px; max-width: calc(100% - 24px); padding: 8px 10px; box-sizing: border-box; border: 1px solid var(--xc-border-soft); border-radius: 4px; background: #283034; color: var(--xc-text-soft); font-size: 11px; }
+.china-index-map__legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.china-index-map__legend i { width: 9px; height: 9px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 2px; }
 .china-index-map__uncovered { background: var(--xc-surface-control); }
+@media (max-width: 639px) { .china-index-map__tools { flex-direction: column; } .china-index-map__legend { right: 68px; max-width: none; } }
 </style>

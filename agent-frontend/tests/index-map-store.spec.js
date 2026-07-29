@@ -38,9 +38,6 @@ describe('全国指数地图 Store', () => {
   it('切换期次优先保留仍存在的省份，否则回退至领跑省份', async () => {
     getIndexMapOverview.mockResolvedValueOnce({
       ...overview,
-      provinces: [{ provinceCode: 'NMG' }],
-    }).mockResolvedValueOnce({
-      ...overview,
       provinces: [{ provinceCode: 'GS' }],
       summary: { leader: { provinceCode: 'GS' } },
     })

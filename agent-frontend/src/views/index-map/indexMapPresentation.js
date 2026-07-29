@@ -26,9 +26,7 @@ export function buildIndexMapOption({ provinces, selectedProvinceCode, theme }) 
       itemStyle: {
         areaColor: theme.gradeColors[normalizeIndexGrade(province.grade)] || theme.uncovered,
         borderColor: selected ? theme.selected : theme.boundary,
-        borderWidth: selected ? 2 : 0.8,
-        shadowBlur: selected ? 12 : 0,
-        shadowColor: selected ? theme.selected : 'transparent',
+        borderWidth: selected ? 2.5 : 0.8,
       },
     }
   })

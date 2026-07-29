@@ -21,6 +21,6 @@ describe('全国指数地图表达', () => {
     expect(text).toContain('全国第 1 名')
     expect(text).toContain('2026-07-28')
     expect(text).not.toContain('annualizedReturn')
-    expect(option.geo.scaleLimit).toEqual(INDEX_MAP_ZOOM_LIMIT)
+    expect(option.series[0].scaleLimit).toEqual(INDEX_MAP_ZOOM_LIMIT)
   })
 })
