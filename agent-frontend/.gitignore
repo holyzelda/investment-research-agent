@@ -37,3 +37,7 @@ yarn.lock
 *.swp
 .DS_Store
 Thumbs.db
+/.playwright-cli/
+/.ulpi/
+/.superpowers/
+/output/

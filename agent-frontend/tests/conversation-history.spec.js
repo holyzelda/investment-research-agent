@@ -40,7 +40,7 @@ describe('conversation history sidebar and replay', () => {
     vi.clearAllMocks()
   })
 
-  it('renders brand header, new-chat action and history conversations (nav moved to AppRail)', () => {
+  it('renders module navigation before conversation history in the unified shell', () => {
     const store = useCalculationStore()
     store.history = [
       { conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2' },
@@ -53,10 +53,12 @@ describe('conversation history sidebar and replay', () => {
 
     expect(wrapper.text()).toContain('朱雀投研智能体')
     expect(wrapper.text()).toContain('新建会话')
-    expect(wrapper.text()).toContain('历史会话')
-    // 投资分析工作台四项（首页/全国指数地图/联络线地图/政策与市场）已迁出至 AppRail，侧栏不再渲染
-    expect(wrapper.find('.ir-sider__item').exists()).toBe(false)
-    const histTitles = wrapper.findAll('.ir-sider__hist-title').map((n) => n.text())
+    expect(wrapper.text()).toContain('投资分析工作台')
+    expect(wrapper.text()).toContain('历史测算')
+    const nav = wrapper.find('.ir-shell__nav')
+    const history = wrapper.find('.ir-shell__history')
+    expect(nav.element.compareDocumentPosition(history.element) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const histTitles = wrapper.findAll('.ir-shell__history-name').map((n) => n.text())
     expect(histTitles).toEqual(['甘肃 200MW/800MWh', '宁夏 100MW/400MWh'])
   })
 
@@ -72,7 +74,7 @@ describe('conversation history sidebar and replay', () => {
       global: { stubs: { teleport: true } },
     })
 
-    const items = wrapper.findAll('.ir-sider__hist-item')
+    const items = wrapper.findAll('.ir-shell__history-item')
     expect(items[0].classes()).not.toContain('is-current')
     expect(items[1].classes()).toContain('is-current')
   })
@@ -83,7 +85,7 @@ describe('conversation history sidebar and replay', () => {
       global: { stubs: { teleport: true } },
     })
 
-    await wrapper.find('.ir-sider__hist-item').trigger('click')
+    await wrapper.find('.ir-shell__history-item').trigger('click')
 
     expect(wrapper.emitted('open-history')[0]).toEqual([7])
   })
@@ -94,7 +96,7 @@ describe('conversation history sidebar and replay', () => {
       global: { stubs: { teleport: true } },
     })
 
-    await wrapper.find('.ir-sider__hist-delete').trigger('click')
+    await wrapper.find('.ir-shell__history-delete').trigger('click')
 
     expect(wrapper.emitted('delete-history')[0]).toEqual([7])
     expect(wrapper.emitted('open-history')).toBeUndefined()
@@ -107,7 +109,7 @@ describe('conversation history sidebar and replay', () => {
       global: { stubs: { teleport: true } },
     })
 
-    await wrapper.find('.ir-sider__hist-edit').trigger('click')
+    await wrapper.find('.ir-shell__history-edit').trigger('click')
 
     expect(wrapper.emitted('rename-history')[0]).toEqual([conversation])
     expect(wrapper.emitted('open-history')).toBeUndefined()

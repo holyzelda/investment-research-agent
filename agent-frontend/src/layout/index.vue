@@ -1,81 +1,76 @@
 <template>
   <div class="ir-layout xc-app">
-    <!-- 首页欢迎态全屏背景：铺满整个外壳、位于顶栏与悬浮 rail/侧栏下层；图片打底、XC 氛围渐变叠加在上以保留设计语言色 -->
     <div
       v-if="isWelcome"
       class="ir-layout__welcome-backdrop"
       :style="{ '--ir-welcome-bg': `url(${welcomeBackgroundSrc})` }"
       aria-hidden="true"
     />
-    <!-- 顶栏融入背景、贯穿整行宽度，与下方 rail/侧栏对齐（对齐 trader AppShell 结构） -->
-    <header class="ir-layout__topbar">
-      <div class="ir-brand">
-        <img class="ir-brand__mark" src="/brand-logo.svg" alt="" aria-hidden="true" />
-        <span class="ir-brand__name">{{ title }}</span>
-        <span class="ir-brand__sub">ZRA · 储能投资投研助手</span>
-      </div>
-      <div v-if="isWelcome" class="ir-layout__welcome-metrics" aria-label="平台概览">
-        <div v-for="metric in metrics" :key="metric.label" class="ir-layout__welcome-metric">
-          <span class="ir-layout__welcome-metric-icon" v-html="metric.icon" aria-hidden="true" />
-          <span class="ir-layout__welcome-metric-copy">
-            <span class="ir-layout__welcome-metric-label">{{ metric.label }}</span>
-            <strong class="ir-layout__welcome-metric-value xc-num">{{ metric.value }}<em>{{ metric.unit }}</em></strong>
-          </span>
-        </div>
-      </div>
-      <div class="ir-layout__user">
-        <img class="ir-layout__avatar" :src="userAvatar" alt="" aria-hidden="true" />
-        <span>{{ session.username || '访客' }}</span>
-      </div>
-    </header>
 
-    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden, 'is-report-view': isReportView }">
-      <template v-if="!isReportView">
-        <AppRail
-          :items="navItems"
-          :active="activeRail"
-          @nav="onNav"
-        />
-        <button
-          v-if="sidebarHidden && !route.meta.collapseSidebar"
-          class="ir-layout__sidebar-open"
-          aria-label="展开历史会话栏"
-          @click="sidebarHidden = false"
-        >
-          历史会话
-        </button>
-        <AppSidebar
-          :history="calc.history"
-          :current="calc.conversationId"
-          :hidden="sidebarHidden"
-          :can-hide="Boolean(route.meta.collapseSidebar)"
-          @visibility-change="sidebarHidden = $event"
-          @new-chat="onNewChat"
-          @open-history="onOpenHistory"
-          @delete-history="onDeleteHistory"
-          @rename-history="onRenameHistory"
-        />
-      </template>
-      <main class="ir-layout__viewport">
-        <router-view />
-      </main>
+    <div class="ir-layout__body" :class="{ 'is-report-view': isReportView }">
+      <button
+        v-if="!isReportView"
+        ref="menuTrigger"
+        class="ir-layout__menu-trigger"
+        type="button"
+        aria-label="打开应用菜单"
+        :aria-expanded="drawerOpen"
+        @click="openDrawer"
+      >
+        <Menu aria-hidden="true" />
+      </button>
+
+      <AppSidebar
+        v-if="!isReportView"
+        :items="navItems"
+        :active="activeRail"
+        :history="calc.history"
+        :current="calc.conversationId"
+        :username="session.username || '访客'"
+        :user-avatar="userAvatar"
+        :collapsed="sidebarCollapsed"
+        :drawer-open="drawerOpen"
+        @update:collapsed="sidebarCollapsed = $event"
+        @close-drawer="closeDrawer"
+        @nav="onNav"
+        @new-chat="onNewChat"
+        @open-history="onOpenHistory"
+        @delete-history="onDeleteHistory"
+        @rename-history="onRenameHistory"
+      />
+
+      <section class="ir-layout__content">
+        <div v-if="isWelcome" class="ir-layout__welcome-metrics" aria-label="平台概览">
+          <div v-for="metric in metrics" :key="metric.label" class="ir-layout__welcome-metric">
+            <span class="ir-layout__welcome-metric-icon" v-html="metric.icon" aria-hidden="true" />
+            <span class="ir-layout__welcome-metric-copy">
+              <span class="ir-layout__welcome-metric-label">{{ metric.label }}</span>
+              <strong class="ir-layout__welcome-metric-value xc-num">
+                {{ metric.value }}<em>{{ metric.unit }}</em>
+              </strong>
+            </span>
+          </div>
+        </div>
+        <main class="ir-layout__viewport">
+          <router-view />
+        </main>
+      </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Menu } from '@lucide/vue'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
 import { usePermissionStore } from '@/store/modules/permission'
-import AppRail from './components/AppRail.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import userAvatar from '@/assets/user.png'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
 
-const title = computed(() => import.meta.env.VITE_APP_TITLE || '朱雀投研智能体')
 const session = useSessionStore()
 const calc = useCalculationStore()
 const permission = usePermissionStore()
@@ -90,13 +85,17 @@ const navItems = computed(() => permission.railRoutes.length
       icon: item.icon,
     }))
   : null)
+
 const RAIL_TO_PATH = { home: '/home', index: '/index-map', line: '/tie-line', policy: '/policy-market' }
 const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'line', '/policy-market': 'policy' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const isReportView = computed(() => route.name === 'ReportDetail')
-// 欢迎态：仅首页且无会话时铺满全屏背景并在顶栏展示平台指标；发首条消息 / 打开历史 / 切换页面后自动隐藏
 const isWelcome = computed(() => route.name === 'Home' && calc.messages.length === 0)
-const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))
+
+const sidebarCollapsed = ref(Boolean(route.meta.collapseSidebar))
+const drawerOpen = ref(false)
+const menuTrigger = ref(null)
+let previousBodyOverflow = ''
 
 const metrics = [
   {
@@ -121,23 +120,48 @@ const metrics = [
   },
 ]
 
-watch(() => route.fullPath, () => {
-  sidebarHidden.value = Boolean(route.meta.collapseSidebar)
-})
-
-function onNewChat() {
-  calc.resetConversation()
+function shouldCollapseSidebar() {
+  const mediumViewport = typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(max-width: 1199px)').matches
+  return Boolean(route.meta.collapseSidebar) || mediumViewport
 }
 
-function onNav(target) {
+watch(() => route.fullPath, () => {
+  closeDrawer(false)
+})
+
+watch(drawerOpen, (open) => {
+  if (typeof document === 'undefined') return
+  if (open) {
+    previousBodyOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+  } else {
+    document.body.style.overflow = previousBodyOverflow
+  }
+})
+
+async function goHome() {
+  if (router.currentRoute.value.path !== '/home') await router.push('/home')
+  closeDrawer(false)
+}
+
+async function onNewChat() {
+  calc.resetConversation()
+  await goHome()
+}
+
+async function onNav(target) {
   const path = RAIL_TO_PATH[target] || target
-  if (path && router.currentRoute.value.path !== path) router.push(path)
+  if (path && router.currentRoute.value.path !== path) await router.push(path)
+  closeDrawer(false)
 }
 
 async function onOpenHistory(conversationId) {
   try {
     await calc.openConversation(conversationId)
-  } catch (e) {
+    await goHome()
+  } catch (error) {
     ElMessage.error('打开历史会话失败，请稍后重试')
   }
 }
@@ -149,13 +173,13 @@ async function onDeleteHistory(conversationId) {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
-  } catch (e) {
-    return // 取消
+  } catch (error) {
+    return
   }
   try {
     await calc.removeConversation(conversationId)
     ElMessage.success('已删除')
-  } catch (e) {
+  } catch (error) {
     ElMessage.error('删除失败，请稍后重试')
   }
 }
@@ -170,23 +194,66 @@ async function onRenameHistory(conversation) {
       inputValue: currentTitle,
       inputValidator: (input) => (input && String(input).trim() ? true : '标题不能为空'),
     }))
-  } catch (e) {
-    return // 取消
+  } catch (error) {
+    return
   }
   const title = String(value || '').trim()
   if (!title || title === conversation.title) return
   try {
     await calc.renameConversation(conversation.conversationId, title)
     ElMessage.success('已修改')
-  } catch (e) {
+  } catch (error) {
     ElMessage.error('修改失败，请稍后重试')
   }
 }
 
+async function openDrawer() {
+  drawerOpen.value = true
+  await nextTick()
+  document.querySelector('.ir-shell-wrap.is-drawer-open .ir-shell__toggle')?.focus()
+}
+
+function closeDrawer(restoreFocus = true) {
+  if (!drawerOpen.value) return
+  drawerOpen.value = false
+  if (restoreFocus) nextTick(() => menuTrigger.value?.focus())
+}
+
+function onDocumentKeydown(event) {
+  if (!drawerOpen.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeDrawer()
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const shell = document.querySelector('.ir-shell-wrap.is-drawer-open .ir-shell')
+  const focusable = shell
+    ? [...shell.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
+    : []
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
 onMounted(() => {
-  // 进入/刷新只加载列表并保持欢迎页，用户手动打开历史会话
+  sidebarCollapsed.value = shouldCollapseSidebar()
+  window.addEventListener('keydown', onDocumentKeydown)
   session.loadUserInfo()
   calc.loadHistory().catch(() => {})
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onDocumentKeydown)
+  document.body.style.overflow = previousBodyOverflow
 })
 </script>
 
@@ -194,11 +261,11 @@ onMounted(() => {
 .ir-layout {
   position: relative;
   isolation: isolate;
-  display: flex;
-  flex-direction: column;
   height: 100vh;
+  overflow: hidden;
   background: var(--xc-surface-workspace);
 }
+
 .ir-layout::before {
   content: '';
   position: absolute;
@@ -207,7 +274,7 @@ onMounted(() => {
   pointer-events: none;
   background: var(--xc-grad-atmosphere);
 }
-/* 首页欢迎态全屏背景层：图片打底(cover)，XC 氛围渐变作为首层叠加在上，保留青/紫设计语言色 */
+
 .ir-layout__welcome-backdrop {
   position: absolute;
   inset: 0;
@@ -215,6 +282,7 @@ onMounted(() => {
   pointer-events: none;
   background: var(--xc-grad-atmosphere), var(--ir-welcome-bg) center / cover no-repeat;
 }
+
 .ir-layout__welcome-backdrop::after {
   content: '';
   position: absolute;
@@ -224,62 +292,74 @@ onMounted(() => {
     linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%);
   opacity: 0.48;
 }
-/* 顶栏透明融入全屏背景，保持低调的品牌分量 */
-.ir-layout__topbar {
+
+.ir-layout__body {
   position: relative;
   z-index: 1;
-  height: var(--xc-topbar-h);
-  flex: 0 0 auto;
+  width: 100%;
+  height: 100%;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--xc-space-6);
-  padding: 0 var(--xc-gutter-x);
-  background: transparent;
-}
-.ir-layout__welcome-metrics {
-  display: flex;
-  flex: 1 1 auto;
   min-width: 0;
-  max-width: 1120px;
-  align-items: stretch;
-  padding: var(--xc-space-4) var(--xc-space-6);
-  border: 1px solid var(--xc-border-card);
-  border-radius: var(--xc-radius-lg);
-  background: var(--xc-surface-card);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  min-height: 0;
+  overflow: hidden;
 }
-.ir-layout__welcome-metric {
+
+.ir-layout__content {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ir-layout__body.is-report-view .ir-layout__content { width: 100%; }
+
+.ir-layout__welcome-metrics {
+  min-width: 0;
+  min-height: 72px;
+  margin: 12px var(--xc-gutter-x) 0;
+  padding: var(--xc-space-4) var(--xc-space-6);
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-card);
+  backdrop-filter: blur(var(--xc-blur-lg));
+  -webkit-backdrop-filter: blur(var(--xc-blur-lg));
+}
+
+.ir-layout__welcome-metric {
+  min-width: 0;
   flex: 1 1 0;
+  padding: 0 var(--xc-space-5);
+  display: flex;
   align-items: center;
   gap: var(--xc-space-4);
-  min-width: 0;
-  padding: 0 var(--xc-space-5);
 }
-.ir-layout__welcome-metric + .ir-layout__welcome-metric {
-  border-left: 1px solid var(--xc-border-card);
-}
+
+.ir-layout__welcome-metric + .ir-layout__welcome-metric { border-left: 1px solid var(--xc-border-card); }
 .ir-layout__welcome-metric:first-child { padding-left: 0; }
 .ir-layout__welcome-metric:last-child { padding-right: 0; }
+
 .ir-layout__welcome-metric-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  width: 38px;
+  height: 38px;
   flex: 0 0 auto;
-  width: 42px;
-  height: 42px;
-  border-radius: var(--xc-radius-lg);
+  display: grid;
+  place-items: center;
+  border-radius: var(--xc-radius-sm);
   background: var(--xc-surface-control);
   color: var(--xc-accent-blue);
 }
-.ir-layout__welcome-metric-icon :deep(svg) { width: 22px; height: 22px; }
+
+.ir-layout__welcome-metric-icon :deep(svg) { width: 20px; height: 20px; }
 .ir-layout__welcome-metric-copy {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--xc-space-1);
-  min-width: 0;
   line-height: var(--xc-lh-tight);
 }
 .ir-layout__welcome-metric-label {
@@ -291,116 +371,60 @@ onMounted(() => {
 }
 .ir-layout__welcome-metric-value {
   color: var(--xc-text-strong);
-  font-size: var(--xc-fs-xl);
+  font-size: var(--xc-fs-kpi-sm);
   font-weight: var(--xc-fw-bold);
 }
 .ir-layout__welcome-metric-value em {
   margin-left: 3px;
   color: var(--xc-text-mute);
-  font-size: var(--xc-fs-2xs);
+  font-size: var(--xc-fs-3xs);
   font-style: normal;
   font-weight: var(--xc-fw-regular);
 }
-.ir-brand {
-  display: flex;
-  align-items: center;
-  gap: var(--xc-space-3);
-}
-.ir-brand__mark {
-  width: 21px;
-  height: 34px;
-  flex: 0 0 auto;
-  object-fit: contain;
-}
-.ir-brand__name {
-  font-size: var(--xc-fs-h3);
-  font-weight: var(--xc-fw-semi);
-  color: var(--xc-text-strong);
-}
-.ir-brand__sub {
-  font-size: var(--xc-fs-2xs);
-  color: var(--xc-text-mute);
-}
-.ir-layout__user {
-  display: flex;
-  align-items: center;
-  gap: var(--xc-space-2);
-  padding: var(--xc-space-1) var(--xc-space-3) var(--xc-space-1) var(--xc-space-1);
-  border: 1px solid var(--xc-border-soft);
-  border-radius: var(--xc-radius-full);
-  background: var(--xc-surface-card);
-  color: var(--xc-text-soft);
-  font-size: var(--xc-fs-sm);
-}
-.ir-layout__avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  object-fit: cover;
-}
 
-@media (max-width: 900px) {
-  .ir-layout__welcome-metrics { max-width: none; }
-  .ir-layout__welcome-metric { padding: 0 var(--xc-space-2); }
-}
-@media (max-width: 640px) {
-  .ir-layout__welcome-metrics { display: none; }
-}
-
-/* 顶栏之下：rail + 历史侧栏 + 主视图，三者共享同一起始高度 */
-.ir-layout__body {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  position: relative;
-  z-index: 1;
-  gap: var(--xc-gutter-x);
-  overflow: hidden;
-}
-.ir-layout__body.is-sidebar-hidden {
-  gap: 0;
-}
-.ir-layout__body.is-report-view {
-  gap: 0;
-}
-.ir-layout__body.is-report-view .ir-layout__viewport {
-  width: 100%;
-}
-.ir-layout__sidebar-open {
-  position: absolute;
-  left: var(--xc-rail-w);
-  top: 30px;
-  z-index: var(--xc-z-nav);
-  border: 1px solid var(--xc-border-soft);
-  border-left: 0;
-  border-radius: 0 var(--xc-radius-sm) var(--xc-radius-sm) 0;
-  background: var(--xc-surface-glass);
-  color: var(--xc-text-soft);
-  font-size: var(--xc-fs-2xs);
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.ir-layout__sidebar-open:hover,
-.ir-layout__sidebar-open:focus-visible {
-  color: var(--xc-text-strong);
-  background: var(--xc-surface-frosted);
-}
-.ir-layout__sidebar-open:focus-visible {
-  outline: 2px solid var(--xc-accent-blue);
-  outline-offset: 2px;
-}
 .ir-layout__viewport {
-  flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
-.ir-layout__viewport::-webkit-scrollbar {
+.ir-layout__viewport::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+.ir-layout__menu-trigger {
   display: none;
-  width: 0;
-  height: 0;
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: var(--xc-z-nav);
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-raised);
+  box-shadow: var(--xc-shadow-sm);
+  color: var(--xc-text-strong);
+  cursor: pointer;
+}
+.ir-layout__menu-trigger svg { width: 20px; height: 20px; }
+.ir-layout__menu-trigger:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+
+@media (max-width: 1050px) {
+  .ir-layout__welcome-metric { padding: 0 var(--xc-space-2); gap: var(--xc-space-2); }
+  .ir-layout__welcome-metric-icon { width: 32px; height: 32px; }
+}
+
+@media (max-width: 767px) {
+  .ir-layout__menu-trigger { display: grid; }
+  .ir-layout__welcome-metrics { margin-left: 64px; margin-right: var(--xc-space-3); }
+}
+
+@media (max-width: 640px) {
+  .ir-layout__welcome-metrics { display: none; }
 }
 </style>

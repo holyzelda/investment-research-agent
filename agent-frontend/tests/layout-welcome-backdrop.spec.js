@@ -6,7 +6,7 @@ import { mount } from '@vue/test-utils'
 const layoutSource = readFileSync(resolve(process.cwd(), 'src/layout/index.vue'), 'utf8')
 const welcomeBackdropStyles = layoutSource.slice(
   layoutSource.indexOf('.ir-layout__welcome-backdrop {'),
-  layoutSource.indexOf('.ir-layout__topbar {'),
+  layoutSource.indexOf('.ir-layout__welcome-metrics {'),
 )
 
 // 可变的路由与会话状态：每个用例重挂载前调整
@@ -36,10 +36,6 @@ vi.mock('@/store/modules/permission', () => ({
 vi.mock('vue-router', () => ({
   useRoute: () => route,
   useRouter: () => ({ push: vi.fn(), currentRoute: { value: route } }),
-}))
-
-vi.mock('@/layout/components/AppRail.vue', () => ({
-  default: { template: '<div class="app-rail-stub" />' },
 }))
 
 vi.mock('@/layout/components/AppSidebar.vue', () => ({
@@ -73,13 +69,15 @@ describe('layout 首页欢迎态全屏背景', () => {
     expect(welcomeBackdropStyles).toContain('.ir-layout__welcome-backdrop::after')
     expect(welcomeBackdropStyles).toContain('linear-gradient(90deg, var(--xc-surface-workspace) 0%, transparent 72%)')
     expect(welcomeBackdropStyles).toContain('linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%)')
-    expect(welcomeBackdropStyles).toContain('var(--ir-welcome-bg) 150% center / cover no-repeat')
+    expect(welcomeBackdropStyles).toContain('var(--ir-welcome-bg) center / cover no-repeat')
   })
 
-  it('首页欢迎态在顶部栏展示五项平台指标', () => {
+  it('首页欢迎态在主内容列展示五项平台指标', () => {
     const wrapper = mountLayout()
 
-    expect(wrapper.find('.ir-layout__welcome-metrics').exists()).toBe(true)
+    const metrics = wrapper.find('.ir-layout__welcome-metrics')
+    expect(metrics.exists()).toBe(true)
+    expect(metrics.element.closest('.ir-layout__content')).not.toBeNull()
     expect(wrapper.findAll('.ir-layout__welcome-metric')).toHaveLength(5)
     expect(wrapper.text()).toContain('累计测算次数')
     expect(wrapper.text()).toContain('覆盖省份')

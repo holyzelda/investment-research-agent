@@ -1,408 +1,697 @@
 <template>
-  <!-- 固定定位上下文：折叠态悬浮预览以此为锚点展开，而非相对整页居中 -->
-  <div v-if="!hidden" class="ir-sider-wrap" :style="{ width: isCollapsed ? '56px' : 'var(--xc-sidebar-w)' }">
-    <aside
-      class="ir-sider"
-      data-testid="history-sidebar"
-      :class="{ 'ir-sider--collapsed': isCollapsed, 'ir-sider--hover-expand': isHoverExpand }"
-      @mouseenter="handleMouseEnter"
-      @mouseleave="handleMouseLeave"
-      @click="handleClick"
-    >
-      <div class="ir-sider__content" v-show="!isCollapsed || isHoverExpand">
-        <!-- 品牌头 + 折叠按钮 -->
-        <div class="ir-sider__head">
-          <img class="ir-sider__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
-          <span class="ir-sider__brand">朱雀投研智能体</span>
-          <button
-            v-if="canHide"
-            class="ir-sider__hide"
-            aria-label="隐藏历史会话栏"
-            @click.stop="$emit('visibility-change', true)"
-          >
-            隐藏
-          </button>
-          <button
-            class="ir-sider__toggle"
-            aria-label="折叠侧栏"
-            @click.stop="toggleCollapse"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-              <rect x="3" y="4" width="18" height="16" rx="3" />
-              <path d="M9 4v16" stroke-linecap="round" />
-            </svg>
-          </button>
-        </div>
+  <div
+    class="ir-shell-wrap"
+    :class="{
+      'is-collapsed': collapsed && !drawerOpen,
+      'is-drawer-open': drawerOpen,
+    }"
+  >
+    <button
+      v-if="drawerOpen"
+      class="ir-shell__drawer-scrim"
+      type="button"
+      aria-label="关闭菜单"
+      @click="$emit('close-drawer')"
+    />
 
-        <!-- 新建会话：青→紫渐变胶囊 -->
-        <button class="ir-sider__new" @click.stop="$emit('new-chat')">
-          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
-            <path d="M8 3.33V12.67M3.33 8h9.34" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          </svg>
-          <span>新建会话</span>
+    <aside class="ir-shell" data-testid="app-shell" aria-label="应用菜单">
+      <header class="ir-shell__brand">
+        <span class="ir-shell__logo-frame">
+          <img class="ir-shell__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
+        </span>
+        <span class="ir-shell__brand-copy">
+          <strong>朱雀投研智能体</strong>
+          <small>ZRA · STORAGE INVESTMENT AI</small>
+        </span>
+        <button
+          class="ir-shell__toggle"
+          type="button"
+          :aria-label="drawerOpen ? '关闭菜单' : collapsed ? '展开侧栏' : '折叠侧栏'"
+          :data-tip="drawerOpen ? '关闭菜单' : collapsed ? '展开侧栏' : '折叠侧栏'"
+          @click="onToggle"
+        >
+          <X v-if="drawerOpen" aria-hidden="true" />
+          <PanelLeftOpen v-else-if="collapsed" aria-hidden="true" />
+          <PanelLeftClose v-else aria-hidden="true" />
         </button>
+      </header>
 
-        <!-- 历史会话 -->
-        <div class="ir-sider__hist">
-          <div class="ir-sider__divider" />
-          <div class="ir-sider__hist-label">历史会话</div>
-          <p v-if="!history.length" class="ir-sider__hist-empty">暂无历史，发起测算后自动记录</p>
-          <ul v-else class="ir-sider__hist-list">
-            <li
-              v-for="h in history"
-              :key="h.conversationId"
-              class="ir-sider__hist-item"
-              :class="{ 'is-current': h.conversationId === current }"
-              :title="h.title || '未命名会话'"
-              @click.stop="$emit('open-history', h.conversationId)"
-            >
-              <span v-if="h.createdAt" class="ir-sider__hist-date xc-num">{{ formatDateLabel(h.createdAt) }}</span>
-              <span class="ir-sider__hist-title">{{ h.title || '未命名会话' }}</span>
+      <button
+        class="ir-shell__new"
+        type="button"
+        data-tip="新建会话"
+        @click="$emit('new-chat')"
+      >
+        <Plus class="ir-shell__new-icon" aria-hidden="true" />
+        <span class="ir-shell__label">新建会话</span>
+      </button>
+
+      <div class="ir-shell__section-title">投资分析工作台</div>
+      <nav class="ir-shell__nav" aria-label="投资分析工作台">
+        <button
+          v-for="item in navItems"
+          :key="item.key || item.path"
+          class="ir-shell__nav-item"
+          :class="{
+            'is-active': (item.key || item.path) === active,
+            'is-disabled': item.disabled,
+          }"
+          type="button"
+          :disabled="item.disabled"
+          :aria-current="(item.key || item.path) === active ? 'page' : undefined"
+          :aria-label="item.label"
+          :data-tip="item.label"
+          @click="onNav(item)"
+        >
+          <span class="ir-shell__nav-icon" v-html="item.icon" aria-hidden="true" />
+          <span class="ir-shell__nav-label ir-shell__label">{{ item.label }}</span>
+          <span v-if="item.meta" class="ir-shell__nav-meta ir-shell__label">{{ item.meta }}</span>
+        </button>
+      </nav>
+
+      <section class="ir-shell__history" aria-labelledby="ir-shell-history-title">
+        <div class="ir-shell__divider" />
+        <div id="ir-shell-history-title" class="ir-shell__history-title">历史测算</div>
+        <p v-if="!history.length" class="ir-shell__history-empty">暂无历史测算</p>
+        <ul v-else class="ir-shell__history-list">
+          <li
+            v-for="conversation in history"
+            :key="conversation.conversationId"
+            class="ir-shell__history-item"
+            :class="{ 'is-current': conversation.conversationId === current }"
+            :title="conversation.title || '未命名会话'"
+            role="button"
+            tabindex="0"
+            @click="$emit('open-history', conversation.conversationId)"
+            @keydown.enter="$emit('open-history', conversation.conversationId)"
+            @keydown.space.prevent="$emit('open-history', conversation.conversationId)"
+          >
+            <span v-if="conversation.createdAt" class="ir-shell__history-date xc-num">
+              {{ formatDateLabel(conversation.createdAt) }}
+            </span>
+            <span class="ir-shell__history-name">{{ conversation.title || '未命名会话' }}</span>
+            <span class="ir-shell__history-actions" @click.stop @keydown.stop>
               <button
-                class="ir-sider__hist-action ir-sider__hist-edit"
+                class="ir-shell__history-action ir-shell__history-edit"
+                type="button"
                 aria-label="编辑标题"
-                @click.stop="$emit('rename-history', h)"
+                @click="$emit('rename-history', conversation)"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-                </svg>
+                <Pencil aria-hidden="true" />
               </button>
               <button
-                class="ir-sider__hist-action ir-sider__hist-delete"
+                class="ir-shell__history-action ir-shell__history-delete"
+                type="button"
                 aria-label="删除"
-                @click.stop="$emit('delete-history', h.conversationId)"
+                @click="$emit('delete-history', conversation.conversationId)"
               >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M3 6h18" />
-                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                  <path d="M10 11v6M14 11v6" />
-                </svg>
+                <Trash2 aria-hidden="true" />
               </button>
-            </li>
-          </ul>
-        </div>
-      </div>
+            </span>
+          </li>
+        </ul>
+      </section>
 
-      <!-- 折叠态：只保留一个折叠图标；悬浮时上方内容以浮层预览展开，移开即收起 -->
-      <div v-show="isCollapsed && !isHoverExpand" class="ir-sider__collapsed-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="16" rx="3" />
-          <path d="M9 4v16" stroke-linecap="round" />
-        </svg>
-      </div>
+      <footer class="ir-shell__user">
+        <img v-if="userAvatar" class="ir-shell__user-avatar" :src="userAvatar" alt="" aria-hidden="true" />
+        <span v-else class="ir-shell__user-fallback" aria-hidden="true">{{ userInitial }}</span>
+        <span class="ir-shell__user-copy ir-shell__label">
+          <small>当前用户</small>
+          <strong>{{ username || '访客' }}</strong>
+        </span>
+      </footer>
     </aside>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { computed } from 'vue'
+import { PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from '@lucide/vue'
+
+const ICON = {
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
+  index: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  line: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="2.25"/><circle cx="19" cy="12" r="2.25"/><path d="M7.5 10.1c2.2-3.3 6.8-3.3 9 0"/><path d="M7.5 13.9c2.2 3.3 6.8 3.3 9 0"/></svg>',
+  policy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4" stroke-linecap="round"/></svg>',
+  calculation: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 11h2m4 0h2M8 15h2m4 0h2" stroke-linecap="round"/></svg>',
+  default: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6M12 9v6" stroke-linecap="round"/></svg>',
+}
+
+const fallbackItems = [
+  { key: 'home', path: '/home', label: '首页', icon: ICON.home },
+  { key: 'index', path: '/index-map', label: '全国指数地图', icon: ICON.index },
+  { key: 'line', path: '/tie-line', label: '联络线地图', icon: ICON.line },
+  { key: 'policy', path: '/policy-market', label: '政策与市场', icon: ICON.policy },
+]
+
+const MENU_PRESENTATION = {
+  '/home': { label: '朱雀星核', meta: '引擎' },
+  '/index-map': { label: '朱雀寻龙图', meta: 'MAP' },
+  '/policy-market': { label: '专业数据速查' },
+}
 
 const props = defineProps({
+  items: { type: Array, default: null },
+  active: { type: String, default: 'home' },
   history: { type: Array, default: () => [] },
   current: { type: [Number, String], default: null },
-  hidden: { type: Boolean, default: false },
-  canHide: { type: Boolean, default: false },
+  username: { type: String, default: '访客' },
+  userAvatar: { type: String, default: '' },
+  collapsed: { type: Boolean, default: false },
+  drawerOpen: { type: Boolean, default: false },
 })
-const emit = defineEmits(['new-chat', 'open-history', 'delete-history', 'rename-history', 'collapse-change', 'visibility-change'])
 
-// 历史条目时间标签：今日 / 昨天 / M/D（对齐 trader fullscreen-chat 历史栏）
+const emit = defineEmits([
+  'nav',
+  'new-chat',
+  'open-history',
+  'delete-history',
+  'rename-history',
+  'update:collapsed',
+  'close-drawer',
+])
+
+function onToggle() {
+  if (props.drawerOpen) emit('close-drawer')
+  else emit('update:collapsed', !props.collapsed)
+}
+
+const navItems = computed(() => {
+  const source = props.items?.length ? props.items : fallbackItems
+  return source.map((item) => ({
+    ...item,
+    ...(MENU_PRESENTATION[item.path] || {}),
+    icon: item.icon?.startsWith('<svg') ? item.icon : ICON[item.icon] || ICON.default,
+  }))
+})
+
+const userInitial = computed(() => String(props.username || '访').trim().slice(0, 1) || '访')
+
+function onNav(item) {
+  if (item.disabled) return
+  emit('nav', item.path || item.key)
+}
+
 function formatDateLabel(value) {
   if (!value) return ''
-  const d = new Date(String(value).replace(' ', 'T'))
-  if (Number.isNaN(d.getTime())) return ''
-  const key = (dt) => `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`
+  const date = new Date(String(value).replace(' ', 'T'))
+  if (Number.isNaN(date.getTime())) return ''
+  const dayKey = (item) => `${item.getFullYear()}-${item.getMonth()}-${item.getDate()}`
   const today = new Date()
-  if (key(d) === key(today)) return '今日'
+  if (dayKey(date) === dayKey(today)) return '今日'
   const yesterday = new Date(today)
   yesterday.setDate(today.getDate() - 1)
-  if (key(d) === key(yesterday)) return '昨天'
-  return `${d.getMonth() + 1}/${d.getDate()}`
-}
-
-// ---------- 折叠 / 悬浮预览 / 点击展开 ----------
-// 对齐 trader（etrader-agent-nx）fullscreen-chat 历史栏的交互：
-// 折叠后只剩一个圆形图标；鼠标悬浮短暂延迟后以浮层预览折叠前的内容，移开即收起；
-// 只有点击（无论是折叠图标还是浮层内的折叠按钮）才会真正恢复为展开状态。
-const isCollapsed = ref(false)
-const isHoverExpand = ref(false)
-let hoverTimer = null
-
-watch(() => props.hidden, (hidden) => {
-  if (!hidden) return
-  clearTimeout(hoverTimer)
-  isCollapsed.value = false
-  isHoverExpand.value = false
-})
-onBeforeUnmount(() => clearTimeout(hoverTimer))
-
-function toggleCollapse() {
-  isCollapsed.value = !isCollapsed.value
-  isHoverExpand.value = false
-  emit('collapse-change', isCollapsed.value)
-}
-
-function handleMouseEnter() {
-  if (!isCollapsed.value) return
-  clearTimeout(hoverTimer)
-  hoverTimer = setTimeout(() => {
-    isHoverExpand.value = true
-  }, 200)
-}
-
-function handleMouseLeave() {
-  if (!isCollapsed.value) return
-  clearTimeout(hoverTimer)
-  hoverTimer = setTimeout(() => {
-    isHoverExpand.value = false
-  }, 300)
-}
-
-function handleClick() {
-  if (isCollapsed.value && !isHoverExpand.value) {
-    isCollapsed.value = false
-    emit('collapse-change', false)
-  }
+  if (dayKey(date) === dayKey(yesterday)) return '昨天'
+  return `${date.getMonth() + 1}/${date.getDate()}`
 }
 </script>
 
 <style scoped>
-/* 悬浮玻璃面板：与外层图标 rail 一起构成两层左侧导航，不再使用直角分割线。
-   尺寸对齐 trader（etrader-agent-nx）fullscreen-chat 历史栏：300px 宽、上下 30px 浮空边距。 */
-.ir-sider-wrap {
+.ir-shell-wrap {
   position: relative;
-  flex-shrink: 0;
+  z-index: var(--xc-z-nav);
+  width: calc(var(--xc-sidebar-w) + 24px);
   height: 100%;
+  flex: 0 0 auto;
   transition: width var(--xc-dur-base) var(--xc-ease-out);
 }
 
-.ir-sider {
+.ir-shell {
   width: var(--xc-sidebar-w);
-  height: calc(100% - 60px);
-  margin: 30px 0;
+  height: calc(100% - 24px);
+  margin: 12px;
+  padding: var(--xc-space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--xc-space-3);
-  padding: var(--xc-space-5) var(--xc-space-4);
-  /* 毛玻璃：深海军蓝半透 + 背景模糊，透出全屏底图的光色又压暗背景保证文字清晰，
-     海军蓝调与底图和谐、不像灰底那样跳出成独立分区 */
-  background: var(--xc-surface-sider);
-  border: 1px solid var(--xc-border-soft);
-  border-radius: var(--xc-radius-xl);
+  min-height: 0;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-raised);
+  box-shadow: var(--xc-shadow-raised);
   backdrop-filter: blur(var(--xc-blur-lg));
   -webkit-backdrop-filter: blur(var(--xc-blur-lg));
-  overflow: hidden;
-  transition: width var(--xc-dur-base) var(--xc-ease-out),
-              height var(--xc-dur-base) var(--xc-ease-out),
-              margin var(--xc-dur-base) var(--xc-ease-out),
-              border-radius var(--xc-dur-base) var(--xc-ease-out);
+  overflow: visible;
+  transition: width var(--xc-dur-base) var(--xc-ease-out), padding var(--xc-dur-base) var(--xc-ease-out);
 }
 
-/* 折叠态：收缩为单一圆形图标 */
-.ir-sider--collapsed {
-  width: 56px;
-  height: 56px;
-  margin: 100px 0 0;
-  padding: 0;
-  border-radius: var(--xc-radius-full);
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-}
-
-/* 悬浮预览态：以浮层形式在折叠图标所在位置展开折叠前的内容，不影响主内容布局、也不居中于整页 */
-.ir-sider--hover-expand {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: var(--xc-sidebar-w);
-  height: calc(100% - 130px);
-  margin: 100px 0 0;
-  padding: var(--xc-space-5) var(--xc-space-4);
-  border-radius: var(--xc-radius-xl);
-  cursor: default;
-  /* 悬浮预览是临时浮层，用不透明暗底保证内容可读（不同于常态透明历史栏） */
-  background: var(--xc-surface-workspace);
-  box-shadow: var(--xc-shadow-xl);
-  z-index: var(--xc-z-overlay);
-}
-
-.ir-sider__content {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--xc-space-3);
-}
-
-.ir-sider__collapsed-icon {
-  width: 100%;
-  height: 100%;
-  display: grid;
-  place-items: center;
-  color: var(--xc-text-strong);
-}
-.ir-sider__collapsed-icon svg { width: 22px; height: 22px; }
-
-.ir-sider__head {
+.ir-shell__brand {
+  height: 48px;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: var(--xc-space-3);
-  height: 44px;
-  padding-left: var(--xc-space-2);
-  flex: 0 0 auto;
+  min-width: 0;
 }
-.ir-sider__logo {
-  width: 21px;
-  height: 34px;
-  flex: 0 0 auto;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  object-fit: contain;
-}
-.ir-sider__logo :deep(svg) {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.ir-sider__brand {
-  font-size: var(--xc-fs-lg);
-  font-weight: var(--xc-fw-medium);
-  color: var(--xc-text-strong);
-  letter-spacing: 0.02em;
-  flex: 1 1 auto;
-}
-.ir-sider__hide {
-  border: 0;
-  background: transparent;
-  color: var(--xc-text-mute);
-  font-size: var(--xc-fs-2xs);
-  cursor: pointer;
-  padding: 4px 6px;
-}
-.ir-sider__hide:hover,
-.ir-sider__hide:focus-visible { color: var(--xc-text-strong); }
-.ir-sider__hide:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
 
-.ir-sider__toggle {
-  width: 28px;
-  height: 28px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border: 0;
-  border-radius: var(--xc-radius-sm);
-  background: transparent;
-  color: var(--xc-text-soft);
-  cursor: pointer;
-  transition: background var(--xc-dur-fast), color var(--xc-dur-fast);
-}
-.ir-sider__toggle:hover { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
-.ir-sider__toggle svg { width: 18px; height: 18px; }
-
-.ir-sider__new {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--xc-space-3);
+.ir-shell__logo-frame {
+  width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  border: 0;
-  border-radius: var(--xc-radius-md);
-  background: var(--xc-grad-brand);
-  color: var(--xc-text-strong);
-  font-size: var(--xc-fs-sm);
-  font-weight: var(--xc-fw-medium);
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  box-shadow: var(--xc-glow-blue);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-control);
 }
-.ir-sider__new svg { width: 16px; height: 16px; flex: 0 0 auto; }
 
-/* ---------- 历史会话 ---------- */
-.ir-sider__hist {
+.ir-shell__logo {
+  width: 18px;
+  height: 30px;
+  object-fit: contain;
+}
+
+.ir-shell__brand-copy {
+  min-width: 0;
+  flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  min-height: 0;
-  flex: 1 1 auto;
+  line-height: var(--xc-lh-snug);
+  white-space: nowrap;
+  overflow: hidden;
 }
-.ir-sider__divider {
-  height: 1px;
-  background: var(--xc-border-soft);
-  margin: var(--xc-space-2) var(--xc-space-2) var(--xc-space-3);
+
+.ir-shell__brand-copy strong {
+  overflow: hidden;
+  color: var(--xc-text-strong);
+  font-size: var(--xc-fs-md);
+  font-weight: var(--xc-fw-semi);
+  text-overflow: ellipsis;
 }
-.ir-sider__hist-label {
-  font-size: var(--xc-fs-xs);
+
+.ir-shell__brand-copy small {
+  overflow: hidden;
   color: var(--xc-text-mute);
-  padding: 0 var(--xc-space-4);
-  margin-bottom: var(--xc-space-2);
+  font-family: var(--xc-font-en);
+  font-size: var(--xc-fs-3xs);
+  letter-spacing: 0;
+  text-overflow: ellipsis;
 }
-.ir-sider__hist-empty {
+
+.ir-shell__toggle,
+.ir-shell__history-action {
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  color: var(--xc-text-mute);
+  cursor: pointer;
+}
+
+.ir-shell__toggle {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  border-radius: var(--xc-radius-xs);
+}
+
+.ir-shell__toggle:hover,
+.ir-shell__toggle:focus-visible,
+.ir-shell__history-action:hover,
+.ir-shell__history-action:focus-visible {
+  color: var(--xc-text-strong);
+  background: var(--xc-surface-frosted);
+}
+
+.ir-shell__toggle svg { width: 18px; height: 18px; }
+
+.ir-shell__new {
+  position: relative;
+  width: 100%;
+  height: 42px;
+  min-height: 42px;
+  margin-top: var(--xc-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--xc-space-3);
+  border: 0;
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-grad-brand);
+  box-shadow: var(--xc-glow-blue);
+  color: var(--xc-text-strong);
+  font-family: inherit;
+  font-size: var(--xc-fs-sm);
+  font-weight: var(--xc-fw-semi);
+  cursor: pointer;
+}
+
+.ir-shell__new:hover { filter: brightness(1.08); }
+.ir-shell__new-icon { width: 18px; height: 18px; }
+
+.ir-shell__section-title,
+.ir-shell__history-title {
+  color: var(--xc-text-mute);
   font-size: var(--xc-fs-2xs);
-  color: var(--xc-text-faint);
-  line-height: var(--xc-lh-loose);
-  padding: 0 var(--xc-space-4);
-  margin: 0;
+  font-weight: var(--xc-fw-medium);
 }
-.ir-sider__hist-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  overflow-y: auto;
+
+.ir-shell__section-title {
+  margin: var(--xc-space-7) var(--xc-space-4) var(--xc-space-2);
+}
+
+.ir-shell__nav {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
-.ir-sider__hist-item {
+
+.ir-shell__nav-item {
   position: relative;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 var(--xc-space-4);
   display: flex;
   align-items: center;
-  gap: var(--xc-space-2);
-  padding: var(--xc-space-2) var(--xc-space-4);
+  gap: var(--xc-space-4);
+  border: 0;
   border-radius: var(--xc-radius-sm);
+  background: transparent;
   color: var(--xc-text-soft);
+  font-family: inherit;
   font-size: var(--xc-fs-sm);
+  font-weight: var(--xc-fw-medium);
+  text-align: left;
   cursor: pointer;
   transition: background var(--xc-dur-fast), color var(--xc-dur-fast);
 }
-.ir-sider__hist-item:hover { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
-.ir-sider__hist-item.is-current {
-  background: var(--xc-accent-blue-soft);
+
+.ir-shell__nav-item:hover:not(.is-disabled),
+.ir-shell__nav-item:focus-visible:not(.is-disabled) {
+  background: var(--xc-surface-frosted);
   color: var(--xc-text-strong);
 }
-.ir-sider__hist-item.is-current .ir-sider__hist-action { opacity: 1; }
-.ir-sider__hist-date {
-  flex: 0 0 auto;
-  font-size: var(--xc-fs-2xs);
-  color: var(--xc-text-faint);
-  user-select: none;
+
+.ir-shell__nav-item.is-active {
+  background: var(--xc-surface-control);
+  color: var(--xc-text-strong);
 }
-.ir-sider__hist-title {
-  flex: 1 1 auto;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+.ir-shell__nav-item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
-/* 悬浮才出现的行内操作：编辑标题 / 删除，替代原三点菜单 */
-.ir-sider__hist-action {
+
+.ir-shell__nav-icon {
+  width: 20px;
+  height: 20px;
   flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
   display: grid;
   place-items: center;
-  border: 0;
-  border-radius: var(--xc-radius-xs);
-  background: transparent;
+}
+
+.ir-shell__nav-icon :deep(svg) { width: 20px; height: 20px; }
+
+.ir-shell__nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ir-shell__nav-meta {
+  margin-left: auto;
+  flex: 0 0 auto;
   color: var(--xc-text-mute);
+  font-family: var(--xc-font-en);
+  font-size: var(--xc-fs-3xs);
+  font-weight: var(--xc-fw-bold);
+  letter-spacing: 0;
+}
+
+.ir-shell__history {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ir-shell__divider {
+  height: 1px;
+  margin: var(--xc-space-5) var(--xc-space-1) var(--xc-space-4);
+  flex: 0 0 auto;
+  background: var(--xc-border-soft);
+}
+
+.ir-shell__history-title {
+  padding: 0 var(--xc-space-4);
+  margin-bottom: var(--xc-space-2);
+}
+
+.ir-shell__history-empty {
+  margin: 0;
+  padding: var(--xc-space-2) var(--xc-space-4);
+  color: var(--xc-text-faint);
+  font-size: var(--xc-fs-2xs);
+}
+
+.ir-shell__history-list {
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.ir-shell__history-item {
+  min-height: 36px;
+  padding: 0 var(--xc-space-2) 0 var(--xc-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-2);
+  border-radius: var(--xc-radius-sm);
+  color: var(--xc-text-soft);
+  font-size: var(--xc-fs-xs);
   cursor: pointer;
+  transition: background var(--xc-dur-fast), color var(--xc-dur-fast);
+}
+
+.ir-shell__history-item:hover,
+.ir-shell__history-item:focus-visible,
+.ir-shell__history-item.is-current {
+  background: var(--xc-surface-frosted);
+  color: var(--xc-text-strong);
+}
+
+.ir-shell__history-date {
+  flex: 0 0 auto;
+  color: var(--xc-text-faint);
+  font-size: var(--xc-fs-3xs);
+}
+
+.ir-shell__history-name {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ir-shell__history-actions {
+  display: flex;
+  flex: 0 0 auto;
+}
+
+.ir-shell__history-action {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--xc-radius-xs);
   opacity: 0;
   transition: opacity var(--xc-dur-fast), background var(--xc-dur-fast), color var(--xc-dur-fast);
 }
-.ir-sider__hist-action svg { width: 15px; height: 15px; }
-.ir-sider__hist-item:hover .ir-sider__hist-action { opacity: 1; }
-.ir-sider__hist-edit:hover { background: var(--xc-surface-2); color: var(--xc-accent-blue); }
-.ir-sider__hist-delete:hover { background: var(--xc-surface-2); color: var(--xc-status-danger); }
+
+.ir-shell__history-action svg { width: 14px; height: 14px; }
+.ir-shell__history-item:hover .ir-shell__history-action,
+.ir-shell__history-item:focus-within .ir-shell__history-action,
+.ir-shell__history-item.is-current .ir-shell__history-action { opacity: 1; }
+.ir-shell__history-edit:hover { color: var(--xc-accent-blue); }
+.ir-shell__history-delete:hover { color: var(--xc-status-danger); }
+
+.ir-shell__user {
+  min-height: 48px;
+  margin-top: var(--xc-space-4);
+  padding: var(--xc-space-2);
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-3);
+  flex: 0 0 auto;
+  border-top: 1px solid var(--xc-border-soft);
+}
+
+.ir-shell__user-avatar,
+.ir-shell__user-fallback {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.ir-shell__user-avatar { object-fit: cover; }
+.ir-shell__user-fallback {
+  display: grid;
+  place-items: center;
+  background: var(--xc-grad-avatar);
+  color: var(--xc-text-strong);
+  font-size: var(--xc-fs-sm);
+}
+
+.ir-shell__user-copy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: var(--xc-lh-snug);
+}
+
+.ir-shell__user-copy small { color: var(--xc-text-mute); font-size: var(--xc-fs-3xs); }
+.ir-shell__user-copy strong {
+  overflow: hidden;
+  color: var(--xc-text-strong);
+  font-size: var(--xc-fs-xs);
+  font-weight: var(--xc-fw-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ir-shell button:focus-visible,
+.ir-shell [role='button']:focus-visible {
+  outline: 2px solid var(--xc-accent-blue);
+  outline-offset: 2px;
+}
+
+.ir-shell-wrap.is-collapsed { width: 68px; }
+.ir-shell-wrap.is-collapsed .ir-shell {
+  width: 56px;
+  margin-left: 6px;
+  margin-right: 6px;
+  padding: var(--xc-space-2);
+  overflow: visible;
+}
+.ir-shell-wrap.is-collapsed .ir-shell__brand {
+  height: auto;
+  flex-direction: column;
+  gap: var(--xc-space-2);
+}
+.ir-shell-wrap.is-collapsed .ir-shell__logo-frame { width: 38px; height: 38px; }
+.ir-shell-wrap.is-collapsed .ir-shell__brand-copy,
+.ir-shell-wrap.is-collapsed .ir-shell__label,
+.ir-shell-wrap.is-collapsed .ir-shell__section-title,
+.ir-shell-wrap.is-collapsed .ir-shell__history { display: none; }
+.ir-shell-wrap.is-collapsed .ir-shell__new {
+  width: 40px;
+  margin-top: var(--xc-space-4);
+  padding: 0;
+  align-self: center;
+}
+.ir-shell-wrap.is-collapsed .ir-shell__nav {
+  margin-top: var(--xc-space-5);
+  gap: var(--xc-space-2);
+}
+.ir-shell-wrap.is-collapsed .ir-shell__nav-item {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  justify-content: center;
+}
+.ir-shell-wrap.is-collapsed .ir-shell__user {
+  margin-top: auto;
+  padding: var(--xc-space-2) 0 0;
+  justify-content: center;
+}
+
+.ir-shell-wrap.is-collapsed [data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 10px);
+  z-index: var(--xc-z-tooltip);
+  padding: 5px 8px;
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-xs);
+  background: var(--xc-surface-2);
+  box-shadow: var(--xc-shadow-sm);
+  color: var(--xc-text-strong);
+  font-size: var(--xc-fs-2xs);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity var(--xc-dur-fast);
+}
+.ir-shell-wrap.is-collapsed [data-tip]:hover::after,
+.ir-shell-wrap.is-collapsed [data-tip]:focus-visible::after { opacity: 1; }
+
+.ir-shell__drawer-scrim { display: none; }
+
+@media (max-width: 767px) {
+  .ir-shell-wrap,
+  .ir-shell-wrap.is-collapsed {
+    position: fixed;
+    inset: 0;
+    z-index: var(--xc-z-overlay);
+    width: 0;
+    pointer-events: none;
+  }
+
+  .ir-shell-wrap.is-drawer-open {
+    width: 100%;
+    pointer-events: auto;
+  }
+
+  .ir-shell__drawer-scrim {
+    position: fixed;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border: 0;
+    background: var(--xc-surface-overlay);
+  }
+
+  .ir-shell-wrap .ir-shell,
+  .ir-shell-wrap.is-collapsed .ir-shell {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: min(var(--xc-sidebar-w), calc(100vw - 48px));
+    height: calc(100% - 16px);
+    margin: 8px;
+    padding: var(--xc-space-5);
+    transform: translateX(calc(-100% - 16px));
+    transition: transform var(--xc-dur-base) var(--xc-ease-out);
+  }
+
+  .ir-shell-wrap.is-drawer-open .ir-shell { transform: translateX(0); }
+  .ir-shell-wrap.is-drawer-open .ir-shell__brand { height: 48px; flex-direction: row; }
+  .ir-shell-wrap.is-drawer-open .ir-shell__logo-frame { width: 42px; height: 42px; }
+  .ir-shell-wrap.is-drawer-open .ir-shell__brand-copy,
+  .ir-shell-wrap.is-drawer-open .ir-shell__label,
+  .ir-shell-wrap.is-drawer-open .ir-shell__section-title,
+  .ir-shell-wrap.is-drawer-open .ir-shell__history { display: flex; }
+  .ir-shell-wrap.is-drawer-open .ir-shell__section-title { display: block; }
+  .ir-shell-wrap.is-drawer-open .ir-shell__new { width: 100%; margin-top: var(--xc-space-5); }
+  .ir-shell-wrap.is-drawer-open .ir-shell__nav { margin-top: 0; gap: 2px; }
+  .ir-shell-wrap.is-drawer-open .ir-shell__nav-item {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 var(--xc-space-4);
+    justify-content: flex-start;
+  }
+  .ir-shell-wrap.is-drawer-open .ir-shell__user {
+    margin-top: var(--xc-space-4);
+    padding: var(--xc-space-2);
+    justify-content: flex-start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ir-shell-wrap,
+  .ir-shell,
+  .ir-shell-wrap .ir-shell { transition: none; }
+}
 </style>

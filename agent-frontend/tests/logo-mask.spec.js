@@ -9,7 +9,7 @@ const layout = readFileSync(resolve(frontendRoot, 'src/layout/index.vue'), 'utf8
 const sidebar = readFileSync(resolve(frontendRoot, 'src/layout/components/AppSidebar.vue'), 'utf8')
 
 describe('brand logo rendering', () => {
-  it('uses one real SVG source for the favicon, top bar, and sidebar', () => {
+  it('uses one real SVG source for the favicon and left AppShell', () => {
     expect(existsSync(logoPath)).toBe(true)
 
     const logoSvg = readFileSync(logoPath, 'utf8')
@@ -19,12 +19,10 @@ describe('brand logo rendering', () => {
     expect(logoSvg).not.toMatch(/data:image\//i)
 
     expect(indexHtml).toContain('href="/brand-logo.svg"')
-    expect(layout).toContain('src="/brand-logo.svg"')
     expect(sidebar).toContain('src="/brand-logo.svg"')
-    expect(layout).toContain('<img class="ir-brand__mark" src="/brand-logo.svg" alt="" aria-hidden="true" />')
-    expect(sidebar).toContain('<img class="ir-sider__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />')
-    expect(layout).toContain('<span class="ir-brand__name">{{ title }}</span>')
-    expect(sidebar).toContain('<span class="ir-sider__brand">朱雀投研智能体</span>')
+    expect(layout).not.toContain('src="/brand-logo.svg"')
+    expect(sidebar).toContain('<img class="ir-shell__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />')
+    expect(sidebar).toContain('<strong>朱雀投研智能体</strong>')
     expect(sidebar).not.toContain("import logoSvg from '@/assets/logo.svg?raw'")
 
     expect(existsSync(resolve(frontendRoot, 'public/favicon.svg'))).toBe(false)
