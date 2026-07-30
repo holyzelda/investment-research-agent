@@ -55,34 +55,6 @@
           <router-view />
         </main>
       </section>
-    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden }">
-      <AppRail
-        :items="navItems"
-        :active="activeRail"
-        @nav="onNav"
-      />
-      <button
-        v-if="sidebarHidden && !route.meta.collapseSidebar"
-        class="ir-layout__sidebar-open"
-        aria-label="展开历史会话栏"
-        @click="sidebarHidden = false"
-      >
-        历史会话
-      </button>
-      <AppSidebar
-        :history="calc.history"
-        :current="calc.conversationId"
-        :hidden="sidebarHidden"
-        :can-hide="Boolean(route.meta.collapseSidebar)"
-        @visibility-change="sidebarHidden = $event"
-        @new-chat="onNewChat"
-        @open-history="onOpenHistory"
-        @delete-history="onDeleteHistory"
-        @rename-history="onRenameHistory"
-      />
-      <main class="ir-layout__viewport">
-        <router-view />
-      </main>
     </div>
   </div>
 </template>
@@ -414,39 +386,6 @@ onBeforeUnmount(() => {
 .ir-layout__viewport {
   min-width: 0;
   min-height: 0;
-  display: flex;
-  position: relative;
-  z-index: 1;
-  gap: var(--xc-gutter-x);
-  overflow: hidden;
-}
-.ir-layout__body.is-sidebar-hidden {
-  gap: 0;
-}
-.ir-layout__sidebar-open {
-  position: absolute;
-  left: var(--xc-rail-w);
-  top: 30px;
-  z-index: var(--xc-z-nav);
-  border: 1px solid var(--xc-border-soft);
-  border-left: 0;
-  border-radius: 0 var(--xc-radius-sm) var(--xc-radius-sm) 0;
-  background: var(--xc-surface-glass);
-  color: var(--xc-text-soft);
-  font-size: var(--xc-fs-2xs);
-  padding: 8px 10px;
-  cursor: pointer;
-}
-.ir-layout__sidebar-open:hover,
-.ir-layout__sidebar-open:focus-visible {
-  color: var(--xc-text-strong);
-  background: var(--xc-surface-frosted);
-}
-.ir-layout__sidebar-open:focus-visible {
-  outline: 2px solid var(--xc-accent-blue);
-  outline-offset: 2px;
-}
-.ir-layout__viewport {
   flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
