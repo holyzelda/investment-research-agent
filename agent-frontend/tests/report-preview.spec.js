@@ -1,10 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
+const reportPrintSource = readFileSync(resolve(process.cwd(), 'src/styles/report-print.css'), 'utf8')
+
 const route = vi.hoisted(() => ({ params: { reportId: 'r-1' } }))
-const router = vi.hoisted(() => ({ back: vi.fn() }))
 const captured = vi.hoisted(() => ({ factories: [] }))
 vi.mock('@/views/home/composables/useEcharts', () => ({
   useEcharts: (factory) => {
@@ -15,12 +18,29 @@ vi.mock('@/views/home/composables/useEcharts', () => ({
   xcVar: () => '#45515e',
 }))
 vi.mock('@/api/report', () => ({ getReport: vi.fn().mockResolvedValue({ data: null }) }))
-vi.mock('vue-router', () => ({ useRoute: () => route, useRouter: () => router }))
+vi.mock('vue-router', () => ({ useRoute: () => route }))
 
 import ReportDetail from '@/views/report/index.vue'
 
 describe('formal report preview', () => {
-  beforeEach(() => { captured.factories.length = 0 })
+  it('keeps repeated body-page margins while assigning the first page to a full-bleed cover', () => {
+    expect(reportPrintSource).toMatch(/@page\s*\{[^}]*margin:\s*18mm 0 22mm;/s)
+    expect(reportPrintSource).toMatch(/@page\s*:first\s*\{[^}]*margin:\s*0;/s)
+    expect(reportPrintSource).not.toMatch(/@page\s+report-(?:cover|body)/)
+    expect(reportPrintSource).toMatch(/\.ir-report-cover\s*\{[^}]*width:\s*210mm\s*!important;[^}]*height:\s*297mm\s*!important;[^}]*break-after:\s*page\s*!important;/s)
+    expect(reportPrintSource).not.toMatch(/page:\s*report-(?:cover|body)/)
+    expect(reportPrintSource).toMatch(/\.ir-report-body\s*\{[^}]*box-sizing:\s*border-box;[^}]*padding:\s*0 20mm\s*!important;/s)
+  })
+
+  beforeEach(() => {
+    captured.factories.length = 0
+    Object.defineProperty(window, 'scrollY', { configurable: true, value: 0, writable: true })
+    vi.stubGlobal('print', vi.fn())
+    vi.stubGlobal('scrollTo', vi.fn())
+    vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: false })))
+  })
+
+  afterEach(() => vi.unstubAllGlobals())
 
   it('renders the approved cover through chapter three from a frozen report', async () => {
     const wrapper = mount(ReportDetail)
@@ -186,6 +206,7 @@ describe('formal report preview', () => {
     expect(matrixOption.yAxis).toMatchObject({ max: 2, interval: 0.5 })
     expect(matrixOption.series[0].markLine).toBeUndefined()
     expect(wrapper.findAll('.ir-report-chapter-heading')).toHaveLength(7)
+    expect(wrapper.findAll('.ir-report-body > .ir-report-section')).toHaveLength(7)
     expect(wrapper.findAll('.ir-report-chapter-heading h2').map((item) => item.text())).toEqual([
       '第一章 项目基本信息', '第二章 市场供需分析', '第三章 政策环境分析', '第四章 项目测算边界',
       '第五章 主模型分析', '第六章 敏感情景测试', '第七章 结论与投资建议',
@@ -193,7 +214,10 @@ describe('formal report preview', () => {
     expect(wrapper.findAll('.ir-report-chapter-heading p').map((item) => item.text())).toEqual([
       'CHAPTER 01', 'CHAPTER 02', 'CHAPTER 03', 'CHAPTER 04', 'CHAPTER 05', 'CHAPTER 06', 'CHAPTER 07',
     ])
-    expect(wrapper.text()).toContain('导出 PDF')
+    expect(wrapper.find('[title="返回"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="返回顶部"]').exists()).toBe(false)
+    const printButton = wrapper.get('[aria-label="打印报告"]')
+    expect(printButton.attributes('title')).toBe('打印报告')
     expect(wrapper.text()).toContain('5.1 偿债能力｜现金流口径下偿债倍数')
     expect(wrapper.text()).toContain('5.2 偿债能力｜经营性现金流对还本付息覆盖能力')
     expect(wrapper.text()).toContain('5.3 财务报表口径｜会计净利润')
@@ -208,5 +232,25 @@ describe('formal report preview', () => {
     expect(wrapper.text().match(/如何解读/g)).toHaveLength(3)
     const profitOption = captured.factories[3]()
     expect(profitOption.series.map((series) => series.name)).toEqual(['净利润', '折旧摊销'])
+    await printButton.trigger('click')
+    expect(window.print).toHaveBeenCalledOnce()
+
+    window.scrollY = 500
+    window.dispatchEvent(new Event('scroll'))
+    await nextTick()
+    await wrapper.get('[aria-label="返回顶部"]').trigger('click')
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' })
+  })
+
+  it('returns to the top without animation when reduced motion is enabled', async () => {
+    vi.mocked(window.matchMedia).mockReturnValue({ matches: true })
+    const wrapper = mount(ReportDetail)
+    window.scrollY = 500
+    window.dispatchEvent(new Event('scroll'))
+    await nextTick()
+
+    await wrapper.get('[aria-label="返回顶部"]').trigger('click')
+
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
   })
 })

@@ -88,6 +88,71 @@ describe('home thinking stream rendering', () => {
     wrapper.unmount()
   })
 
+  it('keeps report thinking visible above the richer delivery card', async () => {
+    const store = useCalculationStore()
+    store.versions = [{
+      taskId: 42,
+      version: 'V2',
+      input: { province: '甘肃', node_name: '祥泰站', power_mw: 100, capacity_mwh: 400 },
+      result: { basicInfo: { province: '甘肃', nodeName: '祥泰站', powerMw: 100, capacityMwh: 400 } },
+    }]
+    store.messages = [{
+      id: 'report-1',
+      role: 'assistant',
+      kind: 'assistant-stream',
+      flow: 'report',
+      taskId: 42,
+      reportId: 'r-2',
+      phase: 'completed',
+      startedAt: 1,
+      finishedAt: 2,
+      hasThinkingStarted: true,
+      thinkingState: {
+        order: ['report:prepare'],
+        nodesById: {
+          'report:prepare': { nodeId: 'report:prepare', title: '读取冻结测算快照', status: 'completed', open: false, substeps: [], text: '' },
+        },
+      },
+      answerText: '正式报告已生成，可查看完整报告。',
+      recommendedQuestions: [],
+    }]
+
+    const wrapper = mount(Home)
+    await nextTick()
+
+    const streamMessage = wrapper.find('.ir-msg__stream')
+    expect(streamMessage.find('.ir-thinking').exists()).toBe(true)
+    expect(streamMessage.find('.ir-report-delivery').exists()).toBe(true)
+    expect(streamMessage.find('.ir-ai-answer').exists()).toBe(false)
+    expect(streamMessage.text()).toContain('甘肃 · 祥泰站储能项目')
+    expect(streamMessage.text()).toContain('V2')
+    wrapper.unmount()
+  })
+
+  it('keeps historical report delivery on the same full-width assistant track', async () => {
+    const store = useCalculationStore()
+    store.versions = [{
+      taskId: 42,
+      version: 'V2',
+      input: { province: '甘肃', node_name: '祥泰站', power_mw: 100, capacity_mwh: 400 },
+    }]
+    store.messages = [{
+      id: 'report-history-1',
+      role: 'assistant',
+      kind: 'report-generated',
+      payload: { report_id: 'r-2', task_id: 42 },
+    }]
+
+    const wrapper = mount(Home)
+    await nextTick()
+
+    const message = wrapper.find('.ir-msg--assistant')
+    expect(message.find('.ir-msg__stream').exists()).toBe(true)
+    expect(message.find('.ir-report-delivery').exists()).toBe(true)
+    expect(message.find('.ir-report-delivery').element.parentElement).toBe(message.find('.ir-msg__stream').element)
+    wrapper.unmount()
+  })
+
   it('renders historical assistant text as Markdown without parsing user text', async () => {
     const store = useCalculationStore()
     store.messages = [

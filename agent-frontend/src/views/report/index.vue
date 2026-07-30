@@ -1,8 +1,25 @@
 <template>
-  <main class="ir-report-page">
-    <nav class="ir-report-actions" aria-label="报告操作">
-      <button class="ir-report-action" type="button" title="返回" @click="router.back()">返回</button>
-      <button class="ir-report-action ir-report-action--primary" type="button" title="导出 PDF" @click="printReport">导出 PDF</button>
+  <main class="ir-report-page xc-app">
+    <nav class="ir-report-tools" aria-label="报告操作">
+      <button
+        class="ir-report-tool"
+        type="button"
+        title="打印报告"
+        aria-label="打印报告"
+        @click="printReport"
+      >
+        <Printer aria-hidden="true" />
+      </button>
+      <button
+        v-if="showBackToTop"
+        class="ir-report-tool"
+        type="button"
+        title="返回顶部"
+        aria-label="返回顶部"
+        @click="scrollToTop"
+      >
+        <ArrowUp aria-hidden="true" />
+      </button>
     </nav>
 
     <article v-if="report" class="ir-report-document">
@@ -10,7 +27,6 @@
 
       <div class="ir-report-body">
       <ReportChapter :number="1" title="第一章 项目基本信息">
-        <p class="ir-report-intro"></p>
         <table class="ir-report-table ir-report-table--four">
           <thead><tr><th>项目要素</th><th>内容</th><th>项目要素</th><th>内容</th></tr></thead>
           <tbody>
@@ -146,8 +162,9 @@
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ArrowUp, Printer } from '@lucide/vue'
+import { useRoute } from 'vue-router'
 import { getReport } from '@/api/report'
 import { formatNumber, formatPrice } from '@/utils/formatNumber'
 import ReportAiAnalysis from './components/ReportAiAnalysis.vue'
@@ -158,9 +175,9 @@ import ReportCover from './components/ReportCover.vue'
 import ReportSectionHeading from './components/ReportSectionHeading.vue'
 
 const route = useRoute()
-const router = useRouter()
 const report = ref(null)
 const loaded = ref(false)
+const showBackToTop = ref(false)
 const missing = '——'
 const aiFallback = '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。'
 const project = computed(() => report.value?.project || {})
@@ -227,8 +244,21 @@ const decisionRows = [
   { condition: '基准平均偿债倍数 < 1，或贷款期内出现年度偿债覆盖倍数 < 1.00且无明确补足机制', advice: '不建议投资', action: '项目偿债安全边际不足，暂不具备投资价值' },
 ]
 
-onMounted(async () => { try { report.value = (await getReport(route.params.reportId)).data || null } finally { loaded.value = true } })
+function handleScroll() {
+  showBackToTop.value = window.scrollY > 360
+}
+
+onMounted(async () => {
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  handleScroll()
+  try { report.value = (await getReport(route.params.reportId)).data || null } finally { loaded.value = true }
+})
+onBeforeUnmount(() => window.removeEventListener('scroll', handleScroll))
 function printReport() { window.print() }
+function scrollToTop() {
+  const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
+}
 function blank(value) { return value == null ? '' : String(value) }
 function blankUnit(value, unit) { return value == null ? '' : `${formatNumber(value)} ${unit}` }
 function checkbox(checked, label) { return `${checked ? '☑' : '□'} ${label}` }
@@ -249,11 +279,12 @@ function formatFixedNumber(value) {
 </script>
 
 <style scoped>
-.ir-report-page { min-height: 100%; overflow: auto; padding: 32px 64px 72px; background: var(--xc-report-page); color: var(--xc-text-default); }
-.ir-report-actions { position: fixed; z-index: var(--xc-z-nav); right: 32px; top: 32px; display: flex; gap: 8px; }
-.ir-report-action { min-width: 82px; height: 36px; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-xs); background: var(--xc-report-card); color: var(--xc-text-default); font-size: 13px; cursor: pointer; }
-.ir-report-action:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
-.ir-report-action--primary { border-color: var(--xc-accent-blue); background: var(--xc-accent-blue); color: var(--xc-text-inverse); }
+.ir-report-page { min-height: 100vh; padding: 32px 64px 88px; background: var(--xc-report-page); color: var(--xc-text-default); }
+.ir-report-tools { position: fixed; z-index: var(--xc-z-nav); right: 32px; bottom: 32px; display: flex; flex-direction: column; gap: var(--xc-space-3); }
+.ir-report-tool { display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-full); background: var(--xc-report-card); box-shadow: var(--xc-shadow-md); color: var(--xc-text-default); cursor: pointer; transition: border-color var(--xc-dur-fast) var(--xc-ease-out), color var(--xc-dur-fast) var(--xc-ease-out), transform var(--xc-dur-fast) var(--xc-ease-out); }
+.ir-report-tool:hover { border-color: var(--xc-accent-blue); color: var(--xc-accent-blue); transform: translateY(-1px); }
+.ir-report-tool:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 3px; }
+.ir-report-tool :deep(svg) { width: 20px; height: 20px; stroke-width: 1.8; }
 .ir-report-document { width: min(241.5mm, calc(100vw - 128px)); margin: 0 auto; background: var(--xc-report-page); box-shadow: var(--xc-shadow-lg); font-family: var(--xc-font-zh); line-height: var(--xc-lh-loose); }
 .ir-report-body { padding: 22mm 24mm 28mm; }
 .ir-report-intro { margin: 0 0 16px; color: var(--xc-text-soft); }
@@ -280,5 +311,6 @@ function formatFixedNumber(value) {
 .ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
 .ir-report-model-section { margin-top: 36px; }.ir-report-model-section:first-child { margin-top: 0; }
 .ir-report-empty { width: min(700px, 90vw); margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
-@media (max-width: 1000px) { .ir-report-page { padding: 16px; }.ir-report-actions { right: 16px; top: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-revenue-layout { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .ir-report-tool { transition: none; }.ir-report-tool:hover { transform: none; } }
+@media (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-revenue-layout { grid-template-columns: 1fr; } }
 </style>

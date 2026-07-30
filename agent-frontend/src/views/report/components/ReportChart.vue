@@ -1,11 +1,12 @@
 <template>
   <section class="ir-report-chart">
     <div ref="el" class="ir-report-chart__canvas" />
+    <img v-if="snapshot" class="ir-report-chart__print" :src="snapshot" alt="" />
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { formatNumber } from '@/utils/formatNumber'
 import { useEcharts, xcChartColors, xcVar } from '@/views/home/composables/useEcharts'
 
@@ -13,6 +14,8 @@ const props = defineProps({
   kind: { type: String, required: true },
   data: { type: Object, default: () => ({}) },
 })
+
+const snapshot = ref('')
 
 const numbers = (values) => (values || []).map((value) => (typeof value === 'number' ? value : null))
 const years = (length) => Array.from({ length }, (_, index) => `第${index + 1}年`)
@@ -210,7 +213,13 @@ const option = () => {
     }],
   }
 }
-const { el, getDataURL } = useEcharts(option)
+const { el, getDataURL } = useEcharts(option, {
+  // 每次重绘后缓存一张 PNG 快照。打印时用 <img> 替换 ECharts 的绝对定位 <canvas>，
+  // 图片 width:100% 天然不会溢出边框，规避画布按屏幕宽度绘制导致的偏移/出框。
+  onRendered: ({ getDataURL: snap }) => {
+    snapshot.value = snap({ type: 'png', pixelRatio: 2, backgroundColor: xcVar('--xc-report-card') })
+  },
+})
 defineExpose({
   toPrintImage: () => getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: xcVar('--xc-report-card') }),
 })
@@ -219,4 +228,10 @@ defineExpose({
 <style scoped>
 .ir-report-chart { width: 100%; min-height: 300px; break-inside: avoid; }
 .ir-report-chart__canvas { width: 100%; height: 300px; }
+.ir-report-chart__print { display: none; }
+@media print {
+  /* 打印态隐藏实时画布、改用等宽自适应的静态快照，杜绝出框 */
+  .ir-report-chart__canvas { display: none !important; }
+  .ir-report-chart__print { display: block !important; width: 100% !important; height: auto !important; }
+}
 </style>

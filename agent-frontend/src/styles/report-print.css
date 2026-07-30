@@ -1,18 +1,42 @@
 @page {
   size: A4 portrait;
-  margin: 16mm 17mm 18mm;
+  margin: 18mm 0 22mm;
+}
+
+@page :first {
+  size: A4 portrait;
+  margin: 0;
 }
 
 @media print {
   html,
   body,
-  #app {
+  #app,
+  .ir-layout,
+  .ir-layout__body,
+  .ir-layout__viewport {
     width: 100% !important;
     min-width: 0 !important;
     height: auto !important;
     min-height: 0 !important;
+    max-height: none !important;
     overflow: visible !important;
     background: var(--xc-report-page) !important;
+  }
+
+  /* 屏幕态 .ir-report-page 有 padding: 32px 64px 72px，会把封面向右下推、
+     导致封面无法铺满且溢出到次页。打印时必须清零，让 document 贴合物理页边。 */
+  .ir-report-page {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+    background: var(--xc-report-page) !important;
+  }
+
+  .ir-layout,
+  .ir-layout__body,
+  .ir-layout__viewport {
+    display: block !important;
   }
 
   body {
@@ -31,11 +55,11 @@
   }
 
   .ir-report-document {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
+    position: static !important;
+    display: block !important;
     width: 100% !important;
     max-width: none !important;
+    height: auto !important;
     min-height: 0 !important;
     margin: 0 !important;
     padding: 0 !important;
@@ -44,7 +68,11 @@
     box-shadow: none !important;
   }
 
+  .ir-report-tools,
   .ir-report-actions,
+  .ir-layout__topbar,
+  .ir-layout__welcome-backdrop,
+  .ir-layout__sidebar-open,
   .app-header,
   .app-sidebar,
   .app-rail,
@@ -57,8 +85,8 @@
   }
 
   .ir-report-cover {
-    width: calc(210mm - 34mm) !important;
-    height: calc(297mm - 34mm) !important;
+    width: 210mm !important;
+    height: 297mm !important;
     min-height: 0 !important;
     margin: 0 !important;
     break-after: page !important;
@@ -67,9 +95,10 @@
 
   .ir-report-cover__image {
     position: absolute !important;
-    inset: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
+    inset: -1px !important;
+    display: block !important;
+    width: calc(100% + 2px) !important;
+    height: calc(100% + 2px) !important;
     object-fit: cover !important;
   }
 
@@ -79,25 +108,43 @@
   }
 
   .ir-report-body {
-    padding: 0 !important;
+    box-sizing: border-box;
+    margin: 0 !important;
+    padding: 0 20mm !important;
     background: var(--xc-report-page) !important;
   }
 
-  .ir-report-section {
-    margin-top: 0 !important;
-    break-before: page !important;
-    page-break-before: always !important;
-  }
-
-  .ir-report-section:first-child {
-    break-before: auto !important;
-    page-break-before: auto !important;
+  .ir-report-section + .ir-report-section {
+    margin-top: 13mm !important;
   }
 
   .ir-report-chapter-heading,
   .ir-report-heading {
-    break-after: avoid !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+    break-after: avoid-page !important;
     page-break-after: avoid !important;
+  }
+
+  .ir-report-chapter-heading + *,
+  .ir-report-heading + * {
+    break-before: avoid-page !important;
+    page-break-before: avoid !important;
+  }
+
+  /* 小标题与正文之间常插一段引导语（如 4.1/4.2），引导语也必须与其后的表格/图卡
+     绑在一起，否则会出现“标题+引导语在上一页、表格在下一页”的断裂。 */
+  .ir-report-intro {
+    break-after: avoid-page !important;
+    page-break-after: avoid !important;
+  }
+
+  /* 正文段落避免在页尾/页首留下孤行，减少视觉上的“大段空白”观感。 */
+  .ir-report-intro,
+  .ir-report-market-copy p,
+  .ir-report-ai-analysis p {
+    orphans: 3 !important;
+    widows: 3 !important;
   }
 
   .ir-report-table-wrap {
@@ -126,9 +173,7 @@
   .ir-report-table--short,
   .ir-report-revenue-layout,
   .ir-report-operation-group,
-  .ir-report-chart-card,
-  .ir-report-chart,
-  .ir-report-chart__canvas {
+  .ir-report-chart-card {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
@@ -144,7 +189,8 @@
   }
 
   .ir-report-ai-analysis {
-    break-inside: avoid-page !important;
+    break-inside: auto !important;
+    page-break-inside: auto !important;
   }
 
   .ir-report-revenue-layout {

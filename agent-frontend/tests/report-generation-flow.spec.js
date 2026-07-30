@@ -52,6 +52,7 @@ describe('report generation conversation cards', () => {
     expect(nodes.every((node) => node.status === 'completed')).toBe(true)
     expect(message).toMatchObject({
       phase: 'completed',
+      taskId: 42,
       reportId: 'r-8',
       answerText: '正式报告已生成，可查看完整报告。',
       done: true,
@@ -84,6 +85,7 @@ describe('report generation conversation cards', () => {
     const message = store.messages.find((item) => item.flow === 'report')
     expect(thinkingNodes(message.thinkingState).some((node) => node.status === 'aborted')).toBe(true)
     expect(message.phase).toBe('error')
+    expect(message.taskId).toBe(42)
     expect(message.answerText).toContain('中台调用失败')
     expect(message.reportId).toBeNull()
   })

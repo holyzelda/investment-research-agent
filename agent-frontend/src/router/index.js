@@ -11,6 +11,12 @@ const routes = [
     meta: { title: '用户登录', hidden: true },
   },
   {
+    path: '/reports/:reportId',
+    name: 'ReportDetail',
+    component: () => import('@/views/report/index.vue'),
+    meta: { title: '正式报告' },
+  },
+  {
     path: '/',
     name: 'Root',
     component: () => import('@/layout/index.vue'),
@@ -21,12 +27,6 @@ const routes = [
         name: 'Home',
         component: () => import('@/views/home/index.vue'),
         meta: { title: '对话首页' },
-      },
-      {
-        path: 'reports/:reportId',
-        name: 'ReportDetail',
-        component: () => import('@/views/report/index.vue'),
-        meta: { title: '正式报告', collapseSidebar: true },
       },
       {
         path: 'index-map',
