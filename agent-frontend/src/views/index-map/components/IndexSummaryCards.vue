@@ -12,7 +12,7 @@ defineProps({ summary: { type: Object, default: null } })
 </script>
 <style scoped>
 .index-summary-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 64px; border: 1px solid var(--xc-border-soft); border-radius: 8px; background: rgba(40, 48, 52, 0.72); overflow: hidden; }
-article { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 6px; min-width: 0; padding: 10px 12px; }
+article { display: grid; grid-template-columns: auto 1fr auto; align-content: center; align-items: baseline; gap: 6px; min-width: 0; padding: 10px 12px; }
 article + article { border-left: 1px solid var(--xc-border-soft); }
 span, em { overflow: hidden; color: var(--xc-text-mute); font-size: 11px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
 strong { overflow: hidden; color: var(--xc-text-strong); font-size: 18px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
