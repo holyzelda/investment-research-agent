@@ -40,34 +40,20 @@
         <span>玄策电力交易智慧决策</span>
         <span>平台</span>
       </h1>
-      <p class="hero-sub">让稳定的<em>清洁电力</em> 惠及每一个人</p>
-
-      <div class="feature-row">
-        <article v-for="feature in features" :key="feature.title" class="feature-item">
-          <span class="feature-icon">
-            <component :is="feature.icon" aria-hidden="true" />
-          </span>
-          <strong>{{ feature.title }}</strong>
-          <em>{{ feature.desc }}</em>
-        </article>
-      </div>
+      <p class="hero-sub">让稳定的<em>清洁电力</em>惠及每一个人</p>
     </section>
 
-    <section class="market-card glass-card" aria-label="实时电力现货行情">
-      <header class="market-head">
-        <h3>实时电力现货行情</h3>
-        <div class="market-time">
-          <span>{{ marketTime }}</span>
-          <RefreshCwIcon aria-hidden="true" />
-        </div>
-      </header>
-      <div class="market-metrics">
-        <article v-for="metric in metrics" :key="metric.label" class="metric-item">
-          <span>{{ metric.label }}</span>
-          <strong>{{ metric.value }}</strong>
+    <section class="capability-card glass-card" aria-label="平台核心能力">
+
+      <div class="capability-grid">
+        <article v-for="capability in capabilities" :key="capability.title" class="capability-item">
+          <span class="capability-icon">
+            <component :is="capability.icon" aria-hidden="true" />
+          </span>
+          <strong>{{ capability.title }}</strong>
+          <p>{{ capability.desc }}</p>
         </article>
       </div>
-      <div ref="lineChartRef" class="market-chart"></div>
     </section>
 
     <section class="login-card glass-card" aria-label="用户登录">
@@ -138,21 +124,26 @@
       </div>
     </section>
 
-    <section class="notice-card glass-card" aria-label="市场公告">
-      <header class="notice-head">
-        <h3>市场公告</h3>
-        <a href="javascript:void(0)">
-          更多
-          <ChevronRightIcon aria-hidden="true" />
-        </a>
+    <section class="quick-card glass-card" aria-label="快速入口">
+      <header class="quick-head">
+        <h3>快速入口</h3>
+        <ChevronRightIcon aria-hidden="true" />
       </header>
-      <ul class="notice-list">
-        <li v-for="notice in notices" :key="notice.title">
-          <span class="notice-dot" aria-hidden="true"></span>
-          <span class="notice-title">{{ notice.title }}</span>
-          <span class="notice-date">{{ notice.date }}</span>
-        </li>
-      </ul>
+      <div class="quick-grid">
+        <a
+          v-for="entry in quickEntries"
+          :key="entry.title"
+          :class="`is-${entry.tone}`"
+          href="javascript:void(0)"
+          class="quick-entry"
+        >
+          <span class="quick-icon">
+            <component :is="entry.icon" aria-hidden="true" />
+          </span>
+          <strong>{{ entry.title }}</strong>
+          <span>{{ entry.desc }}</span>
+        </a>
+      </div>
     </section>
 
     <footer class="login-footer">
@@ -166,7 +157,7 @@
         <span>贡献</span>
       </div>
       <p>
-        西安玄策电力交易中心 版权所有 © 2026
+        西安玄策电力交易辅助中心 版权所有 © 2026
         <a href="https://beian.miit.gov.cn/#/Integrated/recordQuery" target="_blank" rel="noopener noreferrer">
           陕ICP备20010223号-3
         </a>
@@ -178,27 +169,30 @@
 </template>
 
 <script setup>
-import { nextTick, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import * as echarts from 'echarts'
 import {
+  BookOpen as BookOpenIcon,
+  Boxes as BoxesIcon,
+  BrainCircuit as BrainCircuitIcon,
   ChevronDown as ChevronDownIcon,
   ChevronRight as ChevronRightIcon,
-  Droplets as DropletsIcon,
+  CircleHelp as CircleHelpIcon,
+  ContactRound as ContactRoundIcon,
   Eye as EyeIcon,
   EyeOff as EyeOffIcon,
   Headphones as HeadphonesIcon,
   KeyRound as KeyRoundIcon,
   LockKeyhole as LockKeyholeIcon,
   Megaphone as MegaphoneIcon,
+  Network as NetworkIcon,
   RefreshCw as RefreshCwIcon,
+  Route as RouteIcon,
   Settings2 as Settings2Icon,
   ShieldCheck as ShieldCheckIcon,
-  TrendingUp as TrendingUpIcon,
   User as UserIcon,
   UserRound as UserRoundIcon,
-  Zap as ZapIcon,
 } from '@lucide/vue'
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
@@ -214,40 +208,46 @@ const permission = usePermissionStore()
 const loading = ref(false)
 const showPassword = ref(false)
 const rememberMe = ref(true)
-const lineChartRef = ref(null)
 const codeUrl = ref('')
 const captchaEnabled = ref(true)
 const captchaError = ref(false)
 const pageScale = ref(1)
 const form = reactive({ username: '', password: '', code: '', uuid: '' })
-let lineChart = null
-let resizeObserver = null
 
-const marketTime = '2026-06-01 10:30:00'
-
-const features = [
-  { icon: ZapIcon, title: '电力现货交易', desc: '高效透明' },
-  { icon: DropletsIcon, title: '智慧决策分析', desc: '精准洞察' },
-  { icon: TrendingUpIcon, title: '清洁能源消纳', desc: '绿色低碳' },
-  { icon: ShieldCheckIcon, title: '安全高效运行', desc: '稳定可靠' },
+const capabilities = [
+  {
+    icon: BoxesIcon,
+    title: '全流程交易辅助',
+    desc: '覆盖交易全流程，提供专业工具与自动化支持，提升交易效率与决策能力。',
+  },
+  {
+    icon: BrainCircuitIcon,
+    title: 'AI 智能决策引擎',
+    desc: '融合多源数据与先进算法，驱动策略生成与优化，辅助科学决策。',
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: '风险控制体系',
+    desc: '多维度风险识别与预警，构建稳健风控体系，保障交易安全。',
+  },
+  {
+    icon: NetworkIcon,
+    title: '数据洞察',
+    desc: '汇聚交易与市场数据，提供多维分析与趋势洞察，让关键变化清晰可见。',
+  },
 ]
 
-const metrics = [
-  { label: '实时价格(元/MWh)', value: '256.35' },
-  { label: '实时负荷(MW)', value: '18,653' },
-  { label: '新能源出力(MW)', value: '6,512' },
+const quickEntries = [
+  { icon: RouteIcon, title: '新手引导', desc: '快速了解平台\n功能与操作', tone: 'purple' },
+  { icon: BookOpenIcon, title: '产品文档', desc: '查看平台使用\n手册与说明', tone: 'green' },
+  { icon: CircleHelpIcon, title: '常见问题', desc: '解答使用过程中\n常见问题', tone: 'amber' },
+  { icon: ContactRoundIcon, title: '联系我们', desc: '获取专业团队\n支持与服务', tone: 'cyan' },
 ]
 
 const authMethods = [
   { icon: ShieldCheckIcon, label: '统一身份认证' },
   { icon: KeyRoundIcon, label: '安全会话' },
   { icon: Settings2Icon, label: '权限动态管控' },
-]
-
-const notices = [
-  { title: '关于开展蒙西电力现货市场日前结算试运行的公告', date: '2026-05-30' },
-  { title: '蒙西电力现货市场结算细则修订说明', date: '2026-05-28' },
-  { title: '关于清洁能源消纳保障机制的通知', date: '2026-05-25' },
 ]
 
 const DESIGN_WIDTH = 2560
@@ -271,38 +271,6 @@ async function getCode() {
     captchaError.value = true
     codeUrl.value = ''
     ElMessage.error(error.message || '验证码获取失败')
-  }
-}
-
-function initCharts() {
-  if (lineChartRef.value) {
-    lineChart = echarts.init(lineChartRef.value, null, { renderer: 'svg' })
-    lineChart.setOption({
-      animation: true,
-      grid: { left: 4, right: 4, top: 8, bottom: 4 },
-      xAxis: {
-        type: 'category',
-        show: false,
-        boundaryGap: false,
-        data: ['00:00', '03:00', '06:00', '09:00', '12:00', '15:00', '18:00', '21:00', '24:00'],
-      },
-      yAxis: { type: 'value', show: false, scale: true },
-      series: [
-        {
-          type: 'line',
-          smooth: true,
-          symbol: 'none',
-          data: [210, 228, 240, 233, 248, 262, 255, 268, 256],
-          lineStyle: { width: 2.2, color: '#4d9bff' },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              { offset: 0, color: 'rgba(77,155,255,.38)' },
-              { offset: 1, color: 'rgba(77,155,255,0)' },
-            ]),
-          },
-        },
-      ],
-    })
   }
 }
 
@@ -330,22 +298,14 @@ async function onLogin() {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   updateScale()
   window.addEventListener('resize', updateScale)
   getCode()
-  await nextTick()
-  initCharts()
-  resizeObserver = new ResizeObserver(() => {
-    lineChart?.resize()
-  })
-  if (lineChartRef.value) resizeObserver.observe(lineChartRef.value)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateScale)
-  resizeObserver?.disconnect()
-  lineChart?.dispose()
 })
 </script>
 
@@ -473,8 +433,7 @@ onBeforeUnmount(() => {
 
 .top-nav svg,
 .login-card header svg,
-.security-row svg,
-.feature-icon svg {
+.security-row svg {
   width: 22px;
   height: 22px;
   stroke-width: 1.8;
@@ -529,125 +488,75 @@ onBeforeUnmount(() => {
   text-shadow: 0 0 20px rgba(53, 208, 255, 0.4);
 }
 
-.feature-row {
-  display: flex;
-  gap: 46px;
-  margin-top: 38px;
-}
-
-.feature-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-
-.feature-icon {
-  display: grid;
-  place-items: center;
-  width: 58px;
-  height: 58px;
-  margin-bottom: 14px;
-  color: var(--cyan);
-  background: linear-gradient(160deg, rgba(53, 208, 255, 0.22), rgba(47, 123, 255, 0.12));
-  border: 1px solid rgba(77, 155, 255, 0.4);
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
-}
-
-.feature-icon svg {
-  width: 26px;
-  height: 26px;
-  filter: drop-shadow(0 0 10px rgba(53, 208, 255, 0.5));
-}
-
-.feature-item strong {
-  font-size: 19px;
-  font-weight: 600;
-}
-
-.feature-item em {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 14px;
-  font-style: normal;
-}
-
 /* ---------- 玻璃卡片通用 ---------- */
 .glass-card {
   border-radius: 16px;
   background: var(--panel-bg);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(4px);
   border: 1px solid var(--line);
   box-shadow: var(--shadow);
 }
 
-/* ---------- 实时行情卡片 ---------- */
-.market-card {
+/* ---------- 平台核心能力 ---------- */
+.capability-card {
   position: absolute;
   left: 30px;
-  top: 680px;
-  width: 660px;
+  top: 660px;
+  width: 830px;
   box-sizing: border-box;
-  padding: 22px 26px 16px;
+  padding: 22px 26px 28px;
   z-index: 4;
 }
 
-.market-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.market-head h3 {
+.capability-card h3 {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
 }
 
-.market-time {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 14px;
-}
-
-.market-time svg {
-  width: 18px;
-  height: 18px;
-  color: var(--blue-light);
-  cursor: pointer;
-}
-
-.market-metrics {
+.capability-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-top: 20px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px;
+  margin-top: 28px;
 }
 
-.metric-item {
+.capability-item {
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.metric-item span {
+.capability-icon {
+  display: grid;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  place-items: center;
+  color: var(--cyan);
+  background: linear-gradient(160deg, rgba(53, 208, 255, 0.24), rgba(47, 123, 255, 0.14));
+  border: 1px solid rgba(77, 155, 255, 0.42);
+  clip-path: polygon(50% 0, 100% 22%, 100% 78%, 50% 100%, 0 78%, 0 22%);
+}
+
+.capability-icon svg {
+  width: 29px;
+  height: 29px;
+  stroke-width: 1.8;
+  filter: drop-shadow(0 0 10px rgba(53, 208, 255, 0.5));
+}
+
+.capability-item strong {
+  color: rgba(237, 245, 255, 0.96);
+  font-size: 17px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.capability-item p {
+  margin: 12px 0 0;
   color: var(--muted);
   font-size: 13px;
-}
-
-.metric-item strong {
-  color: var(--cyan);
-  font-size: 30px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-.market-chart {
-  width: 100%;
-  height: 64px;
-  margin-top: 14px;
+  line-height: 1.7;
 }
 
 /* ---------- 登录卡片 ---------- */
@@ -893,95 +802,102 @@ onBeforeUnmount(() => {
   filter: drop-shadow(0 0 10px rgba(47, 123, 255, 0.45));
 }
 
-/* ---------- 市场公告卡片 ---------- */
-.notice-card {
+/* ---------- 快速入口 ---------- */
+.quick-card {
   position: absolute;
-  top: 760px;
+  top: 740px;
   right: 30px;
   width: 560px;
   box-sizing: border-box;
-  padding: 22px 28px;
+  padding: 22px 28px 26px;
   z-index: 4;
 }
 
-.notice-head {
+.quick-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
 }
 
-.notice-head h3 {
+.quick-head h3 {
   margin: 0;
   font-size: 20px;
   font-weight: 700;
 }
 
-.notice-head a {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.quick-head svg {
+  width: 16px;
+  height: 16px;
   color: var(--muted);
-  font-size: 14px;
+}
+
+.quick-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 26px;
+}
+
+.quick-entry {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  color: inherit;
+  text-align: center;
   text-decoration: none;
 }
 
-.notice-head a svg {
-  width: 16px;
-  height: 16px;
+.quick-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 14px;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 10px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  box-shadow: 0 0 18px color-mix(in srgb, currentColor 24%, transparent);
 }
 
-.notice-head a:hover {
+.quick-icon svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.8;
+}
+
+.quick-entry strong {
+  color: rgba(237, 245, 255, 0.96);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.quick-entry > span:last-child {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.quick-entry:hover strong {
   color: var(--cyan);
 }
 
-.notice-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.quick-entry.is-purple {
+  color: #8d5cff;
 }
 
-.notice-list li {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px 0;
-  border-bottom: 1px solid rgba(96, 150, 240, 0.12);
+.quick-entry.is-green {
+  color: #1ecf9a;
 }
 
-.notice-list li:last-child {
-  border-bottom: 0;
+.quick-entry.is-amber {
+  color: #f0ae3d;
 }
 
-.notice-dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--blue-light);
-  box-shadow: 0 0 8px rgba(77, 155, 255, 0.8);
-}
-
-.notice-title {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  color: rgba(224, 236, 255, 0.86);
-  font-size: 15px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  transition: color 0.2s ease;
-}
-
-.notice-list li:hover .notice-title {
-  color: var(--cyan);
-  cursor: pointer;
-}
-
-.notice-date {
-  flex-shrink: 0;
-  color: var(--faint);
-  font-size: 14px;
+.quick-entry.is-cyan {
+  color: #39b9ff;
 }
 
 /* ---------- 页脚 ---------- */
