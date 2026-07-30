@@ -107,10 +107,9 @@
                   :switches="calc.switches"
                   :station-options="calc.stationOptions"
                   :responding="calc.responding"
-                  :report="calc.versions.find((item) => item.version === m.version)?.report"
+                  :report="calc.versions.find((item) => item.taskId === m.taskId)?.report"
                   @recalculate="calc.recalculate($event)"
                   @generate-report="calc.generateReport(m.taskId)"
-                  @view-report="openReport"
                 />
               </div>
               <ul v-if="m.recommendedQuestions && m.recommendedQuestions.length" class="ir-msg__recommend">
@@ -139,10 +138,9 @@
                 :switches="calc.switches"
                 :station-options="calc.stationOptions"
                 :responding="calc.responding"
-                :report="m.report || calc.versions.find((item) => item.version === m.version)?.report"
+                :report="m.report || calc.versions.find((item) => item.taskId === m.taskId)?.report"
                 @recalculate="calc.recalculate($event)"
-                @generate-report="calc.generateReport(calc.versions.find((item) => item.version === m.version)?.taskId)"
-                @view-report="openReport"
+                @generate-report="calc.generateReport(m.taskId)"
               />
             </div>
             <img

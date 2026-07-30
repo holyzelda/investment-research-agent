@@ -48,6 +48,7 @@
       :advanced-override-count="advancedOverrideCount"
       @recalculate="$emit('recalculate', $event)"
       @open-advanced="openAdvanced"
+      @dirty-change="regularParametersDirty = $event"
     />
 
     <AdvancedParamDialog
@@ -59,18 +60,24 @@
       @save="saveAdvancedDraft"
     />
 
-    <div class="ir-result__footer">
+    <div v-if="report?.status !== 'completed'" class="ir-result__footer">
+      <span v-if="hasPendingParameterChanges" id="ir-result-report-hint" class="ir-result__report-hint">
+        参数修改尚未形成新版本，请先重新测算
+      </span>
+      <span v-else class="ir-result__report-hint">确认当前测算结果后，可生成正式投资报告</span>
       <button
-        v-if="report?.status === 'completed'"
-        class="ir-result__act ir-result__act--ghost"
-        @click="$emit('view-report', report.reportId)"
-      >已生成报告</button>
-      <button
-        v-else
-        class="ir-result__act ir-result__act--ghost"
-        :disabled="report?.status === 'generating'"
+        type="button"
+        class="ir-result__act"
+        :disabled="report?.status === 'generating' || hasPendingParameterChanges"
+        :aria-describedby="hasPendingParameterChanges ? 'ir-result-report-hint' : undefined"
         @click="$emit('generate-report')"
-      >{{ report?.status === 'generating' ? '报告生成中' : report?.status === 'failed' ? '重新生成报告' : '生成报告' }}</button>
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M6 2.75h8l4 4V21.25H6z" stroke-linejoin="round" />
+          <path d="M14 2.75v4h4M9 11h6M9 14.5h6M9 18h4" stroke-linecap="round" />
+        </svg>
+        {{ hasPendingParameterChanges ? '请先重新测算' : report?.status === 'generating' ? '报告生成中' : report?.status === 'failed' ? '重新生成报告' : '生成报告' }}
+      </button>
     </div>
   </div>
 </template>
@@ -97,7 +104,7 @@ const props = defineProps({
   responding: { type: Boolean, default: false },
   report: { type: Object, default: null },
 })
-defineEmits(['recalculate', 'generate-report', 'view-report'])
+defineEmits(['recalculate', 'generate-report'])
 const advanced = computed(() => props.result.advanced || { donut: {}, debtServiceCoverage: {} })
 const warnings = computed(() => props.result.warnings || [])
 
@@ -115,6 +122,7 @@ const calculatedAtText = computed(() => {
 })
 const advancedOpen = ref(false)
 const advancedOverrides = ref({})
+const regularParametersDirty = ref(false)
 const paramAdjustPanel = ref(null)
 const ADVANCED_IDS = new Set([
   'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
@@ -129,9 +137,13 @@ const advancedOverrideCount = computed(() => props.paramDict.reduce((count, spec
   const baseline = normalizeAdvancedValue(baselineValue, spec.step)
   return draft === baseline ? count : count + 1
 }, 0))
+const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0)
 
 // 高级参数仅是当前结果卡的未提交草稿：新版本/历史版本切换到其他入参时自动清空。
-watch(() => [props.version, props.seedInput], () => { advancedOverrides.value = {} }, { deep: true })
+watch(() => [props.version, props.seedInput], () => {
+  advancedOverrides.value = {}
+  regularParametersDirty.value = false
+}, { deep: true })
 function normalizeAdvancedValue(value, step) {
   return typeof value === 'number' && step ? roundToStep(value, step) : value
 }
@@ -238,7 +250,12 @@ function saveAdvancedDraft(overrides) {
 .ir-result__charts > * { min-width:0; }
 @media (max-width:900px) { .ir-result__charts { grid-template-columns:1fr; } }
 .ir-result__warn { display:flex; flex-direction:column; gap:var(--xc-space-2); padding:0 var(--xc-space-6); font-size:var(--xc-fs-xs); color:var(--xc-status-warn); }
-.ir-result__footer { display:flex; align-items:center; gap:var(--xc-space-4); padding:var(--xc-space-5) var(--xc-space-6); border-top:1px solid var(--xc-border-soft); }
-.ir-result__act { font-size:var(--xc-fs-xs); color:var(--xc-text-soft); background:var(--xc-surface-card); border:1px solid var(--xc-border-card); border-radius:var(--xc-radius-md); padding:var(--xc-space-2) var(--xc-space-4); cursor:not-allowed; }
-.ir-result__act--ghost { background:transparent; }
+.ir-result__footer { display:flex; align-items:center; justify-content:space-between; gap:var(--xc-space-4); min-height:58px; padding:var(--xc-space-4) var(--xc-space-6); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-tinted); }
+.ir-result__report-hint { color:var(--xc-text-mute); font-size:var(--xc-fs-2xs); line-height:var(--xc-lh-normal); }
+.ir-result__act { display:inline-flex; align-items:center; justify-content:center; gap:var(--xc-space-2); min-height:38px; flex:0 0 auto; padding:0 var(--xc-space-5); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-accent-blue-soft); color:var(--xc-accent-blue); font:inherit; font-size:var(--xc-fs-xs); font-weight:var(--xc-fw-medium); cursor:pointer; transition:border-color var(--xc-dur-fast),background var(--xc-dur-fast),color var(--xc-dur-fast),box-shadow var(--xc-dur-fast); }
+.ir-result__act svg { width:16px; height:16px; }
+.ir-result__act:hover:not(:disabled) { border-color:var(--xc-accent-blue); color:var(--xc-text-strong); box-shadow:var(--xc-glow-blue); }
+.ir-result__act:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; }
+.ir-result__act:disabled { border-color:var(--xc-border-soft); background:var(--xc-surface-control); color:var(--xc-text-mute); cursor:not-allowed; opacity:.72; box-shadow:none; }
+@media (max-width:640px) { .ir-result__footer { align-items:stretch; flex-direction:column; } .ir-result__act { width:100%; } }
 </style>

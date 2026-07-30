@@ -293,8 +293,8 @@ async def test_cross_user_resources_return_404(history_context, method, path_key
             "province": "甘肃",
             "capacity_mwh": 800,
             "power_mw": 200,
-            "conversation_id": ids["foreign"],
         }
+        kwargs["headers"] = {**_USER_1, "conversation-id": ids["foreign"]}
 
     response = await getattr(client, method)(paths[path_key], **kwargs)
 

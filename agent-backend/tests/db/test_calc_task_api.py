@@ -59,8 +59,7 @@ async def test_task_create_status_result_and_versioning(client):
     # 同会话再发 → V2（不覆盖）
     r2 = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
-        "conversation_id": conv_id,
-    })
+    }, headers={**_HEADERS, "conversation-id": conv_id})
     assert r2.json()["data"]["version"] == "V2"
 
 

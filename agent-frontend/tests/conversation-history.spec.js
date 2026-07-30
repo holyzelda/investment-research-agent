@@ -153,6 +153,7 @@ describe('conversation history sidebar and replay', () => {
     expect(store.conversationId).toBe(7)
     expect(store.messages.map((m) => m.kind)).toEqual(['text', 'result', 'text', 'result'])
     expect(store.messages[1].version).toBe('V1')
+    expect(store.messages[1].taskId).toBe(11)
     expect(store.messages[1].result.basicInfo.province).toBe('甘肃')
     expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
     expect(store.selectedVersion).toBe('V2')

@@ -84,6 +84,33 @@ describe('param adjustment: recalculate + param meta', () => {
     expect(store.selectedVersion).toBe('V2')
   })
 
+  it('recalculate 以后端返回的版本号追加新版本且不继承旧报告', async () => {
+    const store = useCalculationStore()
+    store.conversationId = 1
+    store.versions = [{
+      conversationId: 1,
+      taskId: 10,
+      version: 'V1',
+      status: 'completed',
+      result: resultOf('甘肃'),
+      input: { province: '甘肃' },
+      report: { status: 'completed', reportId: 'r-1' },
+    }]
+    api.createCalculationTask.mockResolvedValue({
+      data: { conversationId: 1, taskId: 11, version: 'V2', status: 'completed', input: { province: '甘肃', epc_unit_price: 0.8 } },
+    })
+    api.getCalculationResult.mockResolvedValue({ data: resultOf('甘肃') })
+
+    await store.recalculate({
+      overrides: { epc_unit_price: 0.8 },
+      basics: { node_name: '新节点', capacity_mwh: 400, power_mw: 100 },
+    })
+
+    expect(store.versions.map((item) => item.version)).toEqual(['V1', 'V2'])
+    expect(store.versions[1].report).toBeUndefined()
+    expect(store.selectedVersion).toBe('V2')
+  })
+
   it('recalculate 在无会话时不发起请求', async () => {
     const store = useCalculationStore()
     await store.recalculate({ overrides: {}, basics: { node_name: null, capacity_mwh: 1, power_mw: 1 } })

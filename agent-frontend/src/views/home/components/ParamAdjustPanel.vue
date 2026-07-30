@@ -166,7 +166,7 @@ const props = defineProps({
   version: { type: String, default: '' },
   responding: { type: Boolean, default: false },
 })
-const emit = defineEmits(['recalculate', 'open-advanced'])
+const emit = defineEmits(['recalculate', 'open-advanced', 'dirty-change'])
 
 const expanded = ref(false)
 const advancedTrigger = ref(null)
@@ -239,6 +239,7 @@ const hasLocalChanges = computed(() => zoneGroups.value.some((group) => group.it
   const current = normalizeValue(localValues[spec.id], spec.step)
   return current !== normalizeValue(baseline, spec.step)
 })))
+watch(hasLocalChanges, (dirty) => emit('dirty-change', dirty), { immediate: true })
 
 function normalizeValue(value, step) {
   return typeof value === 'number' && step ? roundToStep(value, step) : value

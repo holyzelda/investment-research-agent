@@ -156,6 +156,7 @@ export const useCalculationStore = defineStore('calculation', {
           cursor += 1
           return {
             id: nextId(), role: 'assistant', kind: 'result',
+            taskId: version.taskId,
             version: version.version, result: version.result, input: version.input,
             report: version.report, calculatedAt: version.calculatedAt,
           }
