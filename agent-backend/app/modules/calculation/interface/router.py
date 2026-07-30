@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
-from app.core.exceptions import NotFoundException
+from app.core.exceptions import NotFoundException, ValidationException
 from app.infrastructure.database.session import get_db_session
 from app.modules.calculation.application.factory import (
     build_calculation_service,
@@ -124,19 +124,21 @@ class TaskCreateReq(BaseModel):
     voltage_kv: int = 220
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
 
+from fastapi import Request  # 1. 导入 Request
 
 @router.post("/tasks")
 async def create_task(
     req: TaskCreateReq,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-    conversation_id: Optional[str] = Header(default=None, alias="conversation-id"),
+    conversation_id: Optional[str] = Header(default=None, alias="conversation_id"),
+    request: Request = None,
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
     try:
-        conv_id = str(UUID(conversation_id)) if conversation_id else None
-    except ValueError:
-        conv_id = None
+        conv_id = str(UUID(conversation_id)) if conversation_id is not None else None
+    except ValueError as exc:
+        raise ValidationException("conversation_id 格式无效") from exc
     svc = build_task_service()
     out = await svc.create_and_run(
         session,

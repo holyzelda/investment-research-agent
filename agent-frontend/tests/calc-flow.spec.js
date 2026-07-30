@@ -141,6 +141,26 @@ describe('calculation chat stream flow', () => {
     expect(store.responding).toBe(false)
   })
 
+  it('rejects a calculation result from a different conversation', async () => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('测算甘肃 200MW/800MWh')
+    handlers.onOpen({ conversationId: 'c1' })
+
+    answerEvent('', [{
+      tool: 'create_calculation_task',
+      payload: { data: { conversationId: 'c2', taskId: 't1', version: 'V1', status: 'completed' } },
+    }])
+    await promise
+    await flush()
+
+    const message = store.messages.at(-1)
+    expect(store.conversationId).toBe('c1')
+    expect(store.versions).toEqual([])
+    expect(api.getCalculationResult).not.toHaveBeenCalled()
+    expect(message.phase).toBe('error')
+    expect(message.answerText).toContain('会话标识不一致')
+  })
+
   it('stops the active stream and finalizes the message', async () => {
     const store = useCalculationStore()
     const promise = store.sendAndCalculate('开始')

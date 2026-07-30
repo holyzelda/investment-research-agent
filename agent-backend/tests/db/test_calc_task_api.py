@@ -56,11 +56,23 @@ async def test_task_create_status_result_and_versioning(client):
         1.12, 1.24, 0.0, None, 1.36, 1.48,
     ]
 
-    # 同会话再发 → V2（不覆盖）
+    # 同会话按中台回调契约再发 → V2（不覆盖）
     r2 = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
-    }, headers={**_HEADERS, "conversation-id": conv_id})
-    assert r2.json()["data"]["version"] == "V2"
+    }, headers={**_HEADERS, "conversation_id": conv_id})
+    d2 = r2.json()["data"]
+    assert d2["conversationId"] == conv_id
+    assert d2["version"] == "V2"
+
+
+@pytest.mark.asyncio
+async def test_invalid_conversation_id_returns_400(client):
+    r = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+    }, headers={**_HEADERS, "conversation_id": "not-a-uuid"})
+
+    assert r.status_code == 400
+    assert r.json() == {"code": 400, "msg": "conversation_id 格式无效", "data": None}
 
 
 @pytest.mark.asyncio

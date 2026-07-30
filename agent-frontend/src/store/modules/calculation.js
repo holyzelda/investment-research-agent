@@ -322,6 +322,7 @@ export const useCalculationStore = defineStore('calculation', {
 
       this._pushUser(content)
       const epoch = this.conversationEpoch
+      let expectedConversationId = this.conversationId
       const pendingStreamMsg = createStreamMessage()
       const currentTurnId = pendingStreamMsg.turnId
       this.messages.push(pendingStreamMsg)
@@ -368,7 +369,10 @@ export const useCalculationStore = defineStore('calculation', {
           {
             onOpen: ({ conversationId }) => {
               if (!this._isCurrentTurn(currentTurnId, epoch)) return
-              if (conversationId && !this.conversationId) this.conversationId = conversationId
+              if (conversationId) {
+                expectedConversationId = conversationId
+                if (!this.conversationId) this.conversationId = conversationId
+              }
             },
             onEvent: (e) => {
               if (!this._isCurrentTurn(currentTurnId, epoch)) return
@@ -383,7 +387,7 @@ export const useCalculationStore = defineStore('calculation', {
                   applyThinkingFrame(streamMsg.thinkingState, e.id, inner)
                   break
                 case 'answer':
-                  this._applyAnswerEvent(streamMsg, inner, epoch).catch((error) => {
+                  this._applyAnswerEvent(streamMsg, inner, epoch, expectedConversationId).catch((error) => {
                     if (this._isCurrentTurn(currentTurnId, epoch)) fail(error?.message || '测算结果读取失败')
                   })
                   break
@@ -421,7 +425,7 @@ export const useCalculationStore = defineStore('calculation', {
       })
     },
     // 处理 answer：文本先缓冲；测算结果据 taskId 预取，done 后再展示。
-    async _applyAnswerEvent(streamMsg, inner, epoch) {
+    async _applyAnswerEvent(streamMsg, inner, epoch, expectedConversationId) {
       const answerText = inner.answer || ''
       if (answerText) streamMsg.answerBuffer += answerText
 
@@ -430,6 +434,13 @@ export const useCalculationStore = defineStore('calculation', {
       if (!calcTool) return
 
       const created = calcTool.payload?.data || {}
+      if (
+        expectedConversationId
+        && created.conversationId
+        && expectedConversationId !== created.conversationId
+      ) {
+        throw new Error('会话标识不一致，测算结果未展示，请重试')
+      }
       if (created.conversationId && !this.conversationId && this.conversationEpoch === epoch) {
         this.conversationId = created.conversationId
       }
