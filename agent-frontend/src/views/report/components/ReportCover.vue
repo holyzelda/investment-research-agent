@@ -35,7 +35,7 @@ defineProps({
 </script>
 
 <style scoped>
-.ir-report-cover { position: relative; height: 297mm; overflow: hidden; color: var(--xc-text-strong); background: var(--xc-report-page); break-after: page; }
+.ir-report-cover { position: relative; height: 297mm; overflow: hidden; color: var(--xc-text-strong); background: var(--xc-report-page); }
 .ir-report-cover__image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .ir-report-cover__shade { position: absolute; inset: 0; background: var(--xc-report-cover-overlay); }
 .ir-report-cover__title { position: absolute; z-index: 1; top: 12%; left: 9%; width: 72%; }

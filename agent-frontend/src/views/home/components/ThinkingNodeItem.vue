@@ -24,7 +24,9 @@
         {{ node.title || '推理步骤' }}
         <span v-if="ordinal" class="ir-node__ordinal">{{ ordinal }}</span>
       </span>
-      <span v-if="displaySubtitle" class="ir-node__subtitle">{{ displaySubtitle }}</span>
+      <Transition name="ir-node-subtitle" mode="out-in">
+        <span v-if="displaySubtitle" :key="displaySubtitle" class="ir-node__subtitle">{{ displaySubtitle }}</span>
+      </Transition>
       <svg
         v-if="expandable"
         class="ir-node__chevron"
@@ -78,12 +80,15 @@ const displaySubtitle = computed(() => {
 .ir-node__icon--completed { color: var(--xc-status-ok); }
 .ir-node__icon--waiting_user { color: var(--xc-status-warn); }
 .ir-node__icon--aborted { color: var(--xc-status-danger); }
-.ir-node__spin { animation: ir-node-spin 0.9s linear infinite; }
+.ir-node__spin { animation: ir-node-spin 0.9s linear infinite; transform-box: fill-box; transform-origin: center; }
 @keyframes ir-node-spin { to { transform: rotate(360deg); } }
 .ir-node__title { flex: 0 0 auto; font-size: var(--xc-fs-xs); color: var(--xc-text-strong); }
 .ir-node--completed .ir-node__title,.ir-node--aborted .ir-node__title { color: var(--xc-text-soft); }
 .ir-node__ordinal { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); margin-left: 2px; }
 .ir-node__subtitle { flex: 1 1 auto; min-width: 0; font-size: var(--xc-fs-2xs); color: var(--xc-text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ir-node-subtitle-enter-active,.ir-node-subtitle-leave-active { transition: opacity var(--xc-dur-fast), transform var(--xc-dur-fast); }
+.ir-node-subtitle-enter-from { opacity: 0; transform: translateY(4px); }
+.ir-node-subtitle-leave-to { opacity: 0; transform: translateY(-4px); }
 .ir-node__chevron { flex: 0 0 auto; width: 13px; height: 13px; color: var(--xc-text-mute); transition: transform var(--xc-dur-fast); }
 .ir-node__chevron--open { transform: rotate(180deg); }
 .ir-node__body { padding: var(--xc-space-2) 0 var(--xc-space-2) 23px; }
@@ -95,6 +100,6 @@ const displaySubtitle = computed(() => {
 .ir-node__text { margin: 0; max-height: 180px; overflow-y: auto; white-space: pre-wrap; word-break: break-word; font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); color: var(--xc-text-mute); }
 @media (prefers-reduced-motion: reduce) {
   .ir-node__spin { animation: none; }
-  .ir-node__chevron { transition: none; }
+  .ir-node__chevron,.ir-node-subtitle-enter-active,.ir-node-subtitle-leave-active { transition: none; }
 }
 </style>

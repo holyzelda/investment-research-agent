@@ -18,9 +18,10 @@ vi.mock('@/views/home/components/ResultCard.vue', () => ({
 describe('calculation version list', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
+    Element.prototype.scrollIntoView = vi.fn()
   })
 
-  it('keeps message order fixed while selection border follows the clicked version', async () => {
+  it('keeps message order fixed while the selected version owns the expanded archive details', async () => {
     const store = useCalculationStore()
     store.messages = [
       { id: 'u1', role: 'user', kind: 'text', text: '第一次测算' },
@@ -29,8 +30,14 @@ describe('calculation version list', () => {
       { id: 'r2', role: 'assistant', kind: 'result', version: 'V2', result: { basicInfo: { province: '宁夏' } } },
     ]
     store.versions = [
-      { version: 'V1', result: { basicInfo: { province: '甘肃' }, financial: { capitalIrr: 8 } } },
-      { version: 'V2', result: { basicInfo: { province: '宁夏' }, financial: { capitalIrr: 9 } } },
+      {
+        version: 'V1', calculatedAt: '2026-07-27T10:00:00',
+        result: { basicInfo: { province: '甘肃' }, financial: { projectIrr: 8.1 } },
+      },
+      {
+        version: 'V2', calculatedAt: '2026-07-28T10:00:00',
+        result: { basicInfo: { province: '宁夏' }, financial: { projectIrr: 9.2 } },
+      },
     ]
     store.selectedVersion = 'V2'
     const wrapper = mount(HomeView, {
@@ -40,22 +47,30 @@ describe('calculation version list', () => {
     const items = wrapper.findAll('.ir-ver__item')
     expect(items.map((item) => item.find('.ir-ver__tag').text())).toEqual(['V2', 'V1'])
     expect(items[0].text()).toContain('最新')
-    expect(items[0].classes()).not.toContain('ir-ver__item--latest')
     expect(items[0].classes()).toContain('ir-ver__item--selected')
+    expect(items[0].text()).toContain('项目全投资 IRR')
+    expect(items[0].text()).toContain('9.20%')
     expect(items[1].classes()).not.toContain('ir-ver__item--selected')
+    expect(items[1].text()).toContain('查看结果')
+    expect(items[1].text()).not.toContain('项目全投资 IRR')
+    expect(items[1].get('.ir-ver__select').element.tagName).toBe('BUTTON')
     expect(wrapper.findAll('.ir-msg').map((message) => message.text())).toEqual([
       '第一次测算', 'V1-甘肃', '第二次测算', 'V2-宁夏',
     ])
 
-    await items[1].trigger('click')
+    await items[1].get('.ir-ver__select').trigger('click')
 
     expect(store.selectedVersion).toBe('V1')
     expect(items[0].classes()).not.toContain('ir-ver__item--selected')
-    expect(items[1].classes()).toContain('ir-ver__item--selected')
     expect(items[0].text()).toContain('最新')
+    expect(items[0].text()).toContain('查看结果')
+    expect(items[1].classes()).toContain('ir-ver__item--selected')
+    expect(items[1].text()).toContain('项目全投资 IRR')
+    expect(items[1].text()).not.toContain('查看结果')
     expect(wrapper.findAll('.ir-msg').map((message) => message.text())).toEqual([
       '第一次测算', 'V1-甘肃', '第二次测算', 'V2-宁夏',
     ])
     expect(wrapper.find('.ir-msg--selected-result .result-stub').text()).toBe('V1-甘肃')
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
   })
 })

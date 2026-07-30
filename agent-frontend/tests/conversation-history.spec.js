@@ -156,6 +156,33 @@ describe('conversation history sidebar and replay', () => {
     expect(store.selectedVersion).toBe('V2')
   })
 
+  it('openConversation preserves historical report payload and metadata without restarting generation', async () => {
+    api.getConversation.mockResolvedValue({ data: {
+      conversationId: 7,
+      messages: [
+        { role: 'assistant', content: 'V1 测算完成' },
+        { role: 'assistant', messageType: 'report_generated', content: '正式报告已生成', payload: { report_id: 'r-1', task_id: 11 } },
+      ],
+      versions: [{
+        taskId: 11,
+        version: 'V1',
+        status: 'completed',
+        input: { province: '甘肃', power_mw: 200, capacity_mwh: 800 },
+        result: { basicInfo: { province: '甘肃', powerMw: 200, capacityMwh: 800 } },
+        report: { reportId: 'r-1', taskId: 11, version: 'V1', status: 'completed', title: '甘肃储能项目投资报告' },
+      }],
+      reports: [{ reportId: 'r-1', taskId: 11, version: 'V1', status: 'completed', title: '甘肃储能项目投资报告' }],
+    } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+
+    expect(store.messages.map((message) => message.kind)).toEqual(['result', 'report-generated'])
+    expect(store.messages[1].payload).toEqual({ report_id: 'r-1', task_id: 11 })
+    expect(store.reports[0]).toMatchObject({ reportId: 'r-1', title: '甘肃储能项目投资报告' })
+    expect(api.createCalculationTask).not.toHaveBeenCalled()
+  })
+
   it('replayed conversation keeps its id for the next calculation', async () => {
     api.getConversation.mockResolvedValue({ data: detail })
     let handlers

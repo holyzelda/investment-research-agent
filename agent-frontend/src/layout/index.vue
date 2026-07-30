@@ -29,33 +29,31 @@
       </div>
     </header>
 
-    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden, 'is-report-view': isReportView }">
-      <template v-if="!isReportView">
-        <AppRail
-          :items="navItems"
-          :active="activeRail"
-          @nav="onNav"
-        />
-        <button
-          v-if="sidebarHidden && !route.meta.collapseSidebar"
-          class="ir-layout__sidebar-open"
-          aria-label="展开历史会话栏"
-          @click="sidebarHidden = false"
-        >
-          历史会话
-        </button>
-        <AppSidebar
-          :history="calc.history"
-          :current="calc.conversationId"
-          :hidden="sidebarHidden"
-          :can-hide="Boolean(route.meta.collapseSidebar)"
-          @visibility-change="sidebarHidden = $event"
-          @new-chat="onNewChat"
-          @open-history="onOpenHistory"
-          @delete-history="onDeleteHistory"
-          @rename-history="onRenameHistory"
-        />
-      </template>
+    <div class="ir-layout__body" :class="{ 'is-sidebar-hidden': sidebarHidden }">
+      <AppRail
+        :items="navItems"
+        :active="activeRail"
+        @nav="onNav"
+      />
+      <button
+        v-if="sidebarHidden && !route.meta.collapseSidebar"
+        class="ir-layout__sidebar-open"
+        aria-label="展开历史会话栏"
+        @click="sidebarHidden = false"
+      >
+        历史会话
+      </button>
+      <AppSidebar
+        :history="calc.history"
+        :current="calc.conversationId"
+        :hidden="sidebarHidden"
+        :can-hide="Boolean(route.meta.collapseSidebar)"
+        @visibility-change="sidebarHidden = $event"
+        @new-chat="onNewChat"
+        @open-history="onOpenHistory"
+        @delete-history="onDeleteHistory"
+        @rename-history="onRenameHistory"
+      />
       <main class="ir-layout__viewport">
         <router-view />
       </main>
@@ -93,7 +91,6 @@ const navItems = computed(() => permission.railRoutes.length
 const RAIL_TO_PATH = { home: '/home', index: '/index-map', line: '/tie-line', policy: '/policy-market' }
 const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'line', '/policy-market': 'policy' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
-const isReportView = computed(() => route.name === 'ReportDetail')
 // 欢迎态：仅首页且无会话时铺满全屏背景并在顶栏展示平台指标；发首条消息 / 打开历史 / 切换页面后自动隐藏
 const isWelcome = computed(() => route.name === 'Home' && calc.messages.length === 0)
 const sidebarHidden = ref(Boolean(route.meta.collapseSidebar))
@@ -359,12 +356,6 @@ onMounted(() => {
 }
 .ir-layout__body.is-sidebar-hidden {
   gap: 0;
-}
-.ir-layout__body.is-report-view {
-  gap: 0;
-}
-.ir-layout__body.is-report-view .ir-layout__viewport {
-  width: 100%;
 }
 .ir-layout__sidebar-open {
   position: absolute;

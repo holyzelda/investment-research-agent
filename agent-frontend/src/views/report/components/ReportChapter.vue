@@ -26,7 +26,7 @@ const chapterLabel = computed(() => props.title.replace('：', ' '))
 </script>
 
 <style scoped>
-.ir-report-section { margin-top: 72px; break-before: page; }
+.ir-report-section { margin-top: 72px; }
 .ir-report-section:first-of-type { margin-top: 0; }
 .ir-report-chapter-heading { display: flex; align-items: flex-start; gap: 16px; margin: 0 0 36px; break-after: avoid; string-set: chapter attr(data-chapter); }
 .ir-report-chapter-heading__icon { flex: 0 0 auto; width: 20px; height: 20px; margin-top: 4px; color: var(--xc-accent-blue); }
