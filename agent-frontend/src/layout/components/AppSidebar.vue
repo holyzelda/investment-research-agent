@@ -17,7 +17,7 @@
     <aside class="ir-shell" data-testid="app-shell" aria-label="应用菜单">
       <header class="ir-shell__brand">
         <span class="ir-shell__logo-frame">
-          <img class="ir-shell__logo" src="/brand-logo.svg" alt="" aria-hidden="true" />
+          <img class="ir-shell__logo" :src="zqLogoUrl" alt="" aria-hidden="true" />
         </span>
         <span class="ir-shell__brand-copy">
           <strong>朱雀投研智能体</strong>
@@ -127,6 +127,7 @@
 <script setup>
 import { computed } from 'vue'
 import { PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from '@lucide/vue'
+import zqLogoUrl from '@/assets/zq_logo.png'
 
 const ICON = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
@@ -249,15 +250,15 @@ function formatDateLabel(value) {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border: 1px solid var(--xc-border-soft);
   border-radius: var(--xc-radius-sm);
   background: var(--xc-surface-control);
 }
 
 .ir-shell__logo {
-  width: 18px;
-  height: 30px;
-  object-fit: contain;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--xc-radius-xs);
+  object-fit: cover;
 }
 
 .ir-shell__brand-copy {
@@ -576,6 +577,7 @@ function formatDateLabel(value) {
   gap: var(--xc-space-2);
 }
 .ir-shell-wrap.is-collapsed .ir-shell__logo-frame { width: 38px; height: 38px; }
+.ir-shell-wrap.is-collapsed .ir-shell__logo { width: 34px; height: 34px; }
 .ir-shell-wrap.is-collapsed .ir-shell__brand-copy,
 .ir-shell-wrap.is-collapsed .ir-shell__label,
 .ir-shell-wrap.is-collapsed .ir-shell__section-title,
