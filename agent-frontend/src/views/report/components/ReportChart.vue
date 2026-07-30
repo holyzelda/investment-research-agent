@@ -34,8 +34,31 @@ const option = () => {
     const slices = [
       ['电能量', donut.energyRevenue], ['容量市场', donut.capacityRevenue], ['调频市场', donut.frequencyRevenue],
       ['租赁市场', donut.leaseRevenue], ['干预补偿', donut.interventionRevenue], ['补贴', donut.subsidyRevenue],
-    ].filter(([, value]) => typeof value === 'number' && value > 0).map(([name, value]) => ({ name, value }))
-    return { color: colors, tooltip: { trigger: 'item', formatter: ({ name, value, percent }) => `${name}: ${formatNumber(value, 4)} 万元 (${formatNumber(percent, 2)}%)` }, series: [{ type: 'pie', radius: ['42%', '68%'], center: ['50%', '50%'], itemStyle: { borderColor: xcVar('--xc-surface-raised'), borderWidth: 2 }, label: { show: false }, data: slices }] }
+    ].map(([name, value], index) => ({ name, value, color: colors[index] }))
+      .filter(({ value }) => typeof value === 'number' && value > 0)
+      .map(({ name, value, color }) => ({ name, value, itemStyle: { color } }))
+    return {
+      color: colors,
+      tooltip: { trigger: 'item', formatter: ({ name, value, percent }) => `${name}: ${formatNumber(value, 4)} 万元 (${formatNumber(percent, 2)}%)` },
+      legend: {
+        show: true,
+        orient: 'vertical',
+        right: 8,
+        top: 'middle',
+        itemWidth: 9,
+        itemHeight: 9,
+        itemGap: 12,
+        icon: 'circle',
+        selectedMode: false,
+        textStyle: { color: ink },
+        data: slices.map(({ name }) => name),
+      },
+      series: [{
+        type: 'pie', radius: ['40%', '66%'], center: ['36%', '50%'],
+        itemStyle: { borderColor: xcVar('--xc-surface-raised'), borderWidth: 2 },
+        label: { show: false }, data: slices,
+      }],
+    }
   }
   if (props.kind === 'coverage') {
     const coverage = numbers(d.coverage)

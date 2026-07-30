@@ -130,7 +130,7 @@ async def create_task(
     req: TaskCreateReq,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-    conversation_id: Optional[str] = Header(default=None, alias="conversation_id"),
+    conversation_id: Optional[str] = Header(default=None, alias="conversation-id"),
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
     try:

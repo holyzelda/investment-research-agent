@@ -6,6 +6,7 @@
         type="button"
         title="打印报告"
         aria-label="打印报告"
+        :disabled="isPreparingPrint"
         @click="printReport"
       >
         <Printer aria-hidden="true" />
@@ -25,7 +26,7 @@
     <article v-if="report" class="ir-report-document">
       <ReportCover :project-name="projectName" :preparer="preparer" :generated-date="report.generatedDate" />
 
-      <div class="ir-report-body">
+      <div ref="reportFlow" class="ir-report-body ir-report-flow">
       <ReportChapter :number="1" title="第一章 项目基本信息">
         <table class="ir-report-table ir-report-table--four">
           <thead><tr><th>项目要素</th><th>内容</th><th>项目要素</th><th>内容</th></tr></thead>
@@ -63,12 +64,14 @@
         </table>
 
         <ReportSectionHeading title="3.2 现货基础运营信息" />
-        <section v-for="group in operationGroups" :key="group.title" class="ir-report-operation-group">
-          <h4>{{ group.title }}（单位：元/kWh）</h4>
-          <dl>
-            <div v-for="item in group.items" :key="item.label"><dt>{{ item.label }}：</dt><dd>{{ price(item.value) }}</dd></div>
-          </dl>
-        </section>
+        <div class="ir-report-operation-layout">
+          <section v-for="group in operationGroups" :key="group.title" class="ir-report-operation-group">
+            <h4>{{ group.title }}</h4>
+            <dl>
+              <div v-for="item in group.items" :key="item.label"><dt>{{ item.label }}</dt><dd class="xc-num">{{ price(item.value) }}</dd></div>
+            </dl>
+          </section>
+        </div>
 
         <ReportSectionHeading title="3.3 项目首年收益结构" />
         <div class="ir-report-revenue-layout">
@@ -77,7 +80,7 @@
             <thead><tr><th>收益项</th><th>金额（万元）</th><th>占比</th></tr></thead>
             <tbody>
               <tr v-for="item in revenueRows" :key="item.name"><td>{{ item.name }}</td><td class="xc-num">{{ formatNumber(item.value) }}</td><td class="xc-num">{{ formatNumber(item.ratio * 100, 1) }}%</td></tr>
-              <tr class="ir-report-revenue-total"><th>合计</th><th class="xc-num">{{ formatNumber(revenueTotal) }}</th><th class="xc-num">100.0%</th></tr>
+              <tr class="ir-report-revenue-total"><th scope="row">合计</th><th class="xc-num">{{ formatNumber(revenueTotal) }}</th><th class="xc-num">100.0%</th></tr>
               <tr v-if="!revenueRows.length"><td colspan="3">{{ missing }}</td></tr>
             </tbody>
           </table>
@@ -156,6 +159,7 @@
         <ReportAiAnalysis :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" />
       </ReportChapter>
       </div>
+      <ReportPrintPages ref="printPages" />
     </article>
     <div v-else-if="loaded" class="ir-report-empty">报告不存在或当前用户无权查看。</div>
   </main>
@@ -172,12 +176,16 @@ import ReportChapter from './components/ReportChapter.vue'
 import ReportChart from './components/ReportChart.vue'
 import ReportChartCard from './components/ReportChartCard.vue'
 import ReportCover from './components/ReportCover.vue'
+import ReportPrintPages from './components/ReportPrintPages.vue'
 import ReportSectionHeading from './components/ReportSectionHeading.vue'
 
 const route = useRoute()
 const report = ref(null)
 const loaded = ref(false)
 const showBackToTop = ref(false)
+const reportFlow = ref(null)
+const printPages = ref(null)
+const isPreparingPrint = ref(false)
 const missing = '——'
 const aiFallback = '本节智能分析暂未生成，不影响测算数据、图表及规则化内容的展示。'
 const project = computed(() => report.value?.project || {})
@@ -253,8 +261,22 @@ onMounted(async () => {
   handleScroll()
   try { report.value = (await getReport(route.params.reportId)).data || null } finally { loaded.value = true }
 })
-onBeforeUnmount(() => window.removeEventListener('scroll', handleScroll))
-function printReport() { window.print() }
+onBeforeUnmount(() => {
+  window.removeEventListener('scroll', handleScroll)
+  window.removeEventListener('afterprint', clearPrintPages)
+})
+async function printReport() {
+  if (isPreparingPrint.value || !reportFlow.value) return
+  isPreparingPrint.value = true
+  try {
+    await printPages.value.prepareForPrint(reportFlow.value)
+    window.addEventListener('afterprint', clearPrintPages, { once: true })
+    window.print()
+  } finally {
+    isPreparingPrint.value = false
+  }
+}
+function clearPrintPages() { printPages.value?.clear() }
 function scrollToTop() {
   const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' })
@@ -307,10 +329,12 @@ function formatFixedNumber(value) {
 .ir-report-boundary-table th, .ir-report-financial-table th { white-space: nowrap; }
 .ir-report-role { line-height: 1.8; }.ir-report-policy-table td:nth-child(2), .ir-report-policy-table td:nth-child(3) { white-space: nowrap; }
 .ir-report-market-copy p { margin: 0 0 16px; white-space: pre-line; text-align: justify; text-indent: 2em; }.ir-report-market-copy__label { margin-bottom: 0 !important; color: var(--xc-text-strong); font-weight: var(--xc-fw-semi); text-indent: 0 !important; }
-.ir-report-operation-group { margin: 16px 0 24px; padding: 18px 20px; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-sm); background: var(--xc-report-card); break-inside: avoid; }.ir-report-operation-group h4 { margin: 0; color: var(--xc-text-strong); font-size: 14px; }.ir-report-operation-group dl { margin: 10px 0 0; }.ir-report-operation-group dl div { display: flex; padding: 4px 0; }.ir-report-operation-group dt { min-width: 156px; color: var(--xc-text-soft); }.ir-report-operation-group dd { margin: 0; }
-.ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }
+.ir-report-operation-layout { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin: 16px 0 24px; break-inside: avoid; }
+.ir-report-operation-group { min-width: 0; padding: 16px 18px; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-sm); background: var(--xc-report-card); break-inside: avoid; }.ir-report-operation-group h4 { margin: 0; padding-bottom: 10px; border-bottom: 1px solid var(--xc-report-border); color: var(--xc-text-strong); font-size: 14px; }.ir-report-operation-group dl { margin: 8px 0 0; }.ir-report-operation-group dl div { display: grid; grid-template-columns: minmax(0, 1fr) max-content; gap: 8px; align-items: baseline; padding: 5px 0; }.ir-report-operation-group dt { min-width: 0; color: var(--xc-text-soft); line-height: var(--xc-lh-normal); }.ir-report-operation-group dd { margin: 0; color: var(--xc-text-strong); line-height: var(--xc-lh-normal); text-align: right; white-space: nowrap; }
+.ir-report-revenue-layout { display: grid; grid-template-columns: minmax(0, 3fr) minmax(260px, 2fr); gap: 24px; align-items: stretch; break-inside: avoid; }.ir-report-revenue-table { align-self: stretch; }.ir-report-revenue-total th { color: var(--xc-text-strong); }.ir-report-revenue-total .xc-num { text-align: right; }
 .ir-report-model-section { margin-top: 36px; }.ir-report-model-section:first-child { margin-top: 0; }
 .ir-report-empty { width: min(700px, 90vw); margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .ir-report-tool { transition: none; }.ir-report-tool:hover { transform: none; } }
 @media (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-revenue-layout { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .ir-report-operation-layout { grid-template-columns: 1fr; }.ir-report-operation-group { padding: 14px 16px; } }
 </style>

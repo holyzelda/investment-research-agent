@@ -130,4 +130,71 @@ describe('result card three modules', () => {
     const withoutDict = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
     expect(withoutDict.find('.ir-adjust__toggle').exists()).toBe(false)
   })
+
+  it('generates a report only after the user clicks the clean result action', async () => {
+    const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
+    const action = wrapper.find('.ir-result__act')
+
+    expect(action.text()).toContain('生成报告')
+    expect(action.attributes('disabled')).toBeUndefined()
+    await action.trigger('click')
+    expect(wrapper.emitted('generate-report')).toHaveLength(1)
+  })
+
+  it('requires recalculation before reporting when regular parameters have changed', async () => {
+    const wrapper = mount(ResultCard, {
+      props: {
+        result: snapshot,
+        version: 'V1',
+        paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 }],
+        seedInput: { epc_unit_price: 0.8 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.find('.ps-val-input').setValue(0.82)
+
+    const action = wrapper.find('.ir-result__act')
+    expect(action.text()).toContain('请先重新测算')
+    expect(action.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-result__report-hint').text()).toContain('参数修改尚未形成新版本')
+    await action.trigger('click')
+    expect(wrapper.emitted('generate-report')).toBeUndefined()
+  })
+
+  it('requires recalculation before reporting when advanced changes are staged', async () => {
+    const paramDict = [
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
+    })
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+
+    expect(wrapper.find('.ir-result__act').text()).toContain('请先重新测算')
+    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps generation non-repeatable, exposes retry, and removes the completed duplicate action', async () => {
+    const generating = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', report: { status: 'generating' } },
+    })
+    expect(generating.find('.ir-result__act').text()).toContain('报告生成中')
+    expect(generating.find('.ir-result__act').attributes('disabled')).toBeDefined()
+
+    const failed = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', report: { status: 'failed' } },
+    })
+    expect(failed.find('.ir-result__act').text()).toContain('重新生成报告')
+    await failed.find('.ir-result__act').trigger('click')
+    expect(failed.emitted('generate-report')).toHaveLength(1)
+
+    const completed = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', report: { status: 'completed', reportId: 'r-1' } },
+    })
+    expect(completed.find('.ir-result__footer').exists()).toBe(false)
+    expect(completed.text()).not.toContain('已生成报告')
+    expect(completed.emitted('view-report')).toBeUndefined()
+  })
 })

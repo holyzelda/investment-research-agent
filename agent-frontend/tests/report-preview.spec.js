@@ -8,7 +8,16 @@ import { nextTick } from 'vue'
 const reportPrintSource = readFileSync(resolve(process.cwd(), 'src/styles/report-print.css'), 'utf8')
 
 const route = vi.hoisted(() => ({ params: { reportId: 'r-1' } }))
-const captured = vi.hoisted(() => ({ factories: [] }))
+const captured = vi.hoisted(() => ({ factories: [], prepareForPrint: vi.fn().mockResolvedValue({ pages: [] }), clearPrintPages: vi.fn() }))
+vi.mock('@/views/report/components/ReportPrintPages.vue', () => ({
+  default: {
+    template: '<div class="ir-report-print-pages" />',
+    setup(_, { expose }) {
+      expose({ prepareForPrint: captured.prepareForPrint, clear: captured.clearPrintPages })
+      return {}
+    },
+  },
+}))
 vi.mock('@/views/home/composables/useEcharts', () => ({
   useEcharts: (factory) => {
     captured.factories.push(factory)
@@ -23,17 +32,20 @@ vi.mock('vue-router', () => ({ useRoute: () => route }))
 import ReportDetail from '@/views/report/index.vue'
 
 describe('formal report preview', () => {
-  it('keeps repeated body-page margins while assigning the first page to a full-bleed cover', () => {
-    expect(reportPrintSource).toMatch(/@page\s*\{[^}]*margin:\s*18mm 0 22mm;/s)
-    expect(reportPrintSource).toMatch(/@page\s*:first\s*\{[^}]*margin:\s*0;/s)
-    expect(reportPrintSource).not.toMatch(/@page\s+report-(?:cover|body)/)
-    expect(reportPrintSource).toMatch(/\.ir-report-cover\s*\{[^}]*width:\s*210mm\s*!important;[^}]*height:\s*297mm\s*!important;[^}]*break-after:\s*page\s*!important;/s)
-    expect(reportPrintSource).not.toMatch(/page:\s*report-(?:cover|body)/)
-    expect(reportPrintSource).toMatch(/\.ir-report-body\s*\{[^}]*box-sizing:\s*border-box;[^}]*padding:\s*0 20mm\s*!important;/s)
+  it('uses explicit A4 pages with in-box body margins', () => {
+    expect(reportPrintSource).toMatch(/@page\s*\{[^}]*size:\s*A4 portrait;[^}]*margin:\s*0;/s)
+    expect(reportPrintSource).not.toMatch(/@page\s*:first|@page\s+report-/)
+    expect(reportPrintSource).toMatch(/\.ir-report-print-page\s*\{[^}]*width:\s*210mm;[^}]*height:\s*297mm;/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-print-page--body\s*\{[^}]*padding:\s*20mm;/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*\{[^}]*width:\s*170mm;[^}]*height:\s*257mm;/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*>\s*\.ir-report-print-unit\s*\{[^}]*margin-top:\s*var\(--ir-report-before-gap,\s*0px\)\s*!important;/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*>\s*\.ir-report-print-unit:first-child\s*\{[^}]*margin-top:\s*0\s*!important;/s)
   })
 
   beforeEach(() => {
     captured.factories.length = 0
+    captured.prepareForPrint.mockClear()
+    captured.clearPrintPages.mockClear()
     Object.defineProperty(window, 'scrollY', { configurable: true, value: 0, writable: true })
     vi.stubGlobal('print', vi.fn())
     vi.stubGlobal('scrollTo', vi.fn())
@@ -71,7 +83,7 @@ describe('formal report preview', () => {
       calculation: {
         result: {
           advanced: {
-            donut: { totalRevenue: 200, energyRevenue: 120, capacityRevenue: 80, frequencyRevenue: 0, leaseRevenue: 0, interventionRevenue: 0, subsidyRevenue: 0 },
+            donut: { totalRevenue: 200, energyRevenue: 100, capacityRevenue: 80, frequencyRevenue: 0, leaseRevenue: 20, interventionRevenue: 0, subsidyRevenue: 0 },
           },
         },
       },
@@ -121,8 +133,19 @@ describe('formal report preview', () => {
     expect(wrapper.text()).toContain('☑ 未启动')
     expect(wrapper.text()).toContain('3.2 现货基础运营信息')
     expect(wrapper.text()).toContain('0.1234 元/kWh')
+    const operationLayout = wrapper.find('.ir-report-operation-layout')
+    expect(operationLayout.exists()).toBe(true)
+    const operationGroups = operationLayout.findAll('.ir-report-operation-group')
+    expect(operationGroups).toHaveLength(3)
+    expect(operationGroups.map((group) => group.find('h4').text())).toEqual(['现货市场情况', '充电成本情况', '实际运营情况'])
+    expect(operationGroups.map((group) => group.findAll('dt').length)).toEqual([3, 4, 3])
+    expect(operationGroups.map((group) => group.findAll('dd').length)).toEqual([3, 4, 3])
+    expect(operationGroups.every((group) => group.findAll('dd').every((cell) => cell.classes().includes('xc-num')))).toBe(true)
     expect(wrapper.text()).toContain('3.3 项目首年收益结构')
     expect(wrapper.find('.ir-report-revenue-layout').exists()).toBe(true)
+    const revenueTotal = wrapper.find('.ir-report-revenue-total')
+    expect(revenueTotal.find('th[scope="row"]').text()).toBe('合计')
+    expect(revenueTotal.findAll('th.xc-num')).toHaveLength(2)
     expect(wrapper.text()).toContain('第四章 项目测算边界')
     expect(wrapper.text()).toContain('4.1 测算边界参数')
     expect(wrapper.find('.ir-report-boundary-table').exists()).toBe(true)
@@ -140,6 +163,18 @@ describe('formal report preview', () => {
     expect(wrapper.find('.ir-report-financial-table').text()).toContain('3200.00')
     expect(wrapper.find('.ir-report-financial-table').text()).toContain('4500.50')
     const revenueOption = captured.factories[0]()
+    expect(revenueOption.legend).toMatchObject({
+      show: true,
+      orient: 'vertical',
+      selectedMode: false,
+      data: ['电能量', '容量市场', '租赁市场'],
+    })
+    expect(revenueOption.series[0].center).toEqual(['36%', '50%'])
+    expect(revenueOption.series[0].data).toEqual([
+      { name: '电能量', value: 100, itemStyle: { color: '#3d6f9d' } },
+      { name: '容量市场', value: 80, itemStyle: { color: '#b85c38' } },
+      { name: '租赁市场', value: 20, itemStyle: { color: '#b69145' } },
+    ])
     expect(revenueOption.tooltip.formatter({ name: '电能量', value: 12.34567, percent: 60 })).toContain('12.3457 万元')
     const coverageOption = captured.factories[1]()
     expect(coverageOption.xAxis.data).toEqual(['第1年', '第2年'])

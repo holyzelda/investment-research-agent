@@ -249,6 +249,24 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.emitted('recalculate')[0][0].overrides).toMatchObject({ maint_cost: 0.006 })
   })
 
+  it('reports regular draft state after editing, resetting and receiving new frozen input', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
+
+    await wrapper.find('.ps-val-input').setValue(0.82)
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
+
+    await wrapper.find('.ir-adjust__reset').trigger('click')
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
+
+    await wrapper.find('.ps-val-input').setValue(0.83)
+    await wrapper.setProps({ seedInput: { ...SEED, epc_unit_price: 0.79 } })
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
+  })
+
   it('测算中禁用展开与提交按钮', () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: {}, seedInput: SEED, version: 'V2', responding: true },

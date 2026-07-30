@@ -1,11 +1,43 @@
 @page {
   size: A4 portrait;
-  margin: 18mm 0 22mm;
+  margin: 0;
 }
 
-@page :first {
-  size: A4 portrait;
-  margin: 0;
+.ir-report-print-pages {
+  position: fixed;
+  top: 0;
+  left: -10000px;
+  display: block;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ir-report-print-page {
+  box-sizing: border-box;
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+}
+
+.ir-report-print-page--body {
+  padding: 20mm;
+}
+
+.ir-report-print-page__content {
+  box-sizing: border-box;
+  width: 170mm;
+  height: 257mm;
+  min-height: 257mm;
+}
+
+/* 显式分页会拆掉章节容器，因此按打印宽度下测得的实际视觉距离恢复单元间距。
+   页首自动清零，避免与正文页 20mm padding 叠加。 */
+.ir-report-print-page__content > .ir-report-print-unit {
+  margin-top: var(--ir-report-before-gap, 0px) !important;
+}
+
+.ir-report-print-page__content > .ir-report-print-unit:first-child {
+  margin-top: 0 !important;
 }
 
 @media print {
@@ -84,6 +116,54 @@
     display: none !important;
   }
 
+  .ir-report-flow {
+    display: none !important;
+  }
+
+  .ir-report-print-pages {
+    position: static !important;
+    display: block !important;
+    visibility: visible !important;
+    pointer-events: auto;
+  }
+
+  .ir-report-print-page {
+    position: relative;
+    display: block;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    min-height: 297mm;
+    margin: 0;
+    break-after: page;
+    page-break-after: always;
+    background: var(--xc-report-page);
+  }
+
+  .ir-report-print-page--body {
+    padding: 20mm;
+  }
+
+  .ir-report-print-page--last {
+    break-after: auto;
+    page-break-after: auto;
+  }
+
+  .ir-report-print-page__content {
+    box-sizing: border-box;
+    width: 170mm;
+    height: 257mm;
+    min-height: 257mm;
+    overflow: visible;
+  }
+
+  .ir-report-print-page--probe {
+    position: fixed;
+    left: -10000px;
+    top: 0;
+    visibility: hidden !important;
+  }
+
   .ir-report-cover {
     width: 210mm !important;
     height: 297mm !important;
@@ -108,14 +188,18 @@
   }
 
   .ir-report-body {
-    box-sizing: border-box;
     margin: 0 !important;
-    padding: 0 20mm !important;
+    padding: 0 !important;
     background: var(--xc-report-page) !important;
   }
 
-  .ir-report-section + .ir-report-section {
-    margin-top: 13mm !important;
+  .ir-report-print-page__content > *:not(.ir-report-print-unit) {
+    margin-top: 0 !important;
+  }
+
+  .ir-report-ai-analysis--continued {
+    margin-top: 0 !important;
+    border-top-style: dashed;
   }
 
   .ir-report-chapter-heading,
@@ -171,6 +255,7 @@
   }
 
   .ir-report-table--short,
+  .ir-report-operation-layout,
   .ir-report-revenue-layout,
   .ir-report-operation-group,
   .ir-report-chart-card {
@@ -193,9 +278,21 @@
     page-break-inside: auto !important;
   }
 
+  .ir-report-operation-layout {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .ir-report-operation-group {
+    padding: 12px 13px !important;
+  }
+
   .ir-report-revenue-layout {
+    display: grid !important;
     grid-template-columns: minmax(0, 3fr) minmax(220px, 2fr) !important;
     gap: 14px !important;
+    align-items: stretch !important;
   }
 
   .ir-report-chart__canvas {
