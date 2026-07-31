@@ -389,7 +389,7 @@ const reversedReports = computed(() => calc.reports
 const examples = [
   '测算甘肃 200MW/800MWh 独立储能项目',
   '测算宁夏 100MW/400MWh 储能',
-  '测算山东 300MW/600MWh 独立储能',
+  '测算山西 2小时 独立储能',
 ]
 
 async function onSend(text) {

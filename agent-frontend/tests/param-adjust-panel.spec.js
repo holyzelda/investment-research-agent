@@ -24,6 +24,7 @@ describe('ParamAdjustPanel', () => {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
     })
     expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+    expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(false)
 
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
@@ -50,7 +51,21 @@ describe('ParamAdjustPanel', () => {
 
     const roTexts = wrapper.findAll('.ir-adjust__ro').map((n) => n.text())
     expect(roTexts.some((t) => t.includes('甘肃'))).toBe(true)
-    expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
+    const nodeTrigger = wrapper.find('.ir-adjust__node-trigger')
+    expect(nodeTrigger.exists()).toBe(true)
+    expect(nodeTrigger.text()).toContain('祥泰站')
+    expect(nodeTrigger.text()).toContain('更改')
+    expect(nodeTrigger.attributes('aria-label')).toContain('当前为 祥泰站')
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
+
+    wrapper.findComponent({ name: 'ElPopover' }).vm.$emit('update:visible', true)
+    await wrapper.vm.$nextTick()
+    const nodeSelect = wrapper.findComponent({ name: 'ElSelect' })
+    expect(nodeSelect.exists()).toBe(true)
+    expect(nodeSelect.props('filterable')).toBe(true)
+    expect(nodeSelect.props('placeholder')).toBe('搜索或选择节点')
+    expect(nodeSelect.props('noMatchText')).toBe('未找到匹配节点')
+    expect(nodeSelect.props('popperClass')).toBe('ir-adjust__node-popper')
 
     const projectFields = wrapper.findAll('.ir-adjust__project-item')
     const capacityField = projectFields.find((field) => field.text().includes('装机容量'))
@@ -72,7 +87,7 @@ describe('ParamAdjustPanel', () => {
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     expect(wrapper.findAll('.ir-adjust__ro').some((node) => node.text().includes('甘肃'))).toBe(true)
-    expect(wrapper.find('.ir-adjust__select').exists()).toBe(true)
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(true)
     expect(wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')).toHaveLength(2)
   })
 
@@ -144,6 +159,7 @@ describe('ParamAdjustPanel', () => {
       props: {
         paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
         advancedOverrides: { maint_cost: 0.006, strategy_achievement_rate: 0.85 },
+        advancedOverrideCount: 2,
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
@@ -153,6 +169,39 @@ describe('ParamAdjustPanel', () => {
       epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
       maint_cost: 0.006, strategy_achievement_rate: 0.85,
     })
+  })
+
+  it('折叠时可直接提交已暂存的高级参数修改', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
+        advancedOverrides: { maint_cost: 0.006 }, advancedOverrideCount: 1,
+      },
+    })
+
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+    expect(wrapper.find('.ir-adjust__pending-bar').text()).toContain('1 项高级参数已修改')
+    await wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')).toHaveLength(1)
+    expect(wrapper.emitted('recalculate')[0][0].overrides).toMatchObject({
+      epc_unit_price: 0.8,
+      maint_cost: 0.006,
+    })
+  })
+
+  it('常用参数修改后收起面板仍可重新测算', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.find('.ps-val-input').setValue(0.82)
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+    expect(wrapper.find('.ir-adjust__pending-bar').text()).toContain('常用参数已修改')
+    await wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').trigger('click')
+    expect(wrapper.emitted('recalculate')[0][0].overrides.epc_unit_price).toBe(0.82)
   })
 
   it('renders 高级参数 in the persistent header and emits open-advanced while collapsed', async () => {
@@ -183,21 +232,34 @@ describe('ParamAdjustPanel', () => {
     await toggle.trigger('click')
     expect(toggle.attributes('aria-expanded')).toBe('true')
     expect(wrapper.find('#ir-adjust-panel-body').exists()).toBe(true)
-    expect(wrapper.text()).toContain('2 项高级修改将在重新测算时生效')
+    expect(wrapper.text()).toContain('2 项高级参数已修改，重新测算后生效')
   })
 
-  it('提交时携带面板当前完整值作为 overrides 与基础字段', async () => {
+  it('没有参数修改时禁用重新测算且不会提交', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const submit = wrapper.find('.ir-adjust__submit')
+    expect(submit.attributes('disabled')).toBeDefined()
+    await submit.trigger('click')
+    expect(wrapper.emitted('recalculate')).toBeUndefined()
+  })
+
+  it('修改参数后提交当前完整值作为 overrides 与基础字段', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.find('.ps-val-input').setValue(0.82)
 
     await wrapper.find('.ir-adjust__submit').trigger('click')
 
     const emitted = wrapper.emitted('recalculate')
     expect(emitted).toHaveLength(1)
     expect(emitted[0][0]).toEqual({
-      overrides: { epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61 },
+      overrides: { epc_unit_price: 0.82, spot_charge_avg: 0.22, spot_discharge_avg: 0.61 },
       basics: { node_name: '祥泰站', capacity_mwh: 800, power_mw: 200 },
     })
   })
@@ -214,7 +276,14 @@ describe('ParamAdjustPanel', () => {
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
-    await wrapper.find('.ir-adjust__select').setValue('新节点')
+    wrapper.findComponent({ name: 'ElPopover' }).vm.$emit('update:visible', true)
+    await wrapper.vm.$nextTick()
+    const nodeSelect = wrapper.findComponent({ name: 'ElSelect' })
+    nodeSelect.vm.$emit('update:modelValue', '新节点')
+    nodeSelect.vm.$emit('change', '新节点')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('新节点')
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
     const projectInputs = wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')
     await projectInputs[0].setValue(250)
     await projectInputs[1].setValue(1000)
@@ -227,7 +296,7 @@ describe('ParamAdjustPanel', () => {
     })
   })
 
-  it('恢复本次测算值只重置常用参数且不影响高级草稿', async () => {
+  it('放弃修改会恢复常用参数并请求父组件清除高级草稿', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: {
         paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
@@ -235,18 +304,20 @@ describe('ParamAdjustPanel', () => {
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
-    const reset = wrapper.find('.ir-adjust__reset')
-    expect(reset.attributes('disabled')).toBeDefined()
+    const discard = wrapper.find('.ir-adjust__reset')
+    expect(discard.attributes('disabled')).toBeUndefined()
 
     const projectInputs = wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')
     await projectInputs[0].setValue(250)
-    expect(reset.attributes('disabled')).toBeUndefined()
-    await reset.trigger('click')
+    await discard.trigger('click')
 
     expect(projectInputs[0].element.value).toBe('200')
-    expect(reset.attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
+    expect(wrapper.emitted('discard-all-changes')).toHaveLength(1)
+    await wrapper.setProps({ advancedOverrides: {}, advancedOverrideCount: 0 })
+    expect(wrapper.find('.ir-adjust__submit').attributes('disabled')).toBeDefined()
     await wrapper.find('.ir-adjust__submit').trigger('click')
-    expect(wrapper.emitted('recalculate')[0][0].overrides).toMatchObject({ maint_cost: 0.006 })
+    expect(wrapper.emitted('recalculate')).toBeUndefined()
   })
 
   it('reports regular draft state after editing, resetting and receiving new frozen input', async () => {
@@ -267,10 +338,23 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([false])
   })
 
-  it('测算中禁用展开与提交按钮', () => {
+  it('测算中禁用折叠态与展开态的参数操作', async () => {
     const wrapper = mount(ParamAdjustPanel, {
-      props: { paramDict: PARAM_DICT, switches: {}, seedInput: SEED, version: 'V2', responding: true },
+      props: {
+        paramDict: PARAM_DICT, switches: {}, seedInput: SEED, version: 'V2', responding: true,
+        advancedOverrides: { maint_cost: 0.006 }, advancedOverrideCount: 1,
+      },
     })
     expect(wrapper.find('.ir-adjust__toggle').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-adjust__pending-bar .ir-adjust__reset').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').attributes('disabled')).toBeDefined()
+    await wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').trigger('click')
+    expect(wrapper.emitted('recalculate')).toBeUndefined()
+
+    await wrapper.setProps({ responding: false })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.setProps({ responding: true })
+    expect(wrapper.find('.ir-adjust__footer .ir-adjust__reset').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-adjust__footer .ir-adjust__submit').attributes('disabled')).toBeDefined()
   })
 })

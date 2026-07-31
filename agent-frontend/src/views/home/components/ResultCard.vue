@@ -49,6 +49,7 @@
       @recalculate="$emit('recalculate', $event)"
       @open-advanced="openAdvanced"
       @dirty-change="regularParametersDirty = $event"
+      @discard-all-changes="discardAllParameterChanges"
     />
 
     <AdvancedParamDialog
@@ -158,6 +159,9 @@ async function handleAdvancedOpenChange(open) {
 }
 function saveAdvancedDraft(overrides) {
   advancedOverrides.value = overrides
+}
+function discardAllParameterChanges() {
+  advancedOverrides.value = {}
 }
 </script>
 

@@ -149,16 +149,19 @@ export const useCalculationStore = defineStore('calculation', {
       if (openEpoch !== this.historyOpenEpoch || conversationEpoch !== this.conversationEpoch) return
       const detail = response.data || {}
       const completed = (detail.versions || []).filter((version) => version.result)
-      let cursor = 0
+      const completedByTaskId = new Map(
+        completed.map((version) => [String(version.taskId), version]),
+      )
       this.messages = (detail.messages || []).map((message) => {
-        if (message.role === 'assistant' && cursor < completed.length) {
-          const version = completed[cursor]
-          cursor += 1
-          return {
-            id: nextId(), role: 'assistant', kind: 'result',
-            taskId: version.taskId,
-            version: version.version, result: version.result, input: version.input,
-            report: version.report, calculatedAt: version.calculatedAt,
+        if (message.messageType === 'calculation_completed') {
+          const version = completedByTaskId.get(String(message.payload?.task_id))
+          if (version) {
+            return {
+              id: nextId(), role: 'assistant', kind: 'result',
+              taskId: version.taskId,
+              version: version.version, result: version.result, input: version.input,
+              report: version.report, calculatedAt: version.calculatedAt,
+            }
           }
         }
         if (message.messageType === 'report_generated') {

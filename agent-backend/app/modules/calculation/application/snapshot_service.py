@@ -96,8 +96,12 @@ class SnapshotService:
                 conversation_id=conversation_id,
                 role="assistant",
                 content=assistant_message,
-                message_type="text",
-                payload=None,
+                message_type="calculation_completed",
+                payload={
+                    "event_type": "calculation_completed",
+                    "task_id": task.id,
+                    "version": version,
+                },
             ))
 
         await session.commit()

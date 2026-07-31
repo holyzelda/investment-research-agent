@@ -63,8 +63,11 @@ describe('ParamAdjustPanel approved layout', () => {
     expect(project.findAll('.ir-adjust__project-item')).toHaveLength(4)
     expect(project.find('.ir-adjust__row--project').exists()).toBe(true)
     expect(project.findAll('.ir-adjust__row--project > .ir-adjust__field')).toHaveLength(4)
-    expect(project.find('.ir-adjust__select').exists()).toBe(true)
-    expect(project.findAll('.ir-adjust__select option').map((option) => option.text())).toEqual(['祥泰站', '乌达站'])
+    const nodeTrigger = project.find('.ir-adjust__node-trigger')
+    expect(nodeTrigger.exists()).toBe(true)
+    expect(nodeTrigger.text()).toContain('祥泰站')
+    expect(nodeTrigger.attributes('aria-label')).toContain('当前为 祥泰站')
+    expect(project.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
   })
 
   it('hides 节点名称 entirely when the selected province has no station options', async () => {

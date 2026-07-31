@@ -24,9 +24,21 @@ const detail = {
   title: '甘肃 200MW/800MWh',
   messages: [
     { role: 'user', content: '测算甘肃 200MW/800MWh', createdAt: '2026-07-15T09:00:00' },
-    { role: 'assistant', content: 'V1 测算完成', createdAt: '2026-07-15T09:01:00' },
+    {
+      role: 'assistant',
+      messageType: 'calculation_completed',
+      content: 'V1 测算完成',
+      payload: { event_type: 'calculation_completed', task_id: 11, version: 'V1' },
+      createdAt: '2026-07-15T09:01:00',
+    },
     { role: 'user', content: '再算一次', createdAt: '2026-07-15T09:02:00' },
-    { role: 'assistant', content: 'V2 测算完成', createdAt: '2026-07-15T09:03:00' },
+    {
+      role: 'assistant',
+      messageType: 'calculation_completed',
+      content: 'V2 测算完成',
+      payload: { event_type: 'calculation_completed', task_id: 12, version: 'V2' },
+      createdAt: '2026-07-15T09:03:00',
+    },
   ],
   versions: [
     { taskId: 11, version: 'V1', status: 'completed', result: { basicInfo: { province: '甘肃' }, financial: { capitalIrr: 8 } } },
@@ -163,7 +175,12 @@ describe('conversation history sidebar and replay', () => {
     api.getConversation.mockResolvedValue({ data: {
       conversationId: 7,
       messages: [
-        { role: 'assistant', content: 'V1 测算完成' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_completed',
+          content: 'V1 测算完成',
+          payload: { event_type: 'calculation_completed', task_id: 11, version: 'V1' },
+        },
         { role: 'assistant', messageType: 'report_generated', content: '正式报告已生成', payload: { report_id: 'r-1', task_id: 11 } },
       ],
       versions: [{
@@ -184,6 +201,79 @@ describe('conversation history sidebar and replay', () => {
     expect(store.messages[1].payload).toEqual({ report_id: 'r-1', task_id: 11 })
     expect(store.reports[0]).toMatchObject({ reportId: 'r-1', title: '甘肃储能项目投资报告' })
     expect(api.createCalculationTask).not.toHaveBeenCalled()
+  })
+
+  it('openConversation keeps interleaved calculations and reports in persisted order', async () => {
+    api.getConversation.mockResolvedValue({ data: {
+      conversationId: 7,
+      messages: [
+        { role: 'user', content: '开始测算 V1' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_completed',
+          content: 'V1 测算完成',
+          payload: { event_type: 'calculation_completed', task_id: 11, version: 'V1' },
+        },
+        {
+          role: 'assistant',
+          messageType: 'report_generated',
+          content: 'V1 报告已生成',
+          payload: { event_type: 'report_generated', report_id: 'r-1', task_id: 11 },
+        },
+        { role: 'user', content: '开始测算 V2' },
+        { role: 'assistant', content: '正在核对输入参数' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_completed',
+          content: 'V2 测算完成',
+          payload: { event_type: 'calculation_completed', task_id: 12, version: 'V2' },
+        },
+        {
+          role: 'assistant',
+          messageType: 'report_generated',
+          content: 'V2 报告已生成',
+          payload: { event_type: 'report_generated', report_id: 'r-2', task_id: 12 },
+        },
+        { role: 'user', content: '开始测算 V3' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_completed',
+          content: 'V3 测算完成',
+          payload: { event_type: 'calculation_completed', task_id: 13, version: 'V3' },
+        },
+      ],
+      versions: [
+        { taskId: 11, version: 'V1', status: 'completed', result: { marker: 'v1' } },
+        { taskId: 12, version: 'V2', status: 'completed', result: { marker: 'v2' } },
+        { taskId: 13, version: 'V3', status: 'completed', result: { marker: 'v3' } },
+      ],
+    } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+
+    expect(store.messages.map((message) => [message.kind, message.version || null])).toEqual([
+      ['text', null],
+      ['result', 'V1'],
+      ['report-generated', null],
+      ['text', null],
+      ['text', null],
+      ['result', 'V2'],
+      ['report-generated', null],
+      ['text', null],
+      ['result', 'V3'],
+    ])
+    expect(store.messages.filter((message) => message.kind === 'result').map((message) => [message.taskId, message.result.marker])).toEqual([
+      [11, 'v1'],
+      [12, 'v2'],
+      [13, 'v3'],
+    ])
+    expect(store.messages[4]).toMatchObject({ role: 'assistant', kind: 'text', text: '正在核对输入参数' })
+    expect(store.messages.some((message) => (
+      message.role === 'assistant'
+      && message.kind === 'text'
+      && /^V\d+\s*测算完成$/.test(message.text)
+    ))).toBe(false)
   })
 
   it('replayed conversation keeps its id for the next calculation', async () => {

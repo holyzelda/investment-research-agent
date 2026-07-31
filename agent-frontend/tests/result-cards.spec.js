@@ -176,6 +176,59 @@ describe('result card three modules', () => {
     expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeDefined()
   })
 
+  it('allows recalculation from the collapsed advanced draft action bar', async () => {
+    const paramDict = [
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
+    })
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
+    await wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')).toHaveLength(1)
+    expect(wrapper.emitted('recalculate')[0][0].overrides.operation_years).toBe(20)
+  })
+
+  it('discards regular and advanced drafts together', async () => {
+    const paramDict = [
+      { id: 'power_mw', cn: '储能装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
+      { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: {
+        result: snapshot, version: 'V1', paramDict,
+        seedInput: { power_mw: 200, epc_unit_price: 0.8, operation_years: 15 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    await wrapper.find('.ps-val-input').setValue(0.82)
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(true)
+    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeDefined()
+    await wrapper.find('.ir-adjust__pending-bar .ir-adjust__reset').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(false)
+    expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
+    expect(wrapper.find('.ir-result__report-hint').text()).not.toContain('参数修改尚未形成新版本')
+    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeUndefined()
+    expect(wrapper.emitted('recalculate')).toBeUndefined()
+
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    expect(wrapper.find('.ps-val-input').element.value).toBe('0.8')
+    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('15')
+  })
+
   it('keeps generation non-repeatable, exposes retry, and removes the completed duplicate action', async () => {
     const generating = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'generating' } },

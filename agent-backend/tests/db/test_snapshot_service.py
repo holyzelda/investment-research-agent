@@ -73,17 +73,6 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
                 n = await s.scalar(select(func.count()).select_from(orm).where(orm.task_id == tid))
                 assert n == 1, f"{orm.__name__} 缺失 for task {tid}"
 
-        # message_snapshot：会话下至少 user+assistant × 2 次测算 = 4
-        n_msg = await s.scalar(
-            select(func.count()).select_from(MessageSnapshotORM)
-            .where(MessageSnapshotORM.conversation_id == conv_id)
-        )
-        assert n_msg == 4
-        messages = (await s.execute(
-            select(MessageSnapshotORM).where(MessageSnapshotORM.conversation_id == conv_id)
-        )).scalars().all()
-        assert all(message.message_type == "text" and message.payload is None for message in messages)
-
         # 仅凭 calculation_result_snapshot 重建三模块
         calculation_result = (await s.execute(
             select(CalculationResultSnapshotORM).where(
@@ -101,3 +90,45 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
         assert p["advanced"]["debtServiceCoverage"]["cashflowRatio"] == SAMPLE_API_OUTPUT[
             "cashflow_debt_service_coverage_ratio"
         ]
+
+
+@pytest.mark.asyncio
+async def test_success_persists_typed_calculation_completion_messages(db_session, db_engine):
+    svc = SnapshotService()
+    conv_id = await svc.create_conversation(
+        db_session,
+        user_id="1001",
+        username=PYTEST_USERNAME,
+        title=f"{PYTEST_TITLE_PREFIX}测算完成事件",
+    )
+    task_v1 = await _persist(db_session, svc, conv_id, "V1")
+    task_v2 = await _persist(db_session, svc, conv_id, "V2")
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as session:
+        messages = (await session.execute(
+            select(MessageSnapshotORM)
+            .where(MessageSnapshotORM.conversation_id == conv_id)
+            .order_by(MessageSnapshotORM.id.asc())
+        )).scalars().all()
+
+    user_messages = [message for message in messages if message.role == "user"]
+    assistant_messages = [message for message in messages if message.role == "assistant"]
+    assert all(message.message_type == "text" and message.payload is None for message in user_messages)
+    assert [message.message_type for message in assistant_messages] == [
+        "calculation_completed",
+        "calculation_completed",
+    ]
+    assert [message.payload for message in assistant_messages] == [
+        {
+            "event_type": "calculation_completed",
+            "task_id": task_v1,
+            "version": "V1",
+        },
+        {
+            "event_type": "calculation_completed",
+            "task_id": task_v2,
+            "version": "V2",
+        },
+    ]
