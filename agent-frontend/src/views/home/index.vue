@@ -55,6 +55,7 @@
           <div
             v-for="m in calc.messages"
             :key="m.id"
+            :ref="(element) => setMessageElement(m.id, element)"
             class="ir-msg"
             :class="[
               `ir-msg--${m.role}`,
@@ -287,22 +288,45 @@ const calc = useCalculationStore()
 const scrollEl = ref(null)
 const reportListEl = ref(null)
 const highlightedReportId = ref(null)
+const messageElements = new Map()
+const activePromptMessageId = ref(null)
+const promptTopInset = 16
 let reportHighlightTimer
 let scrollFrame
 let scrollRetryTimer
 let streamObserver
 
-function forceScrollToBottom() {
-  if (!scrollEl.value) return
-  scrollEl.value.scrollTop = scrollEl.value.scrollHeight
+function setMessageElement(messageId, element) {
+  if (element) messageElements.set(messageId, element)
+  else messageElements.delete(messageId)
 }
 
-function scheduleScrollToBottom() {
+function autoScrollTarget() {
+  const stream = scrollEl.value
+  if (!stream) return null
+  const bottom = Math.max(0, stream.scrollHeight - stream.clientHeight)
+  if (!calc.responding || !activePromptMessageId.value) return bottom
+
+  const prompt = messageElements.get(activePromptMessageId.value)
+  if (!prompt) return bottom
+  const streamTop = stream.getBoundingClientRect().top
+  const promptTop = prompt.getBoundingClientRect().top
+  const promptLimit = stream.scrollTop + promptTop - streamTop - promptTopInset
+  return Math.max(0, Math.min(bottom, promptLimit))
+}
+
+function applyAutoScroll() {
+  const target = autoScrollTarget()
+  if (target === null) return
+  scrollEl.value.scrollTop = target
+}
+
+function scheduleAutoScroll() {
   cancelAnimationFrame(scrollFrame)
   scrollFrame = requestAnimationFrame(() => {
-    forceScrollToBottom()
+    applyAutoScroll()
     clearTimeout(scrollRetryTimer)
-    scrollRetryTimer = setTimeout(forceScrollToBottom, 60)
+    scrollRetryTimer = setTimeout(applyAutoScroll, 60)
   })
 }
 
@@ -318,7 +342,7 @@ const conversationActive = computed(() => calc.responding || calc.hasActiveRepor
 function startScrollAnchor() {
   stopScrollAnchor()
   const tick = () => {
-    forceScrollToBottom()
+    applyAutoScroll()
     if (conversationActive.value) scrollFrame = requestAnimationFrame(tick)
   }
   scrollFrame = requestAnimationFrame(tick)
@@ -327,17 +351,14 @@ function startScrollAnchor() {
 watch(conversationActive, async (active) => {
   await nextTick()
   if (active) startScrollAnchor()
-  else {
-    stopScrollAnchor()
-    scheduleScrollToBottom()
-  }
+  else stopScrollAnchor()
 }, { flush: 'post' })
 
 watch(scrollEl, (element) => {
   streamObserver?.disconnect()
   if (!element || typeof MutationObserver === 'undefined') return
   streamObserver = new MutationObserver(() => {
-    if (conversationActive.value) scheduleScrollToBottom()
+    if (conversationActive.value) scheduleAutoScroll()
   })
   streamObserver.observe(element, { childList: true, subtree: true, characterData: true })
 }, { flush: 'post' })
@@ -346,6 +367,8 @@ onBeforeUnmount(() => {
   clearTimeout(reportHighlightTimer)
   stopScrollAnchor()
   streamObserver?.disconnect()
+  messageElements.clear()
+  activePromptMessageId.value = null
   calc.disposeActiveTurn({ visible: false })
   calc.disposeReportStreams()
 })
@@ -370,10 +393,14 @@ const examples = [
 ]
 
 async function onSend(text) {
-  scheduleScrollToBottom()
-  await calc.sendAndCalculate(text)
+  const pending = calc.sendAndCalculate(text)
+  const promptMessage = [...calc.messages].reverse().find(
+    (message) => message.role === 'user' && message.kind === 'text',
+  )
+  activePromptMessageId.value = promptMessage?.id || null
   await nextTick()
-  scheduleScrollToBottom()
+  scheduleAutoScroll()
+  await pending
 }
 
 function thinkingNodesOf(message) {
@@ -437,6 +464,21 @@ function openReport(reportId) {
 
 async function jumpToReportRecord(reportId) {
   await nextTick()
+  const reportMessage = calc.messages.find((message) => (
+    (message.flow === 'report' || message.kind === 'report-generated')
+    && (message.reportId ?? message.payload?.report_id) === reportId
+  ))
+  const reportTaskId = calc.reports.find((report) => report.reportId === reportId)?.taskId
+  const taskMessage = reportMessage || calc.messages.find((message) => (
+    (message.flow === 'report' || message.kind === 'report-generated')
+    && reportTaskId != null
+    && (message.taskId ?? message.payload?.task_id) === reportTaskId
+  ))
+  const messageTarget = messageElements.get(taskMessage?.id)
+  if (typeof messageTarget?.scrollIntoView === 'function') {
+    messageTarget.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
   const target = reportListEl.value?.querySelector(`[data-report-id="${reportId}"]`)
   if (!target) return
   target.scrollIntoView({ behavior: 'smooth', block: 'nearest' })

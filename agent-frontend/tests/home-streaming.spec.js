@@ -27,7 +27,7 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock('@/views/home/components/ChatComposer.vue', () => ({
-  default: { template: '<div class="composer-stub" />' },
+  default: { template: '<button class="composer-stub" @click="$emit(\'send\', \'第二次测算\')" />' },
 }))
 vi.mock('@/views/home/components/ResultCard.vue', () => ({
   default: { template: '<div class="result-card-stub" />' },
@@ -166,6 +166,61 @@ describe('home thinking stream rendering', () => {
     expect(wrapper.find('.ir-msg--user').text()).toContain('<b>用户原文</b>')
     expect(wrapper.find('.ir-msg--assistant h2').text()).toBe('历史结论')
     expect(wrapper.find('.ir-msg--assistant table').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('keeps the current user prompt visible while a later response grows', async () => {
+    const frames = []
+    vi.stubGlobal('requestAnimationFrame', (callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+
+    const store = useCalculationStore()
+    store.messages = [
+      { id: 'old-user', role: 'user', kind: 'text', text: '第一次测算' },
+      { id: 'old-answer', role: 'assistant', kind: 'text', text: '第一次测算结果' },
+    ]
+    const wrapper = mount(Home)
+    await wrapper.find('.composer-stub').trigger('click')
+    await nextTick()
+    const pending = Promise.resolve()
+
+    const rows = wrapper.findAll('.ir-home__stream > .ir-msg')
+    expect(rows.slice(0, 3).map((row) => row.text())).toEqual([
+      '第一次测算',
+      '第一次测算结果',
+      '第二次测算',
+    ])
+    expect(rows[3].find('.ir-msg__stream').exists()).toBe(true)
+
+    const stream = wrapper.find('.ir-home__stream').element
+    const currentPrompt = rows[2].element
+    let scrollHeight = 1500
+    Object.defineProperties(stream, {
+      clientHeight: { configurable: true, value: 500 },
+      scrollHeight: { configurable: true, get: () => scrollHeight },
+      scrollTop: { configurable: true, writable: true, value: 400 },
+    })
+    stream.getBoundingClientRect = () => ({ top: 100, bottom: 600 })
+    currentPrompt.getBoundingClientRect = () => ({
+      top: 700 - stream.scrollTop,
+      bottom: 740 - stream.scrollTop,
+    })
+
+    frames.shift()?.()
+    expect(stream.scrollTop).toBe(584)
+
+    frames.shift()?.()
+    expect(stream.scrollTop).toBe(584)
+
+    scrollHeight = 650
+    frames.shift()?.()
+    expect(stream.scrollTop).toBe(150)
+
+    handlers.onEvent({ type: 'done', id: '1', data: { data: {} } })
+    await pending
     wrapper.unmount()
   })
 

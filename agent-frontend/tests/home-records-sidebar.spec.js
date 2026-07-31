@@ -24,6 +24,15 @@ const calc = {
 }
 
 function resetRecords() {
+  calc.messages = [
+    { id: 'm-1', role: 'user', kind: 'text', text: '测算' },
+    {
+      id: 'report-new',
+      role: 'assistant',
+      kind: 'report-generated',
+      payload: { report_id: 'new', task_id: 2 },
+    },
+  ]
   calc.selectedVersion = 'V2'
   calc.latestVersion = { version: 'V2' }
   calc.versions = [
@@ -39,7 +48,7 @@ function resetRecords() {
   ]
   calc.reports = [
     { reportId: 'old', status: 'completed', version: 'V1', title: '旧报告', createdAt: '2026-07-26T14:10:56' },
-    { reportId: 'new', status: 'completed', version: 'V2', title: '新报告', createdAt: '2026-07-27T14:10:56' },
+    { reportId: 'new', taskId: 2, status: 'completed', version: 'V2', title: '新报告', createdAt: '2026-07-27T14:10:56' },
     { reportId: 'unknown', status: 'completed', version: 'V1', title: '无时间报告', createdAt: null },
     { reportId: 'pending', status: 'generating', version: 'V2', title: '生成中报告', createdAt: '2026-07-28T14:10:56' },
   ]
@@ -96,14 +105,46 @@ describe('home records sidebar', () => {
     expect(wrapper.find('[data-report-id="pending"]').exists()).toBe(false)
   })
 
-  it('scrolls and highlights the matching report row from a completed calculation', async () => {
+  it('scrolls to the matching report reply and highlights its report row from a completed calculation', async () => {
     const wrapper = mount(Home)
+    const reportReply = wrapper.findAll('.ir-msg')[1]
+    const reportRow = wrapper.get('[data-report-id="new"]')
+    const reportReplyScroll = vi.spyOn(reportReply.element, 'scrollIntoView')
+    const reportRowScroll = vi.spyOn(reportRow.element, 'scrollIntoView')
 
     await wrapper.get('.ir-ver__report-action').trigger('click')
 
-    const target = wrapper.get('[data-report-id="new"]')
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' })
-    expect(target.classes()).toContain('ir-report-list__item--highlighted')
+    expect(reportReplyScroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    expect(reportRowScroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' })
+    expect(reportRow.classes()).toContain('ir-report-list__item--highlighted')
+  })
+
+  it('falls back to task identity when the report reply has no report id', async () => {
+    calc.messages[1] = {
+      id: 'report-new',
+      role: 'assistant',
+      kind: 'report-generated',
+      payload: { task_id: 2 },
+    }
+    const wrapper = mount(Home)
+    const reportReplyScroll = vi.spyOn(wrapper.findAll('.ir-msg')[1].element, 'scrollIntoView')
+
+    await wrapper.get('.ir-ver__report-action').trigger('click')
+
+    expect(reportReplyScroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    expect(wrapper.get('[data-report-id="new"]').classes()).toContain('ir-report-list__item--highlighted')
+  })
+
+  it('keeps the report-row jump when no matching reply is rendered', async () => {
+    calc.messages = [{ id: 'm-1', role: 'user', kind: 'text', text: '测算' }]
+    const wrapper = mount(Home)
+    const reportRow = wrapper.get('[data-report-id="new"]')
+    const reportRowScroll = vi.spyOn(reportRow.element, 'scrollIntoView')
+
+    await wrapper.get('.ir-ver__report-action').trigger('click')
+
+    expect(reportRowScroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'nearest' })
+    expect(reportRow.classes()).toContain('ir-report-list__item--highlighted')
   })
 
   it('opens a report from its document row in a new tab', async () => {
