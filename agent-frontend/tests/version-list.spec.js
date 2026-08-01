@@ -25,17 +25,17 @@ describe('calculation version list', () => {
     const store = useCalculationStore()
     store.messages = [
       { id: 'u1', role: 'user', kind: 'text', text: '第一次测算' },
-      { id: 'r1', role: 'assistant', kind: 'result', version: 'V1', result: { basicInfo: { province: '甘肃' } } },
+      { id: 'r1', role: 'assistant', kind: 'result', taskId: 11, version: 'V1', result: { basicInfo: { province: '甘肃' } } },
       { id: 'u2', role: 'user', kind: 'text', text: '第二次测算' },
-      { id: 'r2', role: 'assistant', kind: 'result', version: 'V2', result: { basicInfo: { province: '宁夏' } } },
+      { id: 'r2', role: 'assistant', kind: 'result', taskId: 12, version: 'V2', result: { basicInfo: { province: '宁夏' } } },
     ]
     store.versions = [
       {
-        version: 'V1', calculatedAt: '2026-07-27T10:00:00',
+        taskId: 11, version: 'V1', calculatedAt: '2026-07-27T10:00:00',
         result: { basicInfo: { province: '甘肃' }, financial: { projectIrr: 8.1 } },
       },
       {
-        version: 'V2', calculatedAt: '2026-07-28T10:00:00',
+        taskId: 12, version: 'V2', calculatedAt: '2026-07-28T10:00:00',
         result: { basicInfo: { province: '宁夏' }, financial: { projectIrr: 9.2 } },
       },
     ]
@@ -58,6 +58,16 @@ describe('calculation version list', () => {
       '第一次测算', 'V1-甘肃', '第二次测算', 'V2-宁夏',
     ])
 
+    const stream = wrapper.find('.ir-home__stream').element
+    const v1Message = wrapper.findAll('.ir-msg')[1].element
+    Object.defineProperties(stream, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1200 },
+      scrollTop: { configurable: true, writable: true, value: 200 },
+    })
+    stream.getBoundingClientRect = () => ({ top: 100, bottom: 500 })
+    v1Message.getBoundingClientRect = () => ({ top: 650, bottom: 850 })
+
     await items[1].get('.ir-ver__select').trigger('click')
 
     expect(store.selectedVersion).toBe('V1')
@@ -71,6 +81,46 @@ describe('calculation version list', () => {
       '第一次测算', 'V1-甘肃', '第二次测算', 'V2-宁夏',
     ])
     expect(wrapper.find('.ir-msg--selected-result .result-stub').text()).toBe('V1-甘肃')
-    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    expect(stream.scrollTop).toBe(750)
+    wrapper.unmount()
+  })
+
+  it('scrolls the live conversation stream to an assistant-stream result', async () => {
+    const store = useCalculationStore()
+    store.messages = [
+      { id: 'u1', role: 'user', kind: 'text', text: '第一次测算' },
+      {
+        id: 'stream-v1', role: 'assistant', kind: 'assistant-stream', phase: 'completed',
+        taskId: 11, version: 'V1', result: { basicInfo: { province: '甘肃' } },
+      },
+      { id: 'u2', role: 'user', kind: 'text', text: '第二次测算' },
+      {
+        id: 'stream-v2', role: 'assistant', kind: 'assistant-stream', phase: 'completed',
+        taskId: 12, version: 'V2', result: { basicInfo: { province: '宁夏' } },
+      },
+    ]
+    store.versions = [
+      { taskId: 11, version: 'V1', result: { basicInfo: { province: '甘肃' } } },
+      { taskId: 12, version: 'V2', result: { basicInfo: { province: '宁夏' } } },
+    ]
+    store.selectedVersion = 'V2'
+    const wrapper = mount(HomeView, {
+      global: { stubs: { ChatComposer: true } },
+    })
+    const stream = wrapper.find('.ir-home__stream').element
+    const v1Message = wrapper.findAll('.ir-msg')[1].element
+    Object.defineProperties(stream, {
+      clientHeight: { configurable: true, value: 400 },
+      scrollHeight: { configurable: true, value: 1200 },
+      scrollTop: { configurable: true, writable: true, value: 200 },
+    })
+    stream.getBoundingClientRect = () => ({ top: 100, bottom: 500 })
+    v1Message.getBoundingClientRect = () => ({ top: 650, bottom: 850 })
+
+    await wrapper.findAll('.ir-ver__item')[1].get('.ir-ver__select').trigger('click')
+
+    expect(store.selectedVersion).toBe('V1')
+    expect(stream.scrollTop).toBe(750)
+    wrapper.unmount()
   })
 })

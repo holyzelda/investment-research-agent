@@ -289,8 +289,6 @@ const scrollEl = ref(null)
 const reportListEl = ref(null)
 const highlightedReportId = ref(null)
 const messageElements = new Map()
-const activePromptMessageId = ref(null)
-const promptTopInset = 16
 let reportHighlightTimer
 let scrollFrame
 let scrollRetryTimer
@@ -304,15 +302,7 @@ function setMessageElement(messageId, element) {
 function autoScrollTarget() {
   const stream = scrollEl.value
   if (!stream) return null
-  const bottom = Math.max(0, stream.scrollHeight - stream.clientHeight)
-  if (!calc.responding || !activePromptMessageId.value) return bottom
-
-  const prompt = messageElements.get(activePromptMessageId.value)
-  if (!prompt) return bottom
-  const streamTop = stream.getBoundingClientRect().top
-  const promptTop = prompt.getBoundingClientRect().top
-  const promptLimit = stream.scrollTop + promptTop - streamTop - promptTopInset
-  return Math.max(0, Math.min(bottom, promptLimit))
+  return Math.max(0, stream.scrollHeight - stream.clientHeight)
 }
 
 function applyAutoScroll() {
@@ -368,7 +358,6 @@ onBeforeUnmount(() => {
   stopScrollAnchor()
   streamObserver?.disconnect()
   messageElements.clear()
-  activePromptMessageId.value = null
   calc.disposeActiveTurn({ visible: false })
   calc.disposeReportStreams()
 })
@@ -387,17 +376,13 @@ const reversedReports = computed(() => calc.reports
   .map(({ report }) => report))
 
 const examples = [
-  '测算甘肃 200MW/800MWh 独立储能项目',
+  '测算蒙西 100MW/200MWh 独立储能项目',
   '测算宁夏 100MW/400MWh 储能',
   '测算山西 2小时 独立储能',
 ]
 
 async function onSend(text) {
   const pending = calc.sendAndCalculate(text)
-  const promptMessage = [...calc.messages].reverse().find(
-    (message) => message.role === 'user' && message.kind === 'text',
-  )
-  activePromptMessageId.value = promptMessage?.id || null
   await nextTick()
   scheduleAutoScroll()
   await pending
@@ -414,10 +399,18 @@ function hasActiveThinkingOf(message) {
 async function selectVersion(version) {
   calc.selectVersion(version)
   await nextTick()
-  const target = scrollEl.value?.querySelector(`[data-version="${version}"]`)
-  if (typeof target?.scrollIntoView === 'function') {
-    target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
+  const versionEntry = calc.versions.find((item) => item.version === version)
+  const resultMessage = calc.messages.find((message) => (
+    message.result
+    && versionEntry?.taskId != null
+    && message.taskId === versionEntry.taskId
+  ))
+  const stream = scrollEl.value
+  const target = messageElements.get(resultMessage?.id)
+  if (!stream || !target) return
+  const top = stream.scrollTop + target.getBoundingClientRect().top - stream.getBoundingClientRect().top
+  const bottom = Math.max(0, stream.scrollHeight - stream.clientHeight)
+  stream.scrollTop = Math.max(0, Math.min(bottom, top))
 }
 
 function reportCardProps(message) {

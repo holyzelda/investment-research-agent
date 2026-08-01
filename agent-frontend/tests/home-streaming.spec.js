@@ -169,7 +169,7 @@ describe('home thinking stream rendering', () => {
     wrapper.unmount()
   })
 
-  it('keeps the current user prompt visible while a later response grows', async () => {
+  it('follows the latest response to the real bottom while streaming', async () => {
     const frames = []
     vi.stubGlobal('requestAnimationFrame', (callback) => {
       frames.push(callback)
@@ -210,10 +210,11 @@ describe('home thinking stream rendering', () => {
     })
 
     frames.shift()?.()
-    expect(stream.scrollTop).toBe(584)
+    expect(stream.scrollTop).toBe(1000)
 
+    stream.scrollTop = 700
     frames.shift()?.()
-    expect(stream.scrollTop).toBe(584)
+    expect(stream.scrollTop).toBe(1000)
 
     scrollHeight = 650
     frames.shift()?.()
