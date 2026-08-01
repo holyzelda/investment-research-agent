@@ -1,5 +1,6 @@
 import { getToken, getUserIdentity } from '@/utils/auth'
 import { isRelogin } from '@/utils/request'
+import { loginUrl } from '@/utils/appPath'
 import { ElMessageBox } from 'element-plus'
 
 function endpoint(path) {
@@ -26,9 +27,7 @@ function handleUnauthorized() {
     type: 'warning',
   }).then(() => {
     isRelogin.show = false
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-    const redirect = current && current !== '/login' ? `?redirect=${encodeURIComponent(current)}` : ''
-    window.location.replace(`/login${redirect}`)
+    window.location.replace(loginUrl())
   }).catch(() => { isRelogin.show = false })
 }
 

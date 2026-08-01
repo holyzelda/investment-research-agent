@@ -11,7 +11,7 @@ const { getRouters } = await import('@/api/menu')
 describe('gateway authentication endpoint paths', () => {
   beforeEach(() => request.mockClear())
 
-  it('lets the app base URL prepend the gateway prefix to captcha and login', async () => {
+  it('uses root gateway paths for captcha and login', async () => {
     await getCodeImg()
     expect(request).toHaveBeenLastCalledWith(expect.objectContaining({
       url: '/gateway/code',
@@ -23,7 +23,7 @@ describe('gateway authentication endpoint paths', () => {
     }))
   })
 
-  it('uses the same app gateway prefix for user info and dynamic menus', async () => {
+  it('uses root ecenter gateway paths for user info and dynamic menus', async () => {
     await getUserInfo()
     expect(request).toHaveBeenLastCalledWith(expect.objectContaining({
       url: '/gateway/ecenter/system/user/getInfo',

@@ -38,10 +38,10 @@ npm run dev
 
 ```
   VITE v5.x  ready in xxx ms
-  ➜  Local:   http://localhost:5210/
+  ➜  Local:   http://localhost:5210/investment/
 ```
 
-**浏览器打开 http://localhost:5210** —— 就能看到"朱雀投研智能体"对话首页（顶栏品牌 + 中间"用一句话给出省份/容量/功率"引导 + 右侧版本记录占位）。
+**浏览器打开 http://localhost:5210/investment/** —— 就能看到"朱雀投研智能体"对话首页（顶栏品牌 + 中间"用一句话给出省份/容量/功率"引导 + 右侧版本记录占位）。
 
 > **每步在做什么**：
 > - `npm ci`：读 `package.json` + `package-lock.json`，清理并按锁文件还原 `node_modules/`，适合开发初始化与 CI。
@@ -72,7 +72,7 @@ npm run dev
 
 ```bash
 npm ci          # 按锁文件安装依赖
-npm run dev     # 启动开发服务器（http://localhost:5210）
+npm run dev     # 启动开发服务器（http://localhost:5210/investment/）
 npm test        # 跑单元测试（vitest）
 npm run build   # 生产构建，产物在 dist/
 npm run preview # 本地预览构建产物

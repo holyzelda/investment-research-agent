@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getToken, getUserIdentity, markLoginRequired, removeToken, removeUserIdentity } from '@/utils/auth'
+import { loginUrl } from '@/utils/appPath'
 
 // 统一请求实例
 // 说明（平台接入）：支持独立登录，也支持统一平台携带 Token 直接承接；
@@ -14,7 +15,7 @@ const service = axios.create({
 
 const ROOT_GATEWAY_PREFIXES = ['/gateway/code', '/gateway/ecenter/']
 
-function usesRootGateway(url = '') {
+export function usesRootGateway(url = '') {
   return ROOT_GATEWAY_PREFIXES.some((prefix) => url.startsWith(prefix))
 }
 
@@ -22,9 +23,7 @@ export const isRelogin = { show: false }
 
 function redirectToLogin() {
   if (typeof window === 'undefined') return
-  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`
-  const redirect = current && current !== '/login' ? `?redirect=${encodeURIComponent(current)}` : ''
-  window.location.replace(`/login${redirect}`)
+  window.location.replace(loginUrl())
 }
 
 function handleUnauthorized(config, message) {

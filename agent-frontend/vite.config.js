@@ -11,6 +11,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const baseApi = env.VITE_APP_BASE_API || '/gateway/ir-agent/'
   return {
+    base: '/investment/',
     plugins: [
       vue(),
       AutoImport({ resolvers: [ElementPlusResolver()] }),
