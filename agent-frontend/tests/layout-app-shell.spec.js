@@ -9,7 +9,7 @@ const state = vi.hoisted(() => {
       push: vi.fn().mockResolvedValue(undefined),
       currentRoute: { value: route },
     },
-    session: { username: '研究员', loadUserInfo: vi.fn() },
+    session: { username: 'researcher', nickname: '研究员昵称', loadUserInfo: vi.fn() },
     calc: {
       messages: [],
       history: [{ conversationId: 7, title: '甘肃储能测算' }],
@@ -72,7 +72,8 @@ describe('left AppShell layout', () => {
     expect(wrapper.find('.ir-rail').exists()).toBe(false)
     expect(wrapper.find('[data-testid="app-shell"]').exists()).toBe(true)
     expect(wrapper.find('.ir-layout__content').exists()).toBe(true)
-    expect(wrapper.find('.ir-shell__user').text()).toContain('研究员')
+    expect(wrapper.find('.ir-shell__user').text()).toContain('研究员昵称')
+    expect(wrapper.find('.ir-shell__user').text()).not.toContain('researcher')
   })
 
   it('places welcome metrics inside the content column', () => {

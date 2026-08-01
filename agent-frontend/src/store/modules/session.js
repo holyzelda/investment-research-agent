@@ -29,6 +29,7 @@ export const useSessionStore = defineStore('session', {
     token: getToken(),
     userId: null,
     username: '',
+    nickname: '',
     loaded: false,
   }),
   actions: {
@@ -42,6 +43,7 @@ export const useSessionStore = defineStore('session', {
       this.token = token
       this.userId = null
       this.username = ''
+      this.nickname = ''
       this.loaded = false
       return data
     },
@@ -51,6 +53,7 @@ export const useSessionStore = defineStore('session', {
       if (!this.token) {
         this.userId = null
         this.username = ''
+        this.nickname = ''
         removeUserIdentity()
         this.loaded = true
         return false
@@ -59,15 +62,19 @@ export const useSessionStore = defineStore('session', {
         const res = await getUserInfo()
         const objects = flattenObjects(res)
         const userId = firstField(objects, ['userId', 'user_id', 'userid', 'id'])
-        const username = firstField(objects, ['username', 'userName', 'nickName', 'name', 'realName'])
+        const username = firstField(objects, ['username', 'userName'])
+          || firstField(objects, ['nickname', 'nickName', 'name', 'realName'])
+        const nickname = firstField(objects, ['nickname', 'nickName']) || username
         if (!userId || !username) throw new Error('未获取到完整用户身份')
         this.userId = userId
         this.username = username
+        this.nickname = nickname
         setUserIdentity({ userId, username })
         return true
       } catch (e) {
         this.userId = null
         this.username = ''
+        this.nickname = ''
         removeUserIdentity()
         return false
       } finally {
@@ -78,6 +85,7 @@ export const useSessionStore = defineStore('session', {
       this.token = ''
       this.userId = null
       this.username = ''
+      this.nickname = ''
       this.loaded = false
       removeUserIdentity()
     },

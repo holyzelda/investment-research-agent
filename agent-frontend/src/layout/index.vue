@@ -26,7 +26,7 @@
         :active="activeRail"
         :history="calc.history"
         :current="calc.conversationId"
-        :username="session.username || '访客'"
+        :username="session.nickname || session.username || '访客'"
         :user-avatar="userAvatar"
         :collapsed="sidebarCollapsed"
         :drawer-open="drawerOpen"
