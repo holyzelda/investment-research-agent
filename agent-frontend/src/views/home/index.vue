@@ -95,6 +95,7 @@
                 v-if="m.flow === 'report'"
                 v-bind="reportCardProps(m)"
                 @view="openReport"
+                @view-history="jumpToReportRecord"
                 @retry="calc.generateReport"
               />
               <AiAnswerContent v-else-if="m.answerText" :text="m.answerText" :error="Boolean(m.error)" />
@@ -123,6 +124,7 @@
               <ReportGenerationCard
                 v-bind="reportCardProps(m)"
                 @view="openReport"
+                @view-history="jumpToReportRecord"
                 @retry="calc.generateReport"
               />
             </div>
@@ -281,6 +283,12 @@ import orbSrc from '@/assets/ai-sphere.png'
 import agentAvatar from '@/assets/agent.png'
 import userAvatar from '@/assets/user.png'
 import { formatNumber } from '@/utils/formatNumber'
+import {
+  buildReportProjectName,
+  buildReportTitle,
+  buildVersionTitle,
+  formatProjectLocation,
+} from '@/utils/projectTitle'
 
 const session = useSessionStore()
 const router = useRouter()
@@ -424,10 +432,9 @@ function reportCardProps(message) {
   const basic = versionEntry?.result?.basicInfo || {}
   const input = versionEntry?.input || {}
   const province = basic.province ?? input.province ?? ''
-  const nodeName = basic.nodeName ?? input.node_name ?? ''
-  const projectStem = [province, nodeName].filter(Boolean).join(' · ')
-  const power = basic.powerMw ?? input.power_mw
-  const capacity = basic.capacityMwh ?? input.capacity_mwh
+  const nodeName = basic.nodeName ?? input.nodeName ?? input.node_name ?? ''
+  const power = basic.powerMw ?? input.powerMw ?? input.power_mw
+  const capacity = basic.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
   const failed = message.phase === 'error' || Boolean(message.error) || report?.status === 'failed'
   const completed = message.kind === 'report-generated'
     || report?.status === 'completed'
@@ -437,8 +444,10 @@ function reportCardProps(message) {
     status: failed ? 'failed' : completed ? 'completed' : 'generating',
     reportId: reportId ?? report?.reportId ?? null,
     taskId: linkedTaskId,
-    title: report?.title || '正式投资分析报告',
-    projectName: projectStem ? `${projectStem}储能项目` : '储能投资项目',
+    title: report?.title || buildReportTitle(province, nodeName, power, capacity),
+    projectName: formatProjectLocation(province, nodeName)
+      ? buildReportProjectName(province, nodeName, power, capacity)
+      : '储能投资项目',
     version: report?.version || versionEntry?.version || '',
     powerText: power === null || power === undefined ? '—' : `${formatNumber(power)} MW`,
     capacityText: capacity === null || capacity === undefined ? '—' : `${formatNumber(capacity)} MWh`,
@@ -494,16 +503,15 @@ function recordTimeValue(value) {
   return Number.isNaN(time) ? null : time
 }
 
-// 右侧测算记录条目摘要：测算{省份} {功率}MW/{容量}MWh，缺省时优雅降级
+// 右侧测算记录条目摘要使用各版本冻结的地区、节点与规模
 function versionSpec(v) {
   const b = v.result?.basicInfo || {}
-  const province = b.province ?? v.input?.province ?? ''
-  const power = b.powerMw ?? v.input?.power_mw
-  const capacity = b.capacityMwh ?? v.input?.capacity_mwh
-  const scale = [power, capacity].every((x) => x !== null && x !== undefined)
-    ? `${formatNumber(power)}MW/${formatNumber(capacity)}MWh`
-    : ''
-  return `测算${province} ${scale}`.trim()
+  const input = v.input || {}
+  const province = b.province ?? input.province ?? ''
+  const nodeName = b.nodeName ?? input.nodeName ?? input.node_name ?? ''
+  const power = b.powerMw ?? input.powerMw ?? input.power_mw
+  const capacity = b.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
+  return buildVersionTitle(province, nodeName, power, capacity)
 }
 </script>
 

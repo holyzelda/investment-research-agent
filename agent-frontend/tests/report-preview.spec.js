@@ -185,6 +185,8 @@ describe('formal report preview', () => {
     expect(coverageOption.yAxis.axisLabel.formatter(3)).toBe('1.2')
     expect(coverageOption.yAxis.nameLocation).toBe('middle')
     expect(coverageOption.yAxis.nameGap).toBe(38)
+    expect(coverageOption.yAxis.axisPointer).toEqual({ label: { show: false } })
+    expect(coverageOption.xAxis.axisPointer).toBeUndefined()
     expect(coverageOption.series[0].data).toEqual([4, 5])
     expect(coverageOption.series[0].markLine.data).toEqual([{ yAxis: 2 }])
     expect(coverageOption.series[0].markArea.data).toEqual([[

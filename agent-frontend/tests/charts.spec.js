@@ -101,6 +101,8 @@ describe('result chart series contract', () => {
     })
     expect(option.series[0].areaStyle).toBeUndefined()
     expect(option.tooltip.axisPointer).toEqual({ type: 'cross' })
+    expect(option.yAxis.axisPointer).toEqual({ label: { show: false } })
+    expect(option.xAxis.axisPointer).toBeUndefined()
     expect(option.tooltip.formatter([{ axisValue: '第2年', dataIndex: 1 }])).toContain('第2年')
     expect(option.tooltip.formatter([{ axisValue: '第2年', dataIndex: 1 }])).toContain('0 倍')
     expect(option.xAxis.data).toEqual(['第1年', '第2年', '第3年', '第4年'])

@@ -108,6 +108,7 @@ const buildOption = () => {
         fontSize: 11,
         formatter: (value) => toRatioValue(value).toFixed(1),
       },
+      axisPointer: { label: { show: false } },
       splitLine: { lineStyle: { color: xcVar('--xc-border-soft') } },
       axisTick: { show: false },
     },

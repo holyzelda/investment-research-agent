@@ -124,7 +124,7 @@ describe('home thinking stream rendering', () => {
     expect(streamMessage.find('.ir-thinking').exists()).toBe(true)
     expect(streamMessage.find('.ir-report-delivery').exists()).toBe(true)
     expect(streamMessage.find('.ir-ai-answer').exists()).toBe(false)
-    expect(streamMessage.text()).toContain('甘肃 · 祥泰站储能项目')
+    expect(streamMessage.text()).toContain('甘肃省祥泰站100MW/400MWh独立储能项目')
     expect(streamMessage.text()).toContain('V2')
     wrapper.unmount()
   })

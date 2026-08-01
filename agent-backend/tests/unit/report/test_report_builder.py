@@ -45,8 +45,8 @@ def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
 
     payload = build_report_payload(**snapshots, generated_on=date(2026, 7, 23))
 
-    assert payload["title"] == "甘肃200MW/800MWh储能项目测算方案"
-    assert payload["project"]["name"] == "甘肃200MW/800MWh独立储能项目"
+    assert payload["title"] == "甘肃省兰州东200MW/800MWh储能项目报告"
+    assert payload["project"]["name"] == "甘肃省兰州东200MW/800MWh独立储能项目"
     assert payload["generatedDate"] == "2026-07-23"
     assert payload["source"] == {"taskId": 42, "version": "V3"}
     assert payload["project"]["durationHours"] == 4

@@ -15,7 +15,7 @@ def test_uses_template_missing_data_text_for_absent_project_identifiers():
         generated_on=date(2026, 7, 23),
     )
 
-    assert payload["title"] == f"{MISSING_DATA_TEXT}{MISSING_DATA_TEXT}MW/{MISSING_DATA_TEXT}MWh储能项目测算方案"
+    assert payload["title"] == f"{MISSING_DATA_TEXT}{MISSING_DATA_TEXT}MW/{MISSING_DATA_TEXT}MWh储能项目报告"
     assert payload["project"]["province"] == MISSING_DATA_TEXT
     assert payload["project"]["powerMw"] == MISSING_DATA_TEXT
     assert payload["project"]["capacityMwh"] == MISSING_DATA_TEXT

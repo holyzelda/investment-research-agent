@@ -89,6 +89,7 @@ const option = () => {
         type: 'value', name: '倍数', nameLocation: 'middle', nameGap: 38,
         min: 0, max: displayMax, interval: 1, ...axis,
         axisLabel: { color: ink, formatter: (value) => toRatioValue(value).toFixed(1) },
+        axisPointer: { label: { show: false } },
       },
       series: ratios.length ? [
         {

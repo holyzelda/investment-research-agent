@@ -3,17 +3,15 @@ from __future__ import annotations
 
 from datetime import date
 
+from app.modules.report.application.project_naming import (
+    build_report_project_name,
+    build_report_title,
+)
 from app.modules.report.application.report_rules import (
     MISSING_DATA_TEXT,
     REPORT_SCHEMA_VERSION,
     REPORT_STRUCTURE_VERSION,
 )
-
-
-def _number(value):
-    if isinstance(value, float) and value.is_integer():
-        return int(value)
-    return value
 
 
 def _difference(left, right) -> float | None:
@@ -54,9 +52,10 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
     province = basic.get("province") or minimum.get("province") or MISSING_DATA_TEXT
     power = basic.get("powerMw") or minimum.get("powerMw") or MISSING_DATA_TEXT
     capacity = basic.get("capacityMwh") or minimum.get("capacityMwh") or MISSING_DATA_TEXT
+    node_name = basic.get("nodeName") or minimum.get("nodeName") or api_input.get("node_name")
     duration = capacity / power if isinstance(capacity, (int, float)) and isinstance(power, (int, float)) and power else MISSING_DATA_TEXT
-    title = f"{province}{_number(power)}MW/{_number(capacity)}MWh储能项目报告"
-    project_name = f"{province}{_number(power)}MW/{_number(capacity)}MWh独立储能项目"
+    title = build_report_title(province, node_name, power, capacity)
+    project_name = build_report_project_name(province, node_name, power, capacity)
     sources = reports.get("provinceSources", {})
     charts = reports.get("charts", {})
     switches = data_snapshot.payload.get("switches", {})

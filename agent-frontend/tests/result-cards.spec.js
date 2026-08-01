@@ -58,7 +58,7 @@ describe('result card three modules', () => {
     expect(banner.exists()).toBe(true)
     // 横幅插在头部之后、基础条件之前，且不计入三大模块
     expect(wrapper.findAll('.ir-report-module')).toHaveLength(3)
-    expect(banner.find('.ir-result__banner-title').text()).toBe('甘肃储能项目测算结果')
+    expect(banner.find('.ir-result__banner-title').text()).toBe('甘肃省储能项目测算结果')
     const sub = banner.find('.ir-result__banner-sub').text()
     expect(sub).toContain('测算时间 2026年07月15日 09:07:03')
     expect(sub).toContain('测算版本 V1')

@@ -93,6 +93,7 @@ import ParamAdjustPanel from './ParamAdjustPanel.vue'
 import AdvancedParamDialog from './AdvancedParamDialog.vue'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
 import { roundToStep } from '@/utils/paramAdjust'
+import { buildResultTitle } from '@/utils/projectTitle'
 
 const props = defineProps({
   result: { type: Object, required: true },
@@ -109,11 +110,10 @@ defineEmits(['recalculate', 'generate-report'])
 const advanced = computed(() => props.result.advanced || { donut: {}, debtServiceCoverage: {} })
 const warnings = computed(() => props.result.warnings || [])
 
-const bannerTitle = computed(() => {
-  const province = props.result.basicInfo?.province || ''
-  const node = props.result.basicInfo?.nodeName || ''
-  return `${province}${node}储能项目测算结果`.trim()
-})
+const bannerTitle = computed(() => buildResultTitle(
+  props.result.basicInfo?.province,
+  props.result.basicInfo?.nodeName,
+))
 // 直接从 ISO 串取分量拼成本地展示，避免 new Date 引入时区偏移；缺失时展示占位
 const calculatedAtText = computed(() => {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/.exec(props.calculatedAt || '')
