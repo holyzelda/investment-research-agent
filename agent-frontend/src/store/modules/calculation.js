@@ -533,6 +533,13 @@ export const useCalculationStore = defineStore('calculation', {
         const createdResponse = await createCalculationTask(payload, conversationId)
         if (!this._isCurrentTurn(currentTurnId, epoch)) return
         const created = createdResponse.data || {}
+        if (
+          conversationId
+          && created.conversationId
+          && String(conversationId) !== String(created.conversationId)
+        ) {
+          throw new Error('会话标识不一致，测算结果未展示，请重试')
+        }
         if (created.conversationId) this.conversationId = created.conversationId
 
         const terminal = await this._waitForTerminal(created)

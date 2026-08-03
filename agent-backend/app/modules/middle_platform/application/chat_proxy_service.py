@@ -97,7 +97,7 @@ class ChatProxyService:
             "header": {
                 "username": quote(user.username, safe=""),
                 "userid": user.user_id,
-                "conversation_id": conversation.id,
+                "X-IR-Conversation-Id": conversation.id,
             },
         }
         return ChatStream(

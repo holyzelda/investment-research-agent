@@ -124,15 +124,12 @@ class TaskCreateReq(BaseModel):
     voltage_kv: int = 220
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
 
-from fastapi import Request  # 1. 导入 Request
-
 @router.post("/tasks")
 async def create_task(
     req: TaskCreateReq,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
-    conversation_id: Optional[str] = Header(default=None, alias="conversation_id"),
-    request: Request = None,
+    conversation_id: Optional[str] = Header(default=None, alias="X-IR-Conversation-Id"),
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
     try:

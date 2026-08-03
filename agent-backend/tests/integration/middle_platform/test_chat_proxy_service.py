@@ -107,8 +107,8 @@ async def test_first_chat_creates_conversation_and_relays_sse(session):
     assert payload["end_user_name"] == "张三"
     # message 不含 ir_system_context
     assert "<ir_system_context>" not in payload["message"]
-    # header 含 conversation_id 与身份字段
-    assert payload["header"]["conversation_id"] == stream.conversation_id
+    # header 含网关安全的会话标识与身份字段
+    assert payload["header"]["X-IR-Conversation-Id"] == stream.conversation_id
     assert payload["header"]["userid"] == "u-1"
     assert payload["header"]["username"] == "%E5%BC%A0%E4%B8%89"
 
@@ -155,7 +155,7 @@ async def test_multi_turn_sends_stored_middle_platform_session_id(session):
 
     await _collect(stream.chunks)
     assert client.payloads[0][1]["session_id"] == mp_session_id
-    assert client.payloads[0][1]["header"]["conversation_id"] == conversation.id
+    assert client.payloads[0][1]["header"]["X-IR-Conversation-Id"] == conversation.id
 
 
 @pytest.mark.asyncio

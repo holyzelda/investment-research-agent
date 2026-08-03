@@ -5,7 +5,7 @@ export function createCalculationTask(payload, conversationId) {
     url: '/ir/calc/tasks',
     method: 'post',
     data: payload,
-    headers: conversationId ? { conversation_id: conversationId } : undefined,
+    headers: conversationId ? { 'X-IR-Conversation-Id': conversationId } : undefined,
   })
 }
 

@@ -36,16 +36,16 @@
   "header": {
     "username": "<quote(user.username)>",
     "userid": "<user.user_id>",
-    "conversation_id": "<我方 conversation UUID>"
+    "X-IR-Conversation-Id": "<我方 conversation UUID>"
   }
 }
 ```
 
 要点：
-- **两套 id**：`session_id` 是中台会话 id（首轮 null，中台在流里回传后写回映射列，多轮带上）；`header.conversation_id` 是我方会话 UUID（中台回调 `/ir/calc/tasks` 时作为 HTTP header 注入）。
+- **两套 id**：`session_id` 是中台会话 id（首轮 null，中台在流里回传后写回映射列，多轮带上）；`header.X-IR-Conversation-Id` 是我方会话 UUID（中台回调 `/ir/calc/tasks` 时作为同名 HTTP Header 注入）。
 - **顶层 `end_user_*`** 是中台自身身份字段（snake_case 固定），明文填充。
-- **`header.*`** 是中台回调我方 `/tasks` 时注入的 HTTP header；键名大小写不敏感（Starlette/FastAPI 大小写无关），`username` URL 编码（回调时中间件 `unquote`），`conversation_id` 供 `/tasks` 的 `Header(alias="conversation_id")` 读取。
-- **不再注入 `<ir_system_context>`**，`conversation_id` 改走 `header`。
+- **`header.*`** 是中台回调我方 `/tasks` 时注入的 HTTP Header；键名大小写不敏感（Starlette/FastAPI 大小写无关），`username` URL 编码（回调时中间件 `unquote`），`X-IR-Conversation-Id` 供 `/tasks` 的 `Header(alias="X-IR-Conversation-Id")` 读取。会话 Header 使用连字符命名，避免经过网关时被丢弃。
+- **不再注入 `<ir_system_context>`**，会话 UUID 改走 `header`。
 - `app_id`/`source_system` 统一 `ir_agent`（下划线）。
 
 ## 2. 架构边界（不可突破）
@@ -149,13 +149,13 @@ SSE `id:` 单调递增，用于思考节点 reducer 的去重/防乱序。
 
 当前偏差：
 - 把我方 `conversation.id` 作为中台 `session_id` 发出（line 88）；
-- `header` 只有 `userId`/`username`，缺 `conversation_id`（line 95-98）；
+- `header` 只有 `userId`/`username`，缺 `X-IR-Conversation-Id`（line 95-98）；
 - 注入了 `<ir_system_context>`（line 80-84，但未实际拼进 message，变量 `context` 未使用）；
 - 缺顶层字段 `injected_domain`/`source_system`。
 
 修正为 §1.5 锁定契约：
 - `session_id`：用映射列存的中台会话 id（首轮 null，§6.2 从流抓回并存）；
-- `header` 补 `conversation_id`（我方 UUID）；
+- `header` 补 `X-IR-Conversation-Id`（我方 UUID）；
 - 删除 `context` 变量及拼接；
 - 补 `injected_domain: null`、`source_system: “ir_agent”`。
 
@@ -177,9 +177,9 @@ SSE `id:` 单调递增，用于思考节点 reducer 的去重/防乱序。
 - `ir-agent.yaml`: 文件内 `app_id` 字段（若有）→ `ir_agent`；文件名可选改为 `ir_agent.yaml`（如不影响加载路径）；
 - `chat_proxy_service.py:86`: payload 中 `app_id` 已用 `self._config.app_id`，配置改后自动同步。
 
-### 6.4 `/tasks` 保持不变
+### 6.4 `/tasks` 使用网关安全 Header
 
-`router.py` 的 `create_task` 已从 `Header(alias=”conversation_id”)` 读我方会话 UUID，逻辑正确，不改。
+`router.py` 的 `create_task` 从 `Header(alias="X-IR-Conversation-Id")` 读取我方会话 UUID；中台回调和前端直调必须使用同名 HTTP Header。`/ir/chat/diag` 请求体中的 `conversation_id` 仍是 JSON 字段，不受此约束影响。
 
 ### 6.5 后端健壮性待办（列出，不强绑本次）
 

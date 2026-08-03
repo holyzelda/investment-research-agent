@@ -84,6 +84,32 @@ describe('param adjustment: recalculate + param meta', () => {
     expect(store.selectedVersion).toBe('V2')
   })
 
+  it('recalculate 拒绝其他会话的测算结果', async () => {
+    const store = useCalculationStore()
+    store.conversationId = 1
+    store.versions = [{
+      conversationId: 1,
+      taskId: 10,
+      version: 'V1',
+      status: 'completed',
+      result: resultOf('甘肃'),
+      input: { province: '甘肃' },
+    }]
+    api.createCalculationTask.mockResolvedValue({
+      data: { conversationId: 2, taskId: 11, version: 'V1', status: 'completed' },
+    })
+
+    await store.recalculate({
+      overrides: { epc_unit_price: 0.8 },
+      basics: { node_name: '新节点', capacity_mwh: 400, power_mw: 100 },
+    })
+
+    expect(store.conversationId).toBe(1)
+    expect(store.versions.map((item) => item.version)).toEqual(['V1'])
+    expect(api.getCalculationResult).not.toHaveBeenCalled()
+    expect(store.messages.at(-1).answerText).toContain('会话标识不一致')
+  })
+
   it('recalculate 以后端返回的版本号追加新版本且不继承旧报告', async () => {
     const store = useCalculationStore()
     store.conversationId = 1

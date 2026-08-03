@@ -49,6 +49,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - `app/core/response.py` 统一 `{code, msg, data}`；`app/core/exceptions.py` 将请求模型和业务校验错误映射为 HTTP 400。
 - `PlatformIdentityMiddleware` 仅放行 `/docs`、`/redoc`、`/openapi.json`、`/health`；其他请求缺少 `userId` 或 `username` 即返回 401。`username` 在中间件中 URL 解码后写入 `request.state`。
+- 测算会话标识请求头统一为网关安全的 `X-IR-Conversation-Id`；`/ir/chat/diag` 请求体中的 `conversation_id` 仍是 JSON 字段。
 - 后端不验证平台 Token，也不添加登录、用户表、RBAC、JWT 或匿名身份。按用户查询不到会话、任务、报告或咨询时返回 404。
 - 端点测试使用 `httpx.ASGITransport + AsyncClient`，不用 Starlette `TestClient`。HTTP Header 必须是 ASCII；测试中文用户名时先 URL 编码。
 

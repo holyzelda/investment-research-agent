@@ -59,7 +59,7 @@ async def test_task_create_status_result_and_versioning(client):
     # 同会话按中台回调契约再发 → V2（不覆盖）
     r2 = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
-    }, headers={**_HEADERS, "conversation_id": conv_id})
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conv_id})
     d2 = r2.json()["data"]
     assert d2["conversationId"] == conv_id
     assert d2["version"] == "V2"
@@ -69,7 +69,7 @@ async def test_task_create_status_result_and_versioning(client):
 async def test_invalid_conversation_id_returns_400(client):
     r = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
-    }, headers={**_HEADERS, "conversation_id": "not-a-uuid"})
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": "not-a-uuid"})
 
     assert r.status_code == 400
     assert r.json() == {"code": 400, "msg": "conversation_id 格式无效", "data": None}
@@ -86,7 +86,7 @@ async def test_province_change_returns_failed_without_creating_task(client, db_e
 
     rejected = await client.post("/ir/calc/tasks", json={
         "province": "宁夏", "capacity_mwh": 800, "power_mw": 200,
-    }, headers={**_HEADERS, "conversation_id": conversation_id})
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conversation_id})
 
     assert rejected.status_code == 200
     data = rejected.json()["data"]
@@ -114,7 +114,7 @@ async def test_unknown_conversation_returns_failed_result(client):
     conversation_id = "51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6"
     rejected = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
-    }, headers={**_HEADERS, "conversation_id": conversation_id})
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conversation_id})
 
     assert rejected.status_code == 200
     data = rejected.json()["data"]
