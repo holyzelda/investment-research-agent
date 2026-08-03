@@ -118,13 +118,9 @@ const answerBlocks = computed(() => parseMarkdownBlocks(props.consultation?.answ
 
 const sourceRows = computed(() => {
   const sourceData = props.consultation?.sourceData || {}
-  const timeliness = sourceData.timeliness || {}
   const rows = []
 
   if (sourceData.sources?.length) rows.push({ label: '资料来源', links: sourceData.sources.map(normalizeSourceLink) })
-  if (timeliness.province) rows.push({ label: '信息范围', value: timeliness.province })
-  if (timeliness.as_of) rows.push({ label: '数据时点', value: timeliness.as_of })
-  if (sourceData.reminders?.length) rows.push({ label: '分析提醒', value: sourceData.reminders.join('；') })
 
   rows.push({ label: '案卷状态', value: '分析完成' })
   return rows
