@@ -80,6 +80,9 @@ describe('report pagination', () => {
     const result = paginateReportDom({ source, host, pageHeight: 100 })
     expect(result.pages).toHaveLength(2)
     expect(result.pages.map((page) => page.querySelectorAll('.block').length)).toEqual([2, 1])
+    expect(result.pages.every((page) => page.firstElementChild.matches('.ir-report-print-page__content'))).toBe(true)
+    expect(result.pages.map((page) => page.querySelectorAll('.ir-report-watermark__text').length)).toEqual([15, 15])
+    expect(result.pages.every((page) => page.querySelector('.ir-report-watermark')?.getAttribute('aria-hidden') === 'true')).toBe(true)
     expect(result.pages.at(-1).classList.contains('ir-report-print-page--last')).toBe(true)
   })
 

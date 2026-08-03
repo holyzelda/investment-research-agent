@@ -6,6 +6,7 @@ import { mount } from '@vue/test-utils'
 import { nextTick } from 'vue'
 
 const reportPrintSource = readFileSync(resolve(process.cwd(), 'src/styles/report-print.css'), 'utf8')
+const reportViewSource = readFileSync(resolve(process.cwd(), 'src/views/report/index.vue'), 'utf8')
 
 const route = vi.hoisted(() => ({ params: { reportId: 'r-1' } }))
 const captured = vi.hoisted(() => ({ factories: [], prepareForPrint: vi.fn().mockResolvedValue({ pages: [] }), clearPrintPages: vi.fn() }))
@@ -40,6 +41,15 @@ describe('formal report preview', () => {
     expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*\{[^}]*width:\s*170mm;[^}]*height:\s*257mm;/s)
     expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*>\s*\.ir-report-print-unit\s*\{[^}]*margin-top:\s*var\(--ir-report-before-gap,\s*0px\)\s*!important;/s)
     expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*>\s*\.ir-report-print-unit:first-child\s*\{[^}]*margin-top:\s*0\s*!important;/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-watermark\s*\{[^}]*color:\s*rgba\(219,\s*235,\s*255,\s*0\.07\);/s)
+    expect(reportPrintSource).toMatch(/\.ir-report-watermark__text\s*\{[^}]*transform:\s*rotate\(-25deg\);/s)
+  })
+
+  it('adapts the screen preview without changing print pagination rules', () => {
+    expect(reportViewSource).toMatch(/\.ir-report-page\s*\{[^}]*overflow-x:\s*hidden;/s)
+    expect(reportViewSource).toMatch(/@media \(max-width:\s*1000px\)[^{]*\{[\s\S]*?\.ir-report-operation-layout,\s*\.ir-report-revenue-layout\s*\{\s*grid-template-columns:\s*1fr;/)
+    expect(reportViewSource.match(/class="ir-report-table-wrap"/g)?.length).toBeGreaterThanOrEqual(6)
+    expect(reportPrintSource).toMatch(/\.ir-report-operation-layout\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s)
   })
 
   beforeEach(() => {
@@ -251,10 +261,15 @@ describe('formal report preview', () => {
     expect(wrapper.findAll('.ir-report-chapter-heading p').map((item) => item.text())).toEqual([
       'CHAPTER 01', 'CHAPTER 02', 'CHAPTER 03', 'CHAPTER 04', 'CHAPTER 05', 'CHAPTER 06', 'CHAPTER 07',
     ])
-    expect(wrapper.find('[title="返回"]').exists()).toBe(false)
-    expect(wrapper.find('[aria-label="返回顶部"]').exists()).toBe(false)
     const printButton = wrapper.get('[aria-label="打印报告"]')
-    expect(printButton.attributes('title')).toBe('打印报告')
+    expect(wrapper.find('.ir-report-body .ir-report-watermark').exists()).toBe(true)
+    expect(wrapper.find('.ir-report-cover .ir-report-watermark').exists()).toBe(false)
+    expect(wrapper.findAll('.ir-report-body .ir-report-watermark__text')).toHaveLength(15)
+    expect(wrapper.get('.ir-report-body .ir-report-watermark').attributes('aria-hidden')).toBe('true')
+    expect(wrapper.text()).toContain('西安奇点能源股份有限公司')
+    expect(wrapper.find('[aria-label="打印报告"]').attributes('title')).toBe('打印报告（建议在打印设置中启用“背景图形”）')
+    expect(wrapper.find('[aria-label="打印报告"]').attributes('aria-label')).toBe('打印报告')
+
     expect(wrapper.text()).toContain('5.1 偿债能力｜现金流口径下偿债倍数')
     expect(wrapper.text()).toContain('5.2 偿债能力｜经营性现金流对还本付息覆盖能力')
     expect(wrapper.text()).toContain('5.3 财务报表口径｜会计净利润')

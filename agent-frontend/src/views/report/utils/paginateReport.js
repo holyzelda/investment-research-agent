@@ -1,3 +1,5 @@
+import { createReportWatermark } from './reportWatermark'
+
 const DEFAULT_TOLERANCE = 1
 
 function heightOf(element) {
@@ -200,6 +202,7 @@ export function paginateReportDom({ source, host, pageHeight, tolerance = DEFAUL
     const content = document.createElement('div')
     content.className = 'ir-report-print-page__content'
     page.appendChild(content)
+    page.appendChild(createReportWatermark())
     host.appendChild(page)
     const model = { page, content }
     pages.push(model)

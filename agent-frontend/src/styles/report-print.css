@@ -30,6 +30,39 @@
   min-height: 257mm;
 }
 
+.ir-report-watermark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: repeat(var(--ir-report-watermark-columns, 3), minmax(0, 1fr));
+  grid-template-rows: repeat(var(--ir-report-watermark-rows, 5), minmax(0, 1fr));
+  overflow: hidden;
+  color: rgba(219, 235, 255, 0.07);
+  font-family: var(--xc-font-zh);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ir-report-watermark__cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.ir-report-watermark__text {
+  display: block;
+  white-space: nowrap;
+  transform: rotate(-25deg);
+  transform-origin: center;
+}
+
 /* 显式分页会拆掉章节容器，因此按打印宽度下测得的实际视觉距离恢复单元间距。
    页首自动清零，避免与正文页 20mm padding 叠加。 */
 .ir-report-print-page__content > .ir-report-print-unit {

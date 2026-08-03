@@ -54,6 +54,21 @@ import Layout from '@/layout/index.vue'
 
 const mountLayout = () => mount(Layout, { global: { stubs: { 'router-view': true } } })
 
+function installMatchMedia(initialMatches = false) {
+  let listener
+  const media = {
+    matches: initialMatches,
+    addEventListener: vi.fn((event, handler) => { if (event === 'change') listener = handler }),
+    removeEventListener: vi.fn((event, handler) => { if (event === 'change' && listener === handler) listener = undefined }),
+    setMatches(matches) {
+      this.matches = matches
+      listener?.({ matches, media: '(max-width: 1439px)' })
+    },
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => media))
+  return media
+}
+
 describe('left AppShell layout', () => {
   beforeEach(() => {
     state.route.name = 'Home'
@@ -62,6 +77,8 @@ describe('left AppShell layout', () => {
     state.route.meta = {}
     state.calc.messages = []
     state.calc.conversationId = null
+    vi.unstubAllGlobals()
+    installMatchMedia(false)
     vi.clearAllMocks()
   })
 
@@ -118,6 +135,36 @@ describe('left AppShell layout', () => {
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await flushPromises()
     expect(wrapper.find('.ir-shell-wrap').classes()).not.toContain('is-drawer-open')
+  })
+
+  it('updates the Home sidebar when the laptop breakpoint changes', async () => {
+    const media = installMatchMedia(false)
+    const wrapper = mountLayout()
+
+    expect(wrapper.find('.ir-shell-wrap').classes()).not.toContain('is-collapsed')
+    media.setMatches(true)
+    await flushPromises()
+    expect(wrapper.find('.ir-shell-wrap').classes()).toContain('is-collapsed')
+
+    media.setMatches(false)
+    await flushPromises()
+    expect(wrapper.find('.ir-shell-wrap').classes()).not.toContain('is-collapsed')
+  })
+
+  it('does not apply the Home viewport listener to other business pages', async () => {
+    const media = installMatchMedia(true)
+    state.route.name = 'IndexMap'
+    state.route.path = '/index-map'
+    state.route.fullPath = '/index-map'
+    state.route.meta = { collapseSidebar: true }
+    const wrapper = mountLayout()
+
+    expect(wrapper.find('.ir-shell-wrap').classes()).toContain('is-collapsed')
+    await wrapper.find('.ir-shell__toggle').trigger('click')
+    media.setMatches(false)
+    await flushPromises()
+
+    expect(wrapper.find('.ir-shell-wrap').classes()).not.toContain('is-collapsed')
   })
 
   it('keeps an explicitly expanded sidebar open when the route changes', async () => {

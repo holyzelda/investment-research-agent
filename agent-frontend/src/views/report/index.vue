@@ -4,7 +4,7 @@
       <button
         class="ir-report-tool"
         type="button"
-        title="打印报告"
+        title="打印报告（建议在打印设置中启用“背景图形”）"
         aria-label="打印报告"
         :disabled="isPreparingPrint"
         @click="printReport"
@@ -27,8 +27,10 @@
       <ReportCover :project-name="projectName" :preparer="preparer" :generated-date="report.generatedDate" />
 
       <div ref="reportFlow" class="ir-report-body ir-report-flow">
+      <ReportWatermark />
       <ReportChapter :number="1" title="第一章 项目基本信息">
-        <table class="ir-report-table ir-report-table--four">
+        <div class="ir-report-table-wrap">
+          <table class="ir-report-table ir-report-table--four">
           <thead><tr><th>项目要素</th><th>内容</th><th>项目要素</th><th>内容</th></tr></thead>
           <tbody>
             <tr><th>项目名称</th><td>{{ projectName }}</td><th>并网节点</th><td>{{ project.nodeName || project.province }}</td></tr>
@@ -38,7 +40,8 @@
             <tr><th>业主背景</th><td>{{ ownerBackground }}</td><th>项目类型</th><td>{{ projectType }}</td></tr>
             <tr><th>奇点能源定位</th><td class="ir-report-role">{{ singularityRole }}</td><td colspan="2" /></tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </ReportChapter>
 
       <ReportChapter :number="2" title="第二章 市场供需分析">
@@ -54,14 +57,16 @@
 
       <ReportChapter :number="3" title="第三章 政策环境分析">
         <ReportSectionHeading title="3.1 政策环境清单" />
-        <table class="ir-report-table ir-report-policy-table">
+        <div class="ir-report-table-wrap">
+          <table class="ir-report-table ir-report-policy-table">
           <thead><tr><th>政策类型</th><th>市场状态</th><th>对项目影响</th></tr></thead>
           <tbody>
             <tr v-for="item in policyRows" :key="item.name">
               <td>{{ item.name }}</td><td>{{ marketStatus(item.enabled) }}</td><td>{{ projectImpact(item.enabled) }}</td>
             </tr>
           </tbody>
-        </table>
+          </table>
+        </div>
 
         <ReportSectionHeading title="3.2 现货基础运营信息" />
         <div class="ir-report-operation-layout">
@@ -76,39 +81,45 @@
         <ReportSectionHeading title="3.3 项目首年收益结构" />
         <div class="ir-report-revenue-layout">
           <ReportChartCard unit="单位：万元"><ReportChart kind="revenue" :data="{ donut: calculation.advanced?.donut }" /></ReportChartCard>
-          <table class="ir-report-table ir-report-revenue-table">
-            <thead><tr><th>收益项</th><th>金额（万元）</th><th>占比</th></tr></thead>
-            <tbody>
-              <tr v-for="item in revenueRows" :key="item.name"><td>{{ item.name }}</td><td class="xc-num">{{ formatNumber(item.value) }}</td><td class="xc-num">{{ formatNumber(item.ratio * 100, 1) }}%</td></tr>
-              <tr class="ir-report-revenue-total"><th scope="row">合计</th><th class="xc-num">{{ formatNumber(revenueTotal) }}</th><th class="xc-num">100.0%</th></tr>
-              <tr v-if="!revenueRows.length"><td colspan="3">{{ missing }}</td></tr>
-            </tbody>
-          </table>
+          <div class="ir-report-table-wrap">
+            <table class="ir-report-table ir-report-revenue-table">
+              <thead><tr><th>收益项</th><th>金额（万元）</th><th>占比</th></tr></thead>
+              <tbody>
+                <tr v-for="item in revenueRows" :key="item.name"><td>{{ item.name }}</td><td class="xc-num">{{ formatNumber(item.value) }}</td><td class="xc-num">{{ formatNumber(item.ratio * 100, 1) }}%</td></tr>
+                <tr class="ir-report-revenue-total"><th scope="row">合计</th><th class="xc-num">{{ formatNumber(revenueTotal) }}</th><th class="xc-num">100.0%</th></tr>
+                <tr v-if="!revenueRows.length"><td colspan="3">{{ missing }}</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </ReportChapter>
 
       <ReportChapter :number="4" title="第四章 项目测算边界">
         <ReportSectionHeading title="4.1 测算边界参数" />
         <p class="ir-report-intro">本节固化所有输入参数的取值依据，确保不同项目间结果可比、可追溯。</p>
-        <table class="ir-report-table ir-report-boundary-table">
+        <div class="ir-report-table-wrap">
+          <table class="ir-report-table ir-report-boundary-table">
           <thead><tr><th>参数类别</th><th>参数名称</th><th>基准值</th><th>取值依据</th></tr></thead>
           <tbody>
             <tr v-for="item in measurementBoundaryRows" :key="item.name">
               <td>{{ item.category }}</td><td>{{ item.name }}</td><td class="xc-num">{{ item.value }}</td><td>{{ item.rationale }}</td>
             </tr>
           </tbody>
-        </table>
+          </table>
+        </div>
 
         <ReportSectionHeading title="4.2 基准方案测算结果" />
         <p class="ir-report-intro">按上述边界条件运行测算模型，得到的基准方案核心财务指标如下：</p>
-        <table class="ir-report-table ir-report-financial-table">
+        <div class="ir-report-table-wrap">
+          <table class="ir-report-table ir-report-financial-table">
           <thead><tr><th>指标名称</th><th>单位</th><th>数值</th><th>说明</th></tr></thead>
           <tbody>
             <tr v-for="item in financialMetricRows" :key="item.name">
               <td>{{ item.name }}</td><td>{{ item.unit }}</td><td class="xc-num">{{ item.value }}</td><td>{{ item.note }}</td>
             </tr>
           </tbody>
-        </table>
+          </table>
+        </div>
       </ReportChapter>
 
       <ReportChapter :number="5" title="第五章 主模型分析">
@@ -151,10 +162,12 @@
         <ReportSectionHeading title="7.1 风险 - 收益决策矩阵" />
         <ReportChartCard><ReportChart kind="matrix" :data="charts.sensitivity" /></ReportChartCard>
         <ReportSectionHeading title="7.2 投资判断阈值" />
-        <table class="ir-report-table">
+        <div class="ir-report-table-wrap">
+          <table class="ir-report-table">
           <thead><tr><th>判断条件</th><th>投资建议</th><th>后续动作</th></tr></thead>
           <tbody><tr v-for="item in decisionRows" :key="item.advice"><td>{{ item.condition }}</td><td>{{ item.advice }}</td><td>{{ item.action }}</td></tr></tbody>
-        </table>
+          </table>
+        </div>
         <ReportSectionHeading title="7.3 风险提示与后续动作" />
         <ReportAiAnalysis :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" />
       </ReportChapter>
@@ -178,6 +191,7 @@ import ReportChartCard from './components/ReportChartCard.vue'
 import ReportCover from './components/ReportCover.vue'
 import ReportPrintPages from './components/ReportPrintPages.vue'
 import ReportSectionHeading from './components/ReportSectionHeading.vue'
+import ReportWatermark from './components/ReportWatermark.vue'
 
 const route = useRoute()
 const report = ref(null)
@@ -301,14 +315,14 @@ function formatFixedNumber(value) {
 </script>
 
 <style scoped>
-.ir-report-page { min-height: 100vh; padding: 32px 64px 88px; background: var(--xc-report-page); color: var(--xc-text-default); }
+.ir-report-page { min-height: 100vh; padding: 32px 64px 88px; overflow-x: hidden; background: var(--xc-report-page); color: var(--xc-text-default); }
 .ir-report-tools { position: fixed; z-index: var(--xc-z-nav); right: 32px; bottom: 32px; display: flex; flex-direction: column; gap: var(--xc-space-3); }
 .ir-report-tool { display: inline-flex; width: 48px; height: 48px; align-items: center; justify-content: center; border: 1px solid var(--xc-report-border); border-radius: var(--xc-radius-full); background: var(--xc-report-card); box-shadow: var(--xc-shadow-md); color: var(--xc-text-default); cursor: pointer; transition: border-color var(--xc-dur-fast) var(--xc-ease-out), color var(--xc-dur-fast) var(--xc-ease-out), transform var(--xc-dur-fast) var(--xc-ease-out); }
 .ir-report-tool:hover { border-color: var(--xc-accent-blue); color: var(--xc-accent-blue); transform: translateY(-1px); }
 .ir-report-tool:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 3px; }
 .ir-report-tool :deep(svg) { width: 20px; height: 20px; stroke-width: 1.8; }
 .ir-report-document { width: min(241.5mm, calc(100vw - 128px)); margin: 0 auto; background: var(--xc-report-page); box-shadow: var(--xc-shadow-lg); font-family: var(--xc-font-zh); line-height: var(--xc-lh-loose); }
-.ir-report-body { padding: 22mm 24mm 28mm; }
+.ir-report-body { position: relative; padding: 22mm 24mm 28mm; }
 .ir-report-intro { margin: 0 0 16px; color: var(--xc-text-soft); }
 .ir-report-table-wrap { width: 100%; overflow-x: auto; }
 .ir-report-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
@@ -335,6 +349,6 @@ function formatFixedNumber(value) {
 .ir-report-model-section { margin-top: 36px; }.ir-report-model-section:first-child { margin-top: 0; }
 .ir-report-empty { width: min(700px, 90vw); margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .ir-report-tool { transition: none; }.ir-report-tool:hover { transform: none; } }
-@media (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-revenue-layout { grid-template-columns: 1fr; } }
-@media (max-width: 760px) { .ir-report-operation-layout { grid-template-columns: 1fr; }.ir-report-operation-group { padding: 14px 16px; } }
+@media (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-operation-layout, .ir-report-revenue-layout { grid-template-columns: 1fr; }.ir-report-table { min-width: 680px; } }
+@media (max-width: 760px) { .ir-report-body { padding: 56px 16px; }.ir-report-operation-group { padding: 14px 16px; } }
 </style>

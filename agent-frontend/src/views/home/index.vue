@@ -160,11 +160,28 @@
       </template>
     </section>
 
-    <!-- 右侧项目档案：版本轨道与正式报告。 -->
-    <aside v-if="hasConversation" class="ir-home__side">
-      <div class="ir-home__ledger">
+    <!-- 窄屏按需打开项目档案，避免辅助信息挤压主研究区。 -->
+    <button
+      v-if="hasConversation"
+      class="ir-home__ledger-trigger"
+      type="button"
+      aria-controls="ir-home-ledger"
+      :aria-expanded="projectRailOpen"
+      @click="projectRailOpen = true"
+    >
+      <span>项目档案</span>
+      <span class="xc-num">{{ reversedVersions.length }} 次测算 · {{ reversedReports.length }} 份报告</span>
+    </button>
+
+    <!-- 右侧项目档案：桌面常驻，窄屏按需抽屉。 -->
+    <div v-if="projectRailOpen" class="ir-home__ledger-backdrop" aria-hidden="true" @click="projectRailOpen = false" />
+    <aside v-if="hasConversation" class="ir-home__side" :class="{ 'is-open': projectRailOpen }">
+      <div id="ir-home-ledger" class="ir-home__ledger">
         <header class="ir-home__ledger-header">
           <h2>项目档案</h2>
+          <button ref="ledgerCloseButton" class="ir-home__ledger-close" type="button" aria-label="关闭项目档案" @click="closeProjectRail">
+            <X aria-hidden="true" />
+          </button>
           <span class="ir-home__ledger-count xc-num">
             {{ reversedVersions.length }} 次测算 · {{ reversedReports.length }} 份报告
           </span>
@@ -268,7 +285,8 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { X } from '@lucide/vue'
 import { ElMessage } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { useSessionStore } from '@/store/modules/session'
@@ -295,12 +313,58 @@ const router = useRouter()
 const calc = useCalculationStore()
 const scrollEl = ref(null)
 const reportListEl = ref(null)
+const ledgerCloseButton = ref(null)
 const highlightedReportId = ref(null)
+const projectRailOpen = ref(false)
 const messageElements = new Map()
 let reportHighlightTimer
 let scrollFrame
 let scrollRetryTimer
 let streamObserver
+
+function closeProjectRail(restoreFocus = true) {
+  projectRailOpen.value = false
+  if (restoreFocus) nextTick(() => document.querySelector('.ir-home__ledger-trigger')?.focus())
+}
+
+function onProjectRailKeydown(event) {
+  if (!projectRailOpen.value) return
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    closeProjectRail()
+    return
+  }
+  if (event.key !== 'Tab') return
+
+  const rail = document.getElementById('ir-home-ledger')
+  const focusable = rail
+    ? [...rail.querySelectorAll('button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')]
+    : []
+  if (!focusable.length) return
+  const first = focusable[0]
+  const last = focusable[focusable.length - 1]
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault()
+    last.focus()
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault()
+    first.focus()
+  }
+}
+
+watch(projectRailOpen, async (open) => {
+  if (typeof document !== 'undefined') document.body.classList.toggle('is-project-rail-open', open)
+  if (open) await nextTick(() => ledgerCloseButton.value?.focus())
+})
+
+onMounted(() => {
+  window.addEventListener('keydown', onProjectRailKeydown)
+})
+
+onBeforeUnmount(() => {
+  document.body.classList.remove('is-project-rail-open')
+  window.removeEventListener('keydown', onProjectRailKeydown)
+})
 
 function setMessageElement(messageId, element) {
   if (element) messageElements.set(messageId, element)
@@ -406,6 +470,7 @@ function hasActiveThinkingOf(message) {
 
 async function selectVersion(version) {
   calc.selectVersion(version)
+  closeProjectRail(false)
   await nextTick()
   const versionEntry = calc.versions.find((item) => item.version === version)
   const resultMessage = calc.messages.find((message) => (
@@ -465,6 +530,7 @@ function openReport(reportId) {
 }
 
 async function jumpToReportRecord(reportId) {
+  closeProjectRail(false)
   await nextTick()
   const reportMessage = calc.messages.find((message) => (
     (message.flow === 'report' || message.kind === 'report-generated')
@@ -996,32 +1062,89 @@ function versionSpec(v) {
 }
 .ir-report-list__view:hover { background: var(--xc-surface-control); color: var(--xc-text-strong); }
 
+.ir-home__ledger-trigger { display: none; }
+.ir-home__ledger-close { display: none; }
+.ir-home__ledger-backdrop { display: none; }
+
 @media (max-width: 1100px) {
   .ir-home {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(620px, 1fr) minmax(360px, 54vh);
-    height: auto;
-    min-height: 100%;
-    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
   }
-  .ir-home__chat { min-height: 620px; }
-  .ir-home__side { min-height: 360px; padding-top: 0; }
-}
-@media (max-width: 1200px) {
+  .ir-home__chat { flex: 1 1 auto; min-height: 0; }
+  .ir-home__side {
+    position: fixed;
+    z-index: var(--xc-z-modal);
+    inset: 16px 16px 16px auto;
+    width: min(360px, calc(100vw - 32px));
+    padding: 0;
+    transform: translateX(calc(100% + 24px));
+    transition: transform var(--xc-dur-base) var(--xc-ease-out);
+  }
+  .ir-home__side.is-open { transform: translateX(0); }
+  .ir-home__side:not(.is-open) { visibility: hidden; pointer-events: none; }
+  .ir-home__ledger { height: 100%; }
+  .ir-home__ledger-trigger {
+    position: fixed;
+    z-index: var(--xc-z-nav);
+    right: var(--xc-gutter-x);
+    bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--xc-space-3);
+    min-height: 40px;
+    padding: 0 var(--xc-space-4);
+    border: 1px solid var(--xc-border-accent);
+    border-radius: var(--xc-radius-full);
+    background: var(--xc-surface-control);
+    color: var(--xc-text-strong);
+    box-shadow: var(--xc-shadow-md);
+    cursor: pointer;
+  }
+  .ir-home__ledger-trigger .xc-num { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+  .ir-home__ledger-backdrop {
+    display: block;
+    position: fixed;
+    z-index: calc(var(--xc-z-modal) - 1);
+    inset: 0;
+    background: rgba(10, 18, 28, 0.42);
+  }
+  .ir-home__ledger-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    margin-left: auto;
+    border: 0;
+    background: transparent;
+    color: var(--xc-text-soft);
+    cursor: pointer;
+  }
+  .ir-home__ledger-close :deep(svg) { width: 17px; height: 17px; }
+  .ir-home__ledger-header { align-items: center; }
+  .ir-home__ledger-header .ir-home__ledger-count { order: 3; margin-left: auto; }
   .ir-home__chat { --ir-message-inset: 60px; }
-  .ir-msg__avatar--ai { left: -44px; }
-  .ir-msg__avatar--user { right: -44px; }
+}
+@media (min-width: 1101px) and (max-width: 1439px) {
+  .ir-home { gap: var(--xc-space-4); grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 300px); }
+  .ir-home__chat { --ir-message-inset: 60px; }
 }
 @media (max-width: 760px) {
-  .ir-home { grid-template-rows: minmax(560px, 1fr) minmax(340px, 58vh); }
-  .ir-home__chat { --ir-message-inset: 44px; min-height: 560px; }
+  .ir-home__chat { --ir-message-inset: 44px; }
   .ir-msg__avatar--ai { left: -38px; }
   .ir-msg__avatar--user { right: -38px; }
-  .ir-home__ledger-header { align-items: flex-start; flex-direction: column; padding: var(--xc-space-4); }
+  .ir-home__ledger-trigger { right: 16px; bottom: 16px; }
+  .ir-home__ledger-trigger .xc-num { display: none; }
+  .ir-home__ledger-header { align-items: flex-start; flex-wrap: wrap; padding: var(--xc-space-4); }
+  .ir-home__ledger-header .ir-home__ledger-count { width: 100%; margin-left: 0; }
   .ir-home__side-title { padding-inline: var(--xc-space-4); }
   .ir-home__side-scroll { padding-inline: var(--xc-space-3); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .ir-home__side,
   .ir-ver__select,
   .ir-ver__node,
   .ir-ver__report-action,

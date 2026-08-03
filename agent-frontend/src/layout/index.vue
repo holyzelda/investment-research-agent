@@ -97,6 +97,7 @@ const sidebarCollapsed = ref(Boolean(route.meta.collapseSidebar))
 const drawerOpen = ref(false)
 const menuTrigger = ref(null)
 let previousBodyOverflow = ''
+let homeSidebarMedia = null
 
 const metrics = [
   {
@@ -121,15 +122,14 @@ const metrics = [
   },
 ]
 
-function shouldCollapseSidebar() {
-  const mediumViewport = typeof window !== 'undefined'
-    && typeof window.matchMedia === 'function'
-    && window.matchMedia('(max-width: 1199px)').matches
-  return Boolean(route.meta.collapseSidebar) || mediumViewport
+function syncHomeSidebarFromViewport() {
+  if (route.name !== 'Home' || route.meta.collapseSidebar || !homeSidebarMedia) return
+  sidebarCollapsed.value = homeSidebarMedia.matches
 }
 
 watch(() => route.fullPath, () => {
   closeDrawer(false)
+  syncHomeSidebarFromViewport()
 })
 
 watch(drawerOpen, (open) => {
@@ -246,13 +246,18 @@ function onDocumentKeydown(event) {
 }
 
 onMounted(() => {
-  sidebarCollapsed.value = shouldCollapseSidebar()
+  if (typeof window.matchMedia === 'function') {
+    homeSidebarMedia = window.matchMedia('(max-width: 1439px)')
+    syncHomeSidebarFromViewport()
+    homeSidebarMedia.addEventListener?.('change', syncHomeSidebarFromViewport)
+  }
   window.addEventListener('keydown', onDocumentKeydown)
   session.loadUserInfo()
   calc.loadHistory().catch(() => {})
 })
 
 onBeforeUnmount(() => {
+  homeSidebarMedia?.removeEventListener?.('change', syncHomeSidebarFromViewport)
   window.removeEventListener('keydown', onDocumentKeydown)
   document.body.style.overflow = previousBodyOverflow
 })
