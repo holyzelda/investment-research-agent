@@ -26,7 +26,7 @@
         <IndexSummaryCards :summary="store.overview?.summary" />
         <section class="index-map-page__rankings" aria-label="全国指数排行榜">
           <IndexRankingList title="投资热力榜" :items="store.overview?.rankings?.investmentHeat || []" value-key="indexScore" suffix="分" :selected-province-code="store.selectedProvinceCode" @select="store.selectProvince" />
-          <IndexRankingList title="收益稳定榜" :items="store.overview?.rankings?.returnStability || []" :selected-province-code="store.selectedProvinceCode" @select="store.selectProvince" />
+          <IndexRankingList title="收益稳定榜" :items="store.overview?.rankings?.returnStability || []" value-key="annualizedReturn" suffix="分" :selected-province-code="store.selectedProvinceCode" @select="store.selectProvince" />
         </section>
       </main>
       <ProvinceIndexDetail :detail="store.provinceDetail" :loading="store.detailLoading" :error="store.detailError" @retry="store.retryDetail" />

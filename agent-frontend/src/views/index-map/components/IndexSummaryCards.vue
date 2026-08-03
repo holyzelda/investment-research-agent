@@ -2,8 +2,8 @@
   <section class="index-summary-cards" aria-label="全国指数摘要">
     <article><span>全国均值</span><strong class="xc-num">{{ formatNumber(summary?.nationalAverage) }}</strong><em>分</em></article>
     <article><span>领跑省份</span><strong>{{ summary?.leader?.provinceName || '—' }}</strong><em class="xc-num">{{ formatNumber(summary?.leader?.indexScore) }} 分</em></article>
-    <article><span>已开通区域</span><strong class="xc-num">{{ summary?.openedProvinceCount ?? '—' }}</strong><em>省 · S {{ summary?.openedGradeCounts?.S ?? 0 }} / A {{ summary?.openedGradeCounts?.A ?? 0 }} / B {{ summary?.openedGradeCounts?.B ?? 0 }}</em></article>
-    <article><span>高潜待挖掘</span><strong class="xc-num">{{ summary?.highPotentialCount ?? '—' }}</strong><em>省 · C 类待开通</em></article>
+    <article><span>已开通区域</span><strong class="xc-num">{{ summary?.openedProvinceCount ?? '—' }}</strong><em>省 · S {{ summary?.openedGradeCounts?.S ?? 0 }} / A {{ summary?.openedGradeCounts?.A ?? 0 }} / B {{ summary?.openedGradeCounts?.B ?? 0 }} / C {{ summary?.openedGradeCounts?.C ?? 0 }}</em></article>
+    <article><span>高潜待挖掘</span><strong class="xc-num">{{ 6 }}</strong><em>省 · 机制培育中</em></article>
   </section>
 </template>
 <script setup>

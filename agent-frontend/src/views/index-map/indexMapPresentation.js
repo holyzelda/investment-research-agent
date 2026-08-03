@@ -2,7 +2,7 @@ export const INDEX_GRADE_META = [
   { grade: 'S', label: 'S 类·已开通', token: '--xc-map-index-s' },
   { grade: 'A', label: 'A 类·已开通', token: '--xc-map-index-a' },
   { grade: 'B', label: 'B 类·已开通', token: '--xc-map-index-b' },
-  { grade: 'C', label: 'C 类·待开通', token: '--xc-map-index-c' },
+  { grade: 'C', label: 'C 类·已开通', token: '--xc-map-index-c' },
 ]
 
 export const INDEX_MAP_DEFAULT_ZOOM = 1.6

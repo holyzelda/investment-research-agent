@@ -31,19 +31,38 @@ describe('省份指数详情', () => {
     expect(wrapper.find('.province-detail__capacity--thermal .is-down').text()).toBe('↓0.34%')
     expect(wrapper.find('.province-detail__capacity--storage .province-detail__capacity-value > span').exists()).toBe(false)
     expect(wrapper.find('.province-detail__maturity h3 b').exists()).toBe(false)
-    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain('--grade-progress: 100%')
+    expect(wrapper.find('.province-detail__analysis').exists()).toBe(false)
+    // 环形进度直接取真实分数 95，而非等级固定映射。
+    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain('--grade-progress: 95%')
   })
 
   it.each([
-    ['A', 80],
-    ['B', 60],
-    ['C', 40],
-  ])('%s 评级显示 %s%% 的圆环进度', (grade, progress) => {
+    ['S', 88],
+    ['A', 84],
+    ['C', 66],
+  ])('评级 %s、分数 %s 时圆环进度按真实分数显示', (grade, indexScore) => {
     const wrapper = mount(ProvinceIndexDetail, {
-      props: { detail: { ...detail, grade }, loading: false, error: '' },
+      props: { detail: { ...detail, grade, indexScore }, loading: false, error: '' },
     })
 
-    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain(`--grade-progress: ${progress}%`)
+    expect(wrapper.get('.province-detail__grade-ring').attributes('style')).toContain(`--grade-progress: ${indexScore}%`)
+  })
+
+  it('省份缺少同比时不渲染同比标签', () => {
+    const hebei = {
+      ...detail,
+      provinceName: '河北', grade: 'C', indexScore: 66,
+      installedStructure: {
+        totalGw: 107.75,
+        items: [
+          { key: 'renewable', label: '新能源', share: 75.8, windShare: 44.83, solarShare: 48.88, capacityGw: 81.67, description: '', deltaText: null },
+          { key: 'thermal', label: '火电', share: 17.48, capacityGw: 18.84, description: '火电装机', deltaText: null },
+          { key: 'storage', label: '储能', share: 3.94, capacityGw: 4.25, description: '新型储能', deltaText: null },
+        ],
+      },
+    }
+    const wrapper = mount(ProvinceIndexDetail, { props: { detail: hebei, loading: false, error: '' } })
+    expect(wrapper.findAll('.province-detail__capacity-value > span')).toHaveLength(0)
   })
 
   it('详情请求失败时发出重试事件', async () => {

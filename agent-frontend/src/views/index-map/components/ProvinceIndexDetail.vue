@@ -53,7 +53,6 @@
           </div>
         </article>
       </section>
-      <p class="province-detail__analysis">{{ detail.analysisText || '—' }}</p>
     </template>
   </aside>
 </template>
@@ -73,9 +72,8 @@ function clampPercent(value) {
 }
 
 function gradeProgress(grade, indexScore) {
-  const progressByGrade = { S: 100, A: 80, B: 60, C: 40 }
-  const normalizedGrade = String(grade || '').trim().toUpperCase()
-  return progressByGrade[normalizedGrade] ?? clampPercent(indexScore)
+  // 评级环进度直接反映真实投资指数分数（0–100），同等级不同分省份显示各自进度。
+  return clampPercent(indexScore)
 }
 
 defineProps({ detail: { type: Object, default: null }, loading: Boolean, error: { type: String, default: '' } })
@@ -137,12 +135,12 @@ h3 b { color: #dce5e7; font-size: 11px; font-weight: 500; }
 .province-detail .xc-btn { justify-self: stretch; }
 @media (max-width: 1023px) {
   .province-detail { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 18px; }
-  .province-detail > header, .province-detail__score, .province-detail__analysis { grid-column: 1 / -1; }
+  .province-detail > header, .province-detail__score { grid-column: 1 / -1; }
   .province-detail__installed { grid-column: 1 / -1; }
 }
 @media (max-width: 639px) {
   .province-detail { display: grid; grid-template-columns: 1fr; padding: 14px; }
-  .province-detail > header, .province-detail__score, .province-detail__analysis, .province-detail__installed { grid-column: auto; }
+  .province-detail > header, .province-detail__score, .province-detail__installed { grid-column: auto; }
   h2 { font-size: 19px; }
   .province-detail__grade-ring { width: 66px; height: 66px; }
   .province-detail__grade-ring > div { width: 54px; height: 54px; }

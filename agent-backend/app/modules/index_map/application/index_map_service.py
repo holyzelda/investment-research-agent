@@ -16,6 +16,39 @@ from app.modules.index_map.infrastructure.persistence.orm import IndexMapPeriodO
 
 _USE_DATABASE = False
 
+# 评级完全由投资指数分数判定：90–100 S、80–<90 A、70–<80 B、60–<70 C；区间外或空值不赋级。
+_GRADE_BANDS = (
+    (Decimal("90"), Decimal("100"), "S"),
+    (Decimal("80"), Decimal("90"), "A"),
+    (Decimal("70"), Decimal("80"), "B"),
+    (Decimal("60"), Decimal("70"), "C"),
+)
+
+
+def _grade_for_score(score: Decimal | None) -> str | None:
+    if score is None:
+        return None
+    for low, high, grade in _GRADE_BANDS:
+        if grade == "S":
+            if low <= score <= high:
+                return grade
+        elif low <= score < high:
+            return grade
+    return None
+
+
+def _normalize_provinces(provinces: tuple[ProvinceIndexSummary, ...]) -> tuple[ProvinceIndexSummary, ...]:
+    """按分数统一判级并重排 rank，使评级、排行榜、tooltip、详情排名口径一致。"""
+    ordered = sorted(
+        provinces,
+        key=lambda item: (item.index_score is None, -(item.index_score or Decimal(0)), item.province_code),
+    )
+    normalized: list[ProvinceIndexSummary] = []
+    for rank, item in enumerate(ordered, 1):
+        grade = _grade_for_score(item.index_score)
+        normalized.append(ProvinceIndexSummary(**{**item.__dict__, "grade": grade, "rank": rank}))
+    return tuple(normalized)
+
 
 def _period(row: IndexMapPeriodORM) -> IndexPeriod:
     return IndexPeriod(period=row.period, label=row.label, updated_at=row.updated_at)
@@ -30,16 +63,28 @@ def _summary(row: IndexMapProvinceORM) -> ProvinceIndexSummary:
 
 
 def _overview(period: IndexPeriod, provinces: tuple[ProvinceIndexSummary, ...]) -> IndexOverview:
-    score_rows = tuple(sorted(provinces, key=lambda item: (item.index_score is None, -(item.index_score or Decimal(0)), item.province_code)))
-    return_rows = tuple(sorted(provinces, key=lambda item: (item.annualized_return is None, -(item.annualized_return or Decimal(0)), item.province_code)))
+    provinces = _normalize_provinces(provinces)
+    score_rows = provinces  # 已按分数降序、同分按 province_code 稳定排序
+    return_rows = tuple(
+        ProvinceIndexSummary(**{**item.__dict__, "rank": rank})
+        for rank, item in enumerate(
+            sorted(
+                (item for item in provinces if item.annualized_return is not None),
+                key=lambda item: (-item.annualized_return, item.province_code),
+            )[:5],
+            1,
+        )
+    )
     valid_scores = [item.index_score for item in provinces if item.index_score is not None]
-    counts = {grade: sum(1 for item in provinces if item.opened and item.grade == grade) for grade in ("S", "A", "B")}
+    counts = {grade: sum(1 for item in provinces if item.opened and item.grade == grade) for grade in ("S", "A", "B", "C")}
     return IndexOverview(
         period=period, provinces=provinces,
         national_average=(sum(valid_scores) / len(valid_scores)) if valid_scores else None,
         leader=score_rows[0] if score_rows and score_rows[0].index_score is not None else None,
-        opened_province_count=sum(counts.values()), opened_grade_counts=counts,
-        high_potential_count=6,
+        opened_province_count=sum(1 for item in provinces if item.opened),
+        opened_grade_counts=counts,
+        # “C 类区域”语义：按已开通的 C 类区域计数，与摘要第四张卡片一致。
+        high_potential_count=counts["C"],
         investment_heat=score_rows[:5], return_stability=return_rows[:5],
     )
 
@@ -64,9 +109,7 @@ class IndexMapService:
     async def get_overview(self, session: AsyncSession | None, *, period: str) -> IndexOverview:
         period_model = await self._get_period(session, period)
         if not _USE_DATABASE:
-            overview = _overview(period_model, PROVINCES)
-            # Excel 的“其他信息”页给出投资均值 89.2；它不等于仅五个已开通省份的算术均值。
-            return IndexOverview(**{**overview.__dict__, "national_average": Decimal("89.2")})
+            return _overview(period_model, PROVINCES)
         rows = (await session.scalars(select(IndexMapProvinceORM).where(IndexMapProvinceORM.period == period))).all()
         return _overview(period_model, tuple(_summary(row) for row in rows))
 
@@ -76,7 +119,9 @@ class IndexMapService:
             detail = DETAILS.get(province_code)
             if detail is None:
                 raise NotFoundException("省份指数不存在")
-            return detail
+            # 用与概览一致的分数驱动评级和排名归一化详情 summary，保证详情页排名/评级口径一致。
+            normalized = {item.province_code: item for item in _normalize_provinces(PROVINCES)}
+            return ProvinceIndexDetail(summary=normalized[province_code], payload=detail.payload)
         row = await session.scalar(select(IndexMapProvinceORM).where(IndexMapProvinceORM.period == period, IndexMapProvinceORM.province_code == province_code))
         if row is None:
             raise NotFoundException("省份指数不存在")
