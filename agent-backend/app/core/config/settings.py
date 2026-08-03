@@ -221,6 +221,42 @@ class SpotPriceConfig(BaseModel):
     daily_update_workers: int = Field(default=4, ge=1)
 
 
+class PolicyAskFeishuConfig(BaseModel):
+    """政策问答知识库的飞书凭据与文档标识。"""
+
+    app_id: str = ""
+    app_secret: str = ""
+    index_token: str = ""
+    province_tokens: dict[str, str] = Field(default_factory=dict)
+    cross_province_token: str = ""
+
+
+class PolicyAskLlmConfig(BaseModel):
+    """政策问答使用的 LLM 服务配置。"""
+
+    base_url: str = ""
+    api_key: str = ""
+    model: str = ""
+
+
+class PolicyAskAnysearchConfig(BaseModel):
+    api_key: str = ""
+
+
+class PolicyAskBaseConfig(BaseModel):
+    token: str = ""
+    table: str = ""
+
+
+class PolicyAskConfig(BaseModel):
+    """政策与市场问答配置。"""
+
+    feishu: PolicyAskFeishuConfig = Field(default_factory=PolicyAskFeishuConfig)
+    llm: PolicyAskLlmConfig = Field(default_factory=PolicyAskLlmConfig)
+    anysearch: PolicyAskAnysearchConfig = Field(default_factory=PolicyAskAnysearchConfig)
+    base: PolicyAskBaseConfig = Field(default_factory=PolicyAskBaseConfig)
+
+
 class Settings(BaseModel):
     app: AppConfig = AppConfig()
     log: LogConfig = LogConfig()
@@ -231,6 +267,7 @@ class Settings(BaseModel):
     middle_platform: MiddlePlatformConfig = MiddlePlatformConfig()
     feishu: FeishuConfig = FeishuConfig()
     spot_price: SpotPriceConfig = SpotPriceConfig()
+    policy_ask: PolicyAskConfig = Field(default_factory=PolicyAskConfig)
 
 
 def _build_settings() -> Settings:
@@ -339,8 +376,35 @@ def _build_settings() -> Settings:
         daily_update_minute=int(_nested(y, ["spot_price", "daily_update_minute"], _sd.daily_update_minute)),
         daily_update_workers=int(_nested(y, ["spot_price", "daily_update_workers"], _sd.daily_update_workers)),
     )
-    return Settings(app=app, log=log, database=database, nacos=nacos, cors=cors,
-                    calc=calc, middle_platform=middle_platform, feishu=feishu, spot_price=spot_price)
+    _pad = PolicyAskConfig()
+    policy_ask = PolicyAskConfig(
+        feishu=PolicyAskFeishuConfig(
+            app_id=_nested(y, ["policy_ask", "feishu", "app_id"], _pad.feishu.app_id),
+            app_secret=_nested(y, ["policy_ask", "feishu", "app_secret"], _pad.feishu.app_secret),
+            index_token=_nested(y, ["policy_ask", "feishu", "index_token"], _pad.feishu.index_token),
+            province_tokens=_nested(
+                y, ["policy_ask", "feishu", "province_tokens"], _pad.feishu.province_tokens),
+            cross_province_token=_nested(
+                y, ["policy_ask", "feishu", "cross_province_token"], _pad.feishu.cross_province_token),
+        ),
+        llm=PolicyAskLlmConfig(
+            base_url=_nested(y, ["policy_ask", "llm", "base_url"], _pad.llm.base_url),
+            api_key=_nested(y, ["policy_ask", "llm", "api_key"], _pad.llm.api_key),
+            model=_nested(y, ["policy_ask", "llm", "model"], _pad.llm.model),
+        ),
+        anysearch=PolicyAskAnysearchConfig(
+            api_key=_nested(y, ["policy_ask", "anysearch", "api_key"], _pad.anysearch.api_key),
+        ),
+        base=PolicyAskBaseConfig(
+            token=_nested(y, ["policy_ask", "base", "token"], _pad.base.token),
+            table=_nested(y, ["policy_ask", "base", "table"], _pad.base.table),
+        ),
+    )
+    return Settings(
+        app=app, log=log, database=database, nacos=nacos, cors=cors,
+        calc=calc, middle_platform=middle_platform, feishu=feishu,
+        spot_price=spot_price, policy_ask=policy_ask,
+    )
 
 
 @lru_cache

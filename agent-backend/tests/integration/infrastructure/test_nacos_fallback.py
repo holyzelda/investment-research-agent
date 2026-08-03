@@ -61,6 +61,11 @@ database:
 feishu:
   enabled: true
   app_id: remote-app-id
+policy_ask:
+  feishu:
+    app_id: remote-policy-app
+  llm:
+    api_key: remote-policy-key
 """
     )
     monkeypatch.setattr(nacos_module, "get_nacos_client", lambda: fake_client)
@@ -74,6 +79,10 @@ feishu:
     assert settings.database.url == "mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent"
     assert settings.feishu.enabled is True
     assert settings.feishu.app_id == "remote-app-id"
+    assert settings.policy_ask.feishu.app_id == "remote-policy-app"
+    assert settings.policy_ask.llm.api_key == "remote-policy-key"
+    assert settings.policy_ask.feishu.index_token
+    assert settings.policy_ask.llm.model
     assert fake_client.register_calls == [
         {
             "service_name": "ir-agent",

@@ -68,6 +68,25 @@ def test_nacos_business_configuration_overrides_explicit_business_environment(mo
     get_settings.cache_clear()
 
 
+def test_nacos_overrides_policy_ask_configuration():
+    settings_module.set_nacos_overrides({
+        "policy_ask": {
+            "feishu": {"app_id": "remote-policy-app"},
+            "llm": {"api_key": "remote-policy-key"},
+        }
+    })
+
+    settings = reload_settings()
+
+    assert settings.policy_ask.feishu.app_id == "remote-policy-app"
+    assert settings.policy_ask.llm.api_key == "remote-policy-key"
+    assert settings.policy_ask.feishu.index_token
+    assert settings.policy_ask.llm.model
+
+    settings_module.clear_nacos_overrides()
+    get_settings.cache_clear()
+
+
 def test_log_and_cors_are_loaded_from_env_and_ignore_nacos(monkeypatch):
     monkeypatch.setenv("APP_LOG_RETENTION", "14 days")
     monkeypatch.setenv("APP_CORS_ALLOW_ORIGINS", "https://a.example, https://b.example")

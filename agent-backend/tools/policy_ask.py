@@ -16,20 +16,37 @@ from urllib.error import URLError
 
 import lark_oapi as lark
 
-# === 飞书配置(内部使用,已内置) ===
-APP_ID = "example-value-0063"
-APP_SECRET = "example-value-0011"
-INDEX_TOKEN = "exampleToken000000000000012"
+from app.core.config.settings import get_settings
+
+_REQUIRED_PROVINCES = ("蒙西", "宁夏", "甘肃")
+
+
+def _required_config_value(value, path):
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError(f"政策问答配置缺少必填项：policy_ask.{path}")
+    return value.strip()
+
+
+_policy_ask = get_settings().policy_ask
+
+APP_ID = _required_config_value(_policy_ask.feishu.app_id, "feishu.app_id")
+APP_SECRET = _required_config_value(_policy_ask.feishu.app_secret, "feishu.app_secret")
+INDEX_TOKEN = _required_config_value(_policy_ask.feishu.index_token, "feishu.index_token")
+PROVINCES = {}
+for _province in _REQUIRED_PROVINCES:
+    _token = _policy_ask.feishu.province_tokens.get(_province)
+    PROVINCES[_province] = _required_config_value(_token, f"feishu.province_tokens.{_province}")
+CROSS_PROVINCE_TOKEN = str(_policy_ask.feishu.cross_province_token or "").strip()
+ANYSEARCH_API_KEY = str(_policy_ask.anysearch.api_key or "").strip()
+LLM_BASE_URL = _required_config_value(_policy_ask.llm.base_url, "llm.base_url")
+LLM_API_KEY = _required_config_value(_policy_ask.llm.api_key, "llm.api_key")
+LLM_MODEL = _required_config_value(_policy_ask.llm.model, "llm.model")
+BASE_TOKEN = str(_policy_ask.base.token or "").strip()
+BASE_TABLE = str(_policy_ask.base.table or "").strip()
 
 TMP_DIR = Path(__file__).parent / "_tmp_download"
 CACHE_DIR = Path(__file__).parent / "_cache"
 CACHE_TTL = 86400  # 省页缓存24小时
-
-PROVINCES = {
-    "蒙西": "exampleToken000000000000014",
-    "宁夏": "exampleToken000000000000016",
-    "甘肃": "exampleToken000000000000018",
-}
 # 省份别名(只收无歧义别名, 单字"宁"/"甘"会误路由)
 PROVINCE_ALIASES = {
     "蒙西": ["蒙西", "内蒙古", "内蒙", "蒙西电网"],
@@ -39,13 +56,6 @@ PROVINCE_ALIASES = {
 
 # 跨省对比关键词
 CROSS_PROVINCE_KW = ["西北", "三省", "跨省", "对比", "哪个省", "投哪里", "选哪", "更适合", "回本"]
-CROSS_PROVINCE_TOKEN = ""
-ANYSEARCH_API_KEY = ""
-
-# === LLM 配置 ===
-LLM_BASE_URL = "http://qileerouter.jd-ecenter.com"
-LLM_API_KEY = "example-value-0013"
-LLM_MODEL = "deepseek-v4-flash"
 
 SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.信息不足如实说明,不编造数值。4.风险提醒放末尾。5.不输出URL。"
 
@@ -612,9 +622,7 @@ def ask(question, allow_web=True, on_token=None):
     }
 
 
-# === Base 自动记录（可选：未内置 BASE_TOKEN / BASE_TABLE 则跳过日志） ===
-BASE_TOKEN = ""
-BASE_TABLE = ""
+# === Base 自动记录（未配置 token/table 时跳过日志） ===
 
 TOPIC_KW = {
     "容量补偿": ["容量补偿", "容量电价", "容量电费", "容量"],
