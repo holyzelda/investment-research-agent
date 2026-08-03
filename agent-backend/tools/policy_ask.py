@@ -150,7 +150,7 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 800,
+        "max_tokens": 2000,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -213,7 +213,7 @@ def _llm_summarize_general(question, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 800,
+        "max_tokens": 2000,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": GENERAL_PROMPT},
