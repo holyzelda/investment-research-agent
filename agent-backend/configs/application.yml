@@ -76,6 +76,7 @@ spot_price:
 policy_ask:
   # 政策与市场知识库问答的本地凭据；生产环境应通过 Nacos/环境注入覆盖。
   feishu:
+    domain: "example-value-0071"
     app_id: "example-value-0063"
     app_secret: "example-value-0011"
     index_token: "exampleToken000000000000012"
@@ -83,7 +84,9 @@ policy_ask:
       蒙西: "exampleToken000000000000014"
       宁夏: "exampleToken000000000000016"
       甘肃: "exampleToken000000000000018"
-    cross_province_token: ""
+      陕西: "exampleToken000000000000017"
+      山西: "exampleToken000000000000015"
+    cross_province_token: "exampleToken000000000000010"
   llm:
     base_url: "http://qileerouter.jd-ecenter.com"
     api_key: "example-value-0013"

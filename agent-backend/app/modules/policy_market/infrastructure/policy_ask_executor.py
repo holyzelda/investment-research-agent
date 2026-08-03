@@ -11,13 +11,10 @@ class PolicyAskExecutorAdapter:
     async def ask(self, question: str) -> ConsultationAnswer:
         policy_ask = await get_policy_ask_module()
         result = await asyncio.to_thread(policy_ask.ask, question)
-        timeliness = result.get("timeliness") or {}
         return ConsultationAnswer(
             answer=str(result.get("answer") or ""),
-            province_code=timeliness.get("province"),
+            province_code=result.get("province"),
             source_data={
                 "sources": list(result.get("sources") or []),
-                "timeliness": timeliness,
-                "reminders": list(result.get("reminders") or []),
             },
         )

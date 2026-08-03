@@ -229,6 +229,7 @@ class PolicyAskFeishuConfig(BaseModel):
     index_token: str = ""
     province_tokens: dict[str, str] = Field(default_factory=dict)
     cross_province_token: str = ""
+    domain: str = "example-value-0071"
 
 
 class PolicyAskLlmConfig(BaseModel):

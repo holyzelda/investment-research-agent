@@ -18,7 +18,7 @@ import lark_oapi as lark
 
 from app.core.config.settings import get_settings
 
-_REQUIRED_PROVINCES = ("蒙西", "宁夏", "甘肃")
+_REQUIRED_PROVINCES = ("蒙西", "宁夏", "甘肃", "陕西", "山西")
 
 
 def _required_config_value(value, path):
@@ -37,6 +37,12 @@ for _province in _REQUIRED_PROVINCES:
     _token = _policy_ask.feishu.province_tokens.get(_province)
     PROVINCES[_province] = _required_config_value(_token, f"feishu.province_tokens.{_province}")
 CROSS_PROVINCE_TOKEN = str(_policy_ask.feishu.cross_province_token or "").strip()
+FEISHU_DOMAIN = str(_policy_ask.feishu.domain or "example-value-0071").strip()
+
+
+def _feishu_file_url(token):
+    """拼接飞书文件 URL（域名可配置）。"""
+    return f"https://{FEISHU_DOMAIN}/file/{token}"
 ANYSEARCH_API_KEY = str(_policy_ask.anysearch.api_key or "").strip()
 LLM_BASE_URL = _required_config_value(_policy_ask.llm.base_url, "llm.base_url")
 LLM_API_KEY = _required_config_value(_policy_ask.llm.api_key, "llm.api_key")
@@ -47,17 +53,21 @@ BASE_TABLE = str(_policy_ask.base.table or "").strip()
 TMP_DIR = Path(__file__).parent / "_tmp_download"
 CACHE_DIR = Path(__file__).parent / "_cache"
 CACHE_TTL = 86400  # 省页缓存24小时
-# 省份别名(只收无歧义别名, 单字"宁"/"甘"会误路由)
+# 省份别名(只收无歧义别名, 单字"宁"/"甘"会误路由；"陇"/"晋"需白名单语境见 _province_match)
 PROVINCE_ALIASES = {
     "蒙西": ["蒙西", "内蒙古", "内蒙", "蒙西电网"],
     "宁夏": ["宁夏", "宁夏省"],
-    "甘肃": ["甘肃", "甘肃省", "陇"],
+    "甘肃": ["甘肃", "甘肃省"],
+    "陕西": ["陕西", "陕西省", "三秦"],
+    "山西": ["山西", "山西省", "三晋"],
 }
+# 单字别名（子串匹配误路由风险高，仅允许出现在白名单语境，如"陇电/晋能"）
+SINGLE_CHAR_ALIASES = {"甘肃": ["陇"], "山西": ["晋"]}
 
-# 跨省对比关键词
-CROSS_PROVINCE_KW = ["西北", "三省", "跨省", "对比", "哪个省", "投哪里", "选哪", "更适合", "回本"]
+# 跨省对比关键词（仅明确跨省意图才触发；"回本/更适合"等过于通用已移除）
+CROSS_PROVINCE_KW = ["西北", "三省", "跨省", "哪个省", "投哪里", "选哪个", "对比"]
 
-SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.信息不足如实说明,不编造数值。4.风险提醒放末尾。5.不输出URL。"
+SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.信息不足如实说明,不编造数值。4.不输出URL。5.不提及资料状态、草稿、待确认等字样，直接给出结论。"
 
 GENERAL_PROMPT = "你是储能电力交易投研助手。用户的问题在知识库和联网搜索中均未找到确切信息。请基于你的通用知识给出最佳回答。规则: 1.开头明确标注'以下基于AI通用知识，非最新政策数据，仅供参考'。2.给出方向性回答，不含具体数值（因为可能过时）。3.建议用户查阅官方文件确认。4.保持简洁。5.不要在答案中输出任何URL链接。"
 
@@ -105,6 +115,24 @@ def _read(path):
     return Path(path).read_text(encoding="utf-8")
 
 
+def _fallback_context(context):
+    """LLM 返回空时降级为检索到的原文，避免空 answer。"""
+    safe = re.sub(r"token=[A-Za-z0-9]{15,}", "", context or "")
+    safe = re.sub(r"https?://\S+", "", safe)
+    safe = re.sub(r"\n{3,}", "\n\n", safe).strip()
+    return safe or "抱歉，本次未能生成回答，请重试。"
+
+
+def _call_llm_nonstream(body):
+    """单次调用 LLM（非流式），返回 content 字符串（可能为空）。"""
+    req = Request(LLM_BASE_URL.rstrip("/") + "/v1/chat/completions", data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
+    resp = urlopen(req, timeout=60)
+    data = json.loads(resp.read())
+    return (data["choices"][0]["message"].get("content") or "").strip()
+
+
 def _llm_summarize(question, context, as_of, status, on_token=None):
     """
     LLM 总结函数，支持流式输出。
@@ -122,7 +150,7 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 800,
+        "max_tokens": 2000,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -139,9 +167,13 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
         resp = urlopen(req, timeout=60)
 
         if on_token is None:
-            # 非流式模式
-            data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"]
+            # 非流式模式：最多重试 1 次，仍空才降级
+            content = _call_llm_nonstream(body)
+            if not content:
+                content = _call_llm_nonstream(body)
+            if not content:
+                return _fallback_context(context)
+            return content
         else:
             # 流式模式：解析 SSE
             full_content = []
@@ -181,7 +213,7 @@ def _llm_summarize_general(question, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 800,
+        "max_tokens": 2000,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": GENERAL_PROMPT},
@@ -198,9 +230,13 @@ def _llm_summarize_general(question, on_token=None):
         resp = urlopen(req, timeout=60)
 
         if on_token is None:
-            # 非流式模式
-            data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"]
+            # 非流式模式：最多重试 1 次，仍空才降级
+            content = _call_llm_nonstream(body)
+            if not content:
+                content = _call_llm_nonstream(body)
+            if not content:
+                return _fallback_context(question)
+            return content
         else:
             # 流式模式：解析 SSE
             full_content = []
@@ -236,11 +272,11 @@ def _parse_sections(text):
     sections = []
     cur = None
     for line in text.split("\n"):
-        m = re.match(r"^(#{2,3}) (.+)$", line)
+        m = re.match(r"^#{1,4}\s+(.+)$", line)
         if m:
             if cur:
                 sections.append(cur)
-            cur = {"title": m.group(2).strip(), "lines": [], "aliases": []}
+            cur = {"title": m.group(1).strip(), "lines": [], "aliases": []}
         elif cur:
             cur["lines"].append(line)
             am = re.match(r"\s*-\s*别名[:：]\s*(.+)", line)
@@ -251,29 +287,122 @@ def _parse_sections(text):
     return sections
 
 
-def _match_sections(sections, keyword):
-    """关键词定位: 别名精确表→标题子串→正文兜底. 返回命中列表."""
-    hits = []
+def _extract_keywords(question):
+    """从问题提取语义词元：去省份/问句尾/年份，按标点+空格切分，产出多个关键词。"""
+    clean = question
+    for aliases in PROVINCE_ALIASES.values():
+        for a in aliases:
+            clean = clean.replace(a, "")
+    # 单字别名也剥掉（如"陇电"）
+    for singles in SINGLE_CHAR_ALIASES.values():
+        for ch in singles:
+            clean = clean.replace(ch, "")
+    # 剥离问句尾巴/语气词（不参与 section 匹配）
+    clean = re.sub(
+        r"(多少钱|是多少|多少|是什么|什么|如何|怎么|为什么|能|可以|是否|吗|呢|啊|吧|请问|大概|现在|最新|现行|了解|一下|告诉我|知道|想问|帮我)",
+        "", clean)
+    # 剥离年份（2026年/2025/25年）
+    clean = re.sub(r"(20\d{2}年?|\b\d{2}年)", "", clean)
+    # 按常用标点+空格切分
+    words = [w for w in re.split(r"[，,。．；;：:、？！?\s]+", clean) if len(w) >= 2]
+    if not words:
+        words = [clean.strip()] if clean.strip() else []
+    return words
+
+
+def _tokenize_title(title):
+    """把标题拆成语义词元：按 空格/括号/·/冒号/逗号 切分."""
+    parts = re.split(r"[()（）\s·:：,，]+", title)
+    return [p for p in parts if len(p) >= 2]
+
+
+def _longest_common_substr(a, b):
+    """返回两个字符串的最长公共子串长度."""
+    if not a or not b:
+        return 0
+    m, n = len(a), len(b)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    longest = 0
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+                longest = max(longest, dp[i][j])
+    return longest
+
+
+def _score_section(section, keyword):
+    """返回 keyword 对 section 的命中得分，0=未命中。得分越高越相关。"""
+    score = 0
+    kw = keyword
+    # 别名命中（最高）
+    for a in section["aliases"]:
+        if kw in a or a in kw:
+            score = max(score, 100)
+    # 标题子串命中
+    if kw in section["title"]:
+        score = max(score, 80)
+    # 标题词元交集/公共子串（解决"申报价上下限" vs 标题"申报价格"长词匹配）
+    title_tokens = _tokenize_title(section["title"])
+    for t in title_tokens:
+        if t in kw or kw in t:
+            score = max(score, 60)
+        elif _longest_common_substr(kw, t) >= 2:
+            score = max(score, 45)
+    # 正文出现（低分兜底）
+    if kw in "\n".join(section["lines"]):
+        score = max(score, 30)
+    return score
+
+
+def _match_sections(sections, keywords):
+    """多关键词匹配：每个 section 累加所有关键词得分，按总分排序返回命中列表.
+
+    不再用优先级截断（别名>标题>正文），所有命中并列收集并按相关度排序，
+    避免宽泛别名遮蔽精确标题；多关键词累加让"现货+限价"等复合问法命中更准。
+    """
+    scored = []
     for s in sections:
-        if any(keyword in a or a in keyword for a in s["aliases"]):
-            hits.append((0, s))
-        elif keyword in s["title"]:
-            hits.append((1, s))
-    if not hits:
-        for s in sections:
-            if keyword in "\n".join(s["lines"]):
-                hits.append((2, s))
-    hits.sort(key=lambda x: x[0])
-    if hits:
-        best = hits[0][0]
-        return [s for p, s in hits if p == best]
-    return []
+        total = 0
+        for kw in keywords:
+            total += _score_section(s, kw)
+        if total > 0:
+            scored.append((total, s))
+    scored.sort(key=lambda x: -x[0])  # 得分降序
+    return [s for _, s in scored]
 
 
 def _quick_table(text):
     """抽取速查表."""
     m = re.search(r"(## 速查表.*?)(?=\n## |\Z)", text, re.DOTALL)
     return m.group(1).strip() if m else ""
+
+
+def _filter_quick_table(qt, keywords):
+    """速查表行级过滤：只保留含关键词的行（表头/分隔行保留）。
+
+    速查表是每行一个市场的 markdown 表格，如 `| 容量补偿 | 有条件 | ... |`。
+    问"容量补偿"时只保留容量补偿行，无关市场行不污染 context。
+    若过滤后只剩表头（关键词与速查表无关）→ 返回空，避免误导 LLM。
+    """
+    if not qt or not keywords:
+        return qt
+    lines = qt.split("\n")
+    keep = []
+    for line in lines:
+        # 表头 | 细分市场 |...、分隔行 |---|---|、空行 无条件保留
+        if not line.strip():
+            keep.append(line)
+        elif "细分市场" in line:
+            keep.append(line)
+        elif re.match(r"^\|[\s\-|]+\|$", line):
+            keep.append(line)
+        elif any(kw in line for kw in keywords):
+            keep.append(line)
+    filtered = "\n".join(keep)
+    # 有无数据行（"| 可" / "| 有条件" / "| 无" 是数据行特征）
+    has_data = any(("| 可" in l or "| 有条件" in l or "| 无" in l) for l in keep)
+    return filtered if has_data else ""
 
 
 def _evolution_entries(text, keyword):
@@ -360,7 +489,7 @@ def query(question, allow_web=True):
             "source_type": "wiki",
         }
 
-    # 2. 匹配单省份 (含别名)
+    # 2. 匹配单省份 (含别名；单字别名需白名单语境)
     matched = None
     for std_name, aliases in PROVINCE_ALIASES.items():
         for alias in aliases:
@@ -369,6 +498,15 @@ def query(question, allow_web=True):
                 break
         if matched:
             break
+    if not matched:
+        # 单字别名（陇/晋）仅在白名单语境匹配，避免"晋升/陇县"误路由
+        for std_name, singles in SINGLE_CHAR_ALIASES.items():
+            for ch in singles:
+                if re.search(rf"{re.escape(ch)}(电|能|网|东|南|中|煤|京|地)", question):
+                    matched = (std_name, PROVINCES[std_name])
+                    break
+            if matched:
+                break
 
     # 3. 未匹配省份 → 跨省或 anysearch 兜底
     if not matched:
@@ -441,19 +579,11 @@ def query(question, allow_web=True):
 
     # 3. 从省页 section 别名/标题定位关键词 (替代硬编码 market_kw)
     sections = _parse_sections(prov_text)
-    # 提取问题中的关键词(去掉省份名/别名/常见停用词)
-    clean = question
-    for aliases in PROVINCE_ALIASES.values():
-        for a in aliases:
-            clean = clean.replace(a, "")
-    keywords = [w for w in re.split(r"[，,。．\s]+", clean) if len(w) >= 2]
-    if not keywords:
-        keywords = [clean.strip()]
+    # 提取问题中的语义词元（去省份/问句尾/年份，按标点切分）
+    keywords = _extract_keywords(question)
 
-    hits = []
-    for kw in keywords:
-        hits.extend(_match_sections(sections, kw))
-    # 去重
+    hits = _match_sections(sections, keywords)
+    # 去重（按标题保首现）
     seen = set()
     hits = [s for s in hits if not (s["title"] in seen or seen.add(s["title"]))]
 
@@ -461,14 +591,26 @@ def query(question, allow_web=True):
         # wiki section miss → 用速查表兜底
         qt = _quick_table(prov_text)
         if qt:
-            # 提取省页中所有源文件 token（去重）
-            all_tokens = re.findall(r"token=([A-Za-z0-9]{15,})", prov_text)
+            # 提取省页源文件 token：优先按关键词相关行过滤，替代全页前5个
             wiki_tokens = set(PROVINCES.values()) | {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}
-            sources = list(dict.fromkeys(t for t in all_tokens if t not in wiki_tokens))
+            all_tokens = re.findall(r"token=([A-Za-z0-9]{15,})", prov_text)
+            # 含关键词的行（如"容量补偿"相关行）
+            kw_lines = [l for l in prov_text.split("\n") if any(kw in l for kw in keywords)]
+            kw_line_tokens = []
+            for l in kw_lines:
+                kw_line_tokens.extend(re.findall(r"token=([A-Za-z0-9]{15,})", l))
+                # 同时抓该行前后 3 行的 token（依据块可能在相邻行）
+            kw_indices = {i for i, l in enumerate(prov_text.split("\n")) if any(kw in l for kw in keywords)}
+            for i in kw_indices:
+                for j in range(max(0, i - 3), min(len(prov_text.split("\n")), i + 4)):
+                    kw_line_tokens.extend(re.findall(r"token=([A-Za-z0-9]{15,})", prov_text.split("\n")[j]))
+            sources = list(dict.fromkeys(
+                t for t in (kw_line_tokens or all_tokens) if t not in wiki_tokens
+            ))
             return {
                 "province": prov_name,
-                "context": f"知识库暂无精确匹配此问题的 section，以下是 {prov_name} 省页速查表，请基于此回答概述性问题:\n\n{qt}",
-                "sources": [f"https://example-value-0071/file/{t}" for t in sources[:5]],
+                "context": f"知识库 {prov_name} 页速查表如下，若速查表中无对应内容请如实说明缺失，不要编造:\n\n{qt}",
+                "sources": [_feishu_file_url(t) for t in sources[:5]],
                 "as_of": as_of,
                 "status": status,
                 "source_type": "wiki",
@@ -499,9 +641,10 @@ def query(question, allow_web=True):
         }
 
     qt = _quick_table(prov_text)
+    filtered_qt = _filter_quick_table(qt, keywords)  # 行级过滤：只保留相关市场行
     blocks = []
-    if qt:
-        blocks.append(qt + "\n")
+    if filtered_qt:
+        blocks.append(f"[{prov_name} 速查表·相关行]\n{filtered_qt}\n")
     for s in hits:
         body = "\n".join(l for l in s["lines"] if l.strip()
                          and not l.strip().startswith("- 别名"))
@@ -516,6 +659,11 @@ def query(question, allow_web=True):
 
     context = "\n\n".join(blocks)
 
+    # context 长度上限：超长截断，避免 max_tokens=800 下上下文截断导致回答残缺
+    MAX_CONTEXT = 3500
+    if len(context) > MAX_CONTEXT:
+        context = context[:MAX_CONTEXT] + "\n...(上下文过长已截断)"
+
     # sources: 从全页筛与命中 section 相关的文件URL
     # (URL集中在文件索引表格, 不在section正文, 需用别名/标题做过滤器)
     filter_kw = set()
@@ -529,7 +677,7 @@ def query(question, allow_web=True):
     # 1) 文件索引表: 同行含 filter_kw 的完整URL
     lines = prov_text.split("\n")
     for line in lines:
-        urls = re.findall(r"https://pfcip80h4d\.feishu\.cn/file/([A-Za-z0-9]+)", line)
+        urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
         if urls and any(kw in line for kw in filter_kw):
             sources.extend(urls)
     # 2) 命中 section 正文里的 token=XXX 引用
@@ -547,7 +695,7 @@ def query(question, allow_web=True):
     return {
         "province": prov_name,
         "context": context,
-        "sources": [f"https://example-value-0071/file/{t}" for t in sources[:5]],
+        "sources": [_feishu_file_url(t) for t in sources[:5]],
         "as_of": as_of,
         "status": status,
         "source_type": "wiki",
@@ -561,31 +709,21 @@ def ask(question, allow_web=True, on_token=None):
     # 三级兜底: wiki → web → llm_general
     if source_type == "llm_general":
         answer = _llm_summarize_general(question, on_token=on_token)
-        reminders = ["以下基于AI通用知识，非知识库内容，仅供参考"]
         _log_to_base(question, answer, result.get("province"), "N/A", "N/A", [])
         return {
             "answer": answer,
             "sources": result["sources"],
-            "timeliness": None,
-            "reminders": reminders,
+            "province": result.get("province"),
             "source_type": "llm_general",
         }
 
     if source_type == "web":
         answer = _llm_summarize(question, result["context"], result.get("as_of"), result.get("status"), on_token=on_token)
-        reminders = ["以上信息来自联网检索，非知识库预置内容，请核实时效性"]
-        if result.get("province") is None:
-            reminders.append("未识别省份")
         _log_to_base(question, answer, result.get("province"), result.get("as_of"), result.get("status"), result["context"])
         return {
             "answer": answer,
             "sources": result["sources"],
-            "timeliness": {
-                "province": result.get("province"),
-                "as_of": result.get("as_of"),
-                "status": result.get("status"),
-            } if result.get("province") else None,
-            "reminders": reminders,
+            "province": result.get("province"),
             "source_type": "web",
         }
 
@@ -596,28 +734,18 @@ def ask(question, allow_web=True, on_token=None):
         return {
             "answer": answer,
             "sources": result["sources"],
-            "timeliness": None,
-            "reminders": ["未识别省份"],
+            "province": None,
             "source_type": "wiki",
         }
 
     answer = _llm_summarize(question, result["context"], result["as_of"], result["status"], on_token=on_token)
-
-    reminders = []
-    if result["status"] and "待" in result["status"]:
-        reminders.append(f"结论status={result['status']}, 待人复核确认")
 
     _log_to_base(question, answer, result["province"], result["as_of"], result["status"], result["context"])
 
     return {
         "answer": answer,
         "sources": result["sources"],
-        "timeliness": {
-            "province": result["province"],
-            "as_of": result["as_of"],
-            "status": result["status"],
-        },
-        "reminders": reminders,
+        "province": result["province"],
         "source_type": "wiki",
     }
 
