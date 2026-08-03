@@ -75,8 +75,8 @@ function createStreamMessage(id = nextTurnId()) {
   }
 }
 
-function failureText(message, requestId) {
-  return `测算失败：${message || '未知错误'}\nrequest_id：${requestId || '未返回'}`
+function failureText(message) {
+  return `测算失败：${message || '未知错误'}`
 }
 
 export const useCalculationStore = defineStore('calculation', {
@@ -391,12 +391,20 @@ export const useCalculationStore = defineStore('calculation', {
                   break
                 case 'answer':
                   this._applyAnswerEvent(streamMsg, inner, epoch, expectedConversationId).catch((error) => {
-                    if (this._isCurrentTurn(currentTurnId, epoch)) fail(error?.message || '测算结果读取失败')
+                    if (this._isCurrentTurn(currentTurnId, epoch)) {
+                      fail(error?.message || '测算结果读取失败')
+                    }
                   })
                   break
                 case 'recommended_questions':
                   streamMsg.pendingRecommendedQuestions = inner.recommended_questions || []
                   break
+                case 'question': {
+                  const questionText = inner.question_text || inner.text || ''
+                  if (questionText) streamMsg.answerBuffer += questionText
+                  completeSuccess()
+                  break
+                }
                 case 'error':
                   fail(data.msg || inner.message || '对话出错')
                   break
@@ -446,6 +454,11 @@ export const useCalculationStore = defineStore('calculation', {
       }
       if (created.conversationId && !this.conversationId && this.conversationEpoch === epoch) {
         this.conversationId = created.conversationId
+      }
+      if (created.status === 'failed') {
+        const failure = new Error(created.error?.message || '测算失败')
+        failure.requestId = created.error?.requestId || created.requestId
+        throw failure
       }
       if (!created.taskId || created.status !== 'completed') return
       if (streamMsg.handledTaskIds.includes(created.taskId)) return
@@ -531,7 +544,7 @@ export const useCalculationStore = defineStore('calculation', {
           })
           finalizeThinking(streamMsg.thinkingState)
           streamMsg.error = error.message
-          streamMsg.answerText = failureText(error.message, error.requestId || terminal.requestId)
+          streamMsg.answerText = failureText(error.message)
           streamMsg.done = true
           return
         }

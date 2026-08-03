@@ -141,6 +141,82 @@ describe('calculation chat stream flow', () => {
     expect(store.responding).toBe(false)
   })
 
+  it.each([
+    {
+      name: 'a rejected calculation without a task',
+      data: {
+        conversationId: 'c1', taskId: null, status: 'failed', taskCreated: false,
+        requestId: 'req-province',
+        error: { code: 400, message: '省份在当前会话中不可修改，请新建会话后重新测算', requestId: 'req-province' },
+      },
+    },
+    {
+      name: 'a persisted CalcError task',
+      data: {
+        conversationId: 'c1', taskId: 153, status: 'failed', taskCreated: true,
+        requestId: 'req-feishu',
+        error: { code: 'feishu_not_found', message: '飞书资源/模板不存在', requestId: 'req-feishu' },
+      },
+    },
+  ])('shows $name returned by the calculation tool', async ({ data }) => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('开始测算')
+    handlers.onOpen({ conversationId: 'c1' })
+
+    answerEvent('', [{
+      tool: 'create_calculation_task',
+      payload: { code: 200, msg: 'success', data },
+    }])
+    await promise
+    await flush()
+
+    const message = store.messages.at(-1)
+    expect(message.phase).toBe('error')
+    expect(message.done).toBe(true)
+    expect(message.answerText).toContain(data.error.message)
+    expect(message.answerText).not.toContain('request_id')
+    expect(message.answerText).not.toContain(data.error.requestId)
+    expect(store.versions).toEqual([])
+    expect(api.getCalculationResult).not.toHaveBeenCalled()
+
+    handlers.onEvent({ type: 'done', id: '3', data: { data: {} } })
+    handlers.onComplete({ reason: 'eof' })
+    expect(message.phase).toBe('error')
+    expect(message.answerText).toContain(data.error.message)
+  })
+
+  it.each([
+    ['question_text', '请问您本次想咨询哪个业务方向？'],
+    ['text', '请补充本次需要咨询的业务方向。'],
+  ])('uses question.%s as the assistant reply before eof', async (field, questionText) => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('我想咨询业务')
+    handlers.onEvent({
+      type: 'thinking', id: '1',
+      data: {
+        data: {
+          node_id: 'n002-confirm_dir', node_status: 'waiting_user',
+          node_title: '业务意图推理研判',
+        },
+      },
+    })
+    handlers.onEvent({
+      type: 'question', id: '2', data: { data: { [field]: questionText } },
+    })
+    handlers.onComplete({ reason: 'eof' })
+    await promise
+    await vi.runAllTimersAsync()
+
+    const message = store.messages.at(-1)
+    expect(message.answerText).toBe(questionText)
+    expect(message.phase).toBe('completed')
+    expect(message.done).toBe(true)
+    expect(message.doneReceived).toBe(true)
+    expect(message.error).toBeNull()
+    expect(message.thinkingState.nodesById['n002-confirm_dir'].status).toBe('waiting_user')
+    expect(store.responding).toBe(false)
+  })
+
   it('rejects a calculation result from a different conversation', async () => {
     const store = useCalculationStore()
     const promise = store.sendAndCalculate('测算甘肃 200MW/800MWh')

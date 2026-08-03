@@ -109,13 +109,30 @@ class CalculationTaskService:
         conversation_id: Optional[str] = None,
         param_overrides: Optional[dict] = None,
     ) -> dict:
-        conversation_id, version, previous_input = await self._resolve_version(
-            session, conversation_id, user_id, username, basics
-        )
+        request_id = uuid.uuid4().hex
+        try:
+            conversation_id, version, previous_input = await self._resolve_version(
+                session, conversation_id, user_id, username, basics
+            )
+        except (ValidationException, NotFoundException) as e:
+            error_message = str(e)[:500]
+            return {
+                "conversationId": conversation_id,
+                "taskId": None,
+                "version": None,
+                "status": "failed",
+                "taskCreated": False,
+                "requestId": request_id,
+                "error": {
+                    "code": e.code,
+                    "message": error_message,
+                    "requestId": request_id,
+                    "retryCount": 0,
+                },
+            }
 
         assembled = self._assembler.assemble(
             basics, overrides=param_overrides, previous_input=previous_input)
-        request_id = uuid.uuid4().hex
         param_hash = _param_hash(assembled.api_input)
         template_token = self._template_token_for(assembled.api_input)
         copy_name = build_copy_name(basics)  # 城市-节点-功率/容量-时间，副本创建时定格
@@ -150,6 +167,8 @@ class CalculationTaskService:
                 "taskId": task.id,
                 "version": version,
                 "status": "failed",
+                "taskCreated": True,
+                "requestId": request_id,
                 "error": {
                     "code": e.code,
                     "message": error_message,
@@ -189,6 +208,8 @@ class CalculationTaskService:
             "taskId": task_id,
             "version": version,
             "status": "completed",
+            "taskCreated": True,
+            "requestId": request_id,
             "input": assembled.api_input,  # 本次冻结入参，供前端调整面板下次重算时做种子基线
         }
 

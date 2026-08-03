@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.core.config.settings import FeishuConfig
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import ValidationException
 from app.infrastructure.database.base import Base
 from app.modules.calculation.application.factory import build_param_assembler
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
@@ -214,31 +214,45 @@ async def test_province_locked_after_first_calc(session_maker):
         changed_province = ProjectBasics(
             province="宁夏", capacity_mwh=800, power_mw=200, node_name="祥泰站",
         )
-        with pytest.raises(ValidationException):
-            await svc.create_and_run(
-                session, user_id="u1", username="U1", basics=changed_province,
-                conversation_id=v1["conversationId"],
-            )
+        rejected = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=changed_province,
+            conversation_id=v1["conversationId"],
+        )
+    assert rejected["status"] == "failed"
+    assert rejected["taskCreated"] is False
+    assert rejected["taskId"] is None
+    assert rejected["error"]["code"] == 400
+    assert "省份在当前会话中不可修改" in rejected["error"]["message"]
+    assert rejected["requestId"] == rejected["error"]["requestId"]
 
 
 @pytest.mark.asyncio
-async def test_unknown_conversation_raises_not_found(session_maker):
+async def test_unknown_conversation_returns_failed_result(session_maker):
     svc = _service(_CountingSpot())
     async with session_maker() as session:
-        with pytest.raises(NotFoundException):
-            await svc.create_and_run(
-                session, user_id="u1", username="U1", basics=_BASICS,
-                conversation_id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
-            )
+        rejected = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=_BASICS,
+            conversation_id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
+        )
+    assert rejected["status"] == "failed"
+    assert rejected["taskCreated"] is False
+    assert rejected["taskId"] is None
+    assert rejected["error"]["code"] == 404
+    assert rejected["error"]["message"] == "会话不存在"
+    assert rejected["requestId"] == rejected["error"]["requestId"]
 
 
 @pytest.mark.asyncio
-async def test_cross_user_conversation_is_not_found(session_maker):
+async def test_cross_user_conversation_returns_failed_result(session_maker):
     svc = _service(_CountingSpot())
     async with session_maker() as session:
         v1 = await svc.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
-        with pytest.raises(NotFoundException):
-            await svc.create_and_run(
-                session, user_id="u2", username="U2", basics=_BASICS,
-                conversation_id=v1["conversationId"],
-            )
+        rejected = await svc.create_and_run(
+            session, user_id="u2", username="U2", basics=_BASICS,
+            conversation_id=v1["conversationId"],
+        )
+    assert rejected["status"] == "failed"
+    assert rejected["taskCreated"] is False
+    assert rejected["taskId"] is None
+    assert rejected["error"]["code"] == 404
+    assert rejected["error"]["message"] == "会话不存在"

@@ -76,6 +76,58 @@ async def test_invalid_conversation_id_returns_400(client):
 
 
 @pytest.mark.asyncio
+async def test_province_change_returns_failed_without_creating_task(client, db_engine):
+    from app.modules.calculation.infrastructure.persistence.orm import CalculationTaskORM
+
+    first = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+    })
+    conversation_id = first.json()["data"]["conversationId"]
+
+    rejected = await client.post("/ir/calc/tasks", json={
+        "province": "宁夏", "capacity_mwh": 800, "power_mw": 200,
+    }, headers={**_HEADERS, "conversation_id": conversation_id})
+
+    assert rejected.status_code == 200
+    data = rejected.json()["data"]
+    assert data["conversationId"] == conversation_id
+    assert data["status"] == "failed"
+    assert data["taskCreated"] is False
+    assert data["taskId"] is None
+    assert data["version"] is None
+    assert data["error"]["code"] == 400
+    assert "省份在当前会话中不可修改" in data["error"]["message"]
+    assert data["requestId"] == data["error"]["requestId"]
+
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as session:
+        tasks = (await session.execute(
+            select(CalculationTaskORM).where(
+                CalculationTaskORM.conversation_id == conversation_id
+            )
+        )).scalars().all()
+    assert len(tasks) == 1
+
+
+@pytest.mark.asyncio
+async def test_unknown_conversation_returns_failed_result(client):
+    conversation_id = "51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6"
+    rejected = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+    }, headers={**_HEADERS, "conversation_id": conversation_id})
+
+    assert rejected.status_code == 200
+    data = rejected.json()["data"]
+    assert data["conversationId"] == conversation_id
+    assert data["status"] == "failed"
+    assert data["taskCreated"] is False
+    assert data["taskId"] is None
+    assert data["error"]["code"] == 404
+    assert data["error"]["message"] == "会话不存在"
+    assert data["requestId"] == data["error"]["requestId"]
+
+
+@pytest.mark.asyncio
 async def test_missing_task_returns_404(client):
     r = await client.get("/ir/calc/tasks/99999999")
     assert r.status_code == 404
@@ -127,6 +179,8 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
     assert r.status_code == 200
     d = r.json()["data"]
     assert d["status"] == "failed"
+    assert d["taskCreated"] is True
+    assert d["requestId"] == d["error"]["requestId"]
     assert d["error"] == {
         "code": "feishu_auth_401",
         "message": "模拟飞书鉴权失败",
@@ -195,6 +249,8 @@ async def test_retryable_task_failure_keeps_root_cause_and_retry_count(client, m
         "retryCount": 1,
     }
     assert created["status"] == "failed"
+    assert created["taskCreated"] is True
+    assert created["requestId"] == created["error"]["requestId"]
     assert created["error"] == expected_error
 
     maker = async_sessionmaker(db_engine, expire_on_commit=False)
