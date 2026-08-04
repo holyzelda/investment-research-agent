@@ -31,9 +31,9 @@ const emit = defineEmits(['submit-question'])
 const textareaRef = ref(null)
 const question = ref('')
 const quickQuestions = [
-  '新能源消纳政策有何变化？',
-  '本月电价机制如何影响制造业？',
-  '查找储能行业最新政策',
+  '宁夏储能政策',
+  '蒙西储能补偿变化',
+  '甘肃，宁夏，蒙西储能投资哪个地方好？',
 ]
 
 function setQuestion(value = '') {
