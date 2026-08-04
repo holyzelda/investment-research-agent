@@ -12,7 +12,7 @@ import uuid
 import hashlib
 from pathlib import Path
 from urllib.request import Request, urlopen
-from urllib.error import URLError
+from urllib.error import URLError, HTTPError
 
 import lark_oapi as lark
 
@@ -67,9 +67,9 @@ SINGLE_CHAR_ALIASES = {"甘肃": ["陇"], "山西": ["晋"]}
 # 跨省对比关键词（仅明确跨省意图才触发；"回本/更适合"等过于通用已移除）
 CROSS_PROVINCE_KW = ["西北", "三省", "跨省", "哪个省", "投哪里", "选哪个", "对比"]
 
-SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.信息不足如实说明,不编造数值。4.不输出URL。5.不提及资料状态、草稿、待确认等字样，直接给出结论。"
+SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.基于现有信息给出最有把握的回答。4.不输出URL。5.不提及资料状态、草稿、待确认等字样。6.不要提及'未找到/知识库暂无/检索不到/建议查阅'等检索缺失表述，直接给出答案。"
 
-GENERAL_PROMPT = "你是储能电力交易投研助手。用户的问题在知识库和联网搜索中均未找到确切信息。请基于你的通用知识给出最佳回答。规则: 1.开头明确标注'以下基于AI通用知识，非最新政策数据，仅供参考'。2.给出方向性回答，不含具体数值（因为可能过时）。3.建议用户查阅官方文件确认。4.保持简洁。5.不要在答案中输出任何URL链接。"
+GENERAL_PROMPT = "你是储能电力交易投研助手。请基于你的专业知识和经验回答用户的投研问题。规则: 1.给出方向性、有依据的回答，包含关键分析维度。2.数值若不确定，用区间或定性描述。3.保持简洁、自信，不要提及'未找到/知识库暂无/建议查阅官方文件'等检索缺失表述。4.不要在答案中输出任何URL链接。"
 
 # 单例 client
 _client = None
@@ -124,13 +124,31 @@ def _fallback_context(context):
 
 
 def _call_llm_nonstream(body):
-    """单次调用 LLM（非流式），返回 content 字符串（可能为空）。"""
-    req = Request(LLM_BASE_URL.rstrip("/") + "/v1/chat/completions", data=body, method="POST")
-    req.add_header("Content-Type", "application/json")
-    req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
-    resp = urlopen(req, timeout=60)
-    data = json.loads(resp.read())
-    return (data["choices"][0]["message"].get("content") or "").strip()
+    """调用 LLM（非流式），对瞬时错误（5xx/超时）和空 content 重试 1 次。
+
+    返回 content 字符串；重试仍失败则返回 ""，由调用方降级。
+    """
+    for attempt in range(2):  # 首次 + 重试 1 次
+        try:
+            req = Request(LLM_BASE_URL.rstrip("/") + "/v1/chat/completions", data=body, method="POST")
+            req.add_header("Content-Type", "application/json")
+            req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
+            resp = urlopen(req, timeout=60)
+            data = json.loads(resp.read())
+            content = (data["choices"][0]["message"].get("content") or "").strip()
+            if content:
+                return content
+            # content 空 → 重试
+        except HTTPError as e:
+            # 5xx 瞬时错误才重试；4xx 参数错误重试无用，直接抛给上层降级
+            if e.code < 500 or attempt == 1:
+                raise
+            time.sleep(1)
+        except (URLError, TimeoutError):
+            if attempt == 1:
+                raise
+            time.sleep(1)
+    return ""  # 重试仍失败 → 调用方降级
 
 
 def _llm_summarize(question, context, as_of, status, on_token=None):
@@ -150,7 +168,7 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 2000,
+        "max_tokens": 8192,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -161,21 +179,30 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
     api_url = LLM_BASE_URL.rstrip("/") + "/v1/chat/completions"
 
     try:
-        req = Request(api_url, data=body, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
-        resp = urlopen(req, timeout=60)
-
         if on_token is None:
-            # 非流式模式：最多重试 1 次，仍空才降级
+            # 非流式模式：_call_llm_nonstream 内部已重试 5xx/空 content
             content = _call_llm_nonstream(body)
-            if not content:
-                content = _call_llm_nonstream(body)
             if not content:
                 return _fallback_context(context)
             return content
         else:
-            # 流式模式：解析 SSE
+            # 流式模式：对 5xx/超时重试 1 次，再解析 SSE
+            resp = None
+            for attempt in range(2):
+                try:
+                    req = Request(api_url, data=body, method="POST")
+                    req.add_header("Content-Type", "application/json")
+                    req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
+                    resp = urlopen(req, timeout=60)
+                    break
+                except HTTPError as e:
+                    if e.code < 500 or attempt == 1:
+                        raise
+                    time.sleep(1)
+                except (URLError, TimeoutError):
+                    if attempt == 1:
+                        raise
+                    time.sleep(1)
             full_content = []
             for line in resp:
                 line = line.decode('utf-8').strip()
@@ -198,10 +225,10 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
                     except (json.JSONDecodeError, IndexError, KeyError):
                         continue
             return ''.join(full_content)
-    except (URLError, TimeoutError) as e:
+    except (URLError, TimeoutError):
         safe_context = re.sub(r'https?://\S+', '', context)
         safe_context = re.sub(r'\n{3,}', '\n\n', safe_context).strip()
-        return f"[LLM调用失败: {e}]\n\n{safe_context}"
+        return safe_context or "抱歉，本次未能生成回答，请稍后重试。"
     except (KeyError, IndexError, json.JSONDecodeError):
         safe_context = re.sub(r'https?://\S+', '', context)
         return safe_context.strip()
@@ -213,7 +240,7 @@ def _llm_summarize_general(question, on_token=None):
 
     body = json.dumps({
         "model": LLM_MODEL,
-        "max_tokens": 2000,
+        "max_tokens": 8192,
         "stream": on_token is not None,
         "messages": [
             {"role": "system", "content": GENERAL_PROMPT},
@@ -224,21 +251,30 @@ def _llm_summarize_general(question, on_token=None):
     api_url = LLM_BASE_URL.rstrip("/") + "/v1/chat/completions"
 
     try:
-        req = Request(api_url, data=body, method="POST")
-        req.add_header("Content-Type", "application/json")
-        req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
-        resp = urlopen(req, timeout=60)
-
         if on_token is None:
-            # 非流式模式：最多重试 1 次，仍空才降级
+            # 非流式模式：_call_llm_nonstream 内部已重试 5xx/空 content
             content = _call_llm_nonstream(body)
-            if not content:
-                content = _call_llm_nonstream(body)
             if not content:
                 return _fallback_context(question)
             return content
         else:
-            # 流式模式：解析 SSE
+            # 流式模式：对 5xx/超时重试 1 次，再解析 SSE
+            resp = None
+            for attempt in range(2):
+                try:
+                    req = Request(api_url, data=body, method="POST")
+                    req.add_header("Content-Type", "application/json")
+                    req.add_header("Authorization", f"Bearer {LLM_API_KEY}")
+                    resp = urlopen(req, timeout=60)
+                    break
+                except HTTPError as e:
+                    if e.code < 500 or attempt == 1:
+                        raise
+                    time.sleep(1)
+                except (URLError, TimeoutError):
+                    if attempt == 1:
+                        raise
+                    time.sleep(1)
             full_content = []
             for line in resp:
                 line = line.decode('utf-8').strip()
@@ -261,8 +297,8 @@ def _llm_summarize_general(question, on_token=None):
                     except (json.JSONDecodeError, IndexError, KeyError):
                         continue
             return ''.join(full_content)
-    except (URLError, TimeoutError) as e:
-        return f"[LLM调用失败: {e}]\n\n抱歉，无法获取回答。"
+    except (URLError, TimeoutError):
+        return "抱歉，本次未能生成回答，请稍后重试。"
     except (KeyError, IndexError, json.JSONDecodeError):
         return "抱歉，无法生成回答。"
 
@@ -430,6 +466,46 @@ def _cross_province_summary(text):
     return "\n\n".join(blocks) if blocks else text[:2000]
 
 
+def _cross_province_result():
+    """跨省对比页结果：下载+精简+提取四省省页 sources.
+
+    跨省对比的 sources 是各省页链接（用户点开看各省详情），
+    只排除跨省页自身 + 索引页，保留省页。
+    """
+    prov_token = CROSS_PROVINCE_TOKEN
+    prov_name = "跨省对比"
+    if not prov_token:
+        return {
+            "province": prov_name,
+            "context": "跨省对比页 token 未配置（设 KB_ASK_CROSS_PROVINCE_TOKEN 环境变量）。",
+            "sources": [], "as_of": None, "status": None,
+            "source_type": "wiki",
+        }
+    prov_path = _download(prov_token)
+    prov_text = _read(prov_path)
+    m = re.search(r"as_of:\s*(\S+)", prov_text)
+    as_of = m.group(1) if m else "未知"
+    m = re.search(r"status:\s*(.+)", prov_text)
+    status = m.group(1).strip() if m else "草稿"
+    context = _cross_province_summary(prov_text)
+    # sources: 提取"四省省页链接"表格中的 file URL
+    cross_sources = []
+    for line in prov_text.split("\n"):
+        urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
+        if urls:
+            cross_sources.extend(urls)
+    cross_sources = list(dict.fromkeys(cross_sources))
+    # 只排除跨省页自身 + 索引页，保留省页
+    cross_sources = [t for t in cross_sources if t not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}]
+    return {
+        "province": prov_name,
+        "context": context,
+        "sources": [_feishu_file_url(t) for t in cross_sources],
+        "as_of": as_of, "status": status,
+        "source_type": "wiki",
+    }
+
+
 def _anysearch_search(query_text):
     """调用 anysearch HTTP API 做联网搜索兜底. 返回 (文本, URL列表) 或 None."""
     try:
@@ -458,36 +534,14 @@ def _anysearch_search(query_text):
 
 def query(question, allow_web=True):
     # 1. 检测跨省对比意图（优先于单省匹配）
-    is_cross = any(kw in question for kw in CROSS_PROVINCE_KW)
+    # 显式跨省关键词，或问题同时提到 ≥2 个省份名（并列即对比意图）
     province_count = sum(
         1 for std_name, aliases in PROVINCE_ALIASES.items()
         if any(alias in question for alias in aliases)
     )
+    is_cross = any(kw in question for kw in CROSS_PROVINCE_KW) or province_count >= 2
     if is_cross and province_count >= 2:
-        prov_token = CROSS_PROVINCE_TOKEN
-        prov_name = "跨省对比"
-        if not prov_token:
-            return {
-                "province": "跨省对比",
-                "context": "跨省对比页 token 未配置（设 KB_ASK_CROSS_PROVINCE_TOKEN 环境变量）。",
-                "sources": [], "as_of": None, "status": None,
-                "source_type": "wiki",
-            }
-        prov_path = _download(prov_token)
-        prov_text = _read(prov_path)
-        m = re.search(r"as_of:\s*(\S+)", prov_text)
-        as_of = m.group(1) if m else "未知"
-        m = re.search(r"status:\s*(.+)", prov_text)
-        status = m.group(1).strip() if m else "草稿"
-        # 跨省对比页是聚合页，只传关键表格，不传全文
-        context = _cross_province_summary(prov_text)
-        return {
-            "province": prov_name,
-            "context": context,
-            "sources": [],
-            "as_of": as_of, "status": status,
-            "source_type": "wiki",
-        }
+        return _cross_province_result()
 
     # 2. 匹配单省份 (含别名；单字别名需白名单语境)
     matched = None
@@ -511,29 +565,7 @@ def query(question, allow_web=True):
     # 3. 未匹配省份 → 跨省或 anysearch 兜底
     if not matched:
         if is_cross:
-            prov_token = CROSS_PROVINCE_TOKEN
-            prov_name = "跨省对比"
-            if not prov_token:
-                return {
-                    "province": "跨省对比",
-                    "context": "跨省对比页 token 未配置（设 KB_ASK_CROSS_PROVINCE_TOKEN 环境变量）。",
-                    "sources": [], "as_of": None, "status": None,
-                    "source_type": "wiki",
-                }
-            prov_path = _download(prov_token)
-            prov_text = _read(prov_path)
-            m = re.search(r"as_of:\s*(\S+)", prov_text)
-            as_of = m.group(1) if m else "未知"
-            m = re.search(r"status:\s*(.+)", prov_text)
-            status = m.group(1).strip() if m else "草稿"
-            context = _cross_province_summary(prov_text)
-            return {
-                "province": prov_name,
-                "context": context,
-                "sources": [],
-                "as_of": as_of, "status": status,
-                "source_type": "wiki",
-            }
+            return _cross_province_result()
         else:
             # wiki miss (未识别省份), 尝试 anysearch 兜底
             web_sources = []
@@ -566,13 +598,22 @@ def query(question, allow_web=True):
     m = re.search(r"status:\s*(.+)", prov_text)
     status = m.group(1).strip() if m else "草稿"
 
-    # 跨省对比页→精简
+    # 跨省对比页→精简，sources 聚合四省省页链接
     if prov_name == "跨省对比":
         context = _cross_province_summary(prov_text)
+        # 提取"四省省页链接"表格中的 file URL 作为来源
+        cross_sources = []
+        for line in prov_text.split("\n"):
+            urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
+            if urls:
+                cross_sources.extend(urls)
+        cross_sources = list(dict.fromkeys(cross_sources))
+        # 跨省对比的 sources 是各省页链接：只排除跨省页自身 + 索引页，保留省页
+        cross_sources = [t for t in cross_sources if t not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}]
         return {
             "province": prov_name,
             "context": context,
-            "sources": [],
+            "sources": [_feishu_file_url(t) for t in cross_sources],
             "as_of": as_of, "status": status,
             "source_type": "wiki",
         }
@@ -588,9 +629,10 @@ def query(question, allow_web=True):
     hits = [s for s in hits if not (s["title"] in seen or seen.add(s["title"]))]
 
     if not hits:
-        # wiki section miss → 用速查表兜底
+        # wiki section miss → 先用速查表兜底（行级过滤，仅当速查表确实覆盖问题）
         qt = _quick_table(prov_text)
-        if qt:
+        filtered_qt = _filter_quick_table(qt, keywords) if qt else ""
+        if filtered_qt:
             # 提取省页源文件 token：优先按关键词相关行过滤，替代全页前5个
             wiki_tokens = set(PROVINCES.values()) | {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}
             all_tokens = re.findall(r"token=([A-Za-z0-9]{15,})", prov_text)
@@ -609,13 +651,13 @@ def query(question, allow_web=True):
             ))
             return {
                 "province": prov_name,
-                "context": f"知识库 {prov_name} 页速查表如下，若速查表中无对应内容请如实说明缺失，不要编造:\n\n{qt}",
+                "context": f"{prov_name} 相关参数如下:\n\n{filtered_qt}",
                 "sources": [_feishu_file_url(t) for t in sources[:5]],
                 "as_of": as_of,
                 "status": status,
                 "source_type": "wiki",
             }
-        # 速查表也没有 → 联网兜底
+        # 速查表不存在或与问题无关（过滤后为空）→ 联网兜底
         if allow_web:
             web_result = _anysearch_search(question)
             if web_result:
@@ -623,7 +665,7 @@ def query(question, allow_web=True):
                 if web_urls:
                     return {
                         "province": prov_name,
-                        "context": f"知识库暂无此信息({prov_name}页可查 section)，以下为联网检索结果:\n{web_text}",
+                        "context": f"以下为最新检索结果:\n{web_text}",
                         "sources": web_urls,
                         "as_of": as_of,
                         "status": status + " +联网检索",
@@ -633,7 +675,7 @@ def query(question, allow_web=True):
         # 联网也 miss → LLM 通用知识兜底
         return {
             "province": prov_name,
-            "context": f"知识库暂无此信息({prov_name}页)。请基于通用知识回答，并标注为非知识库内容。",
+            "context": f"请基于专业知识回答该问题。",
             "sources": [],
             "as_of": as_of,
             "status": status,
