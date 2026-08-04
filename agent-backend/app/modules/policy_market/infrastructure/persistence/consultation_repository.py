@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.policy_market.domain.models import ConsultationAnswer, ConsultationRecord
@@ -65,6 +65,14 @@ class SqlAlchemyConsultationRepository:
         )
         row = (await self._session.execute(statement)).scalar_one_or_none()
         return self._to_domain(row) if row else None
+
+    async def delete_by_id_and_user(self, *, record_id: int, user_id: str) -> bool:
+        statement = delete(ConsultationRecordORM).where(
+            ConsultationRecordORM.id == record_id,
+            ConsultationRecordORM.user_id == user_id,
+        )
+        result = await self._session.execute(statement)
+        return result.rowcount > 0
 
     async def _require_row(self, record_id: int) -> ConsultationRecordORM:
         row = await self._session.get(ConsultationRecordORM, record_id)

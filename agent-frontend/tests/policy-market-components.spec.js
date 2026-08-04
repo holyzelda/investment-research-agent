@@ -41,13 +41,15 @@ afterEach(() => {
 })
 
 describe('政策与市场咨询组件', () => {
-  it('历史列表发出新建和选择事件，不渲染删除动作', async () => {
+  it('历史列表发出新建、选择和删除事件，删除不触发选择', async () => {
     const wrapper = mount(ConsultationHistory, { props: { consultations: [{ id: 'c-1', title: '新能源消纳政策有何变化？', createdAt: '2026-07-23T10:42:00+08:00' }], selectedId: 'c-1' } })
-    expect(wrapper.text()).not.toContain('删除')
     await wrapper.get('[aria-label="新建提问"]').trigger('click')
     await wrapper.get('[data-consultation-id="c-1"]').trigger('click')
+    await wrapper.get('[aria-label="删除研究记录"]').trigger('click')
+
     expect(wrapper.emitted('new-question')).toHaveLength(1)
     expect(wrapper.emitted('select')).toEqual([['c-1']])
+    expect(wrapper.emitted('delete')).toEqual([['c-1']])
   })
 
   it('快捷问题填入输入框，Ctrl+Enter 发出提交事件', async () => {

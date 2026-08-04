@@ -35,3 +35,9 @@ class ConsultationService:
             record_id=record_id,
             user_id=user_id,
         )
+
+    async def delete_for_user(self, *, record_id: int, user_id: str) -> bool:
+        return await self._repository.delete_by_id_and_user(
+            record_id=record_id,
+            user_id=user_id,
+        )

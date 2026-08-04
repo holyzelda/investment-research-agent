@@ -2,6 +2,7 @@ import types
 
 import pytest
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
@@ -71,6 +72,33 @@ async def test_consultations_only_return_current_users_records(consultation_clie
 @pytest.mark.asyncio
 async def test_consultation_detail_returns_404_for_another_users_record(consultation_client):
     response = await consultation_client.get("/ir/policy-market/consultations/3")
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_delete_consultation_hard_deletes_current_users_record(consultation_client):
+    response = await consultation_client.delete("/ir/policy-market/consultations/2")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"id": 2, "deleted": True}
+
+    records = (await consultation_client.get("/ir/policy-market/consultations")).json()["data"]
+    assert [item["id"] for item in records] == [1]
+
+    detail = await consultation_client.get("/ir/policy-market/consultations/2")
+    assert detail.status_code == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("record_id", [3, 999])
+async def test_delete_consultation_returns_404_for_foreign_or_missing_record(
+    consultation_client, record_id
+):
+    response = await consultation_client.delete(
+        f"/ir/policy-market/consultations/{record_id}"
+    )
 
     assert response.status_code == 404
     assert response.json()["data"] is None

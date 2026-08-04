@@ -6,21 +6,24 @@ import request from '@/utils/request'
 import {
   getConsultation,
   getConsultations,
+  deleteConsultation,
   getMarketNews,
   getMarketOverview,
   submitConsultation,
 } from '@/api/policyMarket'
 
 describe('政策与市场 API', () => {
-  it('咨询 API 使用后端列表、详情和创建端点', async () => {
+  it('咨询 API 使用后端列表、详情、创建和删除端点', async () => {
     request
       .mockResolvedValueOnce({ data: [{ id: 1 }] })
       .mockResolvedValueOnce({ data: { id: 1, answer: '回答' } })
       .mockResolvedValueOnce({ data: { id: 2, answer: '新回答' } })
+      .mockResolvedValueOnce({ data: { id: 1, deleted: true } })
 
     await expect(getConsultations()).resolves.toEqual([{ id: 1 }])
     await expect(getConsultation(1)).resolves.toEqual({ id: 1, answer: '回答' })
     await expect(submitConsultation({ question: '宁夏政策' })).resolves.toEqual({ id: 2, answer: '新回答' })
+    await expect(deleteConsultation(1)).resolves.toEqual({ id: 1, deleted: true })
 
     expect(request).toHaveBeenNthCalledWith(1, {
       url: '/ir/policy-market/consultations', method: 'get',
@@ -30,6 +33,9 @@ describe('政策与市场 API', () => {
     })
     expect(request).toHaveBeenNthCalledWith(3, {
       url: '/ir/policy-market/consultations', method: 'post', data: { question: '宁夏政策' },
+    })
+    expect(request).toHaveBeenNthCalledWith(4, {
+      url: '/ir/policy-market/consultations/1', method: 'delete',
     })
   })
 

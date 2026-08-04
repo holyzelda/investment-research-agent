@@ -8,6 +8,10 @@ export function getConsultation(id) {
   return request({ url: `/ir/policy-market/consultations/${id}`, method: 'get' }).then((response) => response.data)
 }
 
+export function deleteConsultation(id) {
+  return request({ url: `/ir/policy-market/consultations/${id}`, method: 'delete' }).then((response) => response.data)
+}
+
 export function submitConsultation({ question }) {
   const normalizedQuestion = String(question || '').trim()
   if (!normalizedQuestion) return Promise.reject(new Error('请输入政策或市场问题'))

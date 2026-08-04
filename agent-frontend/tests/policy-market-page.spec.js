@@ -37,4 +37,11 @@ describe('政策与市场页面集成', () => {
     expect(pageSource).toContain('@select="handleSelectConsultation"')
     expect(pageSource).toContain("matchMedia('(max-width: 1100px)')")
   })
+
+  it('删除历史研究需要确认后才委托 Store 执行', () => {
+    expect(pageSource).toContain('@delete="handleDeleteConsultation"')
+    expect(pageSource).toContain('ElMessageBox.confirm')
+    expect(pageSource).toContain("store.removeConsultation(id)")
+    expect(pageSource).toContain("ElMessage.success('已删除')")
+  })
 })

@@ -1,7 +1,13 @@
 <template>
   <section class="policy-market-page">
     <div class="policy-market-page__grid">
-      <ConsultationHistory :consultations="store.consultations" :selected-id="store.selectedConsultationId" @new-question="handleNewQuestion" @select="handleSelectConsultation" />
+      <ConsultationHistory
+        :consultations="store.consultations"
+        :selected-id="store.selectedConsultationId"
+        @new-question="handleNewQuestion"
+        @select="handleSelectConsultation"
+        @delete="handleDeleteConsultation"
+      />
       <main ref="consultRef" class="policy-market-page__consult" :class="{ 'is-reading': isReading }">
         <header v-if="!isReading" class="policy-market-page__hero">
           <div class="policy-market-page__hero-meta">
@@ -35,7 +41,7 @@
 
 <script setup>
 import { computed, nextTick, onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@lucide/vue'
 import { usePolicyMarketStore } from '@/store/modules/policyMarket'
 import ConsultationHistory from './components/ConsultationHistory.vue'
@@ -66,6 +72,24 @@ async function handleSelectConsultation(id) {
   }
   await nextTick()
   scrollResultToTop()
+}
+async function handleDeleteConsultation(id) {
+  try {
+    await ElMessageBox.confirm('删除后无法恢复，确认删除吗？', '删除历史研究', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+  } catch {
+    return
+  }
+
+  try {
+    await store.removeConsultation(id)
+    ElMessage.success('已删除')
+  } catch (error) {
+    ElMessage.error(error?.message || '删除失败，请稍后重试')
+  }
 }
 function handleFiltersChange(filters) { store.setStatsFilters(filters) }
 function scrollResultToTop() {

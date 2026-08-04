@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import {
   getConsultation,
   getConsultations,
+  deleteConsultation,
   getMarketNews,
   getMarketOverview,
   submitConsultation,
@@ -119,6 +120,15 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
       } finally {
         this.consultationDetailLoading = false
       }
+    },
+
+    async removeConsultation(id) {
+      const record = this.consultations.find((item) => item.id === id)
+      if (!record) return
+      if (!String(id).startsWith('pending-')) await deleteConsultation(id)
+      this.consultations = this.consultations.filter((item) => item.id !== id)
+      delete this.consultationDetails[id]
+      if (this.selectedConsultationId === id) this.startNewConsultation()
     },
 
     startNewConsultation() {

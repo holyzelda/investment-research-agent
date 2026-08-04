@@ -88,6 +88,22 @@ async def get_consultation(
     return ok(serialize_consultation_detail(record))
 
 
+@router.delete("/consultations/{record_id}")
+async def delete_consultation(
+    record_id: int,
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    deleted = await _consultation_service(session).delete_for_user(
+        record_id=record_id,
+        user_id=user.user_id,
+    )
+    if not deleted:
+        raise NotFoundException("咨询记录不存在")
+    await session.commit()
+    return ok({"id": record_id, "deleted": True})
+
+
 @router.get("/messages")
 async def list_scrolling_messages(
     province: str = Query("all"),

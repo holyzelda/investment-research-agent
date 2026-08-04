@@ -6,6 +6,7 @@ import { usePolicyMarketStore } from '@/store/modules/policyMarket'
 vi.mock('@/api/policyMarket', () => ({
   getConsultations: vi.fn(),
   getConsultation: vi.fn(),
+  deleteConsultation: vi.fn(),
   submitConsultation: vi.fn(),
   getMarketNews: vi.fn(),
   getMarketOverview: vi.fn(),
@@ -64,6 +65,38 @@ describe('政策与市场 Store', () => {
 
     expect(store.consultations).toEqual([{ id: 'c-1', title: '问题', status: 'completed' }])
     expect(store.consultationDetailError).toBe('详情不可用')
+  })
+
+  it('删除当前持久记录后清理列表、详情缓存并退出阅读态', async () => {
+    api.deleteConsultation.mockResolvedValue({ id: 'c-1', deleted: true })
+    const store = usePolicyMarketStore()
+    store.consultations = [
+      { id: 'c-1', title: '当前问题', status: 'completed' },
+      { id: 'c-2', title: '保留问题', status: 'completed' },
+    ]
+    store.consultationDetails = { 'c-1': { id: 'c-1', answer: '完整回答' } }
+    store.selectedConsultationId = 'c-1'
+
+    await store.removeConsultation('c-1')
+
+    expect(api.deleteConsultation).toHaveBeenCalledWith('c-1')
+    expect(store.consultations).toEqual([{ id: 'c-2', title: '保留问题', status: 'completed' }])
+    expect(store.consultationDetails['c-1']).toBeUndefined()
+    expect(store.selectedConsultationId).toBeNull()
+  })
+
+  it('删除本地 pending 记录时不调用后端并清理选中状态', async () => {
+    const store = usePolicyMarketStore()
+    store.consultations = [{ id: 'pending-1', title: '处理中问题', status: 'processing' }]
+    store.consultationDetails = { 'pending-1': { id: 'pending-1', status: 'processing' } }
+    store.selectedConsultationId = 'pending-1'
+
+    await store.removeConsultation('pending-1')
+
+    expect(api.deleteConsultation).not.toHaveBeenCalled()
+    expect(store.consultations).toEqual([])
+    expect(store.consultationDetails['pending-1']).toBeUndefined()
+    expect(store.selectedConsultationId).toBeNull()
   })
 
   it('提交时先插入处理中记录，成功后以 API 回答替换', async () => {
