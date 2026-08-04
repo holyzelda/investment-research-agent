@@ -43,11 +43,12 @@ describe('formal report preview', () => {
     expect(reportPrintSource).toMatch(/\.ir-report-print-page__content\s*>\s*\.ir-report-print-unit:first-child\s*\{[^}]*margin-top:\s*0\s*!important;/s)
     expect(reportPrintSource).toMatch(/\.ir-report-watermark\s*\{[^}]*color:\s*rgba\(219,\s*235,\s*255,\s*0\.07\);/s)
     expect(reportPrintSource).toMatch(/\.ir-report-watermark__text\s*\{[^}]*transform:\s*rotate\(-25deg\);/s)
+    expect(reportPrintSource).toMatch(/@media print[\s\S]*?\.ir-report-table\s*\{[^}]*width:\s*100%\s*!important;[^}]*min-width:\s*0\s*!important;[^}]*max-width:\s*100%\s*!important;/s)
   })
 
   it('adapts the screen preview without changing print pagination rules', () => {
     expect(reportViewSource).toMatch(/\.ir-report-page\s*\{[^}]*overflow-x:\s*hidden;/s)
-    expect(reportViewSource).toMatch(/@media \(max-width:\s*1000px\)[^{]*\{[\s\S]*?\.ir-report-operation-layout,\s*\.ir-report-revenue-layout\s*\{\s*grid-template-columns:\s*1fr;/)
+    expect(reportViewSource).toMatch(/@media screen and \(max-width:\s*1000px\)[^{]*\{[\s\S]*?\.ir-report-operation-layout,\s*\.ir-report-revenue-layout\s*\{\s*grid-template-columns:\s*1fr;/)
     expect(reportViewSource.match(/class="ir-report-table-wrap"/g)?.length).toBeGreaterThanOrEqual(6)
     expect(reportPrintSource).toMatch(/\.ir-report-operation-layout\s*\{[^}]*grid-template-columns:\s*repeat\(3,/s)
   })
@@ -249,8 +250,8 @@ describe('formal report preview', () => {
       label: { show: true, formatter: '暂缓', position: 'right', distance: 10 },
     })
     expect(matrixOption.grid).toMatchObject({ left: 94, right: 88 })
-    expect(matrixOption.xAxis).toMatchObject({ max: 1.5, interval: 0.5 })
-    expect(matrixOption.yAxis).toMatchObject({ max: 2, interval: 0.5 })
+    expect(matrixOption.xAxis).toMatchObject({ max: 1.5, interval: 0.5, nameTextStyle: { color: '#45515e' } })
+    expect(matrixOption.yAxis).toMatchObject({ max: 2, interval: 0.5, nameTextStyle: { color: '#45515e' } })
     expect(matrixOption.series[0].markLine).toBeUndefined()
     expect(wrapper.findAll('.ir-report-chapter-heading')).toHaveLength(7)
     expect(wrapper.findAll('.ir-report-body > .ir-report-section')).toHaveLength(7)
@@ -265,6 +266,7 @@ describe('formal report preview', () => {
     expect(wrapper.find('.ir-report-body .ir-report-watermark').exists()).toBe(true)
     expect(wrapper.find('.ir-report-cover .ir-report-watermark').exists()).toBe(false)
     expect(wrapper.findAll('.ir-report-body .ir-report-watermark__text')).toHaveLength(15)
+    expect(wrapper.html()).toContain('西安奇点能源股份有限公司')
     expect(wrapper.get('.ir-report-body .ir-report-watermark').attributes('aria-hidden')).toBe('true')
     expect(wrapper.text()).toContain('西安奇点能源股份有限公司')
     expect(wrapper.find('[aria-label="打印报告"]').attributes('title')).toBe('打印报告（建议在打印设置中启用“背景图形”）')

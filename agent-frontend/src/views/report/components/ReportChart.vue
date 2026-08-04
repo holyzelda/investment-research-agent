@@ -26,7 +26,12 @@ const option = () => {
   const ink = xcVar('--xc-text-soft')
   const grid = xcVar('--xc-report-grid') || xcVar('--xc-border-soft')
   const colors = xcChartColors()
-  const axis = { axisLine: { lineStyle: { color: grid } }, axisLabel: { color: ink }, splitLine: { lineStyle: { color: grid, type: 'dashed' } } }
+  const axis = {
+    axisLine: { lineStyle: { color: grid } },
+    axisLabel: { color: ink },
+    nameTextStyle: { color: ink },
+    splitLine: { lineStyle: { color: grid, type: 'dashed' } },
+  }
   const tooltip = { trigger: 'axis', axisPointer: { type: 'cross' }, textStyle: { fontFamily: 'var(--xc-font-zh)' } }
 
   if (props.kind === 'revenue') {

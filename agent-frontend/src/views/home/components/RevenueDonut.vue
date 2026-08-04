@@ -3,7 +3,13 @@
     <div class="ir-chart__head">
       <span class="ir-chart__title">首年收入结构</span>
     </div>
-    <div ref="el" class="ir-chart__canvas" />
+    <div class="ir-chart__body">
+      <div ref="el" class="ir-chart__canvas" />
+      <div class="ir-chart__center" aria-hidden="true">
+        <span>首年总收入</span>
+        <strong>{{ formatNumber(donut.totalRevenue) }}</strong>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -30,11 +36,11 @@ const buildOption = () => {
   const data = SLICES
     .map((s) => ({ name: s.name, value: d[s.key] }))
     .filter((x) => typeof x.value === 'number' && x.value > 0)
-  const totalText = `{label|首年总收入}\n{value|${formatNumber(d.totalRevenue)}}`
   return {
     color: xcChartColors(),
     tooltip: {
       trigger: 'item',
+      appendToBody: true,
       formatter: ({ name, value, percent }) => (
         `${name}: ${formatNumber(value)} 万元 (${formatNumber(percent)}%)`
       ),
@@ -57,19 +63,8 @@ const buildOption = () => {
         center: ['34%', '50%'],
         avoidLabelOverlap: true,
         itemStyle: { borderColor: 'rgba(36, 36, 36, 0.9)', borderWidth: 2 },
-        // 环心两行文本用 position:'center' 的标签渲染——由 ECharts 自动锚到环心，
-        // 不依赖 graphic 的百分比定位，保证在任意容器尺寸下都居中。
-        label: {
-          show: true,
-          position: 'center',
-          formatter: totalText,
-          rich: {
-            label: { fontSize: 11, lineHeight: 18, color: xcVar('--xc-text-mute') },
-            value: { fontSize: 16, lineHeight: 24, fontWeight: 600, color: xcVar('--xc-text-strong') },
-          },
-        },
-        // 悬停某扇区时不放大标签、不覆盖环心文本
-        emphasis: { label: { show: true, position: 'center', formatter: totalText } },
+        label: { show: false },
+        emphasis: { label: { show: false } },
         labelLine: { show: false },
         data,
       },
@@ -98,8 +93,33 @@ const { el } = useEcharts(buildOption)
   font-size: var(--xc-fs-sm);
   color: var(--xc-text-strong);
 }
+.ir-chart__body {
+  position: relative;
+}
 .ir-chart__canvas {
   width: 100%;
   height: 240px;
+}
+.ir-chart__center {
+  position: absolute;
+  top: 50%;
+  left: 34%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.ir-chart__center span {
+  color: var(--xc-text-mute);
+  font-size: 11px;
+  line-height: 18px;
+}
+.ir-chart__center strong {
+  color: var(--xc-text-strong);
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
 }
 </style>

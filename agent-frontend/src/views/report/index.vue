@@ -349,6 +349,6 @@ function formatFixedNumber(value) {
 .ir-report-model-section { margin-top: 36px; }.ir-report-model-section:first-child { margin-top: 0; }
 .ir-report-empty { width: min(700px, 90vw); margin: 120px auto; color: var(--xc-text-mute); text-align: center; }
 @media (prefers-reduced-motion: reduce) { .ir-report-tool { transition: none; }.ir-report-tool:hover { transform: none; } }
-@media (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-operation-layout, .ir-report-revenue-layout { grid-template-columns: 1fr; }.ir-report-table { min-width: 680px; } }
-@media (max-width: 760px) { .ir-report-body { padding: 56px 16px; }.ir-report-operation-group { padding: 14px 16px; } }
+@media screen and (max-width: 1000px) { .ir-report-page { padding: 16px 16px 80px; }.ir-report-tools { right: 16px; bottom: 16px; }.ir-report-document { width: 100%; }.ir-report-body { padding: 72px 24px; }.ir-report-operation-layout, .ir-report-revenue-layout { grid-template-columns: 1fr; }.ir-report-table { min-width: 680px; } }
+@media screen and (max-width: 760px) { .ir-report-body { padding: 56px 16px; }.ir-report-operation-group { padding: 14px 16px; } }
 </style>

@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { reactive } from 'vue'
 
 const router = vi.hoisted(() => ({
   resolve: vi.fn(({ params }) => ({ href: `/reports/${params.reportId}` })),
 }))
 const message = vi.hoisted(() => ({ warning: vi.fn() }))
-const calc = {
+const calc = reactive({
   messages: [{ id: 'm-1', role: 'user', kind: 'text', text: '测算' }],
   selectedVersion: 'V2',
   latestVersion: { version: 'V2' },
@@ -21,7 +22,7 @@ const calc = {
   recalculate: vi.fn(),
   generateReport: vi.fn(),
   selectVersion: vi.fn(),
-}
+})
 
 function resetRecords() {
   calc.messages = [
@@ -180,5 +181,33 @@ describe('home records sidebar', () => {
     expect(retry.text()).toContain('重新生成报告')
     await retry.trigger('click')
     expect(calc.generateReport).toHaveBeenCalledWith(2)
+  })
+
+  it('reveals the generating report reply when generation starts from the project archive', async () => {
+    calc.versions[1].report = null
+    calc.reports = calc.reports.filter((report) => report.taskId !== 2)
+    calc.generateReport.mockImplementationOnce((taskId) => {
+      calc.messages.push({
+        id: 'report-pending',
+        turnId: 9,
+        role: 'assistant',
+        kind: 'assistant-stream',
+        flow: 'report',
+        taskId,
+        phase: 'streaming',
+        startedAt: Date.now(),
+        finishedAt: null,
+        hasThinkingStarted: true,
+        thinkingState: { order: [], nodesById: {} },
+        answerText: '',
+      })
+      return Promise.resolve()
+    })
+    const wrapper = mount(Home)
+
+    await wrapper.get('.ir-ver__report-action').trigger('click')
+
+    expect(wrapper.get('.ir-report-delivery--generating').text()).toContain('AI 正在生成正式投资分析报告')
+    expect(Element.prototype.scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
   })
 })

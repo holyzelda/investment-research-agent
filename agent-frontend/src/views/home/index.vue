@@ -96,7 +96,7 @@
                 v-bind="reportCardProps(m)"
                 @view="openReport"
                 @view-history="jumpToReportRecord"
-                @retry="calc.generateReport"
+                @retry="generateReportAndReveal"
               />
               <AiAnswerContent v-else-if="m.answerText" :text="m.answerText" :error="Boolean(m.error)" />
               <div v-if="m.result" class="ir-msg__result">
@@ -111,7 +111,7 @@
                   :responding="calc.responding"
                   :report="calc.versions.find((item) => item.taskId === m.taskId)?.report"
                   @recalculate="calc.recalculate($event)"
-                  @generate-report="calc.generateReport(m.taskId)"
+                  @generate-report="generateReportAndReveal(m.taskId)"
                 />
               </div>
               <ul v-if="m.recommendedQuestions && m.recommendedQuestions.length" class="ir-msg__recommend">
@@ -125,7 +125,7 @@
                 v-bind="reportCardProps(m)"
                 @view="openReport"
                 @view-history="jumpToReportRecord"
-                @retry="calc.generateReport"
+                @retry="generateReportAndReveal"
               />
             </div>
             <div v-else-if="m.kind === 'result'" class="ir-msg__result">
@@ -143,7 +143,7 @@
                 :responding="calc.responding"
                 :report="m.report || calc.versions.find((item) => item.taskId === m.taskId)?.report"
                 @recalculate="calc.recalculate($event)"
-                @generate-report="calc.generateReport(m.taskId)"
+                @generate-report="generateReportAndReveal(m.taskId)"
               />
             </div>
             <img
@@ -235,7 +235,7 @@
                   type="button"
                   class="ir-ver__report-action"
                   :disabled="v.report?.status === 'generating'"
-                  @click="v.report?.status === 'completed' ? jumpToReportRecord(v.report.reportId) : calc.generateReport(v.taskId)"
+                  @click="v.report?.status === 'completed' ? jumpToReportRecord(v.report.reportId) : generateReportAndReveal(v.taskId, true)"
                 >
                   {{ v.report?.status === 'completed' ? '跳转报告记录' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}
                   <svg v-if="v.report?.status !== 'generating'" viewBox="0 0 16 16" aria-hidden="true">
@@ -458,6 +458,22 @@ async function onSend(text) {
   await nextTick()
   scheduleAutoScroll()
   await pending
+}
+
+async function generateReportAndReveal(taskId, fromProjectArchive = false) {
+  if (fromProjectArchive) closeProjectRail(false)
+  const pending = calc.generateReport(taskId)
+  await nextTick()
+  const reportMessage = [...calc.messages].reverse().find((message) => (
+    message.flow === 'report' && message.taskId === taskId
+  ))
+  const messageTarget = messageElements.get(reportMessage?.id)
+  if (typeof messageTarget?.scrollIntoView === 'function') {
+    messageTarget.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  } else {
+    scheduleAutoScroll()
+  }
+  return pending
 }
 
 function thinkingNodesOf(message) {

@@ -42,13 +42,18 @@ describe('result chart series contract', () => {
     )
     expect(option.color).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6'])
 
-    // 首年总收入两行文本用 position:'center' 的环心标签渲染（由 ECharts 自动锚到环心，
-    // 不用 graphic 百分比定位），保证在任意容器尺寸下都居中
-    expect(option.graphic).toBeUndefined()
+    // tooltip 挂到 body 后不会被结果卡的 overflow:hidden 裁切；环心文案使用独立 DOM
+    // 覆盖层，不参与饼图扇区的 emphasis 标签布局。
+    expect(option.tooltip.appendToBody).toBe(true)
     expect(option.series[0].center).toEqual(['34%', '50%'])
-    expect(option.series[0].label.position).toBe('center')
-    expect(option.series[0].label.formatter).toBe('{label|首年总收入}\n{value|100}')
-    expect(option.series[0].emphasis.label.formatter).toBe('{label|首年总收入}\n{value|100}')
+    expect(option.series[0].label.show).toBe(false)
+    expect(option.series[0].emphasis.label.show).toBe(false)
+
+    const center = mount(RevenueDonut, {
+      props: { donut: { totalRevenue: 100, energyRevenue: 100 } },
+    }).find('.ir-chart__center')
+    expect(center.text()).toContain('首年总收入')
+    expect(center.text()).toContain('100')
   })
 
   it('builds a debt-service-coverage line with a threshold and a middle break', () => {

@@ -270,6 +270,8 @@
 
   .ir-report-table {
     width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
   }
 
   .ir-report-table thead {
