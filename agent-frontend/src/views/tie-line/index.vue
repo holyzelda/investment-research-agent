@@ -33,14 +33,14 @@
 
     <div class="tie-line-page__body">
       <div class="tie-line-page__map-wrap">
-        <div v-if="store.loading" class="tie-line-page__state tie-line-page__state--loading" aria-live="polite">
+        <div v-if="isBlockingLoading" class="tie-line-page__state tie-line-page__state--loading" aria-live="polite">
           <span class="xc-skeleton xc-skeleton-rect tie-line-page__skeleton" aria-hidden="true" />
           <span>正在加载联络线资料</span>
         </div>
-        <div v-else-if="store.error" class="tie-line-page__state tie-line-page__state--error" role="alert">
+        <div v-else-if="isBlockingError" class="tie-line-page__state tie-line-page__state--error" role="alert">
           <strong>数据加载失败</strong>
           <span>{{ store.error }}</span>
-          <button class="xc-btn xc-btn--ghost" type="button" @click="store.loadLines">重试</button>
+          <button class="xc-btn xc-btn--ghost" type="button" @click="store.loadLines({ force: true })">重试</button>
         </div>
         <template v-else>
           <ChinaTieLineMap
@@ -84,6 +84,8 @@ let noResultTimer = null
 const hasNoVisibleLines = computed(() =>
   !store.loading && !store.error && store.lines.length > 0 && store.visibleLines.length === 0,
 )
+const isBlockingLoading = computed(() => store.loading && !store.loaded)
+const isBlockingError = computed(() => store.error && !store.loaded)
 
 watch(hasNoVisibleLines, (visible) => {
   window.clearTimeout(noResultTimer)
@@ -111,6 +113,10 @@ const detailAccentToken = computed(() => {
 })
 
 onMounted(() => {
+  if (store.loaded) {
+    store.loadLines({ force: true, silent: true })
+    return
+  }
   store.loadLines()
 })
 

@@ -60,6 +60,10 @@ export const useTieLineStore = defineStore('tieLine', {
     powerRange: getDefaultPowerRange(),
     powerRequestVersion: 0,
     loading: false,
+    refreshing: false,
+    loaded: false,
+    lastLoadedAt: null,
+    lineRequestVersion: 0,
     error: '',
   }),
   getters: {
@@ -143,20 +147,48 @@ export const useTieLineStore = defineStore('tieLine', {
       await this.loadPowerTrend({ key, ...range })
       return true
     },
-    async loadLines() {
-      this.loading = true
-      this.error = ''
+    async loadLines({ force = false, silent = false } = {}) {
+      if (this.loaded && !force && !silent) return
+
+      const requestVersion = this.lineRequestVersion + 1
+      this.lineRequestVersion = requestVersion
+      const blocking = !silent
+
+      if (blocking) {
+        this.loading = true
+        this.refreshing = false
+        this.error = ''
+      } else {
+        this.loading = false
+        this.refreshing = true
+      }
+
       try {
         const res = await getTieLines()
+        if (requestVersion !== this.lineRequestVersion) return
+
         const data = res?.data || {}
         this.lines = data.items || []
         this.stats = data.stats || null
         this.filters = data.filters || { voltageOptions: [], regionOptions: [] }
+        this.loaded = true
+        this.lastLoadedAt = Date.now()
+        this.error = ''
+        this._dropSelectionIfHidden()
       } catch (e) {
-        this.error = '联络线数据加载失败，请稍后重试'
-        this.lines = []
+        if (requestVersion !== this.lineRequestVersion) return
+
+        if (!this.loaded) {
+          this.error = '联络线数据加载失败，请稍后重试'
+          this.lines = []
+          this.stats = null
+          this.filters = { voltageOptions: [], regionOptions: [] }
+        }
       } finally {
-        this.loading = false
+        if (requestVersion === this.lineRequestVersion) {
+          if (blocking) this.loading = false
+          else this.refreshing = false
+        }
       }
     },
     async selectLine(id) {

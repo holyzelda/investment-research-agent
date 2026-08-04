@@ -18,16 +18,24 @@ describe('联络线页面主体布局', () => {
   })
 
   it('筛选无结果时在筛选栏右侧显示自动消失提示，不占用地图中央', () => {
-    expect(tieLinePageSource).toContain('class="tie-line-page__filter-row"')
+    expect(tieLinePageSource).toContain('class="tie-line-page__notice-row"')
     expect(tieLinePageSource).toContain('v-if="showNoResultNotice"')
     expect(tieLinePageSource).toContain('tie-line-page__notice')
     expect(tieLinePageSource).toContain('window.setTimeout')
     expect(tieLinePageSource).toContain('2000')
     expect(tieLinePageSource).not.toContain('清空筛选')
     expect(tieLinePageSource).not.toContain('@click="store.resetFilters"')
-    expect(styles).toContain('.tie-line-page__filter-row')
-    expect(styles).toContain('grid-template-columns: minmax(0, 1fr) auto')
+    expect(styles).toContain('.tie-line-page__notice-row')
     expect(styles).not.toContain('position: absolute; top: var(--xc-space-4)')
     expect(styles).toContain('animation: tl-notice-slide')
+  })
+
+  it('有缓存时不显示整屏加载和错误态，并在挂载时静默刷新', () => {
+    expect(tieLinePageSource).toContain('const isBlockingLoading = computed(() => store.loading && !store.loaded)')
+    expect(tieLinePageSource).toContain('const isBlockingError = computed(() => store.error && !store.loaded)')
+    expect(tieLinePageSource).toContain('v-if="isBlockingLoading"')
+    expect(tieLinePageSource).toContain('v-else-if="isBlockingError"')
+    expect(tieLinePageSource).toContain('store.loadLines({ force: true, silent: true })')
+    expect(tieLinePageSource).toContain('store.loadLines({ force: true })')
   })
 })

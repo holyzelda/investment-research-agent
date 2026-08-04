@@ -38,15 +38,15 @@ describe('联络线功率趋势状态', () => {
     expect(isValidCustomPowerRange('2026-07-20', '2026-07-19', now)).toBe(false)
   })
 
-  it('选择线路时默认请求昨日趋势', async () => {
+  it('选择线路时默认请求近 30 日趋势', async () => {
     api.getTieLineDetail.mockResolvedValue({ data: { id: 1, name: '甲乙线' } })
     api.getTieLinePower.mockResolvedValue({ data: { lineId: 1, points: [] } })
     const store = useTieLineStore()
-    const expectedRange = getRollingDateRange(1)
+    const expectedRange = getRollingDateRange(30)
 
     await store.selectLine(1)
 
-    expect(api.getTieLinePower).toHaveBeenCalledWith(1, { key: 'yesterday', ...expectedRange })
+    expect(api.getTieLinePower).toHaveBeenCalledWith(1, { key: 'thirtyDays', ...expectedRange })
     expect(store.powerTrend).toEqual({ lineId: 1, points: [] })
   })
 
@@ -109,18 +109,18 @@ describe('联络线功率趋势状态', () => {
     expect(store.powerTrend).toBeNull()
   })
 
-  it('推荐线路变化时默认请求昨日趋势', async () => {
+  it('推荐线路变化时默认请求近 30 日趋势', async () => {
     api.getTieLinePower.mockResolvedValue({ data: { lineId: 2, points: [] } })
     const store = useTieLineStore()
     store.lines = [
       { id: 1, name: '短线', lengthText: '100 km' },
       { id: 2, name: '长线', lengthText: '2,383 km' },
     ]
-    const expectedRange = getRollingDateRange(1)
+    const expectedRange = getRollingDateRange(30)
 
     await store.loadRecommendedPowerTrend()
 
-    expect(api.getTieLinePower).toHaveBeenCalledWith(2, { key: 'yesterday', ...expectedRange })
+    expect(api.getTieLinePower).toHaveBeenCalledWith(2, { key: 'thirtyDays', ...expectedRange })
     expect(store.powerTrend).toEqual({ lineId: 2, points: [] })
   })
 

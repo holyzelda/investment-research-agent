@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { useTieLineStore, normalizeCapacityMw, parseLengthKm } from '@/store/modules/tieLine'
+import { getTieLines } from '@/api/tieLine'
+
+vi.mock('@/api/tieLine', () => ({
+  getTieLines: vi.fn(),
+  getTieLineDetail: vi.fn(),
+  getTieLinePower: vi.fn(),
+}))
 
 const lines = [
   { id: 1, startRegion: '西北', endRegion: '华南' },
@@ -154,5 +161,151 @@ describe('联络线地图区域筛选', () => {
     store.setEndRegion('华东')
     expect(store.selectedId).toBeNull()
     expect(store.detail).toBeNull()
+  })
+})
+
+describe('联络线基础数据缓存加载', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('首次加载成功后写入基础数据并标记已加载', async () => {
+    const store = useTieLineStore()
+    getTieLines.mockResolvedValue({
+      data: {
+        items: [{ id: 9, startRegion: '西北', endRegion: '华东' }],
+        stats: { total: 1 },
+        filters: { voltageOptions: ['±800kV'], regionOptions: ['西北'] },
+      },
+    })
+
+    const promise = store.loadLines()
+    expect(store.loading).toBe(true)
+    expect(store.refreshing).toBe(false)
+
+    await promise
+
+    expect(store.lines).toEqual([{ id: 9, startRegion: '西北', endRegion: '华东' }])
+    expect(store.stats).toEqual({ total: 1 })
+    expect(store.filters).toEqual({ voltageOptions: ['±800kV'], regionOptions: ['西北'] })
+    expect(store.loaded).toBe(true)
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
+    expect(store.error).toBe('')
+    expect(store.lastLoadedAt).toBeTypeOf('number')
+  })
+
+  it('已有缓存时普通加载直接复用数据，不重复请求接口', async () => {
+    const store = useTieLineStore()
+    store.loaded = true
+    store.lines = [{ id: 1, startRegion: '西北', endRegion: '华南' }]
+    store.stats = { total: 1 }
+
+    await store.loadLines()
+
+    expect(getTieLines).not.toHaveBeenCalled()
+    expect(store.lines).toEqual([{ id: 1, startRegion: '西北', endRegion: '华南' }])
+    expect(store.stats).toEqual({ total: 1 })
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
+  })
+
+  it('静默刷新不清空旧数据且不进入阻塞 loading', async () => {
+    const store = useTieLineStore()
+    store.loaded = true
+    store.lines = [{ id: 1, startRegion: '西北', endRegion: '华南' }]
+    store.stats = { total: 1 }
+    getTieLines.mockResolvedValue({
+      data: {
+        items: [{ id: 2, startRegion: '华北', endRegion: '华东' }],
+        stats: { total: 2 },
+        filters: { voltageOptions: ['500kV'], regionOptions: ['华北'] },
+      },
+    })
+
+    const promise = store.loadLines({ force: true, silent: true })
+
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(true)
+    expect(store.lines).toEqual([{ id: 1, startRegion: '西北', endRegion: '华南' }])
+
+    await promise
+
+    expect(store.lines).toEqual([{ id: 2, startRegion: '华北', endRegion: '华东' }])
+    expect(store.stats).toEqual({ total: 2 })
+    expect(store.filters).toEqual({ voltageOptions: ['500kV'], regionOptions: ['华北'] })
+    expect(store.loaded).toBe(true)
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
+    expect(store.error).toBe('')
+  })
+
+  it('静默刷新失败时保留旧数据且不展示阻塞错误', async () => {
+    const store = useTieLineStore()
+    store.loaded = true
+    store.lines = [{ id: 1, startRegion: '西北', endRegion: '华南' }]
+    store.stats = { total: 1 }
+    store.filters = { voltageOptions: ['±800kV'], regionOptions: ['西北'] }
+    getTieLines.mockRejectedValue(new Error('网络错误'))
+
+    await store.loadLines({ force: true, silent: true })
+
+    expect(store.lines).toEqual([{ id: 1, startRegion: '西北', endRegion: '华南' }])
+    expect(store.stats).toEqual({ total: 1 })
+    expect(store.filters).toEqual({ voltageOptions: ['±800kV'], regionOptions: ['西北'] })
+    expect(store.loaded).toBe(true)
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
+    expect(store.error).toBe('')
+  })
+
+  it('无缓存加载失败时清空数据并设置错误', async () => {
+    const store = useTieLineStore()
+    store.lines = [{ id: 1 }]
+    getTieLines.mockRejectedValue(new Error('网络错误'))
+
+    await store.loadLines({ force: true })
+
+    expect(store.lines).toEqual([])
+    expect(store.loaded).toBe(false)
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
+    expect(store.error).toBe('联络线数据加载失败，请稍后重试')
+  })
+
+  it('后发请求完成后，先发请求不得覆盖状态', async () => {
+    const store = useTieLineStore()
+    let resolveFirst
+    const firstRequest = new Promise((resolve) => { resolveFirst = resolve })
+    getTieLines
+      .mockReturnValueOnce(firstRequest)
+      .mockResolvedValueOnce({
+        data: {
+          items: [{ id: 2, startRegion: '华北', endRegion: '华东' }],
+          stats: { total: 2 },
+          filters: { voltageOptions: ['500kV'], regionOptions: ['华北'] },
+        },
+      })
+
+    const slowPromise = store.loadLines({ force: true })
+    const fastPromise = store.loadLines({ force: true, silent: true })
+    await fastPromise
+
+    resolveFirst({
+      data: {
+        items: [{ id: 1, startRegion: '西北', endRegion: '华南' }],
+        stats: { total: 1 },
+        filters: { voltageOptions: ['±800kV'], regionOptions: ['西北'] },
+      },
+    })
+    await slowPromise
+
+    expect(store.lines).toEqual([{ id: 2, startRegion: '华北', endRegion: '华东' }])
+    expect(store.stats).toEqual({ total: 2 })
+    expect(store.filters).toEqual({ voltageOptions: ['500kV'], regionOptions: ['华北'] })
+    expect(store.loaded).toBe(true)
+    expect(store.loading).toBe(false)
+    expect(store.refreshing).toBe(false)
   })
 })

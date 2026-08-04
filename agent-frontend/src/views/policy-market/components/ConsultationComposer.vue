@@ -33,7 +33,7 @@ const question = ref('')
 const quickQuestions = [
   '宁夏储能政策',
   '蒙西储能补偿变化',
-  '甘肃，宁夏，蒙西储能投资哪个地方好？',
+  '蒙西储能能同时拿现货和调频收益吗？',
 ]
 
 function setQuestion(value = '') {
