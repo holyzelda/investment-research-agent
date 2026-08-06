@@ -56,11 +56,26 @@ describe('home welcome presentation', () => {
     expect(welcome.attributes('style') || '').not.toContain('--ir-welcome-bg')
   })
 
-  it('keeps platform metrics out of the home welcome component', () => {
+  it('renders the five platform metrics below the input area', () => {
     const wrapper = mount(Home, { global: { stubs: {} } })
 
-    expect(wrapper.find('.ir-welcome__metrics').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('累计测算次数')
+    expect(wrapper.find('.ir-welcome__metrics').exists()).toBe(true)
+    expect(wrapper.findAll('.ir-welcome__metric')).toHaveLength(5)
+    expect(wrapper.text()).toContain('累计测算次数')
+    expect(wrapper.text()).toContain('覆盖省份')
+  })
+
+  it('example chips fill the composer instead of sending immediately', async () => {
+    const wrapper = mount(Home, {
+      global: { stubs: {} },
+    })
+
+    const chips = wrapper.findAll('.ir-chip')
+    expect(chips.length).toBeGreaterThan(0)
+
+    await chips[0].trigger('click')
+
+    expect(calc.sendAndCalculate).not.toHaveBeenCalled()
   })
 
   it('sends a welcome example through the existing calculation flow', async () => {

@@ -6,7 +6,7 @@ import { mount } from '@vue/test-utils'
 const layoutSource = readFileSync(resolve(process.cwd(), 'src/layout/index.vue'), 'utf8')
 const welcomeBackdropStyles = layoutSource.slice(
   layoutSource.indexOf('.ir-layout__welcome-backdrop {'),
-  layoutSource.indexOf('.ir-layout__welcome-metrics {'),
+  layoutSource.indexOf('.ir-layout__body {'),
 )
 
 // 可变的路由与会话状态：每个用例重挂载前调整
@@ -42,6 +42,11 @@ vi.mock('@/layout/components/AppSidebar.vue', () => ({
   default: { template: '<div class="app-sidebar-stub" />' },
 }))
 
+// 场景组件依赖 canvas / matchMedia，jsdom 下为空实现；布局测试只需验证其被挂载
+vi.mock('@/views/home/components/WelcomeScene.vue', () => ({
+  default: { template: '<div class="ir-welcome-scene-stub" />' },
+}))
+
 import Layout from '@/layout/index.vue'
 
 const mountLayout = () =>
@@ -56,48 +61,41 @@ describe('layout 首页欢迎态全屏背景', () => {
     calc.messages = []
   })
 
-  it('首页且无会话时铺满全屏背景层', () => {
+  it('首页且无会话时挂载全屏图片背景层', () => {
     const wrapper = mountLayout()
 
     const backdrop = wrapper.find('.ir-layout__welcome-backdrop')
     expect(backdrop.exists()).toBe(true)
     expect(backdrop.attributes('aria-hidden')).toBe('true')
-    // 通过 CSS 变量注入图片，供 background 合成使用
-    expect(backdrop.attributes('style')).toContain('--ir-welcome-bg')
+    expect(wrapper.find('.ir-layout__welcome-image').exists()).toBe(true)
+    expect(layoutSource).toContain("@/assets/home-welcome-background.png")
+    expect(layoutSource).toContain('--ir-welcome-bg')
     expect(welcomeBackdropStyles).not.toContain('filter: blur(')
     expect(welcomeBackdropStyles).not.toContain('transform: scale(')
     expect(welcomeBackdropStyles).toContain('.ir-layout__welcome-backdrop::after')
-    expect(welcomeBackdropStyles).toContain('linear-gradient(90deg, var(--xc-surface-workspace) 0%, transparent 72%)')
-    expect(welcomeBackdropStyles).toContain('linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%)')
-    expect(welcomeBackdropStyles).toContain('var(--ir-welcome-bg) center / cover no-repeat')
+    expect(welcomeBackdropStyles).toContain('var(--xc-surface-workspace)')
   })
 
-  it('首页欢迎态在主内容列展示五项平台指标', () => {
+  it('五项平台指标已迁移至首页欢迎组件，layout 不再渲染', () => {
     const wrapper = mountLayout()
 
-    const metrics = wrapper.find('.ir-layout__welcome-metrics')
-    expect(metrics.exists()).toBe(true)
-    expect(metrics.element.closest('.ir-layout__content')).not.toBeNull()
-    expect(wrapper.findAll('.ir-layout__welcome-metric')).toHaveLength(5)
-    expect(wrapper.text()).toContain('累计测算次数')
-    expect(wrapper.text()).toContain('覆盖省份')
+    expect(wrapper.find('.ir-layout__welcome-metrics').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('累计测算次数')
   })
 
-  it('存在会话时隐藏背景层和顶部指标', () => {
+  it('存在会话时隐藏背景层', () => {
     calc.messages = [{ id: 'user-1', role: 'user', kind: 'text', text: '测试' }]
     const wrapper = mountLayout()
 
     expect(wrapper.find('.ir-layout__welcome-backdrop').exists()).toBe(false)
-    expect(wrapper.find('.ir-layout__welcome-metrics').exists()).toBe(false)
   })
 
-  it('非首页路由不显示背景层和顶部指标', () => {
+  it('非首页路由不显示背景层', () => {
     route.name = 'ReportDetail'
     route.path = '/reports/1'
     route.fullPath = '/reports/1'
     const wrapper = mountLayout()
 
     expect(wrapper.find('.ir-layout__welcome-backdrop').exists()).toBe(false)
-    expect(wrapper.find('.ir-layout__welcome-metrics').exists()).toBe(false)
   })
 })

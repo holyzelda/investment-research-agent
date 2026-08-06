@@ -240,7 +240,7 @@ const measurementBoundaryRows = computed(() => [
   ['财务类', '贷款利率', boundary.value.loanRate, 'percent', '当期LPR + 加点'],
   ['财务类', '贷款年限', boundary.value.loanYears, 'years', '标准项目贷年限'],
   ['财务类', '还款方式', boundary.value.repaymentMethod, 'text', '行业经验'],
-  ['年限类', '经营期', boundary.value.operationYears, 'years', '电池系统设计寿命'],
+  ['年限类', '经营期', boundary.value.operationYears, 'years', '电池系统设计寿命*2'],
   ['年限类', '折现率', boundary.value.discountRate, 'percent', '财务部估算标准'],
   ['税率类', '电能量收入增值税', boundary.value.energyRevenueVatRate, 'percent', '国家税务总局规定'],
   ['税率类', '辅助服务收入增值税', boundary.value.ancillaryServiceVatRate, 'percent', ''],

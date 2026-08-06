@@ -93,13 +93,11 @@ describe('left AppShell layout', () => {
     expect(wrapper.find('.ir-shell__user').text()).not.toContain('researcher')
   })
 
-  it('places welcome metrics inside the content column', () => {
+  it('keeps platform metrics in the home welcome view, not the layout shell', () => {
     const wrapper = mountLayout()
-    const metrics = wrapper.find('.ir-layout__welcome-metrics')
 
-    expect(metrics.exists()).toBe(true)
-    expect(metrics.element.closest('.ir-layout__content')).not.toBeNull()
-    expect(wrapper.findAll('.ir-layout__welcome-metric')).toHaveLength(5)
+    expect(wrapper.find('.ir-layout__welcome-metrics').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('累计测算次数')
   })
 
   it('returns to home after starting a new chat from another module', async () => {

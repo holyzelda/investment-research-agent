@@ -5,7 +5,9 @@
       class="ir-layout__welcome-backdrop"
       :style="{ '--ir-welcome-bg': `url(${welcomeBackgroundSrc})` }"
       aria-hidden="true"
-    />
+    >
+      <div class="ir-layout__welcome-image" />
+    </div>
 
     <div class="ir-layout__body" :class="{ 'is-report-view': isReportView }">
       <button
@@ -40,17 +42,6 @@
       />
 
       <section class="ir-layout__content">
-        <div v-if="isWelcome" class="ir-layout__welcome-metrics" aria-label="平台概览">
-          <div v-for="metric in metrics" :key="metric.label" class="ir-layout__welcome-metric">
-            <span class="ir-layout__welcome-metric-icon" v-html="metric.icon" aria-hidden="true" />
-            <span class="ir-layout__welcome-metric-copy">
-              <span class="ir-layout__welcome-metric-label">{{ metric.label }}</span>
-              <strong class="ir-layout__welcome-metric-value xc-num">
-                {{ metric.value }}<em>{{ metric.unit }}</em>
-              </strong>
-            </span>
-          </div>
-        </div>
         <main class="ir-layout__viewport">
           <router-view />
         </main>
@@ -90,7 +81,7 @@ const RAIL_TO_PATH = { home: '/home', index: '/index-map', line: '/tie-line', po
 const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'line', '/policy-market': 'policy' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const isReportView = computed(() => route.name === 'ReportDetail')
-// 欢迎态：仅首页且无会话时铺满全屏背景并在顶栏展示平台指标；发首条消息 / 打开历史 / 切换页面后自动隐藏
+// 欢迎态：仅首页且无会话时挂载全屏场景背景；发首条消息 / 打开历史 / 切换页面后自动隐藏
 const isWelcome = computed(() => route.name === 'Home' && calc.messages.length === 0)
 
 const sidebarCollapsed = ref(Boolean(route.meta.collapseSidebar))
@@ -98,29 +89,6 @@ const drawerOpen = ref(false)
 const menuTrigger = ref(null)
 let previousBodyOverflow = ''
 let homeSidebarMedia = null
-
-const metrics = [
-  {
-    label: '累计测算次数', value: '1,286', unit: '次',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  },
-  {
-    label: '测算项目数', value: '128', unit: '个',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="M4 7.5V16l8 5 8-5V7.5"/><path d="M12 12v9"/></svg>',
-  },
-  {
-    label: '生成报告', value: '256', unit: '份',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
-  },
-  {
-    label: '可调测算参数', value: '20+', unit: '项',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h7M15 18h5" stroke-linecap="round"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg>',
-  },
-  {
-    label: '覆盖省份', value: '28', unit: '个',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
-  },
-]
 
 function syncHomeSidebarFromViewport() {
   if (route.name !== 'Home' || route.meta.collapseSidebar || !homeSidebarMedia) return
@@ -286,17 +254,29 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: var(--xc-grad-atmosphere), var(--ir-welcome-bg) center / cover no-repeat;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(10, 12, 18, 0.78) 0%, rgba(10, 12, 18, 0.38) 42%, rgba(10, 12, 18, 0.08) 76%),
+    linear-gradient(0deg, rgba(10, 12, 18, 0.38), rgba(10, 12, 18, 0.08)),
+    var(--ir-welcome-bg) center / cover no-repeat,
+    var(--xc-surface-workspace);
 }
-
+/* 左侧可读遮罩：压暗主内容区，让场景集中在右侧，避免干扰标题与输入框 */
 .ir-layout__welcome-backdrop::after {
   content: '';
   position: absolute;
   inset: 0;
+  z-index: 2;
+  pointer-events: none;
   background:
-    linear-gradient(90deg, var(--xc-surface-workspace) 0%, transparent 72%),
-    linear-gradient(0deg, var(--xc-surface-workspace) 0%, var(--xc-surface-workspace) 100%);
-  opacity: 0.48;
+    linear-gradient(90deg, var(--xc-surface-workspace) 0%, rgba(10, 12, 18, 0.66) 42%, transparent 74%),
+    linear-gradient(0deg, var(--xc-surface-workspace) 0%, transparent 46%);
+  opacity: 0.32;
+}
+.ir-layout__welcome-image {
+  position: absolute;
+  inset: 0;
+  background: var(--ir-welcome-bg) center / cover no-repeat;
 }
 
 .ir-layout__body {
@@ -320,73 +300,6 @@ onBeforeUnmount(() => {
 }
 
 .ir-layout__body.is-report-view .ir-layout__content { width: 100%; }
-
-.ir-layout__welcome-metrics {
-  min-width: 0;
-  min-height: 72px;
-  margin: 12px var(--xc-gutter-x) 0;
-  padding: var(--xc-space-4) var(--xc-space-6);
-  display: flex;
-  align-items: stretch;
-  flex: 0 0 auto;
-  border: 1px solid var(--xc-border-card);
-  border-radius: var(--xc-radius-sm);
-  background: var(--xc-surface-card);
-  backdrop-filter: blur(var(--xc-blur-lg));
-  -webkit-backdrop-filter: blur(var(--xc-blur-lg));
-}
-
-.ir-layout__welcome-metric {
-  min-width: 0;
-  flex: 1 1 0;
-  padding: 0 var(--xc-space-5);
-  display: flex;
-  align-items: center;
-  gap: var(--xc-space-4);
-}
-
-.ir-layout__welcome-metric + .ir-layout__welcome-metric { border-left: 1px solid var(--xc-border-card); }
-.ir-layout__welcome-metric:first-child { padding-left: 0; }
-.ir-layout__welcome-metric:last-child { padding-right: 0; }
-
-.ir-layout__welcome-metric-icon {
-  width: 38px;
-  height: 38px;
-  flex: 0 0 auto;
-  display: grid;
-  place-items: center;
-  border-radius: var(--xc-radius-sm);
-  background: var(--xc-surface-control);
-  color: var(--xc-accent-blue);
-}
-
-.ir-layout__welcome-metric-icon :deep(svg) { width: 20px; height: 20px; }
-.ir-layout__welcome-metric-copy {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--xc-space-1);
-  line-height: var(--xc-lh-tight);
-}
-.ir-layout__welcome-metric-label {
-  overflow: hidden;
-  color: var(--xc-text-mute);
-  font-size: var(--xc-fs-2xs);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.ir-layout__welcome-metric-value {
-  color: var(--xc-text-strong);
-  font-size: var(--xc-fs-kpi-sm);
-  font-weight: var(--xc-fw-bold);
-}
-.ir-layout__welcome-metric-value em {
-  margin-left: 3px;
-  color: var(--xc-text-mute);
-  font-size: var(--xc-fs-3xs);
-  font-style: normal;
-  font-weight: var(--xc-fw-regular);
-}
 
 .ir-layout__viewport {
   min-width: 0;
@@ -421,16 +334,14 @@ onBeforeUnmount(() => {
 .ir-layout__menu-trigger:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
 
 @media (max-width: 1050px) {
-  .ir-layout__welcome-metric { padding: 0 var(--xc-space-2); gap: var(--xc-space-2); }
-  .ir-layout__welcome-metric-icon { width: 32px; height: 32px; }
+  .ir-layout__welcome-backdrop { opacity: 0.8; }
 }
 
 @media (max-width: 767px) {
   .ir-layout__menu-trigger { display: grid; }
-  .ir-layout__welcome-metrics { margin-left: 64px; margin-right: var(--xc-space-3); }
 }
 
 @media (max-width: 640px) {
-  .ir-layout__welcome-metrics { display: none; }
+  .ir-layout__welcome-backdrop { opacity: 0.55; }
 }
 </style>

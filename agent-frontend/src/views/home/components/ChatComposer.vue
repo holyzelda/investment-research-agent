@@ -2,6 +2,7 @@
   <div class="ir-composer">
     <div class="ir-composer__frame">
       <el-input
+        ref="inputRef"
         v-model="text"
         type="textarea"
         :autosize="{ minRows: 1, maxRows: 6 }"
@@ -35,7 +36,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 
 const props = defineProps({
   responding: { type: Boolean, default: false },
@@ -43,6 +44,16 @@ const props = defineProps({
 })
 const emit = defineEmits(['send', 'stop'])
 const text = ref('')
+const inputRef = ref(null)
+
+// 供外部（如欢迎态示例胶囊）把示例文案填入输入框并聚焦，不自动发送。
+async function fill(value) {
+  text.value = String(value || '')
+  await nextTick()
+  inputRef.value?.focus?.({ cursor: 'end' })
+}
+
+defineExpose({ fill })
 
 function onAction() {
   if (props.responding) {

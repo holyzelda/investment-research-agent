@@ -2,32 +2,24 @@
   <div class="ir-home" :class="{ 'ir-home--welcome': !hasConversation }">
     <!-- 中间：对话区 -->
     <section class="ir-home__chat">
-      <!-- 欢迎态：背景由全局 layout 全屏承载；上区文字簇贴顶、下区提问框+胶囊沉底左对齐 -->
+      <!-- 欢迎态：全局 layout 承载背景；本页为一组居中的“测算启动区” -->
       <div v-if="!hasConversation" class="ir-welcome">
-        <div class="ir-welcome__top">
+        <div class="ir-welcome__inner">
           <div class="ir-welcome__heading">
             <img class="ir-welcome__orb" :src="orbSrc" alt="" aria-hidden="true" />
             <h1 class="ir-welcome__hi">
-              你好，<br />我是朱雀投研智能体
+              储能项目投资测算
             </h1>
           </div>
           <p class="ir-welcome__lead">
-            用一句话完成储能项目投资测算
+            用自然语言描述项目所在地、额定功率、储能容量等基本信息，AI 将自动识别测算条件、完善关键参数并分析投资收益。
           </p>
 
-          <div class="ir-welcome__abilities" aria-label="能力范围">
-            <span>储能投资测算</span>
-            <span>收益分析</span>
-            <span>测算调整</span>
-            <span>投资报告</span>
-          </div>
-        </div>
-
-        <div class="ir-welcome__bottom">
           <ChatComposer
+            ref="composerRef"
             class="ir-welcome__composer"
             :responding="calc.responding"
-            placeholder="描述你的储能项目，例如：测算甘肃 200MW/800MWh 独立储能项目"
+            placeholder="例如：测算甘肃酒泉 200MW/800MWh 独立储能项目，运营期20年"
             @send="onSend"
             @stop="calc.stopStream"
           />
@@ -38,13 +30,34 @@
               :key="eg"
               class="ir-chip"
               :disabled="calc.responding"
-              @click="onSend(eg)"
+              @click="fillComposer(eg)"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
                 <path d="M13 2 4 14h7l-1 8 9-12h-7z" stroke-linejoin="round" />
               </svg>
               <span>{{ eg }}</span>
             </button>
+          </div>
+
+          <p class="ir-welcome__flow" aria-label="测算流程">
+            <template v-for="(step, index) in flowSteps" :key="step">
+              <span v-if="index > 0" class="ir-welcome__flow-sep" aria-hidden="true">→</span>
+              <span class="ir-welcome__flow-step">{{ step }}</span>
+            </template>
+          </p>
+
+          <div class="ir-welcome__divider" aria-hidden="true" />
+
+          <div class="ir-welcome__metrics" aria-label="平台概览">
+            <div v-for="metric in metrics" :key="metric.label" class="ir-welcome__metric">
+              <span class="ir-welcome__metric-icon" v-html="metric.icon" aria-hidden="true" />
+              <span class="ir-welcome__metric-copy">
+                <span class="ir-welcome__metric-label">{{ metric.label }}</span>
+                <strong class="ir-welcome__metric-value xc-num">
+                  {{ metric.value }}<em>{{ metric.unit }}</em>
+                </strong>
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -453,6 +466,40 @@ const examples = [
   '测算山西 2小时 独立储能',
 ]
 
+const flowSteps = ['项目信息识别', '测算参数完善', '投资收益测算', '结果分析', '报告生成']
+
+// 欢迎态平台指标：位于输入区下方，作为产品能力佐证，避免抢占主任务注意力。
+const metrics = [
+  {
+    label: '累计测算次数', value: '1,286', unit: '次',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  },
+  {
+    label: '测算项目数', value: '128', unit: '个',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="M4 7.5V16l8 5 8-5V7.5"/><path d="M12 12v9"/></svg>',
+  },
+  {
+    label: '生成报告', value: '256', unit: '份',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
+  },
+  {
+    label: '可调测算参数', value: '20+', unit: '项',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h7M15 18h5" stroke-linecap="round"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg>',
+  },
+  {
+    label: '覆盖省份', value: '28', unit: '个',
+    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  },
+]
+
+const composerRef = ref(null)
+
+// 示例胶囊只把示例文案填入输入框并聚焦，不自动发送；用户检查补充后再发送。
+function fillComposer(text) {
+  const composer = composerRef.value
+  if (composer && typeof composer.fill === 'function') composer.fill(text)
+}
+
 async function onSend(text) {
   const pending = calc.sendAndCalculate(text)
   await nextTick()
@@ -617,29 +664,20 @@ function versionSpec(v) {
   overflow: hidden;
 }
 
-/* ---------- 欢迎态：背景由全局 layout 承载；上区文字贴顶、下区提问框沉底 ---------- */
+/* ---------- 欢迎态：全局 layout 承载背景；本页为一组居中的“测算启动区” ---------- */
 .ir-welcome {
   position: relative;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  align-items: flex-start;
+  justify-content: center;
+  align-items: stretch;
   min-height: 0;
-  padding: var(--xc-space-9) 0;
+  padding: var(--xc-space-6) 0 clamp(24px, 7vh, 96px);
   overflow: hidden;
 }
-/* 上区：欢迎语 + 描述 + 能力标签，贴顶（略下移，避免顶到边） */
-.ir-welcome__top {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  padding-inline: var(--xc-space-10);
-  margin-top: clamp(40px, 9vh, 110px);
-  text-align: left;
-}
-/* 下区：提问框 + 示例胶囊，锚在主区底部、收窄左对齐（与对话态 composer 同宽档位，右侧留白给 hero） */
-.ir-welcome__bottom {
+/* 内容列宽度与对话态 composer 同档，两态输入框尺寸/左右边界保持一致 */
+.ir-welcome__inner {
   position: relative;
   z-index: 1;
   width: calc(100% - 2 * var(--ir-message-inset));
@@ -647,71 +685,118 @@ function versionSpec(v) {
   margin-inline: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--xc-space-5);
+  align-items: stretch;
 }
 .ir-welcome__heading {
   display: flex;
   align-items: center;
   gap: var(--xc-space-5);
-  margin-bottom: var(--xc-space-4);
+  margin-bottom: var(--xc-space-3);
 }
 .ir-welcome__orb {
   flex: 0 0 auto;
-  width: 96px;
-  height: 96px;
+  width: 48px;
+  height: 48px;
   object-fit: contain;
-  filter: drop-shadow(0 10px 48px rgba(110, 42, 255, 0.55));
-  animation: ir-orb-float 6s ease-in-out infinite;
+  filter: drop-shadow(0 8px 32px rgba(110, 42, 255, 0.45));
+  animation: ir-orb-float 7.5s ease-in-out infinite;
 }
 @keyframes ir-orb-float {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-3px); }
 }
 .ir-welcome__hi {
   margin: 0;
-  font-size: clamp(36px, 3.4vw, 52px);
+  max-width: 640px;
+  color: var(--xc-text-strong);
+  font-size: clamp(32px, 3.2vw, 46px);
   font-weight: var(--xc-fw-bold);
-  line-height: var(--xc-lh-snug);
+  line-height: var(--xc-lh-tight);
   letter-spacing: 0.5px;
-  background: var(--xc-grad-brand-h);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
 }
 .ir-welcome__lead {
+  margin: 0 0 var(--xc-space-6);
+  max-width: 640px;
+  color: var(--xc-text-soft);
   font-size: var(--xc-fs-lg);
-  color: var(--xc-text-soft);
   line-height: var(--xc-lh-normal);
-  margin: 0 0 var(--xc-space-5);
 }
-.ir-welcome__lead strong { color: var(--xc-accent-blue); }
-.ir-welcome__abilities {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  align-items: center;
-  gap: var(--xc-space-5);
-  margin-bottom: var(--xc-space-8);
+.ir-welcome__composer {
+  margin-bottom: var(--xc-space-4);
+  padding: 0;
 }
-.ir-welcome__abilities span {
-  position: relative;
-  font-size: var(--xc-fs-md);
-  color: var(--xc-text-soft);
-}
-.ir-welcome__abilities span::before {
-  content: '·';
-  position: absolute;
-  left: calc(-1 * var(--xc-space-3));
-  color: var(--xc-text-faint);
-}
-.ir-welcome__abilities span:first-child::before { content: none; }
-.ir-welcome__abilities span.is-accent { color: var(--xc-accent-blue); }
-.ir-welcome__composer { padding: 0; }
 .ir-welcome__chips {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-start;
   gap: var(--xc-space-3);
+  margin-bottom: var(--xc-space-6);
+}
+/* 测算流程：低对比单行步骤，不制卡；流程下用细线与平台指标分区 */
+.ir-welcome__flow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--xc-space-3);
+  margin: 0 0 var(--xc-space-5);
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-xs);
+  line-height: var(--xc-lh-normal);
+}
+.ir-welcome__flow-step { color: var(--xc-text-soft); }
+.ir-welcome__flow-sep { color: var(--xc-text-faint); }
+.ir-welcome__divider {
+  width: 100%;
+  height: 1px;
+  margin-bottom: var(--xc-space-5);
+  background: var(--xc-border-card);
+}
+/* 平台指标：紧凑信息带，图标/标签弱化，数字清晰，不作为页面主视觉 */
+.ir-welcome__metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 22px;
+}
+.ir-welcome__metric {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-3);
+}
+.ir-welcome__metric-icon {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--xc-accent-blue);
+  opacity: 0.75;
+}
+.ir-welcome__metric-icon :deep(svg) { width: 18px; height: 18px; }
+.ir-welcome__metric-copy {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--xc-space-2);
+}
+.ir-welcome__metric-label {
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-2xs);
+  white-space: nowrap;
+}
+.ir-welcome__metric-value {
+  color: var(--xc-text-strong);
+  font-size: var(--xc-fs-md);
+  font-weight: var(--xc-fw-bold);
+  font-variant-numeric: tabular-nums;
+}
+.ir-welcome__metric-value em {
+  margin-left: 2px;
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-2xs);
+  font-style: normal;
+  font-weight: var(--xc-fw-regular);
 }
 
 /* 对话态 */
@@ -1160,6 +1245,7 @@ function versionSpec(v) {
   .ir-home__side-scroll { padding-inline: var(--xc-space-3); }
 }
 @media (prefers-reduced-motion: reduce) {
+  .ir-welcome__orb { animation: none; }
   .ir-home__side,
   .ir-ver__select,
   .ir-ver__node,
