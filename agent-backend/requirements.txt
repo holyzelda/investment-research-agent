@@ -1,4 +1,4 @@
-﻿#  朱雀投研智能体后端依赖（团队统一栈：FastAPI + 异步 SQLAlchemy + Nacos）
+﻿#   朱雀投研智能体后端依赖（团队统一栈：FastAPI + 异步 SQLAlchemy + Nacos）
 fastapi>=0.115,<0.116
 uvicorn[standard]>=0.30
 pydantic>=2.7
