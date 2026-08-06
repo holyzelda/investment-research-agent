@@ -93,6 +93,7 @@ policy_ask:
     model: "deepseek-v4-flash"
   anysearch:
     api_key: ""
+    tavily_api_key: "example-value-0064"
   base:
     token: ""
     table: ""

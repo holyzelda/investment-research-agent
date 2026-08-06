@@ -242,6 +242,7 @@ class PolicyAskLlmConfig(BaseModel):
 
 class PolicyAskAnysearchConfig(BaseModel):
     api_key: str = ""
+    tavily_api_key: str = ""
 
 
 class PolicyAskBaseConfig(BaseModel):
@@ -395,6 +396,7 @@ def _build_settings() -> Settings:
         ),
         anysearch=PolicyAskAnysearchConfig(
             api_key=_nested(y, ["policy_ask", "anysearch", "api_key"], _pad.anysearch.api_key),
+            tavily_api_key=_nested(y, ["policy_ask", "anysearch", "tavily_api_key"], _pad.anysearch.tavily_api_key),
         ),
         base=PolicyAskBaseConfig(
             token=_nested(y, ["policy_ask", "base", "token"], _pad.base.token),

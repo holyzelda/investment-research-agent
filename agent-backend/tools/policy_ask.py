@@ -44,6 +44,7 @@ def _feishu_file_url(token):
     """拼接飞书文件 URL（域名可配置）。"""
     return f"https://{FEISHU_DOMAIN}/file/{token}"
 ANYSEARCH_API_KEY = str(_policy_ask.anysearch.api_key or "").strip()
+TAVILY_API_KEY = str(_policy_ask.anysearch.tavily_api_key or "").strip()
 LLM_BASE_URL = _required_config_value(_policy_ask.llm.base_url, "llm.base_url")
 LLM_API_KEY = _required_config_value(_policy_ask.llm.api_key, "llm.api_key")
 LLM_MODEL = _required_config_value(_policy_ask.llm.model, "llm.model")
@@ -506,30 +507,179 @@ def _cross_province_result():
     }
 
 
-def _anysearch_search(query_text):
-    """调用 anysearch HTTP API 做联网搜索兜底. 返回 (文本, URL列表) 或 None."""
+_SEARCH_STOPWORDS = (
+    "储能", "装机", "情况", "多少", "怎么", "如何", "是否", "现在", "当前", "最新",
+    "呢", "吗", "啊", "吧", "请问", "大概", "预估", "预测", "计算", "参与", "可以",
+)
+
+_AGENCY_KW = {
+    "陕西": "陕西省能源局",
+    "甘肃": "甘肃省能源局",
+    "宁夏": "宁夏回族自治区发改委",
+    "蒙西": "内蒙古自治区能源局",
+    "山西": "山西省能源局",
+}
+
+
+def _build_search_queries(question):
+    """豆包式拆词：从问题构造多个搜索 query，覆盖不同检索角度.
+
+    独立于 _extract_keywords（那个剥离省份/储能等核心词，不适合搜索）。
+    构造策略：
+      - 主 query：原问题
+      - 省份+主题+最新
+      - 省份+主题+年份（如问题含年份）
+      - 机构+主题（政策/规划类）
+    """
+    # 提取省份
+    province = None
+    for std_name, aliases in PROVINCE_ALIASES.items():
+        for a in aliases:
+            if a in question:
+                province = std_name
+                break
+        if province:
+            break
+
+    # 提取年份：问题含年份用问题年份，否则默认当前业务年（时间优先）
+    year = None
+    ym = re.search(r"(20\d{2})", question)
+    if ym:
+        year = ym.group(1)
+    else:
+        year = "2026"
+
+    # 提取主题：去省份/年份/停用词后的核心词
+    clean = question
+    for std_name, aliases in PROVINCE_ALIASES.items():
+        for a in aliases:
+            clean = clean.replace(a, "")
+    clean = re.sub(r"20\d{2}年?", "", clean)
+    words = [w for w in re.split(r"[，,。．；;：:、？！?\s]+", clean) if len(w) >= 2]
+    words = [w for w in words if w not in _SEARCH_STOPWORDS]
+    topic = " ".join(words[:4]) if words else ""
+
+    queries = [question.strip()]  # 主 query
+
+    if province and topic:
+        queries.append(f"{province} {topic} {year}")  # 显式年份（时间优先）
+        queries.append(f"{province} {topic} 最新")
+        agency = _AGENCY_KW.get(province)
+        if agency and any(k in question for k in ["规划", "政策", "通知", "标准", "方案", "装机"]):
+            queries.append(f"{agency} {topic}")
+
+    # 去重
+    seen = set()
+    return [q for q in queries if q.strip() and not (q in seen or seen.add(q))]
+
+
+def _anysearch_search(query_text, max_results=5):
+    """调用 anysearch HTTP API 做联网搜索兜底. 返回 (正文聚合文本, URL列表) 或 None.
+
+    优先使用结果中的 content（网页正文），而非 snippet（摘要）；
+    带 freshness 时效参数；返回全部结果（非仅前3）。
+    """
     try:
-        anysearch_key = ANYSEARCH_API_KEY
         headers = {"Content-Type": "application/json"}
-        if anysearch_key:
-            headers["Authorization"] = f"Bearer {anysearch_key}"
-        body = json.dumps({"query": query_text, "max_results": 5}).encode("utf-8")
+        if ANYSEARCH_API_KEY:
+            headers["Authorization"] = f"Bearer {ANYSEARCH_API_KEY}"
+        body = json.dumps({
+            "query": query_text,
+            "max_results": max_results,
+            "freshness": "month",  # 时效：近一月
+        }).encode("utf-8")
         req = Request("https://api.anysearch.com/v1/search", data=body, headers=headers)
-        resp = urlopen(req, timeout=8)
+        resp = urlopen(req, timeout=10)
         data = json.loads(resp.read())
         results = (data.get("data") or {}).get("results") or []
         if not results:
             return None
-        lines = ["[来源: 联网检索(anysearch)]"]
+        lines = ["[来源: 联网检索]"]
         urls = []
-        for r in results[:3]:
-            lines.append(f"- {r.get('title','')}: {r.get('snippet','')[:300]}")
+        for r in results:
+            # 优先 content（正文），缺失用 snippet
+            content = (r.get("content") or "").strip()
+            if not content:
+                content = (r.get("snippet") or "").strip()
+            if content:
+                lines.append(f"- {r.get('title','')}:\n{content[:2000]}")
             if r.get("url"):
-                lines.append(f"  {r['url']}")
+                lines.append(f"  来源: {r['url']}")
                 urls.append(r["url"])
         return "\n".join(lines), urls
     except Exception:
         return None
+
+
+def _tavily_search(query_text, max_results=5):
+    """调用 Tavily API 做联网搜索. 返回 (正文聚合文本, URL列表) 或 None.
+
+    Tavily 专为 AI 设计：返回 answer（AI总结）+ results（含完整 content）。
+    优先用 answer + 各结果 content（完整正文），信息量优于 anysearch snippet。
+    """
+    try:
+        if not TAVILY_API_KEY:
+            return None
+        body = json.dumps({
+            "api_key": TAVILY_API_KEY,
+            "query": query_text,
+            "max_results": max_results,
+            "search_depth": "basic",
+            "include_answer": True,
+        }).encode("utf-8")
+        req = Request("https://api.tavily.com/search", data=body,
+            headers={"Content-Type": "application/json"}, method="POST")
+        resp = urlopen(req, timeout=12)
+        data = json.loads(resp.read())
+        results = data.get("results") or []
+        if not results:
+            return None
+        lines = ["[来源: 联网检索(Tavily)]"]
+        urls = []
+        answer = (data.get("answer") or "").strip()
+        if answer:
+            lines.append(f"- AI摘要: {answer[:1000]}")
+        for r in results:
+            content = (r.get("content") or "").strip()
+            if content:
+                lines.append(f"- {r.get('title','')}:\n{content[:2000]}")
+            if r.get("url"):
+                lines.append(f"  来源: {r['url']}")
+                urls.append(r["url"])
+        return "\n".join(lines), urls
+    except Exception:
+        return None
+
+
+def _web_fallback(question, prov_name, as_of, status):
+    """联网兜底：多关键词搜索聚合正文，返回 web result dict 或 None.
+
+    优先 Tavily（AI优化输出，信息质量更高），未配置/失败时 fallback 到 anysearch。
+    """
+    # 选择搜索函数：有 Tavily key 用 Tavily，否则 anysearch
+    searcher = _tavily_search if TAVILY_API_KEY else _anysearch_search
+
+    combined_text = None
+    combined_urls = []
+    for q in _build_search_queries(question)[:2]:  # 主 query + 1 个副 query
+        web_result = searcher(q)
+        if web_result:
+            text, urls = web_result
+            combined_urls.extend(urls)
+            if combined_text is None:
+                combined_text = text
+            else:
+                combined_text += "\n\n" + text
+    if not combined_urls:
+        return None
+    return {
+        "province": prov_name,
+        "context": f"以下为最新检索结果，回答时优先引用时间最新的数据，并明确标注每个数据的统计时点；不同时点数据口径不同时需说明差异:\n{combined_text}",
+        "sources": list(dict.fromkeys(combined_urls))[:5],
+        "as_of": as_of,
+        "status": status + " +联网检索" if status else "联网检索",
+        "source_type": "web",
+    }
 
 
 def query(question, allow_web=True):
@@ -568,18 +718,10 @@ def query(question, allow_web=True):
             return _cross_province_result()
         else:
             # wiki miss (未识别省份), 尝试 anysearch 兜底
-            web_sources = []
             if allow_web:
-                web_result = _anysearch_search(question)
+                web_result = _web_fallback(question, None, None, None)
                 if web_result:
-                    web_text, web_urls = web_result
-                    if web_urls:
-                        return {
-                            "province": None,
-                            "context": web_text,
-                            "sources": web_urls, "as_of": None, "status": None,
-                            "source_type": "web",
-                        }
+                    return web_result
             # 联网也 miss → LLM 通用知识兜底
             return {
                 "province": None,
@@ -659,18 +801,9 @@ def query(question, allow_web=True):
             }
         # 速查表不存在或与问题无关（过滤后为空）→ 联网兜底
         if allow_web:
-            web_result = _anysearch_search(question)
+            web_result = _web_fallback(question, prov_name, as_of, status)
             if web_result:
-                web_text, web_urls = web_result
-                if web_urls:
-                    return {
-                        "province": prov_name,
-                        "context": f"以下为最新检索结果:\n{web_text}",
-                        "sources": web_urls,
-                        "as_of": as_of,
-                        "status": status + " +联网检索",
-                        "source_type": "web",
-                    }
+                return web_result
 
         # 联网也 miss → LLM 通用知识兜底
         return {
