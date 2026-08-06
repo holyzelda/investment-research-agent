@@ -193,6 +193,57 @@ class ConversationHistoryService:
         await session.commit()
         return {"conversationId": conversation.id, "title": conversation.title}
 
+    async def append_message(
+        self,
+        session: AsyncSession,
+        *,
+        conversation_id: str,
+        role: str,
+        content: str,
+        message_type: str = "text",
+        payload: dict | None = None,
+    ) -> MessageSnapshotORM | None:
+        cleaned = (content or "").strip()
+        if not cleaned:
+            return None
+        message = MessageSnapshotORM(
+            conversation_id=conversation_id,
+            role=role,
+            content=cleaned,
+            message_type=message_type,
+            payload=payload,
+        )
+        session.add(message)
+        await session.commit()
+        await session.refresh(message)
+        return message
+
+    async def attach_answer_to_calculation(
+        self,
+        session: AsyncSession,
+        *,
+        conversation_id: str,
+        task_id: int,
+        answer_text: str,
+    ) -> bool:
+        cleaned = (answer_text or "").strip()
+        if not cleaned:
+            return False
+        message = (await session.execute(
+            select(MessageSnapshotORM).where(
+                MessageSnapshotORM.conversation_id == conversation_id,
+                MessageSnapshotORM.message_type == "calculation_completed",
+                MessageSnapshotORM.payload["task_id"].as_integer() == task_id,
+            ).order_by(MessageSnapshotORM.created_at.desc(), MessageSnapshotORM.id.desc())
+        )).scalars().first()
+        if message is None:
+            return False
+        payload = dict(message.payload or {})
+        payload["answer_text"] = cleaned
+        message.payload = payload
+        await session.commit()
+        return True
+
     async def require_active_conversation(
         self, session: AsyncSession, *, conversation_id: str, user_id: str
     ) -> ConversationORM:

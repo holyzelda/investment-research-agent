@@ -171,6 +171,43 @@ describe('conversation history sidebar and replay', () => {
     expect(store.selectedVersion).toBe('V2')
   })
 
+  it('openConversation restores assistant stream from completion payload answer_text', async () => {
+    api.getConversation.mockResolvedValue({ data: {
+      conversationId: 7,
+      title: '甘肃 200MW/800MWh',
+      messages: [
+        { role: 'user', content: '测算甘肃 200MW/800MWh 收益率', createdAt: '2026-07-15T09:00:00' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_completed',
+          content: 'V1 测算完成',
+          payload: {
+            event_type: 'calculation_completed',
+            task_id: 11,
+            version: 'V1',
+            answer_text: '已按 V1 完成测算，项目全投资 IRR 8.0%',
+          },
+          createdAt: '2026-07-15T09:01:00',
+        },
+      ],
+      versions: [{
+        taskId: 11, version: 'V1', status: 'completed',
+        result: { basicInfo: { province: '甘肃' }, financial: { capitalIrr: 8 } },
+      }],
+    } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+
+    expect(store.messages.map((m) => m.kind)).toEqual(['text', 'assistant-stream'])
+    const stream = store.messages[1]
+    expect(stream.role).toBe('assistant')
+    expect(stream.answerText).toBe('已按 V1 完成测算，项目全投资 IRR 8.0%')
+    expect(stream.version).toBe('V1')
+    expect(stream.taskId).toBe(11)
+    expect(stream.result.basicInfo.province).toBe('甘肃')
+  })
+
   it('openConversation preserves historical report payload and metadata without restarting generation', async () => {
     api.getConversation.mockResolvedValue({ data: {
       conversationId: 7,

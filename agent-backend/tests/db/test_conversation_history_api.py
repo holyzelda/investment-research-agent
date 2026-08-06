@@ -157,6 +157,7 @@ async def history_context():
             "newer": newer.id,
             "deleted": deleted.id,
             "foreign": foreign.id,
+            "empty_failed": empty_failed.id,
             "v2": v2.id,
             "foreign_task": foreign_task.id,
             "deleted_task": deleted_task.id,
@@ -277,6 +278,7 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
     ("delete", "conversation"),
     ("get", "status"),
     ("get", "result"),
+    ("get", "latest_input"),
     ("post", "append"),
 ])
 async def test_cross_user_resources_return_404(history_context, method, path_key):
@@ -285,6 +287,7 @@ async def test_cross_user_resources_return_404(history_context, method, path_key
         "conversation": f"/ir/conversations/{ids['foreign']}",
         "status": f"/ir/calc/tasks/{ids['foreign_task']}",
         "result": f"/ir/calc/tasks/{ids['foreign_task']}/result",
+        "latest_input": "/ir/calc/tasks/latest-input",
         "append": "/ir/calc/tasks",
     }
     kwargs = {}
@@ -295,8 +298,51 @@ async def test_cross_user_resources_return_404(history_context, method, path_key
             "power_mw": 200,
         }
         kwargs["headers"] = {**_USER_1, "X-IR-Conversation-Id": ids["foreign"]}
+    elif path_key == "latest_input":
+        kwargs["headers"] = {**_USER_1, "X-IR-Conversation-Id": ids["foreign"]}
 
     response = await getattr(client, method)(paths[path_key], **kwargs)
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_latest_input_returns_latest_completed_frozen_params(history_context):
+    """GET /ir/calc/tasks/latest-input 返回最近一次成功版本的冻结入参。"""
+    client, _, ids = history_context
+
+    response = await client.get(
+        "/ir/calc/tasks/latest-input",
+        headers={**_USER_1, "X-IR-Conversation-Id": ids["newer"]},
+    )
+
+    assert response.status_code == 200
+    data = response.json()["data"]
+    assert data["taskId"] == ids["v2"]  # newer 会话最新成功版本是 V2
+    assert data["version"] == "V2"
+    assert data["input"] == {"spot_charge_avg": 0.22}
+
+
+@pytest.mark.asyncio
+async def test_latest_input_missing_conversation_header_returns_404(history_context):
+    client, _, _ = history_context
+
+    response = await client.get("/ir/calc/tasks/latest-input")
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_latest_input_conversation_without_success_version_returns_404(history_context):
+    """会话只有失败任务（empty_failed）时，无成功版本 → 404。"""
+    client, _, ids = history_context
+
+    response = await client.get(
+        "/ir/calc/tasks/latest-input",
+        headers={**_USER_1, "X-IR-Conversation-Id": ids["empty_failed"]},
+    )
 
     assert response.status_code == 404
     assert response.json()["data"] is None

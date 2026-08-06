@@ -78,6 +78,7 @@ describe('param adjustment: recalculate + param meta', () => {
     expect(api.createCalculationTask).toHaveBeenCalledWith({
       province: '甘肃', capacity_mwh: 400, power_mw: 100, node_name: '新节点',
       param_overrides: { epc_unit_price: 0.8 },
+      trigger: 'recalculate',
     }, 1)
     expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
     expect(store.versions[1].input.epc_unit_price).toBe(0.8)

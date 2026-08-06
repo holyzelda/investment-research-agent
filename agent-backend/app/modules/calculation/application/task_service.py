@@ -108,6 +108,7 @@ class CalculationTaskService:
         basics: ProjectBasics,
         conversation_id: Optional[str] = None,
         param_overrides: Optional[dict] = None,
+        trigger: Optional[str] = None,
     ) -> dict:
         request_id = uuid.uuid4().hex
         try:
@@ -200,7 +201,7 @@ class CalculationTaskService:
             result=result_dto,
             min_input=_min_input(basics),
             report_sources=report_sources,
-            user_message=f"测算{basics.province} {basics.power_mw}MW/{basics.capacity_mwh}MWh",
+            trigger=trigger,
             assistant_message=f"{version} 测算完成",
         )
         return {

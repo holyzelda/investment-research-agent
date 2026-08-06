@@ -11,10 +11,11 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from urllib.parse import quote
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.settings import MiddlePlatformConfig
 from app.core.exceptions import ValidationException
+from app.infrastructure.database.session import get_sessionmaker
 from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
 from app.modules.calculation.infrastructure.persistence.orm import ConversationORM
 from app.modules.middle_platform.application.token_cache import (
@@ -38,11 +39,15 @@ class ChatProxyService:
         *,
         client: MiddlePlatformHttpClient | None = None,
         token_cache: MiddlePlatformTokenCache | None = None,
+        sessionmaker: async_sessionmaker[AsyncSession] | None = None,
     ):
         self._config = config
         self._client = client or MiddlePlatformHttpClient(config)
         self._token_cache = token_cache or middle_platform_token_cache
         self._history = ConversationHistoryService()
+        # 流式写入用独立短生命周期会话：请求依赖的 AsyncSession 可能已随请求 teardown。
+        # 未注入时取全局 sessionmaker，测试可注入内存库的 sessionmaker。
+        self._sessionmaker = sessionmaker or get_sessionmaker()
 
     async def start_chat(
         self,
@@ -71,6 +76,13 @@ class ChatProxyService:
                 conversation_id=conversation_id,
                 user_id=user.user_id,
             )
+
+        await self._history.append_message(
+            session,
+            conversation_id=conversation.id,
+            role="user",
+            content=content,
+        )
 
         token_key = (self._config.app_id, user.user_id)
         token = self._token_cache.get(token_key)
@@ -119,6 +131,8 @@ class ChatProxyService:
         payload: dict,
     ) -> AsyncIterator[bytes]:
         buffer = b""
+        answer_parts: list[str] = []
+        task_ids: list[int] = []
         async for chunk in self._client.stream_chat(access_token=token, payload=payload):
             buffer += chunk
             while True:
@@ -126,25 +140,86 @@ class ChatProxyService:
                 if separator not in buffer:
                     break
                 record, buffer = buffer.split(separator, 1)
+                normalized = record.replace(b"\r\n", b"\n")
                 error = await self._capture_session_start(
                     session=session,
                     conversation=conversation,
-                    record=record.replace(b"\r\n", b"\n"),
+                    record=normalized,
                 )
                 if error is not None:
                     yield error
                     return
+                self._collect_answer(normalized, answer_parts, task_ids)
                 yield record + separator
         if buffer:
+            normalized = buffer.replace(b"\r\n", b"\n")
             error = await self._capture_session_start(
                 session=session,
                 conversation=conversation,
-                record=buffer.replace(b"\r\n", b"\n"),
+                record=normalized,
             )
             if error is not None:
                 yield error
                 return
+            self._collect_answer(normalized, answer_parts, task_ids)
             yield buffer
+        await self._persist_answer(
+            conversation_id=conversation.id,
+            answer_text="".join(answer_parts),
+            task_ids=task_ids,
+        )
+
+    @staticmethod
+    def _collect_answer(record: bytes, answer_parts: list[str], task_ids: list[int]) -> None:
+        try:
+            lines = record.decode("utf-8").split("\n")
+            event = next((line[7:].strip() for line in lines if line.startswith("event:")), None)
+            raw_data = "\n".join(line[5:].lstrip() for line in lines if line.startswith("data:"))
+            data = json.loads(raw_data)
+            inner = data.get("data") if isinstance(data, dict) else None
+            if not isinstance(inner, dict):
+                return
+            if event == "answer":
+                text = inner.get("answer") or ""
+                if text:
+                    answer_parts.append(text)
+                for item in inner.get("biz") or []:
+                    if item.get("tool") == "create_calculation_task":
+                        task_id = (item.get("payload") or {}).get("data", {}).get("taskId")
+                        if isinstance(task_id, int):
+                            task_ids.append(task_id)
+            elif event == "question":
+                text = inner.get("question_text") or inner.get("text") or ""
+                if text:
+                    answer_parts.append(text)
+        except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
+            return
+
+    async def _persist_answer(
+        self, *, conversation_id: str, answer_text: str, task_ids: list[int]
+    ) -> None:
+        cleaned = answer_text.strip()
+        if not cleaned:
+            return
+        try:
+            maker = self._sessionmaker
+            async with maker() as write_session:
+                for task_id in dict.fromkeys(task_ids):
+                    if await self._history.attach_answer_to_calculation(
+                        write_session,
+                        conversation_id=conversation_id,
+                        task_id=task_id,
+                        answer_text=cleaned,
+                    ):
+                        return
+                await self._history.append_message(
+                    write_session,
+                    conversation_id=conversation_id,
+                    role="assistant",
+                    content=cleaned,
+                )
+        except Exception:
+            return
 
     async def _capture_session_start(
         self,

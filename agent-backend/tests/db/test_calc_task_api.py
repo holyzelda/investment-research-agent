@@ -111,20 +111,14 @@ async def test_province_change_returns_failed_without_creating_task(client, db_e
 
 @pytest.mark.asyncio
 async def test_unknown_conversation_returns_failed_result(client):
+    """未知会话按归属边界直接 404（router 层 require_active_conversation）。"""
     conversation_id = "51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6"
     rejected = await client.post("/ir/calc/tasks", json={
         "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
     }, headers={**_HEADERS, "X-IR-Conversation-Id": conversation_id})
 
-    assert rejected.status_code == 200
-    data = rejected.json()["data"]
-    assert data["conversationId"] == conversation_id
-    assert data["status"] == "failed"
-    assert data["taskCreated"] is False
-    assert data["taskId"] is None
-    assert data["error"]["code"] == 404
-    assert data["error"]["message"] == "会话不存在"
-    assert data["requestId"] == data["error"]["requestId"]
+    assert rejected.status_code == 404
+    assert rejected.json()["data"] is None
 
 
 @pytest.mark.asyncio
@@ -294,6 +288,48 @@ async def test_task_accepts_power_and_duration(client):
     data = response.json()["data"]
     assert data["input"]["power_mw"] == 100
     assert data["input"]["capacity_mwh"] == 200
+
+
+@pytest.mark.asyncio
+async def test_same_conversation_power_only_change_keeps_previous_capacity(client):
+    """同会话修改：只改功率 → 容量沿用上一版（200/800 改功率 400 → 400/800，时长派生 2h）。"""
+    v1 = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200, "node_name": "兰州东",
+    })
+    conv_id = v1.json()["data"]["conversationId"]
+
+    v2 = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "power_mw": 400,
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conv_id})
+
+    assert v2.status_code == 200
+    d2 = v2.json()["data"]
+    assert d2["status"] == "completed"
+    assert d2["version"] == "V2"
+    # 只改功率：容量沿用上一版 800（时长派生），功率为新值
+    assert d2["input"]["power_mw"] == 400
+    assert d2["input"]["capacity_mwh"] == 800
+    # 注：node_name 带出由中台 YAML 规则负责（后端不强制补全，用户可明确"去掉节点"）
+
+
+@pytest.mark.asyncio
+async def test_same_conversation_duration_only_change_keeps_previous_capacity(client):
+    """同会话修改：只改时长 → 容量沿用上一版，功率由容量/时长推导。"""
+    v1 = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200, "node_name": "兰州东",
+    })
+    conv_id = v1.json()["data"]["conversationId"]
+
+    v2 = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "duration_hours": 2,
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conv_id})
+
+    assert v2.status_code == 200
+    d2 = v2.json()["data"]
+    assert d2["status"] == "completed"
+    # 容量沿用 800，时长 2 → 功率 = 800/2 = 400
+    assert d2["input"]["capacity_mwh"] == 800
+    assert d2["input"]["power_mw"] == 400
 
 
 @pytest.mark.asyncio

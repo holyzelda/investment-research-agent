@@ -92,9 +92,16 @@ class ParamAssembler:
         if basics.node_name:  # 用户没提节点则不写入、不展示
             result.api_input["node_name"] = basics.node_name
 
-        # ② 系统默认值
+        # ② 系统默认值：有上一版本冻结入参（同会话修改参数）时，本次未显式提供的参数
+        #    优先沿用上一版冻结值，否则取字典默认——"只改一项、其余不变"的修改语义。
+        #    ① 已写入的对话抽取基础参数（功率/容量/省份/电压/节点）不在此被默认值覆盖；
+        #    现货价格与两档收益由③④按依赖是否变化单独处理，不在此种子。
         for pid, dv in self._dict.defaults().items():
-            result.api_input[pid] = dv
+            if pid in result.api_input:
+                continue
+            result.api_input[pid] = previous_input.get(pid) if previous_input else None
+            if result.api_input[pid] is None:
+                result.api_input[pid] = dv
 
         # 日均充放电次数：override 先生效（影响现货 K 的取值），暂不写回 api_input，
         # 交由末尾的受控覆盖统一写入，避免重复赋值。

@@ -27,7 +27,7 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 from tests.db.conftest import PYTEST_TITLE_PREFIX, PYTEST_USERNAME
 
 
-async def _persist(session, svc, conv_id, version):
+async def _persist(session, svc, conv_id, version, trigger=None):
     basics = ProjectBasics("甘肃", 800, 200, node_name="兰州东")
     assembled = build_param_assembler().assemble(basics)
     result = await build_calculation_service().run(basics, version=version, request_id=f"req-{version}")
@@ -43,7 +43,7 @@ async def _persist(session, svc, conv_id, version):
         api_meta={"status": "done", "request_id": f"req-{version}"},
         result=result,
         min_input={"province": "甘肃", "capacityMwh": 800, "powerMw": 200, "nodeName": "兰州东"},
-        user_message=f"测算甘肃 200MW/800MWh（{version}）",
+        trigger=trigger,
         assistant_message=f"{version} 完成",
     )
 
@@ -84,6 +84,7 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
         assert set(p["financial"]) == {
             "projectIrr", "projectStaticPayback", "capitalIrr",
             "capitalStaticPayback", "averageProfit",
+            "averageRevenue", "totalInvestmentRoi",
         }
         donut = p["advanced"]["donut"]
         assert donut["totalRevenue"] == SAMPLE_API_OUTPUT["first_year_total_revenue"]
@@ -113,9 +114,10 @@ async def test_success_persists_typed_calculation_completion_messages(db_session
             .order_by(MessageSnapshotORM.id.asc())
         )).scalars().all()
 
+    # 普通测算不再写伪装用户原文：真实用户输入由聊天入口负责留痕
     user_messages = [message for message in messages if message.role == "user"]
     assistant_messages = [message for message in messages if message.role == "assistant"]
-    assert all(message.message_type == "text" and message.payload is None for message in user_messages)
+    assert user_messages == []
     assert [message.message_type for message in assistant_messages] == [
         "calculation_completed",
         "calculation_completed",
@@ -132,3 +134,38 @@ async def test_success_persists_typed_calculation_completion_messages(db_session
             "version": "V2",
         },
     ]
+
+
+@pytest.mark.asyncio
+async def test_recalculate_trigger_writes_explicit_user_event(db_session, db_engine):
+    svc = SnapshotService()
+    conv_id = await svc.create_conversation(
+        db_session,
+        user_id="1001",
+        username=PYTEST_USERNAME,
+        title=f"{PYTEST_TITLE_PREFIX}重算事件",
+    )
+    task_v1 = await _persist(db_session, svc, conv_id, "V1", trigger="recalculate")
+
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as session:
+        messages = (await session.execute(
+            select(MessageSnapshotORM)
+            .where(MessageSnapshotORM.conversation_id == conv_id)
+            .order_by(MessageSnapshotORM.id.asc())
+        )).scalars().all()
+
+    user_messages = [message for message in messages if message.role == "user"]
+    assert len(user_messages) == 1
+    assert user_messages[0].message_type == "text"
+    assert user_messages[0].payload == {"event_type": "recalculate"}
+    assert "重新测算" in user_messages[0].content
+
+    completion = [message for message in messages if message.role == "assistant"][0]
+    assert completion.message_type == "calculation_completed"
+    assert completion.payload == {
+        "event_type": "calculation_completed",
+        "task_id": task_v1,
+        "version": "V1",
+    }

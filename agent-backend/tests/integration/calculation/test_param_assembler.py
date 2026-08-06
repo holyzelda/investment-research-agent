@@ -324,3 +324,80 @@ class TestParamOverrides:
         )
         assert r.api_input["mid_long_energy_revenue_first_year_tax"] == 1200.0
 
+
+class TestModifyParameterSeeding:
+    """对话"修改参数并重新测算"：同会话有上一版本冻结入参时，本次未提交的高级参数沿用上一版值。"""
+
+    def _basics(self, cap=800, pwr=200, node="祥泰站"):
+        return ProjectBasics(province="甘肃", capacity_mwh=cap, power_mw=pwr, node_name=node)
+
+    def test_non_spot_params_inherit_previous_version_when_not_overridden(self):
+        """V2 只改功率：未提及的 EPC/贷款等高级参数沿用 V1 冻结值，而非字典默认值。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        v1_frozen = {
+            "province": "甘肃", "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200,
+            "daily_cycles": 1, "spot_charge_avg": 0.2, "spot_discharge_avg": 0.6,
+            "epc_unit_price": 0.85, "loan_rate": 0.042, "loan_years": 12,
+            "maint_cost": 15.0, "opex_cost": 28.0, "strategy_achievement_rate": 0.9,
+            "capacity_achievement_rate": 0.95, "lease_achievement_rate": 0.92,
+            "battery_replace_cost": 60.0, "operation_years": 20,
+        }
+        r = asm.assemble(
+            self._basics(pwr=300),  # 本次仅改功率
+            previous_input=v1_frozen,
+        )
+        assert r.api_input["power_mw"] == 300
+        assert r.api_input["capacity_mwh"] == 800
+        # 未覆盖的高级参数沿用上一版冻结值
+        assert r.api_input["epc_unit_price"] == 0.85
+        assert r.api_input["loan_rate"] == 0.042
+        assert r.api_input["loan_years"] == 12
+        assert r.api_input["maint_cost"] == 15.0
+        assert r.api_input["opex_cost"] == 28.0
+        assert r.api_input["strategy_achievement_rate"] == 0.9
+        assert r.api_input["capacity_achievement_rate"] == 0.95
+        assert r.api_input["battery_replace_cost"] == 60.0
+        assert r.api_input["operation_years"] == 20
+
+    def test_explicit_override_still_wins_over_previous_seed(self):
+        """本次显式提交的高级参数覆盖上一版冻结值（override 优先于种子）。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "province": "甘肃", "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200,
+            "daily_cycles": 1, "spot_charge_avg": 0.2, "spot_discharge_avg": 0.6,
+            "epc_unit_price": 0.85, "loan_rate": 0.042, "loan_years": 12,
+        }
+        r = asm.assemble(
+            self._basics(),
+            overrides={"epc_unit_price": 0.95, "loan_rate": 0.036},
+            previous_input=previous,
+        )
+        assert r.api_input["epc_unit_price"] == 0.95
+        assert r.api_input["loan_rate"] == 0.036
+        # 未提交的参数仍沿用上一版
+        assert r.api_input["loan_years"] == 12
+
+    def test_no_previous_input_falls_back_to_dict_defaults(self):
+        """首次测算（previous_input=None）行为不变：高级参数取字典默认值。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        r = asm.assemble(self._basics())
+        assert r.api_input["epc_unit_price"] == 0.75  # 字典默认
+        assert r.api_input["loan_rate"] == 0.04
+        assert r.api_input["loan_years"] == 10
+
+    def test_previous_seed_none_falls_back_to_dict_default(self):
+        """上一版冻结入参缺某个参数时，回落到字典默认值。"""
+        spot = _CountingSpot()
+        asm = build_param_assembler(spot=spot)
+        previous = {
+            "province": "甘肃", "node_name": "祥泰站", "capacity_mwh": 800, "power_mw": 200,
+            "daily_cycles": 1, "spot_charge_avg": 0.2, "spot_discharge_avg": 0.6,
+            "epc_unit_price": 0.85,  # loan_rate 未出现在上一版
+        }
+        r = asm.assemble(self._basics(), previous_input=previous)
+        assert r.api_input["epc_unit_price"] == 0.85
+        assert r.api_input["loan_rate"] == 0.04  # 回落到字典默认
+

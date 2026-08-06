@@ -4,12 +4,17 @@ import json
 from uuid import UUID
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from app.core.config.settings import MiddlePlatformConfig
 from app.infrastructure.database.base import Base
-from app.modules.calculation.infrastructure.persistence.orm import ConversationORM
+from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationTaskORM,
+    ConversationORM,
+    MessageSnapshotORM,
+)
 from app.modules.middle_platform.application.chat_proxy_service import ChatProxyService
 from app.modules.middle_platform.application.token_cache import MiddlePlatformTokenCache
 from app.modules.middle_platform.infrastructure.http_client import PlatformAccessToken
@@ -63,7 +68,7 @@ async def session():
     await engine.dispose()
 
 
-def _service(client):
+def _service(client, maker=None):
     return ChatProxyService(
         MiddlePlatformConfig(
             chat_url="http://middle-platform/api/v1/chat/diag",
@@ -72,6 +77,7 @@ def _service(client):
         ),
         client=client,
         token_cache=MiddlePlatformTokenCache(refresh_skew_seconds=0),
+        sessionmaker=maker,
     )
 
 
@@ -173,3 +179,194 @@ async def test_malformed_session_start_emits_error(session):
     body = await _collect(stream.chunks)
     assert body.startswith(b"event: error\n")
     assert json.loads(body.split(b"data: ", 1)[1])["msg"] == "中台会话协议异常"
+
+
+async def _conversation_messages(db_session, conversation_id):
+    from sqlalchemy import select as sa_select
+    return (await db_session.execute(
+        sa_select(MessageSnapshotORM)
+        .where(MessageSnapshotORM.conversation_id == conversation_id)
+        .order_by(MessageSnapshotORM.id.asc())
+    )).scalars().all()
+
+
+@pytest.mark.asyncio
+async def test_start_chat_persists_real_user_input_verbatim(session):
+    """首轮对话：输入框原文（含首尾空白清理后）精确落为用户消息。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    client = FakeMiddlePlatformClient([_question("mp-session-1")])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="  测算甘肃 200MW/800MWh 储能项目收益率  ",
+        conversation_id=None,
+    )
+
+    await _collect(stream.chunks)
+
+    await session.commit()
+    messages = await _conversation_messages(session, stream.conversation_id)
+    # 真实用户原文精确落库；question 事件是用户当时可见的 assistant 追问，也应保留
+    user_messages = [m for m in messages if m.role == "user"]
+    assert len(user_messages) == 1
+    assert user_messages[0].message_type == "text"
+    assert user_messages[0].content == "测算甘肃 200MW/800MWh 储能项目收益率"
+    assert user_messages[0].payload is None
+    assert any(m.role == "assistant" and m.content == "请补充项目功率" for m in messages)
+
+
+@pytest.mark.asyncio
+async def test_multi_turn_persists_each_real_user_input(session):
+    """多轮对话：每轮真实输入都落库（而非结构化的测算摘要）。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
+        user_id="u-1",
+        username="张三",
+    )
+    session.add(conversation)
+    await session.commit()
+
+    client = FakeMiddlePlatformClient([_question("mp-session-1")])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="功率调整到 400MW",
+        conversation_id=conversation.id,
+    )
+    await _collect(stream.chunks)
+
+    await session.commit()
+    messages = await _conversation_messages(session, conversation.id)
+    # 每轮真实输入原样保留（而非结构化测算摘要），同时保留 assistant 追问
+    assert [m.content for m in messages if m.role == "user"] == ["功率调整到 400MW"]
+    assert any(m.role == "assistant" and m.content == "请补充项目功率" for m in messages)
+
+
+def _completion_frame(session_id: str, task_id: int, version: str) -> bytes:
+    return (
+        "event: answer\n"
+        "id: frame-3\n"
+        f'data: {{"event":"answer","session":{{"session_id":"{session_id}"}},"data":{{'
+        f'"answer":"已按 {version} 完成测算，详见下方结果",'
+        f'"biz":[{{"tool":"create_calculation_task","payload":{{"data":{{"taskId":{task_id}}}}}}}]'
+        f'}}}}\n\n'
+    ).encode()
+
+
+@pytest.mark.asyncio
+async def test_answer_with_calc_task_attaches_text_to_completion_payload(session):
+    """匹配计算任务的 answer：回答文本写入对应 completion 的 payload.answer_text。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
+        user_id="u-1",
+        username="张三",
+        middle_platform_session_id="mp-session-1",
+    )
+    session.add(conversation)
+    task = CalculationTaskORM(
+        conversation_id=conversation.id,
+        version="V1",
+        status="completed",
+        request_id="req-1",
+        param_hash="hash",
+        feishu_copy_url="doc",
+    )
+    session.add(task)
+    await session.commit()
+    await session.refresh(task)
+    session.add(MessageSnapshotORM(
+        conversation_id=conversation.id,
+        role="assistant",
+        content="V1 测算完成",
+        message_type="calculation_completed",
+        payload={"event_type": "calculation_completed", "task_id": task.id, "version": "V1"},
+    ))
+    await session.commit()
+
+    client = FakeMiddlePlatformClient([_completion_frame("mp-session-1", task.id, "V1")])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="重新测算",
+        conversation_id=conversation.id,
+    )
+    await _collect(stream.chunks)
+
+    await session.commit()
+    messages = await _conversation_messages(session, conversation.id)
+    # 用户真实输入 + completion（已被附加 answer_text，无新增普通 assistant 消息）
+    completion = [m for m in messages if m.message_type == "calculation_completed"][0]
+    assert completion.payload["answer_text"] == "已按 V1 完成测算，详见下方结果"
+    assert completion.content == "V1 测算完成"
+    assert len([m for m in messages if m.role == "assistant"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_plain_answer_writes_assistant_text_message(session):
+    """普通问答（无计算任务）：answer 文本落为独立 assistant 消息。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
+        user_id="u-1",
+        username="张三",
+    )
+    session.add(conversation)
+    await session.commit()
+
+    answer_frame = (
+        "event: answer\n"
+        "id: frame-3\n"
+        'data: {"event":"answer","session":{"session_id":"mp-session-1"},"data":{"answer":"普通问答的回答内容"}}\n\n'
+    ).encode()
+    client = FakeMiddlePlatformClient([answer_frame])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="介绍一下储能市场",
+        conversation_id=conversation.id,
+    )
+    await _collect(stream.chunks)
+
+    await session.commit()
+    messages = await _conversation_messages(session, conversation.id)
+    assert [m.role for m in messages] == ["user", "assistant"]
+    assert messages[1].message_type == "text"
+    assert messages[1].content == "普通问答的回答内容"
+
+
+@pytest.mark.asyncio
+async def test_empty_answer_writes_no_extra_message(session):
+    """answer 为空/缺失：不产生多余历史消息。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    conversation = ConversationORM(
+        id="51cf6ef3-5436-4c3a-8ce8-7cc6488d0fa6",
+        user_id="u-1",
+        username="张三",
+    )
+    session.add(conversation)
+    await session.commit()
+
+    empty_frame = (
+        "event: answer\n"
+        "id: frame-3\n"
+        'data: {"event":"answer","session":{"session_id":"mp-session-1"},"data":{"answer":"   "}}\n\n'
+    ).encode()
+    client = FakeMiddlePlatformClient([empty_frame])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="空回答测试",
+        conversation_id=conversation.id,
+    )
+    await _collect(stream.chunks)
+
+    await session.commit()
+    messages = await _conversation_messages(session, conversation.id)
+    assert [m.role for m in messages] == ["user"]

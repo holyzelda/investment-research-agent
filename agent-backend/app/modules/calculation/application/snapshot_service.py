@@ -48,7 +48,7 @@ class SnapshotService:
         result: CalculationResult,
         min_input: dict,
         report_sources: Optional[dict] = None,
-        user_message: Optional[str] = None,
+        trigger: Optional[str] = None,
         assistant_message: Optional[str] = None,
     ) -> int:
         """落一次成功测算的 6 类快照（conversation 已由调用方建），返回 task_id。"""
@@ -83,13 +83,13 @@ class SnapshotService:
         ))
         session.add(CalculationResultSnapshotORM(task_id=task.id, payload=to_report_payload(result)))
 
-        if user_message:
+        if trigger == "recalculate":
             session.add(MessageSnapshotORM(
                 conversation_id=conversation_id,
                 role="user",
-                content=user_message,
+                content="重新测算",
                 message_type="text",
-                payload=None,
+                payload={"event_type": "recalculate"},
             ))
         if assistant_message:
             session.add(MessageSnapshotORM(

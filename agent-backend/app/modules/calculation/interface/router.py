@@ -23,12 +23,17 @@ from app.modules.calculation.application.factory import (
 from app.modules.calculation.application.conversation_history_service import (
     ConversationHistoryService,
 )
-from app.modules.calculation.application.input_normalizer import normalize_project_basics
+from app.modules.calculation.application.input_normalizer import (
+    complete_scale_anchors,
+    normalize_project_basics,
+)
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
+    CalculationTaskORM,
+    InputSnapshotORM,
     SpotStationORM,
 )
 from app.modules.calculation.interface.serializers import serialize_result
@@ -123,6 +128,7 @@ class TaskCreateReq(BaseModel):
     node_name: Optional[str] = None
     voltage_kv: int = 220
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
+    trigger: Optional[str] = None  # 直接重算传 "recalculate"，历史据此写明确重算事件而非伪装用户原文
 
 @router.post("/tasks")
 async def create_task(
@@ -137,22 +143,102 @@ async def create_task(
     except ValueError as exc:
         raise ValidationException("conversation_id 格式无效") from exc
     svc = build_task_service()
+    # 非本人/已删除/未知会话按归属边界直接 404（与 latest-input 等只读端点一致）。
+    if conv_id is not None:
+        await ConversationHistoryService().require_active_conversation(
+            session, conversation_id=conv_id, user_id=user.user_id
+        )
+    # 同会话修改参数：以最近一次成功版本的冻结入参为基线，补全缺失的规模锚点。
+    # 例如用户只改功率，则容量沿用上一版（改功率=改时长，容量不变），避免 normalize 因
+    # 缺少容量/时长组合而 400；首次测算（无会话或无成功版本）previous_input 为 None 不补全。
+    previous_input = await _latest_frozen_input(session, conv_id) if conv_id is not None else None
+    cap, pwr, dur = complete_scale_anchors(
+        previous_input=previous_input,
+        capacity_mwh=req.capacity_mwh,
+        power_mw=req.power_mw,
+        duration_hours=req.duration_hours,
+    )
     out = await svc.create_and_run(
         session,
         user_id=user.user_id,
         username=user.username,
         basics=normalize_project_basics(
             province=req.province,
-            capacity_mwh=req.capacity_mwh,
-            power_mw=req.power_mw,
-            duration_hours=req.duration_hours,
+            capacity_mwh=cap,
+            power_mw=pwr,
+            duration_hours=dur,
             node_name=req.node_name,
             voltage_kv=req.voltage_kv,
         ),
         conversation_id=conv_id,
         param_overrides=req.param_overrides,
+        trigger=req.trigger,
     )
     return ok(out)
+
+
+async def _latest_frozen_input(
+    session: AsyncSession, conv_id: str
+) -> Optional[dict]:
+    """最近一次成功测算版本的冻结 api_input（无成功版本或无快照时返回 None）。"""
+    latest_task = (await session.execute(
+        select(CalculationTaskORM)
+        .where(
+            CalculationTaskORM.conversation_id == conv_id,
+            CalculationTaskORM.status == "completed",
+        )
+        .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    if latest_task is None:
+        return None
+    snapshot = (await session.execute(
+        select(InputSnapshotORM).where(InputSnapshotORM.task_id == latest_task.id)
+    )).scalar_one_or_none()
+    if snapshot is None or not snapshot.payload:
+        return None
+    return snapshot.payload.get("apiInput")
+
+
+@router.get("/tasks/latest-input")
+async def get_latest_task_input(
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+    conversation_id: Optional[str] = Header(default=None, alias="X-IR-Conversation-Id"),
+):
+    """最近一次成功测算的冻结入参（含省份/规模/节点/电压及全部 g=1 参数）。
+
+    供智能体中台"对话修改参数并重新测算"场景取基线：中台按同一会话再次调用
+    create_calculation_task 前，先经本接口读取最近一次成功版本的冻结 api_input，
+    作为未改动参数的种子；无会话或无成功版本时返回 404，中台据此如实告知。
+    只读快照（InputSnapshotORM），不触发飞书、不生成新任务。
+    """
+    try:
+        conv_id = str(UUID(conversation_id)) if conversation_id is not None else None
+    except ValueError as exc:
+        raise ValidationException("conversation_id 格式无效") from exc
+    if conv_id is None:
+        raise NotFoundException("会话不存在")
+    await ConversationHistoryService().require_active_conversation(
+        session, conversation_id=conv_id, user_id=user.user_id
+    )
+    frozen = await _latest_frozen_input(session, conv_id)
+    if frozen is None:
+        raise NotFoundException("该会话暂无成功测算版本")
+    latest_task = (await session.execute(
+        select(CalculationTaskORM)
+        .where(
+            CalculationTaskORM.conversation_id == conv_id,
+            CalculationTaskORM.status == "completed",
+        )
+        .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    return ok({
+        "taskId": latest_task.id,
+        "version": latest_task.version,
+        "input": frozen,
+    })
 
 
 @router.get("/tasks/{task_id}")

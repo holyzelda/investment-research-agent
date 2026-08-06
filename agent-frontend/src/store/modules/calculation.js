@@ -156,6 +156,18 @@ export const useCalculationStore = defineStore('calculation', {
         if (message.messageType === 'calculation_completed') {
           const version = completedByTaskId.get(String(message.payload?.task_id))
           if (version) {
+            // 新版历史带当时可见的 assistant 回答 → 恢复为流式消息形态并附结果卡；
+            // 旧版仅结果完成事件 → 回退为纯结果卡，保持兼容。
+            if (message.payload?.answer_text) {
+              return {
+                id: nextId(), role: 'assistant', kind: 'assistant-stream',
+                phase: 'completed', done: true,
+                answerText: message.payload.answer_text,
+                taskId: version.taskId,
+                version: version.version, result: version.result, input: version.input,
+                report: version.report, calculatedAt: version.calculatedAt,
+              }
+            }
             return {
               id: nextId(), role: 'assistant', kind: 'result',
               taskId: version.taskId,
@@ -508,6 +520,7 @@ export const useCalculationStore = defineStore('calculation', {
         power_mw: basics.power_mw,
         node_name: basics.node_name || null,
         param_overrides: overrides,
+        trigger: 'recalculate',
       }, this.conversationId)
     },
     // 直调测算 + 统一进度展示：以「测算进行中」思考样式占位，完成后升级为结果卡片。
