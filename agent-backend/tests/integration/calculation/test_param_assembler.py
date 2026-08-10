@@ -401,3 +401,89 @@ class TestModifyParameterSeeding:
         assert r.api_input["epc_unit_price"] == 0.85
         assert r.api_input["loan_rate"] == 0.04  # 回落到字典默认
 
+
+class TestBatteryReplaceCostByOperationYears:
+    """换电成本随运营期（variants）：15年固定0 / 20年默认0.3、首切用默认、同档沿用、覆盖优先。"""
+
+    def _basics(self, cap=800, pwr=200):
+        return ProjectBasics(province="甘肃", capacity_mwh=cap, power_mw=pwr)
+
+    def test_15_year_default_is_zero(self):
+        """默认运营期（未传/15）换电成本恒为 0。"""
+        r = build_param_assembler().assemble(self._basics())
+        assert r.api_input["battery_replace_cost"] == 0
+
+    def test_first_switch_to_20_uses_variant_default(self):
+        """首次切到20年（无上一版）→ 用分档默认 0.3，不继承 15 年的 0。"""
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"operation_years": 20},
+        )
+        assert r.api_input["operation_years"] == 20
+        assert r.api_input["battery_replace_cost"] == 0.3
+
+    def test_switch_from_15_year_previous_uses_variant_default(self):
+        """上一版是15年（换电0）→ 本次切到20年用默认 0.3，不继承上一版 0。"""
+        previous = {
+            "operation_years": 15, "battery_replace_cost": 0,
+        }
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"operation_years": 20}, previous_input=previous,
+        )
+        assert r.api_input["battery_replace_cost"] == 0.3
+
+    def test_20_to_20_inherits_previous_value(self):
+        """上一版已是20年 → 未提交换电成本时沿用上一版值（用户值）。"""
+        previous = {
+            "operation_years": 20, "battery_replace_cost": 0.5,
+        }
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"operation_years": 20}, previous_input=previous,
+        )
+        assert r.api_input["battery_replace_cost"] == 0.5
+
+    def test_20_year_override_wins(self):
+        """20年档用户显式提交换电成本 → 以用户值为准。"""
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"operation_years": 20, "battery_replace_cost": 0.6},
+        )
+        assert r.api_input["battery_replace_cost"] == 0.6
+
+    def test_15_year_override_is_ignored_and_forced_to_zero(self):
+        """15年档即便提交非0换电成本也被忽略，恒为 0（后端兜底，防中台/直接 API 绕过）。"""
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"battery_replace_cost": 0.6},
+        )
+        assert r.api_input["battery_replace_cost"] == 0
+
+    def test_switch_back_to_15_forces_zero_discarding_previous(self):
+        """20年用户值切回15年 → 强制归 0 并丢弃用户值。"""
+        previous = {
+            "operation_years": 20, "battery_replace_cost": 0.5,
+        }
+        r = build_param_assembler().assemble(
+            self._basics(), overrides={"operation_years": 15}, previous_input=previous,
+        )
+        assert r.api_input["battery_replace_cost"] == 0
+
+    def test_explicit_zero_battery_on_switch_to_20_is_honored(self):
+        """用户显式要求换电成本保持 0 并切到 20 年 → 以用户值为准得到 0
+        （override 里存在即视为用户提了值；中台侧由 ir_agent.yaml 保证切运营期时不搬运基线换电成本）。"""
+        previous = {"operation_years": 15, "battery_replace_cost": 0}
+        r = build_param_assembler().assemble(
+            self._basics(),
+            overrides={"operation_years": 20, "battery_replace_cost": 0},
+            previous_input=previous,
+        )
+        assert r.api_input["operation_years"] == 20
+        assert r.api_input["battery_replace_cost"] == 0
+
+    def test_explicit_new_battery_value_while_switching_to_20_is_honored(self):
+        """对话链路：切换运营期到20且用户显式给换电成本 0.6（≠上一版 0）→ 以用户值为准。"""
+        previous = {"operation_years": 15, "battery_replace_cost": 0}
+        r = build_param_assembler().assemble(
+            self._basics(),
+            overrides={"operation_years": 20, "battery_replace_cost": 0.6},
+            previous_input=previous,
+        )
+        assert r.api_input["battery_replace_cost"] == 0.6
+

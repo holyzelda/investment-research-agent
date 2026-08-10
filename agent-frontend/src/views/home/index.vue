@@ -118,6 +118,7 @@
                   :version="m.version"
                   :calculated-at="m.calculatedAt"
                   :seed-input="m.input || {}"
+                  :comparison-input="comparisonInputFor(m.taskId)"
                   :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
                   :switches="calc.switches"
                   :station-options="calc.stationOptions"
@@ -150,6 +151,7 @@
                 :version="m.version"
                 :calculated-at="m.calculatedAt"
                 :seed-input="m.input || {}"
+                :comparison-input="comparisonInputFor(m.taskId)"
                 :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
                 :switches="calc.switches"
                 :station-options="calc.stationOptions"
@@ -630,6 +632,11 @@ function recordTimeValue(value) {
   if (!value) return null
   const time = new Date(value).getTime()
   return Number.isNaN(time) ? null : time
+}
+
+function comparisonInputFor(taskId) {
+  const index = calc.versions.findIndex((entry) => entry.taskId === taskId)
+  return index > 0 ? calc.versions[index - 1]?.input || null : null
 }
 
 // 右侧测算记录条目摘要使用各版本冻结的地区、节点与规模

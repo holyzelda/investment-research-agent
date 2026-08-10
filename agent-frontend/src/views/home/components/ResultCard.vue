@@ -41,6 +41,7 @@
       :param-dict="paramDict"
       :switches="switches"
       :seed-input="seedInput"
+      :comparison-input="comparisonInput"
       :station-options="stationOptions"
       :version="version"
       :responding="responding"
@@ -56,6 +57,7 @@
       v-model="advancedOpen"
       :param-dict="paramDict"
       :seed-input="seedInput"
+      :comparison-input="comparisonInput"
       :draft-input="advancedOverrides"
       @update:model-value="handleAdvancedOpenChange"
       @save="saveAdvancedDraft"
@@ -92,7 +94,7 @@ import DebtServiceCoverage from './DebtServiceCoverage.vue'
 import ParamAdjustPanel from './ParamAdjustPanel.vue'
 import AdvancedParamDialog from './AdvancedParamDialog.vue'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
-import { roundToStep } from '@/utils/paramAdjust'
+import { resolveVariant, roundToStep } from '@/utils/paramAdjust'
 import { buildResultTitle } from '@/utils/projectTitle'
 
 const props = defineProps({
@@ -100,6 +102,7 @@ const props = defineProps({
   version: { type: String, default: '' },
   calculatedAt: { type: String, default: '' },
   seedInput: { type: Object, default: () => ({}) },
+  comparisonInput: { type: Object, default: null },
   paramDict: { type: Array, default: () => [] },
   switches: { type: Object, default: () => ({}) },
   stationOptions: { type: Array, default: () => [] },
@@ -131,11 +134,14 @@ const ADVANCED_IDS = new Set([
   'battery_replace_cost', 'maint_cost', 'opex_cost',
 ])
 const advancedOverrideCount = computed(() => props.paramDict.reduce((count, spec) => {
-  if (!ADVANCED_IDS.has(spec.id) || spec.g !== 1 || !['slider', 'dynamic_slider', 'select'].includes(spec.control)) return count
+  if (!ADVANCED_IDS.has(spec.id) || spec.g !== 1) return count
+  // 控件形态/步长/默认值按当前版本运营期解析 variants（换电成本 20 年档才是可编辑 slider）
+  const resolved = resolveVariant(spec, props.seedInput?.operation_years)
+  if (!['slider', 'dynamic_slider', 'select'].includes(resolved.control)) return count
   if (!(spec.id in advancedOverrides.value)) return count
-  const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], spec.step)
-  const baselineValue = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
-  const baseline = normalizeAdvancedValue(baselineValue, spec.step)
+  const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], resolved.step)
+  const baselineValue = spec.id in props.seedInput ? props.seedInput[spec.id] : resolved.default
+  const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
   return draft === baseline ? count : count + 1
 }, 0))
 const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0)

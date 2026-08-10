@@ -6,6 +6,7 @@ import {
   groupByZone,
   isFieldLocked,
   isVisible,
+  resolveVariant,
   roundToStep,
 } from '@/utils/paramAdjust'
 
@@ -81,6 +82,33 @@ describe('paramAdjust: 动态区间(基准值0~2倍)', () => {
     expect(dynamicRange(0, 0.01)).toBeNull()
     expect(dynamicRange(null, 0.01)).toBeNull()
     expect(dynamicRange(undefined, 0.01)).toBeNull()
+  })
+})
+
+describe('paramAdjust: variants 分档解析', () => {
+  const battery = {
+    id: 'battery_replace_cost', control: 'fixed', default: 0,
+    variants: { '15': { control: 'fixed', default: 0 }, '20': { control: 'slider', default: 0.3, min: 0, max: 1, step: 0.01 } },
+  }
+
+  it('无 variants 时原样返回原 spec', () => {
+    const spec = { id: 'maint_cost', control: 'slider', min: 0, max: 0.01 }
+    expect(resolveVariant(spec, 20)).toBe(spec)
+  })
+
+  it('命中分档时浅合并覆盖 control/default/min/max/step', () => {
+    const resolved = resolveVariant(battery, 20)
+    expect(resolved.control).toBe('slider')
+    expect(resolved.default).toBe(0.3)
+    expect(resolved.min).toBe(0)
+    expect(resolved.max).toBe(1)
+    expect(resolved.step).toBe(0.01)
+  })
+
+  it('未命中或 key 缺失时回落基础定义', () => {
+    expect(resolveVariant(battery, 15).control).toBe('fixed')
+    expect(resolveVariant(battery, undefined).control).toBe('fixed')
+    expect(resolveVariant(battery, null).control).toBe('fixed')
   })
 })
 

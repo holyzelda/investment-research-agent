@@ -13,12 +13,44 @@ const PARAM_DICT = [
   { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
 ]
 
+const DELTA_PARAM_DICT = [
+  ...PARAM_DICT,
+  { id: 'daily_cycles', cn: '日均充放电次数', zone: 'revenue_boundary', control: 'slider', min: 1, max: 2, step: 0.1, default: 1, unit: '次/天' },
+  { id: 'frequency_first_year_revenue', cn: '首年调频收益', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01, unit: '万元' },
+]
+
 const SEED = {
   province: '甘肃', node_name: '祥泰站', capacity_mwh: 800, power_mw: 200,
   epc_unit_price: 0.8, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
 }
 
+const DELTA_SEED = {
+  ...SEED,
+  daily_cycles: 1,
+  frequency_first_year_revenue: 2000,
+}
+
 describe('ParamAdjustPanel', () => {
+  it('shows chat-driven changes against the previous calculation version', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: DELTA_PARAM_DICT,
+        switches: { switch_frequency: 1, switch_spot: 1 },
+        seedInput: { ...DELTA_SEED, daily_cycles: 2, frequency_first_year_revenue: 3000 },
+        comparisonInput: DELTA_SEED,
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const fields = wrapper.findAll('.ir-adjust__field')
+    const daily = fields.find((field) => field.text().includes('日均充放电次数'))
+    const frequency = fields.find((field) => field.text().includes('首年调频收益'))
+
+    expect(daily?.find('.ps-delta').text()).toBe('+1.0次/天')
+    expect(frequency?.find('.ps-delta').text()).toBe('+1000.00万元')
+  })
+
   it('default collapsed; expanding renders zones', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },

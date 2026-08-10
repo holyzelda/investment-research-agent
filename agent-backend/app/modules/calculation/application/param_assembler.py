@@ -84,6 +84,14 @@ class ParamAssembler:
         result = AssembledParams()
         cap, pwr = basics.capacity_mwh, basics.power_mw
 
+        # 生效运营期：本次覆盖优先，否则沿用上一版本冻结值，否则默认 15 年。
+        # 用于解析带 variants 的参数（换电成本）的默认值/可调性，以及 15 年档强制规则。
+        op_years = overrides.get("operation_years")
+        if op_years is None:
+            op_years = (previous_input or {}).get("operation_years")
+        if op_years is None:
+            op_years = 15
+
         # ① 对话抽取
         result.api_input["power_mw"] = pwr
         result.api_input["capacity_mwh"] = cap
@@ -91,6 +99,25 @@ class ParamAssembler:
         result.api_input["voltage_kv"] = basics.voltage_kv
         if basics.node_name:  # 用户没提节点则不写入、不展示
             result.api_input["node_name"] = basics.node_name
+
+        # 换电成本随运营期解析（字典 variants 定义）——直白规则：
+        # 15 年档恒为 0，不继承、不接受覆盖；
+        # 20 年档：上一版已是 20 年则沿用上一版值，否则（首次/从 15 年切来）用分档默认 0.3；
+        # 用户显式覆盖在末尾受控覆盖阶段写入，优先级最高（override 里存在即视为用户提了值，
+        # 中台侧由 ir_agent.yaml 保证切运营期时不搬运基线换电成本）。
+        # 此处先写入 api_input，② 默认值种子循环会因 `pid in result.api_input` 跳过它，
+        # 避免被上一版 15 年档的 0 覆盖掉 20 年默认值。
+        battery_spec = self._dict.get("battery_replace_cost")
+        battery_variant = self._dict.variant("battery_replace_cost", op_years) or {}
+        battery_default = battery_variant.get("default", battery_spec.default if battery_spec else 0)
+        prev_battery = (previous_input or {}).get("battery_replace_cost")
+        prev_op = (previous_input or {}).get("operation_years")
+        if op_years == 20:
+            result.api_input["battery_replace_cost"] = (
+                prev_battery if (prev_battery is not None and prev_op == 20) else battery_default
+            )
+        else:
+            result.api_input["battery_replace_cost"] = 0
 
         # ② 系统默认值：有上一版本冻结入参（同会话修改参数）时，本次未显式提供的参数
         #    优先沿用上一版冻结值，否则取字典默认——"只改一项、其余不变"的修改语义。
@@ -140,6 +167,8 @@ class ParamAssembler:
         # - 容量/功率变化 → 两档收益（中长期/调频/干预，按 t=容量/功率插值）已用新值重算，
         #   忽略陈旧的两档收益 override，避免旧数值把新算出的结果覆盖回去。
         ignore_keys = set()
+        if op_years == 15:
+            ignore_keys.add("battery_replace_cost")  # 20→15 恒为 0，不接受任何覆盖
         if deps_changed:
             ignore_keys |= {"spot_charge_avg", "spot_discharge_avg"}
         if self._capacity_power_changed(previous_input, basics):

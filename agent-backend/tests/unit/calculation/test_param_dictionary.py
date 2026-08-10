@@ -58,6 +58,20 @@ def test_operation_years_is_a_template_selection_without_api_input_mapping():
     ]
     assert spec.api_cell is None
 
+def test_battery_replace_cost_variants_by_operation_years():
+    """换电成本按运营期分档：15年固定0，20年默认0.3、slider 0~1 步长0.01。"""
+    d = _dict()
+    spec = d.get("battery_replace_cost")
+    assert spec.variants == {
+        "15": {"control": "fixed", "default": 0},
+        "20": {"control": "slider", "default": 0.3, "min": 0, "max": 1, "step": 0.01},
+    }
+    assert d.variant("battery_replace_cost", 20)["default"] == 0.3
+    assert d.variant("battery_replace_cost", 20)["control"] == "slider"
+    assert d.variant("battery_replace_cost", 15)["control"] == "fixed"
+    assert d.variant("battery_replace_cost", 21) is None
+    assert d.variant("operation_years", 20) is None  # 无 variants 的参数返回 None
+
 def test_corrected_cells():
     """位置订正核对。"""
     d = _dict()

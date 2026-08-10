@@ -31,6 +31,7 @@ class ParamSpec:
     max: Optional[float] = None      # control=slider 的滑块上限
     step: Optional[float] = None     # control=slider/dynamic_slider 的滑块步长
     options: Optional[list[dict]] = None  # control=select 的枚举选项
+    variants: Optional[dict] = None       # 按另一参数取值分档的动态定义（key 为分档参数取值，如 operation_years 的 "15"/"20"）
 
     @classmethod
     def from_dict(cls, d: dict) -> "ParamSpec":
@@ -43,7 +44,7 @@ class ParamSpec:
             default=d.get("default"), unit=d.get("unit", ""), dtype=d.get("dtype", ""),
             zone=d.get("zone"), control=d.get("control"),
             min=d.get("min"), max=d.get("max"), step=d.get("step"),
-            options=d.get("options"),
+            options=d.get("options"), variants=d.get("variants"),
         )
 
 
@@ -66,6 +67,13 @@ class ParamDictionary:
 
     def get(self, param_id: str) -> Optional[ParamSpec]:
         return self._by_id.get(param_id)
+
+    def variant(self, param_id: str, key: object) -> Optional[dict]:
+        """取某参数按另一参数取值命中（str(key)）的分档定义；无 variants 或未命中返回 None。"""
+        spec = self._by_id.get(param_id)
+        if spec is None or not spec.variants:
+            return None
+        return spec.variants.get(str(key))
 
     def by_source(self, source: ParamSource) -> list[ParamSpec]:
         return [s for s in self._specs if s.source == source.value]

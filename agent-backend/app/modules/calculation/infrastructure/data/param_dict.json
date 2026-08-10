@@ -27,10 +27,11 @@
       "unit": "单位",
       "dtype": "数据类型",
       "zone": "Batch5 调整区分区：project_definition=项目定义 | financial_boundary=金融边界 | revenue_boundary=收益边界 | cost_boundary=成本边界（仅调整区涉及的参数标注）",
-      "control": "Batch5 调整区控件：slider=固定范围滑块 | dynamic_slider=以上一版本冻结值为基准±100%的滑块(0~2×基准，基准为0/null时不可调) | fixed=展示只读、不提供编辑控件（本阶段业务范围未开放）",
+      "control": "Batch5 调整区控件：slider=固定范围滑块 | dynamic_slider=以上一版本冻结值为基准±100%的滑块(0~2×基准，基准为0/null时不可调) | fixed=展示只读、不提供编辑控件（本阶段业务范围未开放）。存在 variants 时按分档覆盖",
       "min": "control=slider 的滑块最小值（业务已确认区间）",
       "max": "control=slider 的滑块最大值（业务已确认区间）",
-      "step": "control=slider/dynamic_slider 的滑块步长（业务已确认精度）"
+      "step": "control=slider/dynamic_slider 的滑块步长（业务已确认精度）",
+      "variants": "按另一参数值分档的动态定义（key 为该参数取值，如 operation_years: 15/20）；存在时前后端以命中分档覆盖 control/default/min/max/step，未命中或缺失回落顶层定义"
     }
   },
 
@@ -52,7 +53,7 @@
     { "id": "strategy_achievement_rate", "cn": "现货策略达成率", "category": "电能量收益", "source": "default", "model_cell": "输入1-基础参数!D47", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B9", "default": 0.9, "unit": "—", "dtype": "float(0~1)", "zone": "revenue_boundary", "control": "slider", "min": 0.70, "max": 0.95, "step": 0.01 },
     { "id": "capacity_achievement_rate", "cn": "容量市场达成率", "category": "容量收益", "source": "default", "model_cell": "输入1-基础参数!D50", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B10", "default": 0.9, "unit": "—", "dtype": "float(0~1)", "zone": "revenue_boundary", "control": "slider", "min": 0.70, "max": 0.95, "step": 0.01 },
     { "id": "operation_years", "cn": "项目运营期", "category": "运营期与换电", "source": "default", "model_cell": null, "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": null, "default": 15, "unit": "年", "dtype": "int", "zone": "financial_boundary", "control": "select", "options": [{ "value": 15, "label": "15年" }, { "value": 20, "label": "20年" }], "note": "仅用于选择15年或20年飞书模板；不写入API_INPUT" },
-    { "id": "battery_replace_cost", "cn": "换电成本", "category": "运营期与换电", "source": "default", "model_cell": "输入3-工程估算!C23", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B12", "default": 0, "unit": "元/Wh", "dtype": "float", "zone": "cost_boundary", "control": "fixed", "note": "15年档固定为0；20年档开放后再放开可调" },
+    { "id": "battery_replace_cost", "cn": "换电成本", "category": "运营期与换电", "source": "default", "model_cell": "输入3-工程估算!C23", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B12", "default": 0, "unit": "元/Wh", "dtype": "float", "zone": "cost_boundary", "control": "fixed", "variants": { "15": { "control": "fixed", "default": 0 }, "20": { "control": "slider", "default": 0.3, "min": 0, "max": 1, "step": 0.01 } }, "note": "15年档固定为0；20年档默认0.3、0~1步长0.01可调" },
     { "id": "loan_rate", "cn": "贷款利率", "category": "贷款信息", "source": "default", "model_cell": "输入1-基础参数!D86", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B13", "default": 0.04, "unit": "—", "dtype": "float", "zone": "financial_boundary", "control": "slider", "min": 0.035, "max": 0.045, "step": 0.001 },
     { "id": "loan_years", "cn": "贷款年限", "category": "贷款信息", "source": "default", "model_cell": null, "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B34", "default": 10, "unit": "年", "dtype": "int", "zone": "financial_boundary", "control": "slider", "min": 1, "max": 20, "step": 1 },
     { "id": "maint_cost", "cn": "维保成本", "category": "运维成本", "source": "default", "model_cell": "输入1-基础参数!D75", "f": 1, "g": 1, "writable": true, "direction": "input", "api_cell": "API_INPUT!B14", "default": 0.005, "unit": "元/Wh", "dtype": "float", "note": "订正 D72→D75", "zone": "cost_boundary", "control": "slider", "min": 0, "max": 0.0200, "step": 0.0001 },

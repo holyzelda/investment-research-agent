@@ -148,7 +148,8 @@ async def test_new_copy_readiness_poll_uses_short_interval(monkeypatch):
     doc_token = await gw.copy_template("tmpl")
     await gw.write_input(doc_token, {"power_mw": 100})
 
-    assert sleeps == [0.25]
+    # 就绪轮询默认退避 1s（与 _initial_sheet_query_backoff=1、10 次重试 ≈10 秒窗口的注释一致）
+    assert sleeps == [1]
     await gw._client.aclose()
 
 

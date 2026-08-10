@@ -211,6 +211,7 @@ const props = defineProps({
   paramDict: { type: Array, default: () => [] },
   switches: { type: Object, default: () => ({}) },
   seedInput: { type: Object, default: () => ({}) },
+  comparisonInput: { type: Object, default: null },
   stationOptions: { type: Array, default: () => [] },
   advancedOverrides: { type: Object, default: () => ({}) },
   advancedOverrideCount: { type: Number, default: 0 },
@@ -355,7 +356,10 @@ function pctOf(spec) {
   return Math.min(100, Math.max(0, ((value - range.min) / (range.max - range.min)) * 100))
 }
 function deltaOf(spec) {
-  const baseline = spec.control === 'dynamic_slider' ? props.seedInput[spec.id] : spec.default
+  const historicalBaseline = props.comparisonInput?.[spec.id]
+  const baseline = typeof historicalBaseline === 'number'
+    ? historicalBaseline
+    : spec.control === 'dynamic_slider' ? props.seedInput[spec.id] : spec.default
   const value = localValues[spec.id]
   if (typeof baseline !== 'number' || typeof value !== 'number') return null
   const delta = value - baseline

@@ -48,6 +48,18 @@ export function dynamicRange(baseline, step) {
   return { min: 0, max, step }
 }
 
+// variants 分档解析：参数字典把某参数的 control/default/min/max/step 按另一参数（如 operation_years）
+// 的取值分档（variants: { "15": {...}, "20": {...} }）。命中当前取值时浅合并覆盖基础定义，
+// 未命中或没有 variants 时返回原 spec。返回的可能是新对象，调用方不得依赖引用相等。
+export function resolveVariant(spec, operationYears) {
+  const variants = spec.variants
+  if (!variants) return spec
+  const key = operationYears === null || operationYears === undefined ? undefined : String(operationYears)
+  const variant = key ? variants[key] : undefined
+  if (!variant) return spec
+  return { ...spec, ...variant }
+}
+
 // 仅参数字典声明为 fixed 的字段锁定；省份等固定字段保持只读，
 // 节点、容量和功率在所有版本均可编辑。
 export function isFieldLocked(spec) {

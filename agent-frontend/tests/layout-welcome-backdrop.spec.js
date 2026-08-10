@@ -76,6 +76,14 @@ describe('layout 首页欢迎态全屏背景', () => {
     expect(welcomeBackdropStyles).toContain('var(--xc-surface-workspace)')
   })
 
+  it('场景图按高度等比缩放并锚定右下，且只绘制一层', () => {
+    expect(welcomeBackdropStyles).toContain('right bottom / auto 95% no-repeat')
+    // cover 会把图放大到铺满视口，正是首页显得过大的原因
+    expect(welcomeBackdropStyles).not.toContain('cover')
+    // 背景层自身不再重复绘制同一张图，图片只由 .ir-layout__welcome-image 承担
+    expect(welcomeBackdropStyles.match(/var\(--ir-welcome-bg\)/g)).toHaveLength(1)
+  })
+
   it('五项平台指标已迁移至首页欢迎组件，layout 不再渲染', () => {
     const wrapper = mountLayout()
 

@@ -255,11 +255,7 @@ onBeforeUnmount(() => {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  background:
-    linear-gradient(90deg, rgba(10, 12, 18, 0.78) 0%, rgba(10, 12, 18, 0.38) 42%, rgba(10, 12, 18, 0.08) 76%),
-    linear-gradient(0deg, rgba(10, 12, 18, 0.38), rgba(10, 12, 18, 0.08)),
-    var(--ir-welcome-bg) center / cover no-repeat,
-    var(--xc-surface-workspace);
+  background: var(--xc-surface-workspace);
 }
 /* 左侧可读遮罩：压暗主内容区，让场景集中在右侧，避免干扰标题与输入框 */
 .ir-layout__welcome-backdrop::after {
@@ -273,10 +269,16 @@ onBeforeUnmount(() => {
     linear-gradient(0deg, var(--xc-surface-workspace) 0%, transparent 46%);
   opacity: 0.32;
 }
+/* 场景图不再铺满视口：按高度等比缩放并锚定右下，左侧留给标题与输入框 */
 .ir-layout__welcome-image {
   position: absolute;
   inset: 0;
-  background: var(--ir-welcome-bg) center / cover no-repeat;
+  background: var(--ir-welcome-bg) right bottom / auto 95% no-repeat;
+  /* 羽化上/左边缘，避免图片矩形边界在纯色底上留下可见接缝 */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 14%), linear-gradient(180deg, transparent 0%, #000 16%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(90deg, transparent 0%, #000 14%), linear-gradient(180deg, transparent 0%, #000 16%);
+  mask-composite: intersect;
 }
 
 .ir-layout__body {

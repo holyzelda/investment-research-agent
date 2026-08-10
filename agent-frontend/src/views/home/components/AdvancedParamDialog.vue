@@ -32,6 +32,7 @@
                   :data-param-id="spec.id"
                   v-model.number="values[spec.id]"
                   class="ir-advanced__select"
+                  @change="onOperationYearsChange"
                 >
                   <option v-for="option in spec.options || []" :key="option.value" :value="option.value">
                     {{ option.label }}
@@ -89,13 +90,14 @@
 
 <script setup>
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { decimalsForStep, dynamicRange, roundToStep } from '@/utils/paramAdjust'
+import { decimalsForStep, dynamicRange, resolveVariant, roundToStep } from '@/utils/paramAdjust'
 import { formatNumber } from '@/utils/formatNumber'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   paramDict: { type: Array, default: () => [] },
   seedInput: { type: Object, default: () => ({}) },
+  comparisonInput: { type: Object, default: null },
   draftInput: { type: Object, default: () => ({}) },
 })
 const emit = defineEmits(['update:modelValue', 'save'])
@@ -131,12 +133,14 @@ const closeButton = ref(null)
 function resetValues() {
   Object.keys(values).forEach((key) => delete values[key])
   for (const spec of props.paramDict) {
+    // 默认值/步长按当前运营期解析 variants（operation_years 在字典中先于带 variants 的参数出现，已先行赋值）
+    const resolved = resolveVariant(spec, values['operation_years'] ?? props.seedInput['operation_years'] ?? 15)
     const value = spec.id in props.draftInput
       ? props.draftInput[spec.id]
       : spec.id in props.seedInput
         ? props.seedInput[spec.id]
-        : spec.default
-    values[spec.id] = typeof value === 'number' && spec.step ? roundToStep(value, spec.step) : value
+        : resolved.default
+    values[spec.id] = typeof value === 'number' && resolved.step ? roundToStep(value, resolved.step) : value
   }
 }
 watch(() => [props.modelValue, props.seedInput, props.draftInput, props.paramDict], resetValues, { immediate: true, deep: true })
@@ -149,8 +153,12 @@ watch(() => props.modelValue, async (open) => {
 
 const sections = computed(() => {
   const byId = new Map(props.paramDict.map((spec) => [spec.id, spec]))
+  const opYears = values['operation_years']
   return ADVANCED_SECTION_IDS
-    .map(({ key, title, ids, icon }) => ({ key, title, icon, items: ids.map((id) => byId.get(id)).filter(Boolean) }))
+    .map(({ key, title, ids, icon }) => ({
+      key, title, icon,
+      items: ids.map((id) => byId.get(id)).filter(Boolean).map((spec) => resolveVariant(spec, opYears)),
+    }))
     .filter((section) => section.items.length)
 })
 const hasChangesFromSeed = computed(() => sections.value.some((section) => section.items.some((spec) => {
@@ -191,7 +199,10 @@ function pctOf(spec) {
 }
 function deltaOf(spec) {
   if (!isEditable(spec)) return null
-  const baseline = spec.control === 'dynamic_slider' ? props.seedInput[spec.id] : spec.default
+  const historicalBaseline = props.comparisonInput?.[spec.id]
+  const baseline = typeof historicalBaseline === 'number'
+    ? historicalBaseline
+    : spec.control === 'dynamic_slider' ? props.seedInput[spec.id] : spec.default
   const value = values[spec.id]
   if (typeof baseline !== 'number' || typeof value !== 'number') return null
   const delta = value - baseline
@@ -213,6 +224,14 @@ function displayValue(spec) {
 }
 function close() {
   emit('update:modelValue', false)
+}
+function onOperationYearsChange() {
+  // 用户切换运营期：带 variants 的参数（换电成本）重置为新档默认值（15→0，20→0.3）。
+  // 用 @change 而非 watch，避免 seedInput 刷新（新版本到达）时误把沿用值 clobber 成默认值。
+  for (const spec of props.paramDict) {
+    if (!spec.variants) continue
+    values[spec.id] = resolveVariant(spec, values['operation_years']).default
+  }
 }
 function save() {
   const overrides = {}

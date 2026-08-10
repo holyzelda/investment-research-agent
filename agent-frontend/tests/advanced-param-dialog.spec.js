@@ -8,7 +8,7 @@ const PARAM_DICT = [
   { id: 'mid_long_discharge_avg', cn: '中长期放电均价', default: null, unit: '元/kWh', g: 0 },
   { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
   { id: 'capacity_achievement_rate', cn: '容量市场达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
-  { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, unit: '元/Wh', g: 1 },
+  { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, unit: '元/Wh', g: 1, variants: { '15': { control: 'fixed', default: 0 }, '20': { control: 'slider', default: 0.3, min: 0, max: 1, step: 0.01 } } },
   { id: 'maint_cost', cn: '维保成本', zone: 'cost_boundary', control: 'slider', min: 0, max: 0.01, step: 0.0001, default: 0.005, unit: '元/Wh', g: 1 },
   { id: 'opex_cost', cn: '运营成本', zone: 'cost_boundary', control: 'slider', min: 0, max: 0.01, step: 0.0001, default: 0.005, unit: '元/Wh', g: 1 },
 ]
@@ -16,6 +16,24 @@ const PARAM_DICT = [
 const SEED = { operation_years: 15, mid_long_charge_avg: null, mid_long_discharge_avg: null, strategy_achievement_rate: 0.9, capacity_achievement_rate: 0.9, battery_replace_cost: 0, maint_cost: 0.005, opex_cost: 0.005 }
 
 describe('AdvancedParamDialog', () => {
+  it('shows chat-driven changes against the previous calculation version', () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: {
+        modelValue: true,
+        paramDict: PARAM_DICT,
+        seedInput: { ...SEED, strategy_achievement_rate: 0.85, maint_cost: 0.007 },
+        comparisonInput: SEED,
+      },
+    })
+
+    const fields = wrapper.findAll('.ir-advanced__field')
+    const strategy = fields.find((field) => field.text().includes('现货策略达成率'))
+    const maintenance = fields.find((field) => field.text().includes('维保成本'))
+
+    expect(strategy?.find('.ir-advanced__delta').text()).toBe('-0.05')
+    expect(maintenance?.find('.ir-advanced__delta').text()).toBe('+0.0020元/Wh')
+  })
+
   it('renders the approved sections and all parameter fields in the required order', () => {
     const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
     const sections = wrapper.findAll('.ir-advanced__section')
@@ -116,5 +134,38 @@ describe('AdvancedParamDialog', () => {
       opex_cost: 0.005,
     }]])
     expect(wrapper.emitted('recalculate')).toBeUndefined()
+  })
+
+  it('switches battery replace cost to an editable 0.3 slider on 20-year', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+
+    const batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    const number = batteryField?.find('.ir-advanced__number')
+    expect(number?.exists()).toBe(true)
+    expect(number?.element.value).toBe('0.3')
+    const slider = batteryField?.find('.ir-advanced__slider')
+    expect(slider?.attributes('min')).toBe('0')
+    expect(slider?.attributes('max')).toBe('1')
+    expect(slider?.attributes('step')).toBe('0.01')
+  })
+
+  it('resets battery replace cost to read-only 0 when switching back to 15-year', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    const select = wrapper.find('select[data-param-id="operation_years"]')
+    await select.setValue('20')
+    await select.setValue('15')
+
+    const batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    expect(batteryField?.find('.ir-advanced__number').exists()).toBe(false)
+    expect(batteryField?.text()).toContain('换电成本0元/Wh')
+  })
+
+  it('collects battery replace cost when saving in 20-year mode', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+
+    expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 20, battery_replace_cost: 0.3 })
   })
 })
