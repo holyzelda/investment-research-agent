@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('element-plus', () => ({
   ElDialog: {},
@@ -9,10 +9,12 @@ vi.mock('element-plus/es', () => ({
   ElDialog: {},
   ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
 }))
+vi.mock('@/api/policyMarket', () => ({ downloadSourceFile: vi.fn() }))
 import ConsultationComposer from '@/views/policy-market/components/ConsultationComposer.vue'
 import ConsultationHistory from '@/views/policy-market/components/ConsultationHistory.vue'
 import ConsultationResult from '@/views/policy-market/components/ConsultationResult.vue'
 import MarketPulse from '@/views/policy-market/components/MarketPulse.vue'
+import { downloadSourceFile } from '@/api/policyMarket'
 
 const createNews = (count) => Array.from({ length: count }, (_, index) => ({
   id: index + 1,
@@ -21,12 +23,32 @@ const createNews = (count) => Array.from({ length: count }, (_, index) => ({
   tags: [],
 }))
 
+// 飞书源文件来源：后端序列化层补了 downloadUrl，前端据此走代理下载而非直接跳飞书。
+const mountWithSourceFile = () => mount(ConsultationResult, {
+  props: {
+    consultation: {
+      status: 'completed', title: '问题', answer: '回答[1][2]。',
+      sourceData: {
+        references: [
+          {
+            index: 1, title: '容量电费实施细则', type: 'wiki',
+            url: 'https://example-value-0071/file/Cap0bToken', token: 'Cap0bToken',
+            downloadUrl: '/ir/policy-market/source-files/Cap0bToken',
+          },
+          { index: 2, title: '某新闻报道', url: 'https://example.test/news', type: 'web' },
+        ],
+      },
+    },
+  },
+})
+
 let animationCallback
 let animationId
 
 beforeEach(() => {
   animationCallback = null
   animationId = 0
+  downloadSourceFile.mockReset()
   vi.stubGlobal('requestAnimationFrame', vi.fn((callback) => {
     animationCallback = callback
     animationId += 1
@@ -164,6 +186,128 @@ describe('政策与市场咨询组件', () => {
 
     expect(wrapper.findAll('.pm-result__ref')).toHaveLength(0)
     expect(wrapper.text()).toContain('没有可引用的源文件')
+  })
+
+  it('结构化答案渲染成小标题、列表、表格和加粗，而非一整坨纯文本', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: {
+        consultation: {
+          status: 'completed', title: '问题',
+          answer: [
+            '截至2024年底，陕西新能源合计装机 **22.2GW**[1]。',
+            '',
+            '## 装机构成',
+            '',
+            '- 风电：累计 **9.0GW**，当年新增 1.6GW[1]',
+            '- 光伏：累计 **13.2GW**，当年新增 2.8GW[1]',
+            '',
+            '## 历史对比',
+            '',
+            '| 时点 | 风电 | 光伏 |',
+            '| --- | --- | --- |',
+            '| 2022-10 | 11.59GW | 14.05GW |',
+            '| 2024-12 | 9.0GW | 13.2GW |',
+          ].join('\n'),
+          sourceData: { references: [{ index: 1, title: '陕西报告', url: 'https://example.test/a', type: 'web' }] },
+        },
+      },
+    })
+
+    expect(wrapper.findAll('.pm-result__markdown-heading').map((node) => node.text()))
+      .toEqual(['装机构成', '历史对比'])
+    expect(wrapper.findAll('.pm-result__list li')).toHaveLength(2)
+    expect(wrapper.findAll('.pm-result__table tbody tr')).toHaveLength(2)
+    // 关键数值加粗，便于扫读
+    expect(wrapper.findAll('.pm-result__markdown strong').map((node) => node.text()))
+      .toEqual(['22.2GW', '9.0GW', '13.2GW'])
+    // 分段后角标仍能正确解析
+    expect(wrapper.findAll('.pm-cite')).toHaveLength(3)
+  })
+
+  it('飞书源文件渲染为按钮，公网来源仍是外链', () => {
+    const wrapper = mountWithSourceFile()
+
+    const button = wrapper.get('[data-source-file]')
+    expect(button.element.tagName).toBe('BUTTON')
+    expect(button.text()).toContain('容量电费实施细则')
+    // 飞书原链接外部用户打不开，不能再直接暴露成 <a href>
+    expect(wrapper.findAll('a[href^="https://example-value-0071"]')).toHaveLength(0)
+
+    const link = wrapper.get('#pm-source-2 a')
+    expect(link.attributes('href')).toBe('https://example.test/news')
+    expect(link.attributes('target')).toBe('_blank')
+  })
+
+  it('PDF 源文件在新标签页预览', async () => {
+    const openSpy = vi.fn()
+    vi.stubGlobal('open', openSpy)
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:preview', revokeObjectURL: vi.fn() })
+    downloadSourceFile.mockResolvedValue({ type: 'application/pdf' })
+
+    const wrapper = mountWithSourceFile()
+    await wrapper.get('[data-source-file]').trigger('click')
+    await flushPromises()
+
+    expect(downloadSourceFile).toHaveBeenCalledWith('Cap0bToken')
+    expect(openSpy).toHaveBeenCalledWith('blob:preview', '_blank', 'noopener')
+  })
+
+  it('docx 等浏览器渲染不了的类型降级为下载', async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    vi.stubGlobal('open', vi.fn())
+    vi.stubGlobal('URL', { createObjectURL: () => 'blob:file', revokeObjectURL: vi.fn() })
+    downloadSourceFile.mockResolvedValue({
+      type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    })
+
+    const wrapper = mountWithSourceFile()
+    await wrapper.get('[data-source-file]').trigger('click')
+    await flushPromises()
+
+    expect(window.open).not.toHaveBeenCalled()
+    expect(clickSpy).toHaveBeenCalled()
+    clickSpy.mockRestore()
+  })
+
+  it('失败响应是 JSON blob 而非二进制时展示后端错误文案', async () => {
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(), revokeObjectURL: vi.fn() })
+    // 下载端点成功返二进制、失败返 {code,msg,data} 壳；不识别就变成"下载了一个 JSON 文件"
+    downloadSourceFile.mockResolvedValue({
+      type: 'application/json',
+      text: () => Promise.resolve(JSON.stringify({ code: 404, msg: '源文件不存在或不可下载' })),
+    })
+
+    const wrapper = mountWithSourceFile()
+    await wrapper.get('[data-source-file]').trigger('click')
+    await flushPromises()
+
+    expect(URL.createObjectURL).not.toHaveBeenCalled()
+    expect(wrapper.get('.pm-result__ref-error').text()).toBe('源文件不存在或不可下载')
+  })
+
+  it('请求异常时该行提示失败并恢复可点击', async () => {
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(), revokeObjectURL: vi.fn() })
+    downloadSourceFile.mockRejectedValue(new Error('Network Error'))
+
+    const wrapper = mountWithSourceFile()
+    await wrapper.get('[data-source-file]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('.pm-result__ref-error').text()).toBe('Network Error')
+    expect(wrapper.get('[data-source-file]').attributes('disabled')).toBeUndefined()
+  })
+
+  it('历史快照只有 sources 时不出现源文件下载按钮', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: {
+        consultation: {
+          status: 'completed', title: '问题', answer: '旧回答',
+          sourceData: { sources: ['https://example.test/legacy'] },
+        },
+      },
+    })
+
+    expect(wrapper.find('[data-source-file]').exists()).toBe(false)
   })
 
   it('案卷阅读模式不重复渲染当前问题标题', () => {

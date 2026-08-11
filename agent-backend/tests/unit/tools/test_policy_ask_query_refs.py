@@ -94,10 +94,13 @@ def policy_ask(monkeypatch):
     module = importlib.import_module(MODULE_NAME)
     # 省页按 token 返回不同内容：跨省页与省页结构不同。
     monkeypatch.setattr(module, "_download", lambda token, no_cache=False: token)
+    # 各省页的政策文件 token 互不相同，跨省下钻才验得出"每个省都取到了自己的源文件"；
+    # 若所有省页内容一样，ReferenceCollector 会按 URL 去重成一份，测不出下钻。
     monkeypatch.setattr(
         module,
         "_read",
-        lambda path: CROSS_PAGE if path == module.CROSS_PROVINCE_TOKEN else PROVINCE_PAGE,
+        lambda path: CROSS_PAGE if path == module.CROSS_PROVINCE_TOKEN
+        else PROVINCE_PAGE.replace("0bToken", f"0b{path[:2]}Token"),
     )
     yield module
     sys.modules.pop(MODULE_NAME, None)
@@ -167,14 +170,39 @@ def test_quick_table_fallback_still_produces_references(policy_ask):
 # --- 路径 C：跨省对比 ---
 
 
-def test_cross_province_references_use_province_names_as_titles(policy_ask):
+def test_cross_province_drills_down_to_source_files_not_wiki_pages(policy_ask):
+    """跨省页上挂的是各省 wiki 页（模型用的骨架），用户要的是骨架背后的政策原文。"""
     result = policy_ask.query("蒙西和宁夏哪个省更适合投储能", allow_web=False)
 
     assert result["province"] == "跨省对比"
-    # 跨省页的来源就是各省页链接（用户点开看详情），首列省名正好当标题
-    assert [item["title"] for item in result["references"]] == ["蒙西", "宁夏", "甘肃"]
+    tokens = {item["token"] for item in result["references"]}
+    assert tokens.isdisjoint(set(policy_ask.PROVINCES.values()) | {
+        policy_ask.INDEX_TOKEN, policy_ask.CROSS_PROVINCE_TOKEN
+    }), "省页 token 不该出现在来源里"
+    # 标题带省名前缀，用户才分得清同名文件属于哪个省
+    titles = [item["title"] for item in result["references"]]
+    assert "蒙西·容量电费实施细则(试行)" in titles
+    assert "宁夏·调频辅助服务市场细则" in titles
     assert result["sources"] == _urls(result)
     assert "--- 可引用来源编号 ---" in result["context"]
+
+
+def test_cross_province_survives_unreachable_province_page(policy_ask, monkeypatch):
+    """某个省页下不下来时，跨省结论照给——来源少一个省，不是整体报错。"""
+    original_read = policy_ask._read
+
+    def flaky_read(path):
+        if path == policy_ask.PROVINCES["宁夏"]:
+            raise RuntimeError("下载失败")
+        return original_read(path)
+
+    monkeypatch.setattr(policy_ask, "_read", flaky_read)
+
+    result = policy_ask.query("蒙西和宁夏哪个省更适合投储能", allow_web=False)
+
+    titles = [item["title"] for item in result["references"]]
+    assert any(title.startswith("蒙西·") for title in titles)
+    assert not any(title.startswith("宁夏·") for title in titles)
 
 
 # --- 路径 D：联网 ---

@@ -13,6 +13,7 @@ import hashlib
 from pathlib import Path
 from urllib.request import Request, urlopen
 from urllib.error import URLError, HTTPError
+from urllib.parse import unquote
 
 import lark_oapi as lark
 
@@ -80,9 +81,26 @@ SYSTEM_PROMPT = (
     "5.基于现有信息给出最有把握的回答。"
     "6.不提及资料状态、草稿、待确认等字样。"
     "7.不要提及'未找到/知识库暂无/检索不到/建议查阅'等检索缺失表述，直接给出答案。"
+    # 以下为排版规则：前端按 Markdown 渲染，不分段会糊成一大坨纯文本。
+    "8.用 Markdown 组织答案：开头一段直接给结论；"
+    "结论之后若还有两个及以上方面要展开，每个方面用 ## 小标题起一节，节内用 - 列表逐条写。"
+    "9.关键数值、比例、时间点用 **加粗** 突出，便于快速扫读。"
+    "10.同一指标要对比多个省份、年份或方案时，用 Markdown 表格呈现，不要堆在一句话里。"
+    "11.数据口径存在差异、或结论有前提条件时，单起一节 ## 口径说明 讲清楚，不要混在正文里。"
+    "12.不要输出一大段没有换行的长文；单个自然段控制在三句话以内。"
 )
 
-GENERAL_PROMPT = "你是储能电力交易投研助手。请基于你的专业知识和经验回答用户的投研问题。规则: 1.给出方向性、有依据的回答，包含关键分析维度。2.数值若不确定，用区间或定性描述。3.保持简洁、自信，不要提及'未找到/知识库暂无/建议查阅官方文件'等检索缺失表述。4.不要在答案中输出任何URL链接。"
+GENERAL_PROMPT = (
+    "你是储能电力交易投研助手。请基于你的专业知识和经验回答用户的投研问题。规则: "
+    "1.给出方向性、有依据的回答，包含关键分析维度。"
+    "2.数值若不确定，用区间或定性描述。"
+    "3.保持简洁、自信，不要提及'未找到/知识库暂无/建议查阅官方文件'等检索缺失表述。"
+    "4.不要在答案中输出任何URL链接。"
+    # 排版规则与 SYSTEM_PROMPT 一致：前端按 Markdown 渲染，纯文本会糊成一坨。
+    "5.用 Markdown 组织答案：开头一段给结论，多个分析维度各用 ## 小标题起一节，节内用 - 列表逐条写。"
+    "6.关键数值、比例、时间点用 **加粗** 突出；多方案横向对比用 Markdown 表格。"
+    "7.不要输出一大段没有换行的长文；单个自然段控制在三句话以内。"
+)
 
 # 单例 client
 _client = None
@@ -126,6 +144,99 @@ def _download(token, no_cache=False):
 
 def _read(path):
     return Path(path).read_text(encoding="utf-8")
+
+
+def _header(headers, name):
+    """大小写不敏感地取响应头。
+
+    requests 的 headers 本身不区分大小写，但 lark SDK 用 ``dict()`` 转存后
+    丢了这个特性（见 lark_oapi/core/http/transport.py），只能自己兜。
+    """
+    lowered = {str(key).lower(): value for key, value in (headers or {}).items()}
+    return str(lowered.get(str(name).lower(), "") or "")
+
+
+# 源文件白名单缓存：{token: {token,title,url}} 与建立时间。
+_source_index = {}
+_source_index_at = 0.0
+
+
+def source_file_index(force=False):
+    """可下载的政策源文件索引 ``token -> {token,title,url}``。
+
+    这是下载端点的**白名单**：省页解析出的源文件并集，减去省页/索引页骨架自身。
+    必须有这一层——端点参数是飞书 drive 的文件 token，不校验就等于把公司云盘上
+    本应用有权限的所有文件代理出去，是明确的越权读取。
+
+    代价是省页格式漂移导致漏解析时，那份文件会下载不到（404）。宁可漏，不可放开。
+
+    缓存 TTL 与省页一致：省页更新后新增的文件最迟 24h 内可下载。单个省页下载
+    失败只跳过该省，不让整个白名单塌掉。
+    """
+    global _source_index, _source_index_at
+    if not force and _source_index and (time.time() - _source_index_at) < CACHE_TTL:
+        return _source_index
+
+    wiki_tokens = _wiki_page_tokens()
+    index = {}
+    for page_token in [*PROVINCES.values(), CROSS_PROVINCE_TOKEN, INDEX_TOKEN]:
+        if not page_token:
+            continue
+        try:
+            text = _read(_download(page_token))
+        except Exception:
+            continue
+        for token, meta in parse_file_index(text, FEISHU_DOMAIN).items():
+            if token not in wiki_tokens:
+                index.setdefault(token, meta)
+
+    _source_index = index
+    _source_index_at = time.time()
+    return index
+
+
+def fetch_source_file(token):
+    """下载单个政策源文件，返回 ``(content, filename, content_type)``。
+
+    token 不在白名单一律返回 None，由调用方转 404——不区分"不存在"与"不允许"，
+    免得把本应用能访问哪些文件泄露出去。
+
+    不落 ``_cache``：那目录只为省页 markdown 设计（后缀硬编码 .md、无清理机制），
+    源文件体积和类型都不可控。
+    """
+    token = str(token or "").strip()
+    meta = source_file_index().get(token)
+    if not meta:
+        return None
+
+    client = _get_client()
+    req = lark.BaseRequest.builder() \
+        .http_method(lark.HttpMethod.GET) \
+        .uri(f"/open-apis/drive/v1/files/{token}/download") \
+        .token_types({lark.AccessTokenType.TENANT}) \
+        .build()
+
+    resp = client.request(req)
+    if not resp.success():
+        raise RuntimeError(f"源文件下载失败(token={token[:12]}...): code={resp.code}, msg={resp.msg}")
+
+    headers = getattr(resp.raw, "headers", {}) or {}
+    content_type = _header(headers, "Content-Type").split(";")[0].strip()
+    filename = _filename_from_disposition(_header(headers, "Content-Disposition"))
+    # 兜底用知识库里的标题：它没有扩展名，所以不猜后缀，让 Content-Type 决定打开方式。
+    return resp.raw.content, filename or str(meta.get("title") or token), content_type
+
+
+def _filename_from_disposition(disposition):
+    """从 Content-Disposition 取文件名，优先 RFC 5987 的 ``filename*``。"""
+    if not disposition:
+        return ""
+    match = re.search(r"filename\*\s*=\s*(?:UTF-8|utf-8)''([^;]+)", disposition)
+    if match:
+        return unquote(match.group(1).strip())
+    match = re.search(r'filename\s*=\s*"([^"]+)"', disposition) or \
+        re.search(r"filename\s*=\s*([^;]+)", disposition)
+    return match.group(1).strip() if match else ""
 
 
 def _fallback_context(context):
@@ -511,11 +622,29 @@ def _append_legend(context, collector):
     return f"{context}\n\n{legend}" if legend else context
 
 
-def _cross_province_result():
-    """跨省对比页结果：下载+精简+提取四省省页 sources.
+def _province_source_files(prov_token):
+    """下钻省页，取该省的政策源文件（跳过省页/索引页骨架）。
 
-    跨省对比的 sources 是各省页链接（用户点开看各省详情），
-    只排除跨省页自身 + 索引页，保留省页。
+    跨省页表格里挂的是各省 wiki 页，那是给模型组织上下文用的骨架；用户真正
+    要点开的是骨架背后的政策原文。省页下载失败（token 未配置、飞书抖动）时
+    返回空列表——跨省结论本身不依赖这一步，不该因为取不到来源就整体报错。
+    """
+    try:
+        text = _read(_download(prov_token))
+    except Exception:
+        return []
+    wiki_tokens = _wiki_page_tokens()
+    return [
+        meta for token, meta in parse_file_index(text, FEISHU_DOMAIN).items()
+        if token not in wiki_tokens
+    ]
+
+
+def _cross_province_result():
+    """跨省对比页结果：下载+精简+下钻各省页取政策源文件。
+
+    跨省页自身只列省页链接，直接拿它当来源等于把 wiki 骨架推给用户，
+    所以逐个省页下钻换成源文件；标题带省名前缀，用户才知道文件属于哪个省。
     """
     prov_token = CROSS_PROVINCE_TOKEN
     prov_name = "跨省对比"
@@ -533,14 +662,21 @@ def _cross_province_result():
     m = re.search(r"status:\s*(.+)", prov_text)
     status = m.group(1).strip() if m else "草稿"
     context = _cross_province_summary(prov_text)
-    # sources: 提取"四省省页链接"表格中的 file URL。跨省页的清单表首列即省名，
-    # 正好当作引用标题。
-    collector = ReferenceCollector(file_index=parse_file_index(prov_text, FEISHU_DOMAIN))
+    # 跨省页首列是省名，据此定位每行挂的是哪个省的 wiki 页，再下钻取该省源文件。
+    collector = ReferenceCollector()
+    token_to_province = {token: name for name, token in PROVINCES.items()}
     for line in prov_text.split("\n"):
         for token in re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line):
-            # 只排除跨省页自身 + 索引页，保留省页
-            if token not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}:
-                collector.add_token(token, FEISHU_DOMAIN)
+            name = token_to_province.get(token)
+            if not name:
+                # 跨省页上直接挂的政策文件（不是省页），本身就是源文件，照收。
+                if token not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}:
+                    collector.add_token(token, FEISHU_DOMAIN)
+                continue
+            for meta in _province_source_files(token):
+                collector.add_url(
+                    meta["url"], f"{name}·{meta['title']}", token=meta["token"]
+                )
     references = collector.to_list()
     return {
         "province": prov_name,

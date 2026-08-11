@@ -36,6 +36,17 @@ class ConsultationAnswer:
 
 
 @dataclass(frozen=True)
+class SourceFile:
+    """政策源文件的字节内容与展示元信息。
+
+    知识库来源在飞书上，外部用户打不开飞书；本系统代理下载后用这个结构回传。
+    """
+    content: bytes
+    filename: str
+    content_type: str
+
+
+@dataclass(frozen=True)
 class ConsultationRecord:
     id: int
     user_id: str

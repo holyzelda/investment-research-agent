@@ -48,11 +48,36 @@ def serialize_consultation_summary(record: ConsultationRecord) -> dict:
     }
 
 
+def _with_download_urls(source_data):
+    """给知识库来源补上后端代理下载地址。
+
+    在序列化层补而不是落库时补：历史快照里的 references 也能立刻用上下载能力，
+    不需要数据迁移；地址变了也不用改存量数据。
+
+    只补 wiki 类（飞书文件，外部用户打不开原链接）；web 类是公网链接，前端直接跳。
+    """
+    if not isinstance(source_data, dict):
+        return source_data
+    references = source_data.get("references")
+    if not isinstance(references, list):
+        return source_data
+
+    enriched = []
+    for item in references:
+        if not isinstance(item, dict):
+            continue
+        token = str(item.get("token") or "").strip()
+        if item.get("type") == "wiki" and token:
+            item = {**item, "downloadUrl": f"/ir/policy-market/source-files/{token}"}
+        enriched.append(item)
+    return {**source_data, "references": enriched}
+
+
 def serialize_consultation_detail(record: ConsultationRecord) -> dict:
     return {
         **serialize_consultation_summary(record),
         "answer": record.answer,
         "provinceCode": record.province_code,
         "topic": record.topic,
-        "sourceData": record.source_data,
+        "sourceData": _with_download_urls(record.source_data),
     }

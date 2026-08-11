@@ -2,7 +2,10 @@ import types
 
 import pytest
 
-from app.modules.policy_market.infrastructure.policy_ask_executor import PolicyAskExecutorAdapter
+from app.modules.policy_market.infrastructure.policy_ask_executor import (
+    PolicyAskExecutorAdapter,
+    PolicySourceFileAdapter,
+)
 
 
 @pytest.mark.asyncio
@@ -66,3 +69,57 @@ async def test_executor_tolerates_missing_reference_fields(monkeypatch):
 
     assert result.province_code is None
     assert result.source_data == {"references": []}
+
+
+@pytest.mark.asyncio
+async def test_source_file_adapter_maps_tools_tuple(monkeypatch):
+    module = types.SimpleNamespace(
+        fetch_source_file=lambda token: (b"%PDF-1.7", "容量电费.pdf", "application/pdf")
+    )
+
+    async def fake_get_module():
+        return module
+
+    monkeypatch.setattr(
+        "app.modules.policy_market.infrastructure.policy_ask_executor.get_policy_ask_module",
+        fake_get_module,
+    )
+
+    source = await PolicySourceFileAdapter().fetch("exampleToken000000000000078")
+
+    assert source.content == b"%PDF-1.7"
+    assert source.filename == "容量电费.pdf"
+    assert source.content_type == "application/pdf"
+
+
+@pytest.mark.asyncio
+async def test_source_file_adapter_returns_none_for_token_outside_whitelist(monkeypatch):
+    """白名单校验在 tools 层；适配器要如实把 None 透传上去，由路由转 404。"""
+    module = types.SimpleNamespace(fetch_source_file=lambda token: None)
+
+    async def fake_get_module():
+        return module
+
+    monkeypatch.setattr(
+        "app.modules.policy_market.infrastructure.policy_ask_executor.get_policy_ask_module",
+        fake_get_module,
+    )
+
+    assert await PolicySourceFileAdapter().fetch("AnyOtherFeishuTokenXXXXXXXX") is None
+
+
+@pytest.mark.asyncio
+async def test_source_file_adapter_defaults_missing_content_type(monkeypatch):
+    module = types.SimpleNamespace(fetch_source_file=lambda token: (b"data", "rule", ""))
+
+    async def fake_get_module():
+        return module
+
+    monkeypatch.setattr(
+        "app.modules.policy_market.infrastructure.policy_ask_executor.get_policy_ask_module",
+        fake_get_module,
+    )
+
+    source = await PolicySourceFileAdapter().fetch("exampleToken000000000000078")
+
+    assert source.content_type == "application/octet-stream"

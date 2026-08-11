@@ -1,6 +1,10 @@
 from typing import Protocol
 
-from app.modules.policy_market.domain.models import ConsultationAnswer, ConsultationRecord
+from app.modules.policy_market.domain.models import (
+    ConsultationAnswer,
+    ConsultationRecord,
+    SourceFile,
+)
 
 
 class ConsultationRepository(Protocol):
@@ -23,3 +27,8 @@ class ConsultationRepository(Protocol):
 
 class PolicyAskExecutor(Protocol):
     async def ask(self, question: str) -> ConsultationAnswer: ...
+
+
+class PolicySourceFileReader(Protocol):
+    # token 不在知识库白名单内返回 None，由调用方转 404。
+    async def fetch(self, token: str) -> SourceFile | None: ...

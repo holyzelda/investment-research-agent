@@ -1,5 +1,8 @@
 """政策与市场滚动资讯只读接口。"""
+from urllib.parse import quote
+
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,7 +22,10 @@ from app.modules.policy_market.application.scrolling_message_service import Scro
 from app.modules.policy_market.infrastructure.persistence.consultation_repository import (
     SqlAlchemyConsultationRepository,
 )
-from app.modules.policy_market.infrastructure.policy_ask_executor import PolicyAskExecutorAdapter
+from app.modules.policy_market.infrastructure.policy_ask_executor import (
+    PolicyAskExecutorAdapter,
+    PolicySourceFileAdapter,
+)
 from app.modules.policy_market.interface.serializers import (
     serialize_consultation_detail,
     serialize_consultation_summary,
@@ -30,6 +36,8 @@ from app.modules.policy_market.interface.serializers import (
 router = APIRouter(prefix="/ir/policy-market", tags=["policy-market"])
 _service = ScrollingMessageService()
 _PERIODS = {"all", "month", "quarter"}
+# 浏览器能直接渲染的类型内联展示，其余一律下载——docx/xlsx 内联只会得到一堆乱码。
+_INLINE_TYPES = {"application/pdf", "text/plain"}
 
 
 class ConsultationCreateRequest(BaseModel):
@@ -102,6 +110,46 @@ async def delete_consultation(
         raise NotFoundException("咨询记录不存在")
     await session.commit()
     return ok({"id": record_id, "deleted": True})
+
+
+def _content_disposition(filename: str, inline: bool) -> str:
+    """RFC 5987 双写：ASCII 兜底名给老浏览器，filename* 保住中文原名。
+
+    HTTP 响应头必须是 ASCII，中文文件名直接塞进 filename= 会被网关或浏览器截断。
+    """
+    disposition = "inline" if inline else "attachment"
+    safe = quote(filename or "source-file", safe="")
+    return f"{disposition}; filename=\"source-file\"; filename*=UTF-8''{safe}"
+
+
+@router.get("/source-files/{token}")
+async def download_source_file(
+    token: str,
+    user: CurrentUser = Depends(get_current_user),
+):
+    """代理下载知识库源文件——飞书链接只有公司内部账号能打开，外部用户走这里。
+
+    与其他端点不同，成功时返回的是文件字节流而非 {code,msg,data} 响应壳；
+    失败仍走统一异常处理，是标准 JSON 壳。前端按 blob 的 type 区分两者。
+
+    token 白名单在 tools 层校验：不在省页解析出的源文件集合内一律 404，
+    否则本端点等于把公司飞书云盘代理给了所有平台用户。
+    """
+    source = await PolicySourceFileAdapter().fetch(token)
+    if source is None:
+        raise NotFoundException("源文件不存在或不可下载")
+
+    return Response(
+        content=source.content,
+        media_type=source.content_type or "application/octet-stream",
+        headers={
+            "Content-Disposition": _content_disposition(
+                source.filename,
+                inline=source.content_type in _INLINE_TYPES
+                or source.content_type.startswith("image/"),
+            ),
+        },
+    )
 
 
 @router.get("/messages")

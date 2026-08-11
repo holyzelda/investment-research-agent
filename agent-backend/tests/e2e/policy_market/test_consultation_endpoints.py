@@ -28,7 +28,13 @@ async def consultation_client(monkeypatch):
                         "type": "wiki",
                     }
                 ],
-            }
+            },
+            # 白名单只认这一个 token，其余返回 None（tools 层的真实行为）。
+            fetch_source_file=lambda token: (
+                (b"%PDF-1.7", "宁夏调频细则.pdf", "application/pdf")
+                if token == "NxTokenAAAAAAAAAAAAAAAAAAAA"
+                else None
+            ),
         )
 
     monkeypatch.setattr(
@@ -149,10 +155,63 @@ async def test_create_consultation_returns_frozen_completed_detail(consultation_
                     "url": "https://example.test/source",
                     "token": "NxTokenAAAAAAAAAAAAAAAAAAAA",
                     "type": "wiki",
+                    # 飞书原链接外部用户打不开，序列化层补上后端代理地址
+                    "downloadUrl": "/ir/policy-market/source-files/NxTokenAAAAAAAAAAAAAAAAAAAA",
                 }
             ],
         },
     }
+
+
+@pytest.mark.asyncio
+async def test_web_references_keep_public_url_without_download_proxy(consultation_client):
+    """联网来源是公网链接，前端直接跳，不该被代理。"""
+    from app.modules.policy_market.interface.serializers import _with_download_urls
+
+    result = _with_download_urls({
+        "references": [
+            {"index": 1, "title": "某新闻", "url": "https://news.test/a", "token": "", "type": "web"},
+        ]
+    })
+
+    assert "downloadUrl" not in result["references"][0]
+
+
+@pytest.mark.asyncio
+async def test_download_source_file_streams_bytes_with_utf8_filename(consultation_client):
+    response = await consultation_client.get(
+        "/ir/policy-market/source-files/NxTokenAAAAAAAAAAAAAAAAAAAA"
+    )
+
+    assert response.status_code == 200
+    assert response.content == b"%PDF-1.7"
+    assert response.headers["content-type"].startswith("application/pdf")
+    disposition = response.headers["content-disposition"]
+    # PDF 内联预览；中文名走 RFC 5987，响应头本身保持纯 ASCII
+    assert disposition.startswith("inline;")
+    assert "filename*=UTF-8''" in disposition
+    disposition.encode("ascii")
+
+
+@pytest.mark.asyncio
+async def test_download_source_file_rejects_token_outside_whitelist(consultation_client):
+    """安全底线：任意飞书 token 不能经本服务下载公司云盘上的文件。"""
+    response = await consultation_client.get(
+        "/ir/policy-market/source-files/SomeOtherCompanyFileTokenXX"
+    )
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_download_source_file_requires_platform_identity(consultation_client):
+    response = await consultation_client.get(
+        "/ir/policy-market/source-files/NxTokenAAAAAAAAAAAAAAAAAAAA",
+        headers={"userId": "", "username": ""},
+    )
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

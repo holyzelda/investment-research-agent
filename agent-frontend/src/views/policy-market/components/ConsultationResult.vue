@@ -70,9 +70,21 @@
           >
             <span class="pm-result__ref-index">{{ item.index }}</span>
             <div class="pm-result__ref-body">
-              <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+              <button
+                v-if="item.downloadUrl"
+                type="button"
+                class="pm-result__ref-file"
+                :disabled="loadingToken === item.token"
+                data-source-file
+                @click="openSourceFile(item)"
+              >
+                {{ item.title }}
+                <LoaderCircle v-if="loadingToken === item.token" :size="12" />
+              </button>
+              <a v-else-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
               <span v-else>{{ item.title }}</span>
               <em class="pm-result__ref-type">{{ item.typeLabel }}</em>
+              <em v-if="failedToken === item.token" class="pm-result__ref-error" role="alert">{{ sourceError }}</em>
             </div>
           </li>
         </ol>
@@ -86,6 +98,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import { CircleAlert, FileCheck2, LoaderCircle, ScanSearch } from '@lucide/vue'
+import { downloadSourceFile } from '@/api/policyMarket'
 import MarkdownInline from './MarkdownInline.vue'
 
 const props = defineProps({
@@ -97,9 +110,17 @@ const emit = defineEmits(['reuse-question'])
 
 const REFERENCE_TYPE_LABELS = { wiki: '知识库', web: '联网' }
 const HIGHLIGHT_DURATION = 1500
+// 浏览器能直接渲染的类型开新标签页预览，其余（docx/xlsx 等）存盘。
+const PREVIEWABLE_TYPE = /^(application\/pdf|text\/plain|image\/)/i
 
 const highlightedIndex = ref(0)
+const loadingToken = ref('')
+const failedToken = ref('')
+const sourceError = ref('')
 let highlightTimer = null
+// 已创建但还没释放的 blob URL：立即 revoke 会让新标签页加载不出来，
+// 只能延迟释放，并在组件卸载时兜底清一遍，避免连点多个文件时泄漏。
+const objectUrls = new Set()
 
 const answerBlocks = computed(() => parseMarkdownBlocks(props.consultation?.answer || ''))
 
@@ -113,6 +134,9 @@ const references = computed(() => {
         index: Number(item.index),
         title: item.title || item.url || '来源链接',
         url: isHttpUrl(item.url) ? item.url : '',
+        token: String(item.token || ''),
+        // 后端只给知识库来源补代理地址；公网链接保持直跳。
+        downloadUrl: String(item.downloadUrl || ''),
         typeLabel: REFERENCE_TYPE_LABELS[item.type] || '资料',
       }))
   }
@@ -129,7 +153,62 @@ const referenceTitles = computed(() =>
   Object.fromEntries(references.value.map((item) => [item.index, `${item.title}（${item.typeLabel}）`])),
 )
 
-onBeforeUnmount(() => { if (highlightTimer) clearTimeout(highlightTimer) })
+onBeforeUnmount(() => {
+  if (highlightTimer) clearTimeout(highlightTimer)
+  objectUrls.forEach((url) => URL.revokeObjectURL(url))
+  objectUrls.clear()
+})
+
+// 飞书源文件：外部用户打不开原链接，经后端代理取回二进制再本地打开。
+async function openSourceFile(item) {
+  if (loadingToken.value) return
+  loadingToken.value = item.token
+  failedToken.value = ''
+
+  try {
+    const blob = await downloadSourceFile(item.token)
+    const message = await readErrorMessage(blob)
+    // 端点成功时返二进制、失败时返 {code,msg,data} JSON 壳；不识别的话
+    // 用户会"下载到一个 JSON 文件"而不是看到报错。
+    if (message) throw new Error(message)
+
+    const objectUrl = URL.createObjectURL(blob)
+    objectUrls.add(objectUrl)
+    if (PREVIEWABLE_TYPE.test(blob.type)) window.open(objectUrl, '_blank', 'noopener')
+    else triggerDownload(objectUrl, item.title)
+    // 立即 revoke 会让新标签页/下载还没读完就失效，延迟释放；卸载时兜底。
+    setTimeout(() => {
+      URL.revokeObjectURL(objectUrl)
+      objectUrls.delete(objectUrl)
+    }, 60000)
+  } catch (error) {
+    failedToken.value = item.token
+    sourceError.value = error?.message || '源文件打开失败，请稍后重试'
+  } finally {
+    loadingToken.value = ''
+  }
+}
+
+// 失败响应是 JSON blob，读出 msg 当错误文案；成功的二进制返回空串。
+async function readErrorMessage(blob) {
+  if (!blob || !/^application\/json/i.test(blob.type || '')) return ''
+  try {
+    const payload = JSON.parse(await blob.text())
+    return payload?.msg || '源文件打开失败，请稍后重试'
+  } catch {
+    return '源文件打开失败，请稍后重试'
+  }
+}
+
+function triggerDownload(objectUrl, filename) {
+  const anchor = document.createElement('a')
+  anchor.href = objectUrl
+  // 后端 Content-Disposition 已给了原始文件名，但 blob URL 走不到那里，只能用标题。
+  anchor.download = filename || '政策源文件'
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+}
 
 function scrollToSource(index) {
   highlightedIndex.value = index
@@ -332,8 +411,13 @@ function splitTableRow(line) {
 .pm-result__ref-body a { color: var(--pm-accent, var(--xc-accent-blue)); text-decoration: none; text-underline-offset: 3px; }
 .pm-result__ref-body a:hover, .pm-result__ref-body a:focus-visible { outline: none; text-decoration: underline; }
 .pm-result__ref-type { flex: 0 0 auto; color: var(--xc-text-mute); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); font-style: normal; }
+/* 飞书源文件走后端代理，是按钮而非链接，但视觉上与来源链接保持一致 */
+.pm-result__ref-file { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 0; background: transparent; color: var(--pm-accent, var(--xc-accent-blue)); font: inherit; text-align: left; cursor: pointer; }
+.pm-result__ref-file:hover, .pm-result__ref-file:focus-visible { outline: none; text-decoration: underline; text-underline-offset: 3px; }
+.pm-result__ref-file:disabled { color: var(--xc-text-mute); cursor: progress; }
+.pm-result__ref-error { flex: 1 0 100%; color: var(--xc-status-danger); font-size: var(--xc-fs-2xs); font-style: normal; }
 .pm-result__reuse { margin-top: 18px; }
 @media (max-width: 520px) { .pm-result { padding-left: 18px; }.pm-result__heading b { display: none; }.pm-result__answer-panel { padding: 16px 14px 14px; } }
-@media (prefers-reduced-motion: no-preference) { .pm-result__state .lucide-loader-circle { animation: pm-result-spin 1.2s linear infinite; } }
+@media (prefers-reduced-motion: no-preference) { .pm-result__state .lucide-loader-circle, .pm-result__ref-file .lucide-loader-circle { animation: pm-result-spin 1.2s linear infinite; } }
 @keyframes pm-result-spin { to { transform: rotate(360deg); } }
 </style>
