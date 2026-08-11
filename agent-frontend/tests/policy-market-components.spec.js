@@ -74,11 +74,11 @@ describe('政策与市场咨询组件', () => {
     const completed = mount(ConsultationResult, {
       props: {
         consultation: {
-          status: 'completed', title: '问题', answer: '回答',
+          status: 'completed', title: '问题', answer: '回答[1]。',
           sourceData: {
-            sources: ['https://example.test/source'],
-            timeliness: { province: '宁夏', as_of: '2026-07', status: '已核验' },
-            reminders: ['关注政策更新'],
+            references: [
+              { index: 1, title: '宁夏调频细则', url: 'https://example.test/source', token: 'tk', type: 'wiki' },
+            ],
           },
         },
       },
@@ -86,9 +86,84 @@ describe('政策与市场咨询组件', () => {
     expect(processing.text()).toContain('正在分析')
     expect(failed.text()).toContain('咨询失败')
     expect(completed.text()).toContain('回答')
-    expect(completed.text()).toContain('https://example.test/source')
-    expect(completed.text()).toContain('宁夏')
-    expect(completed.text()).toContain('关注政策更新')
+    expect(completed.text()).toContain('宁夏调频细则')
+    // 结果区只保留结论与源文件，检索元信息不再展示
+    expect(completed.text()).not.toContain('覆盖范围')
+    expect(completed.text()).not.toContain('数据时点')
+    expect(completed.text()).not.toContain('核验状态')
+    expect(completed.text()).not.toContain('案卷状态')
+  })
+
+  it('正文角标渲染为可点击按钮并定位到对应来源行', async () => {
+    const wrapper = mount(ConsultationResult, {
+      attachTo: document.body,
+      props: {
+        consultation: {
+          status: 'completed', title: '问题', answer: '容量补偿 0.28 元/kWh[1]。调频另有细则[2]。',
+          sourceData: {
+            references: [
+              { index: 1, title: '容量电费实施细则', url: 'https://example.test/cap', type: 'wiki' },
+              { index: 2, title: '某新闻报道', url: 'https://example.test/news', type: 'web' },
+            ],
+          },
+        },
+      },
+    })
+
+    const cites = wrapper.findAll('.pm-cite')
+    expect(cites.map((node) => node.text())).toEqual(['1', '2'])
+    // 来源行带锚点 id，角标点击靠它定位
+    expect(wrapper.find('#pm-source-1').exists()).toBe(true)
+    expect(wrapper.find('#pm-source-2').exists()).toBe(true)
+    // 来源类型区分知识库与联网，用户据此判断可信度
+    expect(wrapper.text()).toContain('知识库')
+    expect(wrapper.text()).toContain('联网')
+
+    await cites[1].trigger('click')
+    expect(wrapper.find('#pm-source-2').classes()).toContain('is-highlighted')
+    expect(wrapper.find('#pm-source-1').classes()).not.toContain('is-highlighted')
+
+    wrapper.unmount()
+  })
+
+  it('有 references 时不渲染历史 sources 的重复条目', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: {
+        consultation: {
+          status: 'completed', title: '问题', answer: '回答[1]。',
+          sourceData: {
+            sources: ['https://example.test/source'],
+            references: [{ index: 1, title: '某细则', url: 'https://example.test/source', type: 'wiki' }],
+          },
+        },
+      },
+    })
+
+    expect(wrapper.findAll('.pm-result__ref')).toHaveLength(1)
+    expect(wrapper.text()).toContain('某细则')
+  })
+
+  it('历史记录只有 sources 时归一化进编号来源列表', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: {
+        consultation: {
+          status: 'completed', title: '问题', answer: '旧回答',
+          sourceData: { sources: ['https://example.test/legacy'] },
+        },
+      },
+    })
+
+    expect(wrapper.findAll('.pm-result__ref')).toHaveLength(1)
+    expect(wrapper.text()).toContain('https://example.test/legacy')
+  })
+
+  it('没有任何来源时给出空态说明', () => {
+    const wrapper = mount(ConsultationResult, {
+      props: { consultation: { status: 'completed', title: '问题', answer: '方向性回答。', sourceData: {} } },
+    })
+
+    expect(wrapper.findAll('.pm-result__ref')).toHaveLength(0)
+    expect(wrapper.text()).toContain('没有可引用的源文件')
   })
 
   it('案卷阅读模式不重复渲染当前问题标题', () => {

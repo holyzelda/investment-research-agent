@@ -27,48 +27,23 @@
         <div class="pm-result__markdown">
           <template v-for="(block, blockIndex) in answerBlocks" :key="`${block.type}-${blockIndex}`">
             <component :is="`h${block.level}`" v-if="block.type === 'heading'" class="pm-result__markdown-heading">
-              <template v-for="(part, partIndex) in renderInline(block.text)" :key="partIndex">
-                <strong v-if="part.type === 'strong'">{{ part.text }}</strong>
-                <code v-else-if="part.type === 'code'">{{ part.text }}</code>
-                <a v-else-if="part.type === 'link'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
-                <span v-else>{{ part.text }}</span>
-              </template>
+              <MarkdownInline :text="block.text" :reference-titles="referenceTitles" @cite-click="scrollToSource" />
             </component>
             <p v-else-if="block.type === 'paragraph'" class="pm-result__answer">
-              <template v-for="(part, partIndex) in renderInline(block.text)" :key="partIndex">
-                <strong v-if="part.type === 'strong'">{{ part.text }}</strong>
-                <code v-else-if="part.type === 'code'">{{ part.text }}</code>
-                <a v-else-if="part.type === 'link'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
-                <span v-else>{{ part.text }}</span>
-              </template>
+              <MarkdownInline :text="block.text" :reference-titles="referenceTitles" @cite-click="scrollToSource" />
             </p>
             <ul v-else-if="block.type === 'ul'" class="pm-result__list">
               <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
-                <template v-for="(part, partIndex) in renderInline(item)" :key="partIndex">
-                  <strong v-if="part.type === 'strong'">{{ part.text }}</strong>
-                  <code v-else-if="part.type === 'code'">{{ part.text }}</code>
-                  <a v-else-if="part.type === 'link'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
-                  <span v-else>{{ part.text }}</span>
-                </template>
+                <MarkdownInline :text="item" :reference-titles="referenceTitles" @cite-click="scrollToSource" />
               </li>
             </ul>
             <ol v-else-if="block.type === 'ol'" class="pm-result__list pm-result__list--ordered">
               <li v-for="(item, itemIndex) in block.items" :key="itemIndex">
-                <template v-for="(part, partIndex) in renderInline(item)" :key="partIndex">
-                  <strong v-if="part.type === 'strong'">{{ part.text }}</strong>
-                  <code v-else-if="part.type === 'code'">{{ part.text }}</code>
-                  <a v-else-if="part.type === 'link'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
-                  <span v-else>{{ part.text }}</span>
-                </template>
+                <MarkdownInline :text="item" :reference-titles="referenceTitles" @cite-click="scrollToSource" />
               </li>
             </ol>
             <blockquote v-else-if="block.type === 'quote'" class="pm-result__quote">
-              <template v-for="(part, partIndex) in renderInline(block.text)" :key="partIndex">
-                <strong v-if="part.type === 'strong'">{{ part.text }}</strong>
-                <code v-else-if="part.type === 'code'">{{ part.text }}</code>
-                <a v-else-if="part.type === 'link'" :href="part.url" target="_blank" rel="noopener noreferrer">{{ part.text }}</a>
-                <span v-else>{{ part.text }}</span>
-              </template>
+              <MarkdownInline :text="block.text" :reference-titles="referenceTitles" @cite-click="scrollToSource" />
             </blockquote>
             <pre v-else-if="block.type === 'codeblock'" class="pm-result__code"><code>{{ block.text }}</code></pre>
             <div v-else-if="block.type === 'table'" class="pm-result__table-wrap">
@@ -85,18 +60,23 @@
           <span></span>
           <strong>信息来源</strong>
         </div>
-        <dl>
-          <div v-for="item in sourceRows" :key="item.label" class="pm-result__source-row">
-            <dt>{{ item.label }}</dt>
-            <dd v-if="item.links?.length" class="pm-result__source-links">
-              <template v-for="(link, index) in item.links" :key="`${link.url}-${index}`">
-                <a v-if="link.isUrl" :href="link.url" target="_blank" rel="noopener noreferrer">{{ link.label }}</a>
-                <span v-else>{{ link.label }}</span>
-              </template>
-            </dd>
-            <dd v-else>{{ item.value }}</dd>
-          </div>
-        </dl>
+        <ol v-if="references.length" class="pm-result__refs">
+          <li
+            v-for="item in references"
+            :id="`pm-source-${item.index}`"
+            :key="item.index"
+            class="pm-result__ref"
+            :class="{ 'is-highlighted': highlightedIndex === item.index }"
+          >
+            <span class="pm-result__ref-index">{{ item.index }}</span>
+            <div class="pm-result__ref-body">
+              <a v-if="item.url" :href="item.url" target="_blank" rel="noopener noreferrer">{{ item.title }}</a>
+              <span v-else>{{ item.title }}</span>
+              <em class="pm-result__ref-type">{{ item.typeLabel }}</em>
+            </div>
+          </li>
+        </ol>
+        <p v-else class="pm-result__sources-empty">本次结论基于通用知识给出，没有可引用的源文件。</p>
       </footer>
       <button v-if="readerMode" type="button" class="pm-result__reuse" @click="emitReuseQuestion">基于此问题新建研究</button>
     </article>
@@ -104,8 +84,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { CircleAlert, FileCheck2, LoaderCircle, ScanSearch } from '@lucide/vue'
+import MarkdownInline from './MarkdownInline.vue'
 
 const props = defineProps({
   consultation: { type: Object, default: null },
@@ -114,27 +95,63 @@ const props = defineProps({
 
 const emit = defineEmits(['reuse-question'])
 
+const REFERENCE_TYPE_LABELS = { wiki: '知识库', web: '联网' }
+const HIGHLIGHT_DURATION = 1500
+
+const highlightedIndex = ref(0)
+let highlightTimer = null
+
 const answerBlocks = computed(() => parseMarkdownBlocks(props.consultation?.answer || ''))
 
-const sourceRows = computed(() => {
+const references = computed(() => {
   const sourceData = props.consultation?.sourceData || {}
-  const rows = []
-
-  if (sourceData.sources?.length) rows.push({ label: '资料来源', links: sourceData.sources.map(normalizeSourceLink) })
-
-  rows.push({ label: '案卷状态', value: '分析完成' })
-  return rows
+  const list = sourceData.references
+  if (Array.isArray(list) && list.length) {
+    return list
+      .filter((item) => item && item.index)
+      .map((item) => ({
+        index: Number(item.index),
+        title: item.title || item.url || '来源链接',
+        url: isHttpUrl(item.url) ? item.url : '',
+        typeLabel: REFERENCE_TYPE_LABELS[item.type] || '资料',
+      }))
+  }
+  // 历史快照只存了 URL 列表（没有标题与类型），归一化成同一形状，
+  // 否则旧咨询记录会整块丢失来源。
+  return (Array.isArray(sourceData.sources) ? sourceData.sources : [])
+    .map((source) => normalizeLegacySource(source))
+    .filter((item) => item.title)
+    .map((item, index) => ({ ...item, index: index + 1 }))
 })
+
+// 角标 hover 提示用：编号 → 文件名。
+const referenceTitles = computed(() =>
+  Object.fromEntries(references.value.map((item) => [item.index, `${item.title}（${item.typeLabel}）`])),
+)
+
+onBeforeUnmount(() => { if (highlightTimer) clearTimeout(highlightTimer) })
+
+function scrollToSource(index) {
+  highlightedIndex.value = index
+  if (highlightTimer) clearTimeout(highlightTimer)
+  highlightTimer = setTimeout(() => { highlightedIndex.value = 0 }, HIGHLIGHT_DURATION)
+
+  const target = document.getElementById(`pm-source-${index}`)
+  if (!target?.scrollIntoView) return
+  // 与 policy-market/index.vue 的滚动策略一致：窄屏用平滑滚动，宽屏直接定位。
+  const isCompact = window.matchMedia?.('(max-width: 1100px)')?.matches
+  target.scrollIntoView({ behavior: isCompact ? 'smooth' : 'auto', block: 'nearest' })
+}
 
 function emitReuseQuestion() {
   emit('reuse-question', props.consultation?.question || props.consultation?.title || '')
 }
 
-function normalizeSourceLink(source) {
-  const value = typeof source === 'string' ? source : source?.url || source?.link || source?.title || source?.name || ''
-  const label = typeof source === 'string' ? source : source?.title || source?.name || source?.url || source?.link || ''
+// 历史快照的 sources 只有 URL（或松散对象），补齐成与 references 一致的形状。
+function normalizeLegacySource(source) {
   const url = typeof source === 'string' ? source : source?.url || source?.link || ''
-  return { label: label || value || '来源链接', url, isUrl: isHttpUrl(url || value) }
+  const title = typeof source === 'string' ? source : source?.title || source?.name || url
+  return { title: title || url, url: isHttpUrl(url) ? url : '', typeLabel: '资料' }
 }
 
 function isHttpUrl(value) {
@@ -244,26 +261,6 @@ function parseMarkdownBlocks(value) {
   return blocks.length ? blocks : [{ type: 'paragraph', text: '暂无研究结论' }]
 }
 
-function renderInline(value) {
-  const text = String(value || '')
-  const matcher = /(\*\*([^*]+)\*\*|`([^`]+)`|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|(https?:\/\/[^\s)]+))/g
-  const parts = []
-  let cursor = 0
-  let match
-
-  while ((match = matcher.exec(text))) {
-    if (match.index > cursor) parts.push({ type: 'text', text: text.slice(cursor, match.index) })
-    if (match[2]) parts.push({ type: 'strong', text: match[2] })
-    else if (match[3]) parts.push({ type: 'code', text: match[3] })
-    else if (match[4] && match[5]) parts.push({ type: 'link', text: match[4], url: match[5] })
-    else if (match[6]) parts.push({ type: 'link', text: match[6], url: match[6] })
-    cursor = matcher.lastIndex
-  }
-
-  if (cursor < text.length) parts.push({ type: 'text', text: text.slice(cursor) })
-  return parts.length ? parts : [{ type: 'text', text }]
-}
-
 function isTableStart(lines, index) {
   return /^\s*\|.*\|\s*$/.test(lines[index] || '') && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(lines[index + 1] || '')
 }
@@ -325,15 +322,18 @@ function splitTableRow(line) {
 .pm-result__sources { display: grid; gap: 12px; margin-top: 16px; padding: 16px 0 0; border-top: 1px solid var(--xc-border-soft); }
 .pm-result__sources-title { display: flex; align-items: center; gap: 8px; color: var(--xc-text-strong); font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-semi); }
 .pm-result__sources-title span { width: 8px; height: 8px; border-radius: 50%; background: var(--pm-accent, var(--xc-accent-blue)); }
-.pm-result__sources dl { display: grid; gap: 10px; margin: 0; }
-.pm-result__source-row { display: grid; grid-template-columns: 86px minmax(0, 1fr); gap: 12px; align-items: start; }
-.pm-result__source-row dt { color: var(--xc-text-mute); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); }
-.pm-result__source-row dd { margin: 0; color: var(--xc-text-soft); font-size: var(--xc-fs-xs); line-height: 1.7; overflow-wrap: anywhere; }
-.pm-result__source-links { display: grid; gap: 6px; }
-.pm-result__source-links a { color: var(--pm-accent, var(--xc-accent-blue)); text-decoration: none; text-underline-offset: 3px; }
-.pm-result__source-links a:hover, .pm-result__source-links a:focus-visible { outline: none; text-decoration: underline; }
+.pm-result__sources-empty { margin: 0; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); line-height: 1.7; }
+.pm-result__refs { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; counter-reset: none; }
+/* scroll-margin-top 补偿吸顶 reader bar，与 index.vue 的 result-anchor 同值 */
+.pm-result__ref { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; border-radius: var(--xc-radius-sm); padding: 4px 6px; scroll-margin-top: 82px; transition: background-color .25s ease; }
+.pm-result__ref.is-highlighted { background: var(--xc-surface-frosted); }
+.pm-result__ref-index { width: 18px; height: 18px; display: grid; place-items: center; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-full); color: var(--pm-accent, var(--xc-accent-blue)); font-family: var(--xc-font-mono); font-size: var(--xc-fs-3xs); }
+.pm-result__ref-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; color: var(--xc-text-soft); font-size: var(--xc-fs-xs); line-height: 1.7; overflow-wrap: anywhere; }
+.pm-result__ref-body a { color: var(--pm-accent, var(--xc-accent-blue)); text-decoration: none; text-underline-offset: 3px; }
+.pm-result__ref-body a:hover, .pm-result__ref-body a:focus-visible { outline: none; text-decoration: underline; }
+.pm-result__ref-type { flex: 0 0 auto; color: var(--xc-text-mute); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); font-style: normal; }
 .pm-result__reuse { margin-top: 18px; }
-@media (max-width: 520px) { .pm-result { padding-left: 18px; }.pm-result__heading b { display: none; }.pm-result__answer-panel { padding: 16px 14px 14px; }.pm-result__source-row { grid-template-columns: 1fr; gap: 4px; } }
+@media (max-width: 520px) { .pm-result { padding-left: 18px; }.pm-result__heading b { display: none; }.pm-result__answer-panel { padding: 16px 14px 14px; } }
 @media (prefers-reduced-motion: no-preference) { .pm-result__state .lucide-loader-circle { animation: pm-result-spin 1.2s linear infinite; } }
 @keyframes pm-result-spin { to { transform: rotate(360deg); } }
 </style>

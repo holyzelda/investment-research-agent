@@ -15,12 +15,19 @@ from app.modules.policy_market.infrastructure.persistence.orm import Consultatio
 @pytest.fixture
 async def consultation_client(monkeypatch):
     async def fake_get_policy_ask_module():
+        # 与 tools.policy_ask._finalize() 的返回契约保持一致：只有结论与源文件。
         return types.SimpleNamespace(
             ask=lambda question: {
-                "answer": "结构化回答",
-                "sources": ["https://example.test/source"],
-                "timeliness": {"province": "宁夏", "as_of": "2026-07", "status": "已核验"},
-                "reminders": ["关注更新"],
+                "answer": "结构化回答[1]。",
+                "references": [
+                    {
+                        "index": 1,
+                        "title": "宁夏调频细则",
+                        "url": "https://example.test/source",
+                        "token": "NxTokenAAAAAAAAAAAAAAAAAAAA",
+                        "type": "wiki",
+                    }
+                ],
             }
         )
 
@@ -131,13 +138,19 @@ async def test_create_consultation_returns_frozen_completed_detail(consultation_
         "status": "completed",
         "createdAt": body["data"]["createdAt"],
         "answeredAt": body["data"]["answeredAt"],
-        "answer": "结构化回答",
-        "provinceCode": "宁夏",
+        "answer": "结构化回答[1]。",
+        "provinceCode": None,
         "topic": None,
         "sourceData": {
-            "sources": ["https://example.test/source"],
-            "timeliness": {"province": "宁夏", "as_of": "2026-07", "status": "已核验"},
-            "reminders": ["关注更新"],
+            "references": [
+                {
+                    "index": 1,
+                    "title": "宁夏调频细则",
+                    "url": "https://example.test/source",
+                    "token": "NxTokenAAAAAAAAAAAAAAAAAAAA",
+                    "type": "wiki",
+                }
+            ],
         },
     }
 

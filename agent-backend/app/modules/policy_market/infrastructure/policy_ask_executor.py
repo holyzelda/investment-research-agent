@@ -13,8 +13,8 @@ class PolicyAskExecutorAdapter:
         result = await asyncio.to_thread(policy_ask.ask, question)
         return ConsultationAnswer(
             answer=str(result.get("answer") or ""),
-            province_code=result.get("province"),
-            source_data={
-                "sources": list(result.get("sources") or []),
-            },
+            # 咨询结果只对外暴露结论与源文件：省份、时效、核验状态属于检索元信息，
+            # 仍在 tools 层落飞书评估表，不再随快照返回给前端。
+            province_code=None,
+            source_data={"references": list(result.get("references") or [])},
         )

@@ -17,6 +17,12 @@ from urllib.error import URLError, HTTPError
 import lark_oapi as lark
 
 from app.core.config.settings import get_settings
+from tools.policy_refs import (
+    ReferenceCollector,
+    parse_file_index,
+    renumber_citations,
+    strip_context_markup,
+)
 
 _REQUIRED_PROVINCES = ("蒙西", "宁夏", "甘肃", "陕西", "山西")
 
@@ -39,10 +45,6 @@ for _province in _REQUIRED_PROVINCES:
 CROSS_PROVINCE_TOKEN = str(_policy_ask.feishu.cross_province_token or "").strip()
 FEISHU_DOMAIN = str(_policy_ask.feishu.domain or "example-value-0071").strip()
 
-
-def _feishu_file_url(token):
-    """拼接飞书文件 URL（域名可配置）。"""
-    return f"https://{FEISHU_DOMAIN}/file/{token}"
 ANYSEARCH_API_KEY = str(_policy_ask.anysearch.api_key or "").strip()
 TAVILY_API_KEY = str(_policy_ask.anysearch.tavily_api_key or "").strip()
 LLM_BASE_URL = _required_config_value(_policy_ask.llm.base_url, "llm.base_url")
@@ -68,7 +70,17 @@ SINGLE_CHAR_ALIASES = {"甘肃": ["陇"], "山西": ["晋"]}
 # 跨省对比关键词（仅明确跨省意图才触发；"回本/更适合"等过于通用已移除）
 CROSS_PROVINCE_KW = ["西北", "三省", "跨省", "哪个省", "投哪里", "选哪个", "对比"]
 
-SYSTEM_PROMPT = "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: 1.先给结论，再展开关键数值和约束。2.结论带依据(用文件名或政策名称,不暴露URL)。3.基于现有信息给出最有把握的回答。4.不输出URL。5.不提及资料状态、草稿、待确认等字样。6.不要提及'未找到/知识库暂无/检索不到/建议查阅'等检索缺失表述，直接给出答案。"
+SYSTEM_PROMPT = (
+    "你是储能电力交易投研知识库问答助手。基于检索信息回答投研问题。规则: "
+    "1.先给结论，再展开关键数值和约束。"
+    "2.每个来自检索信息的结论、数值或政策约束，必须在该句句号之前标注引用角标，"
+    "格式为半角方括号加数字，如 [1]；引用多个来源写成 [1][2]。"
+    "3.只能使用【可引用来源编号】图例中出现过的编号，严禁编造图例里没有的编号。"
+    "4.用角标代替来源标注，不要写出文件名全称，也不要输出任何URL。"
+    "5.基于现有信息给出最有把握的回答。"
+    "6.不提及资料状态、草稿、待确认等字样。"
+    "7.不要提及'未找到/知识库暂无/检索不到/建议查阅'等检索缺失表述，直接给出答案。"
+)
 
 GENERAL_PROMPT = "你是储能电力交易投研助手。请基于你的专业知识和经验回答用户的投研问题。规则: 1.给出方向性、有依据的回答，包含关键分析维度。2.数值若不确定，用区间或定性描述。3.保持简洁、自信，不要提及'未找到/知识库暂无/建议查阅官方文件'等检索缺失表述。4.不要在答案中输出任何URL链接。"
 
@@ -117,10 +129,14 @@ def _read(path):
 
 
 def _fallback_context(context):
-    """LLM 返回空时降级为检索到的原文，避免空 answer。"""
+    """LLM 返回空时降级为检索到的原文，避免空 answer。
+
+    context 里带有只对模型有意义的引用编号提示与图例，直接展示会让用户困惑，
+    先经 strip_context_markup 剥掉。
+    """
     safe = re.sub(r"token=[A-Za-z0-9]{15,}", "", context or "")
     safe = re.sub(r"https?://\S+", "", safe)
-    safe = re.sub(r"\n{3,}", "\n\n", safe).strip()
+    safe = strip_context_markup(safe)
     return safe or "抱歉，本次未能生成回答，请重试。"
 
 
@@ -227,12 +243,9 @@ def _llm_summarize(question, context, as_of, status, on_token=None):
                         continue
             return ''.join(full_content)
     except (URLError, TimeoutError):
-        safe_context = re.sub(r'https?://\S+', '', context)
-        safe_context = re.sub(r'\n{3,}', '\n\n', safe_context).strip()
-        return safe_context or "抱歉，本次未能生成回答，请稍后重试。"
+        return _fallback_context(context)
     except (KeyError, IndexError, json.JSONDecodeError):
-        safe_context = re.sub(r'https?://\S+', '', context)
-        return safe_context.strip()
+        return _fallback_context(context)
 
 
 def _llm_summarize_general(question, on_token=None):
@@ -467,6 +480,37 @@ def _cross_province_summary(text):
     return "\n\n".join(blocks) if blocks else text[:2000]
 
 
+def _tokens_near_keywords(text, keywords, window=3):
+    """收集含关键词行及其上下 window 行内的 token（依据块常在相邻行）。
+
+    保持首现顺序去重。关键词为空或全无命中时返回空列表，由调用方决定兜底策略。
+    """
+    if not keywords:
+        return []
+    lines = text.split("\n")
+    hit_indices = [i for i, line in enumerate(lines) if any(kw in line for kw in keywords)]
+    tokens = []
+    for i in hit_indices:
+        for j in range(max(0, i - window), min(len(lines), i + window + 1)):
+            tokens.extend(re.findall(r"token=([A-Za-z0-9]{15,})", lines[j]))
+    return list(dict.fromkeys(tokens))
+
+
+def _wiki_page_tokens():
+    """省页/索引/跨省页自身的 token —— 它们是知识库骨架，不是可引用的政策文件。"""
+    return set(PROVINCES.values()) | {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}
+
+
+def _append_legend(context, collector):
+    """把编号图例追加到 context 末尾。
+
+    必须在 MAX_CONTEXT 截断之后调用：图例若参与截断会被整段切掉，模型就不知道
+    每个编号对应什么文件，角标质量直接归零。
+    """
+    legend = collector.legend()
+    return f"{context}\n\n{legend}" if legend else context
+
+
 def _cross_province_result():
     """跨省对比页结果：下载+精简+提取四省省页 sources.
 
@@ -479,7 +523,7 @@ def _cross_province_result():
         return {
             "province": prov_name,
             "context": "跨省对比页 token 未配置（设 KB_ASK_CROSS_PROVINCE_TOKEN 环境变量）。",
-            "sources": [], "as_of": None, "status": None,
+            "sources": [], "references": [], "as_of": None, "status": None,
             "source_type": "wiki",
         }
     prov_path = _download(prov_token)
@@ -489,19 +533,20 @@ def _cross_province_result():
     m = re.search(r"status:\s*(.+)", prov_text)
     status = m.group(1).strip() if m else "草稿"
     context = _cross_province_summary(prov_text)
-    # sources: 提取"四省省页链接"表格中的 file URL
-    cross_sources = []
+    # sources: 提取"四省省页链接"表格中的 file URL。跨省页的清单表首列即省名，
+    # 正好当作引用标题。
+    collector = ReferenceCollector(file_index=parse_file_index(prov_text, FEISHU_DOMAIN))
     for line in prov_text.split("\n"):
-        urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
-        if urls:
-            cross_sources.extend(urls)
-    cross_sources = list(dict.fromkeys(cross_sources))
-    # 只排除跨省页自身 + 索引页，保留省页
-    cross_sources = [t for t in cross_sources if t not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}]
+        for token in re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line):
+            # 只排除跨省页自身 + 索引页，保留省页
+            if token not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}:
+                collector.add_token(token, FEISHU_DOMAIN)
+    references = collector.to_list()
     return {
         "province": prov_name,
-        "context": context,
-        "sources": [_feishu_file_url(t) for t in cross_sources],
+        "context": _append_legend(context, collector),
+        "sources": [item["url"] for item in references],
+        "references": references,
         "as_of": as_of, "status": status,
         "source_type": "wiki",
     }
@@ -573,11 +618,13 @@ def _build_search_queries(question):
     return [q for q in queries if q.strip() and not (q in seen or seen.add(q))]
 
 
-def _anysearch_search(query_text, max_results=5):
+def _anysearch_search(query_text, max_results=5, collector=None):
     """调用 anysearch HTTP API 做联网搜索兜底. 返回 (正文聚合文本, URL列表) 或 None.
 
     优先使用结果中的 content（网页正文），而非 snippet（摘要）；
     带 freshness 时效参数；返回全部结果（非仅前3）。
+
+    传入 collector 时，每条结果正文前会带上 ``[n]`` 编号，供 LLM 直接引用。
     """
     try:
         headers = {"Content-Type": "application/json"}
@@ -601,8 +648,9 @@ def _anysearch_search(query_text, max_results=5):
             content = (r.get("content") or "").strip()
             if not content:
                 content = (r.get("snippet") or "").strip()
+            marker = _register_web_result(collector, r.get("url"), r.get("title"))
             if content:
-                lines.append(f"- {r.get('title','')}:\n{content[:2000]}")
+                lines.append(f"- {marker}{r.get('title','')}:\n{content[:2000]}")
             if r.get("url"):
                 lines.append(f"  来源: {r['url']}")
                 urls.append(r["url"])
@@ -611,7 +659,15 @@ def _anysearch_search(query_text, max_results=5):
         return None
 
 
-def _tavily_search(query_text, max_results=5):
+def _register_web_result(collector, url, title):
+    """给联网检索结果登记编号，返回 ``"[n] "`` 前缀（超出上限或无 collector 时为空串）。"""
+    if collector is None or not url:
+        return ""
+    index = collector.add_url(url, title or url, ref_type="web")
+    return f"[{index}] " if index else ""
+
+
+def _tavily_search(query_text, max_results=5, collector=None):
     """调用 Tavily API 做联网搜索. 返回 (正文聚合文本, URL列表) 或 None.
 
     Tavily 专为 AI 设计：返回 answer（AI总结）+ results（含完整 content）。
@@ -638,11 +694,13 @@ def _tavily_search(query_text, max_results=5):
         urls = []
         answer = (data.get("answer") or "").strip()
         if answer:
+            # AI 摘要是多源聚合，不对应单一 URL，故不给编号——给了会让角标指错来源。
             lines.append(f"- AI摘要: {answer[:1000]}")
         for r in results:
             content = (r.get("content") or "").strip()
+            marker = _register_web_result(collector, r.get("url"), r.get("title"))
             if content:
-                lines.append(f"- {r.get('title','')}:\n{content[:2000]}")
+                lines.append(f"- {marker}{r.get('title','')}:\n{content[:2000]}")
             if r.get("url"):
                 lines.append(f"  来源: {r['url']}")
                 urls.append(r["url"])
@@ -659,10 +717,12 @@ def _web_fallback(question, prov_name, as_of, status):
     # 选择搜索函数：有 Tavily key 用 Tavily，否则 anysearch
     searcher = _tavily_search if TAVILY_API_KEY else _anysearch_search
 
+    # collector 跨两个 query 共享，同一网页在两次检索里出现只占一个编号。
+    collector = ReferenceCollector()
     combined_text = None
     combined_urls = []
     for q in _build_search_queries(question)[:2]:  # 主 query + 1 个副 query
-        web_result = searcher(q)
+        web_result = searcher(q, collector=collector)
         if web_result:
             text, urls = web_result
             combined_urls.extend(urls)
@@ -672,10 +732,16 @@ def _web_fallback(question, prov_name, as_of, status):
                 combined_text += "\n\n" + text
     if not combined_urls:
         return None
+    references = collector.to_list()
+    context = (
+        "以下为最新检索结果，回答时优先引用时间最新的数据，并明确标注每个数据的统计时点；"
+        f"不同时点数据口径不同时需说明差异:\n{combined_text}"
+    )
     return {
         "province": prov_name,
-        "context": f"以下为最新检索结果，回答时优先引用时间最新的数据，并明确标注每个数据的统计时点；不同时点数据口径不同时需说明差异:\n{combined_text}",
-        "sources": list(dict.fromkeys(combined_urls))[:5],
+        "context": _append_legend(context, collector),
+        "sources": [item["url"] for item in references],
+        "references": references,
         "as_of": as_of,
         "status": status + " +联网检索" if status else "联网检索",
         "source_type": "web",
@@ -726,7 +792,7 @@ def query(question, allow_web=True):
             return {
                 "province": None,
                 "context": "",
-                "sources": [], "as_of": None, "status": None,
+                "sources": [], "references": [], "as_of": None, "status": None,
                 "source_type": "llm_general",
             }
     else:
@@ -740,25 +806,10 @@ def query(question, allow_web=True):
     m = re.search(r"status:\s*(.+)", prov_text)
     status = m.group(1).strip() if m else "草稿"
 
-    # 跨省对比页→精简，sources 聚合四省省页链接
-    if prov_name == "跨省对比":
-        context = _cross_province_summary(prov_text)
-        # 提取"四省省页链接"表格中的 file URL 作为来源
-        cross_sources = []
-        for line in prov_text.split("\n"):
-            urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
-            if urls:
-                cross_sources.extend(urls)
-        cross_sources = list(dict.fromkeys(cross_sources))
-        # 跨省对比的 sources 是各省页链接：只排除跨省页自身 + 索引页，保留省页
-        cross_sources = [t for t in cross_sources if t not in {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}]
-        return {
-            "province": prov_name,
-            "context": context,
-            "sources": [_feishu_file_url(t) for t in cross_sources],
-            "as_of": as_of, "status": status,
-            "source_type": "wiki",
-        }
+    # 页尾"依据文件清单"表 + 小节依据行合并出的 token→文件名/URL 索引，
+    # 下面两条 wiki 路径都靠它把裸 token 变成有名字的引用条目。
+    file_index = parse_file_index(prov_text, FEISHU_DOMAIN)
+    wiki_tokens = _wiki_page_tokens()
 
     # 3. 从省页 section 别名/标题定位关键词 (替代硬编码 market_kw)
     sections = _parse_sections(prov_text)
@@ -776,25 +827,20 @@ def query(question, allow_web=True):
         filtered_qt = _filter_quick_table(qt, keywords) if qt else ""
         if filtered_qt:
             # 提取省页源文件 token：优先按关键词相关行过滤，替代全页前5个
-            wiki_tokens = set(PROVINCES.values()) | {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}
-            all_tokens = re.findall(r"token=([A-Za-z0-9]{15,})", prov_text)
-            # 含关键词的行（如"容量补偿"相关行）
-            kw_lines = [l for l in prov_text.split("\n") if any(kw in l for kw in keywords)]
-            kw_line_tokens = []
-            for l in kw_lines:
-                kw_line_tokens.extend(re.findall(r"token=([A-Za-z0-9]{15,})", l))
-                # 同时抓该行前后 3 行的 token（依据块可能在相邻行）
-            kw_indices = {i for i, l in enumerate(prov_text.split("\n")) if any(kw in l for kw in keywords)}
-            for i in kw_indices:
-                for j in range(max(0, i - 3), min(len(prov_text.split("\n")), i + 4)):
-                    kw_line_tokens.extend(re.findall(r"token=([A-Za-z0-9]{15,})", prov_text.split("\n")[j]))
-            sources = list(dict.fromkeys(
-                t for t in (kw_line_tokens or all_tokens) if t not in wiki_tokens
-            ))
+            collector = ReferenceCollector(file_index=file_index)
+            candidates = _tokens_near_keywords(prov_text, keywords)
+            if not candidates:
+                candidates = re.findall(r"token=([A-Za-z0-9]{15,})", prov_text)
+            for token in candidates:
+                if token not in wiki_tokens:
+                    collector.add_token(token, FEISHU_DOMAIN)
+            references = collector.to_list()
+            context = f"{prov_name} 相关参数如下:\n\n{filtered_qt}"
             return {
                 "province": prov_name,
-                "context": f"{prov_name} 相关参数如下:\n\n{filtered_qt}",
-                "sources": [_feishu_file_url(t) for t in sources[:5]],
+                "context": _append_legend(context, collector),
+                "sources": [item["url"] for item in references],
+                "references": references,
                 "as_of": as_of,
                 "status": status,
                 "source_type": "wiki",
@@ -810,10 +856,34 @@ def query(question, allow_web=True):
             "province": prov_name,
             "context": f"请基于专业知识回答该问题。",
             "sources": [],
+            "references": [],
             "as_of": as_of,
             "status": status,
             "source_type": "llm_general",
         }
+
+    # 先收集引用编号，再拼 context —— 每个 section 块头要带上自己的可引用编号，
+    # 模型才知道"这段话该标 [2]"。
+    collector = ReferenceCollector(file_index=file_index)
+    lines = prov_text.split("\n")
+    section_markers = {}
+    for s in hits:
+        numbers = []
+        # 1) 命中 section 正文里的 token=XXX 引用（最精确，section 自己声明的依据）
+        for line in s["lines"]:
+            for token in re.findall(r"token=([A-Za-z0-9]{15,})", line):
+                if token not in wiki_tokens:
+                    numbers.append(collector.add_token(token, FEISHU_DOMAIN))
+        # 2) 文件索引表里标题与本 section 标题/别名相关的行（URL 集中在表格，不在正文）
+        filter_kw = {s["title"], *s["aliases"]}
+        filter_kw.update(p for p in re.split(r"[()（）\s]+", s["title"]) if len(p) >= 2)
+        for line in lines:
+            urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
+            if urls and any(kw in line for kw in filter_kw):
+                for token in urls:
+                    if token not in wiki_tokens:
+                        numbers.append(collector.add_token(token, FEISHU_DOMAIN))
+        section_markers[s["title"]] = collector.markers(numbers)
 
     qt = _quick_table(prov_text)
     filtered_qt = _filter_quick_table(qt, keywords)  # 行级过滤：只保留相关市场行
@@ -823,7 +893,9 @@ def query(question, allow_web=True):
     for s in hits:
         body = "\n".join(l for l in s["lines"] if l.strip()
                          and not l.strip().startswith("- 别名"))
-        blocks.append(f"[{prov_name}·{s['title']}]\n{body}")
+        marker = section_markers.get(s["title"]) or ""
+        hint = f" (可引用: {marker})" if marker else ""
+        blocks.append(f"[{prov_name}·{s['title']}]{hint}\n{body}")
 
     # 追加相关版本链条目
     for kw in keywords:
@@ -839,42 +911,29 @@ def query(question, allow_web=True):
     if len(context) > MAX_CONTEXT:
         context = context[:MAX_CONTEXT] + "\n...(上下文过长已截断)"
 
-    # sources: 从全页筛与命中 section 相关的文件URL
-    # (URL集中在文件索引表格, 不在section正文, 需用别名/标题做过滤器)
-    filter_kw = set()
-    for s in hits:
-        filter_kw.add(s["title"])
-        filter_kw.update(s["aliases"])
-        for part in re.split(r"[()（）\s]+", s["title"]):
-            if len(part) >= 2:
-                filter_kw.add(part)
-    sources = []
-    # 1) 文件索引表: 同行含 filter_kw 的完整URL
-    lines = prov_text.split("\n")
-    for line in lines:
-        urls = re.findall(r"https://" + re.escape(FEISHU_DOMAIN) + r"/file/([A-Za-z0-9]+)", line)
-        if urls and any(kw in line for kw in filter_kw):
-            sources.extend(urls)
-    # 2) 命中 section 正文里的 token=XXX 引用
-    for s in hits:
-        for line in s["lines"]:
-            tokens = re.findall(r"token=([A-Za-z0-9]{15,})", line)
-            sources.extend(tokens)
-    # 去重
-    sources = list(dict.fromkeys(sources))
-
-    # 过滤掉 wiki 页本身的 token（省页索引、跨省对比页等）
-    wiki_tokens = set(PROVINCES.values()) | {INDEX_TOKEN, CROSS_PROVINCE_TOKEN}
-    sources = [t for t in sources if t not in wiki_tokens]
+    references = collector.to_list()
 
     return {
         "province": prov_name,
-        "context": context,
-        "sources": [_feishu_file_url(t) for t in sources[:5]],
+        # 图例必须在截断之后追加，否则会被整段切掉，模型就不认识这些编号了。
+        "context": _append_legend(context, collector),
+        "sources": [item["url"] for item in references],
+        "references": references,
         "as_of": as_of,
         "status": status,
         "source_type": "wiki",
     }
+
+
+def _finalize(answer, result):
+    """统一出口：按正文角标重编号来源，只对外暴露结论与源文件。
+
+    省份、时效、核验状态和 source_type 都是检索过程的元信息，仍留在 query()
+    结果里供落库与日志使用，但不进入对外返回值——调用方只要答案和它出自哪份文件。
+    """
+    references = list(result.get("references") or [])
+    answer, references = renumber_citations(answer, references)
+    return {"answer": answer, "references": references}
 
 
 def ask(question, allow_web=True, on_token=None):
@@ -883,46 +942,34 @@ def ask(question, allow_web=True, on_token=None):
 
     # 三级兜底: wiki → web → llm_general
     if source_type == "llm_general":
+        # 通用知识兜底没有任何检索来源，不加角标（GENERAL_PROMPT 也不要求）。
         answer = _llm_summarize_general(question, on_token=on_token)
-        _log_to_base(question, answer, result.get("province"), "N/A", "N/A", [])
-        return {
-            "answer": answer,
-            "sources": result["sources"],
-            "province": result.get("province"),
-            "source_type": "llm_general",
-        }
+        final = _finalize(answer, result)
+        _log_to_base(question, final["answer"], result.get("province"), "N/A", "N/A", [])
+        return final
 
-    if source_type == "web":
-        answer = _llm_summarize(question, result["context"], result.get("as_of"), result.get("status"), on_token=on_token)
-        _log_to_base(question, answer, result.get("province"), result.get("as_of"), result.get("status"), result["context"])
-        return {
-            "answer": answer,
-            "sources": result["sources"],
-            "province": result.get("province"),
-            "source_type": "web",
-        }
+    answer = _llm_summarize(
+        question,
+        result["context"],
+        result.get("as_of"),
+        result.get("status"),
+        on_token=on_token,
+    )
+    final = _finalize(answer, result)
 
-    # source_type == "wiki" (正常路径)
-    if result["province"] is None:
-        answer = _llm_summarize(question, result["context"], None, None, on_token=on_token)
-        _log_to_base(question, answer, None, "N/A", "N/A", [])
-        return {
-            "answer": answer,
-            "sources": result["sources"],
-            "province": None,
-            "source_type": "wiki",
-        }
-
-    answer = _llm_summarize(question, result["context"], result["as_of"], result["status"], on_token=on_token)
-
-    _log_to_base(question, answer, result["province"], result["as_of"], result["status"], result["context"])
-
-    return {
-        "answer": answer,
-        "sources": result["sources"],
-        "province": result["province"],
-        "source_type": "wiki",
-    }
+    # 落库用重编号后的 answer，保证日志与用户看到的一致。
+    if result.get("province") is None:
+        _log_to_base(question, final["answer"], None, "N/A", "N/A", [])
+    else:
+        _log_to_base(
+            question,
+            final["answer"],
+            result["province"],
+            result.get("as_of"),
+            result.get("status"),
+            result["context"],
+        )
+    return final
 
 
 # === Base 自动记录（未配置 token/table 时跳过日志） ===

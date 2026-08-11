@@ -13,15 +13,18 @@ def _settings():
         app_id="cli-test",
         app_secret="secret",
         index_token="index-token",
-        province_tokens={"蒙西": "mx", "宁夏": "nx", "甘肃": "gs"},
+        # 必须覆盖 tools.policy_ask._REQUIRED_PROVINCES 的全部省份，
+        # 少一个就会在 import 时抛 RuntimeError；该常量扩省时同步这里。
+        province_tokens={"蒙西": "mx", "宁夏": "nx", "甘肃": "gs", "陕西": "sx", "山西": "sax"},
         cross_province_token="",
+        domain="feishu.example.test",
     )
     llm = SimpleNamespace(
         base_url="https://llm.example.test",
         api_key="llm-key",
         model="test-model",
     )
-    anysearch = SimpleNamespace(api_key="")
+    anysearch = SimpleNamespace(api_key="", tavily_api_key="")
     base = SimpleNamespace(token="", table="")
     return SimpleNamespace(
         policy_ask=SimpleNamespace(feishu=feishu, llm=llm, anysearch=anysearch, base=base)
@@ -45,9 +48,10 @@ def test_policy_ask_maps_values_from_settings(monkeypatch):
     module = _import_with_settings(monkeypatch, _settings())
 
     assert module.APP_ID == "cli-test"
-    assert module.PROVINCES == {"蒙西": "mx", "宁夏": "nx", "甘肃": "gs"}
+    assert module.PROVINCES == {"蒙西": "mx", "宁夏": "nx", "甘肃": "gs", "陕西": "sx", "山西": "sax"}
     assert module.LLM_API_KEY == "llm-key"
     assert module.ANYSEARCH_API_KEY == ""
+    assert module.FEISHU_DOMAIN == "feishu.example.test"
 
 
 def test_policy_ask_rejects_missing_llm_api_key(monkeypatch):

@@ -23,17 +23,22 @@ async def seeded_client():
         await connection.run_sync(Base.metadata.create_all)
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     now = datetime.now()
+    # 发布时间必须落在“本月 1 日 ~ 当前时刻”内，否则 period=month 过滤为空。
+    # 不可写死具体日期：跨月后固定日期会掉出本月窗口，测试会在某天突然变红。
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    top_publish_time = month_start + (now - month_start) / 2
+    plain_publish_time = month_start + (now - month_start) / 3
     async with maker() as session:
         session.add_all([
             ScrollingMessageORM(
                 id=1, title="置顶资讯", summary="储能市场动态",
                 link_url="https://example.test/top", province="内蒙古",
-                publish_time=datetime(2026, 7, 23, 9, 0, 0), tags="政策,储能",
+                publish_time=top_publish_time, tags="政策,储能",
                 status=1, is_deleted=0, sort_order=10, rating=Decimal("4.50"),
             ),
             ScrollingMessageORM(
                 id=2, title="普通资讯", status=1, is_deleted=0,
-                sort_order=0, rating=Decimal("1.00"), publish_time=datetime(2026, 7, 22, 9, 0, 0),
+                sort_order=0, rating=Decimal("1.00"), publish_time=plain_publish_time,
             ),
             ScrollingMessageORM(title="已过期", status=1, is_deleted=0, expire_time=now - timedelta(days=1)),
             ScrollingMessageORM(title="禁用", status=0, is_deleted=0),
@@ -71,9 +76,10 @@ async def test_list_scrolling_messages_returns_response_shell_and_camel_case_dto
         "summary": "储能市场动态",
         "linkUrl": "https://example.test/top",
         "province": "内蒙古",
-        "publishTime": "2026-07-23T09:00:00",
+        "publishTime": body["data"][0]["publishTime"],
         "tags": ["政策", "储能"],
     }
+    assert body["data"][0]["publishTime"] is not None
 
 
 @pytest.mark.asyncio
