@@ -375,7 +375,10 @@ function splitTableRow(line) {
 .pm-result__card h2 { margin: 18px 0 12px; color: var(--xc-text-strong); font-size: var(--xc-fs-h3); font-weight: var(--xc-fw-semi); line-height: var(--xc-lh-snug); }
 .pm-result__card.is-reader .pm-result__answer { margin-top: 18px; }
 .pm-result__answer-panel { padding: 18px 18px 16px; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); box-shadow: 0 10px 24px rgb(0 0 0 / 8%); }
-.pm-result__markdown { display: grid; gap: 14px; max-width: 82ch; color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: 1.85; overflow-wrap: anywhere; }
+/* 不设行长上限：正文包在有边框的面板里，内容就该贴着 padding 排布。
+   限成 82ch 会让面板右侧空掉近四成，表格也跟着被卡住铺不开。
+   整体宽度由 index.vue 栅格中间列（min(100%,1760px) 三栏）兜住，不会无限拉长。 */
+.pm-result__markdown { display: grid; gap: 14px; color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: 1.85; overflow-wrap: anywhere; }
 .pm-result__markdown > * { margin: 0; }
 .pm-result__markdown-heading { margin-top: 6px; color: var(--xc-text-strong); font-size: 17px; font-weight: var(--xc-fw-semi); line-height: 1.55; }
 .pm-result__markdown-heading:first-child { margin-top: 0; }
