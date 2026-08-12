@@ -1,6 +1,6 @@
 <template>
   <aside class="pm-pulse" aria-label="市场脉搏">
-    <header class="pm-pulse__heading"><div><p>POLICY FEED</p><h2>政策材料流</h2></div><span><Radio :size="13" />实时更新</span></header>
+    <header class="pm-pulse__heading"><div><p>POLICY FEED</p><h2>政策材料流</h2></div><div class="pm-pulse__heading-actions"><span><Radio :size="13" />实时更新</span><button type="button" class="pm-pulse__share-button" :disabled="!news.length" aria-label="分享当前政策材料" title="分享当前政策材料" data-share-button @click="openShareDialog"><Share2 :size="15" /><small>{{ news.length }}</small></button></div></header>
     <section class="pm-pulse__stats" aria-label="资讯概览">
       <div class="pm-pulse__stats-heading"><span>资讯概览</span><span>实时</span></div>
       <div class="pm-pulse__filters">
@@ -31,18 +31,31 @@
     </section>
     <div ref="newsScrollRef" class="pm-pulse__news" data-news-scroll @mouseenter="pauseAutoScroll" @mouseleave="resumeAutoScroll" @wheel="pauseAutoScroll" @touchstart="pauseAutoScroll" @pointerdown="pauseAutoScroll">
       <p v-if="loading" class="pm-pulse__state">正在加载市场资讯</p><p v-else-if="error" class="pm-pulse__state pm-pulse__state--error">{{ error }}</p><p v-else-if="!news.length" class="pm-pulse__state">暂无市场资讯</p>
-      <template v-else v-for="item in news" :key="item.id">
-        <a v-if="item.linkUrl" :data-news-id="item.id" class="pm-pulse__news-item" :href="item.linkUrl" target="_blank" rel="noopener noreferrer"><strong>{{ item.title }}</strong><span><b v-for="tag in item.tags" :key="tag">{{ tag }}</b>{{ formatPublishedAt(item.publishTime) }}<ExternalLink :size="12" /></span></a>
-        <div v-else :data-news-id="item.id" class="pm-pulse__news-item"><strong>{{ item.title }}</strong><span><b v-for="tag in item.tags" :key="tag">{{ tag }}</b>{{ formatPublishedAt(item.publishTime) }}</span></div>
-      </template>
+      <article v-else v-for="item in news" :key="item.id" :data-news-id="item.id" class="pm-pulse__news-item">
+        <a v-if="item.linkUrl" class="pm-pulse__news-link" :href="item.linkUrl" target="_blank" rel="noopener noreferrer"><strong>{{ item.title }}</strong><ExternalLink :size="12" /></a>
+        <strong v-else class="pm-pulse__news-title">{{ item.title }}</strong>
+        <div class="pm-pulse__news-footer">
+          <span><b v-for="tag in item.tags" :key="tag">{{ tag }}</b>{{ formatPublishedAt(item.publishTime) }}</span>
+          <button type="button" class="pm-pulse__item-share" :aria-label="`分享${item.title}`" :title="`分享${item.title}`" :data-share-news-id="item.id" @click="copySingleNews(item)">
+            <Check v-if="singleShareStatus === item.id" :size="12" /><Share2 v-else :size="12" />{{ singleShareStatus === item.id ? '已复制' : '分享' }}
+          </button>
+        </div>
+      </article>
     </div>
   </aside>
+  <ElDialog v-model="shareDialogOpen" title="分享政策材料" width="min(520px, calc(100vw - 32px))" append-to-body class="pm-share-dialog" @closed="resumeAutoScroll">
+    <div class="pm-share-dialog__intro"><Share2 :size="18" /><div><strong>分享当前材料流</strong><p>将按当前筛选结果分享，共 {{ news.length }} 条材料。</p></div></div>
+    <div class="pm-share-dialog__scope"><span>筛选范围</span><strong>{{ shareScopeLabel }}</strong></div>
+    <div class="pm-share-dialog__preview" aria-label="分享内容预览"><article v-for="(item, index) in news" :key="item.id" class="pm-share-dialog__item"><span>{{ String(index + 1).padStart(2, '0') }}</span><div><strong>{{ item.title }}</strong><small>{{ formatNewsMeta(item) }}</small></div></article></div>
+    <p v-if="shareStatus" class="pm-share-dialog__status" role="status">{{ shareStatus }}</p>
+    <template #footer><div class="pm-share-dialog__footer"><button type="button" class="pm-share-dialog__copy" data-copy-share @click="copyShareContent"><Copy :size="15" />复制分享内容</button></div></template>
+  </ElDialog>
 </template>
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElPopover } from 'element-plus'
-import { ChevronDown, ExternalLink, Radio } from '@lucide/vue'
+import { ElDialog, ElPopover } from 'element-plus'
+import { Check, ChevronDown, Copy, ExternalLink, Radio, Share2 } from '@lucide/vue'
 
 const props = defineProps({
   filters: { type: Object, default: () => ({ province: 'all', period: 'all', topic: 'all' }) },
@@ -56,10 +69,14 @@ const newsScrollRef = ref(null)
 const provinceOpen = ref(false)
 const periodOpen = ref(false)
 const topicOpen = ref(false)
+const shareDialogOpen = ref(false)
+const shareStatus = ref('')
+const singleShareStatus = ref(null)
 const AUTO_SCROLL_SPEED = 60
 const AUTO_SCROLL_BOTTOM_PAUSE_MS = 1200
 let animationFrameId = null
 let restartTimerId = null
+let singleShareTimerId = null
 let lastTimestamp = null
 let isAutoScrollPaused = false
 const provinceOptions = [
@@ -73,6 +90,7 @@ const periodOptions = [{ value: 'all', label: '全部时间' }, { value: 'month'
 const provinceLabel = computed(() => draftFilters.province === 'all' ? '全部省份' : draftFilters.province)
 const periodLabel = computed(() => periodOptions.find((item) => item.value === draftFilters.period)?.label || '全部时间')
 const topicLabel = computed(() => draftFilters.topic === 'all' ? '全部主题' : props.topicOptions.find((item) => item.value === draftFilters.topic)?.label || draftFilters.topic)
+const shareScopeLabel = computed(() => [provinceLabel.value, periodLabel.value, topicLabel.value].join(' / '))
 watch(() => props.filters, (filters) => Object.assign(draftFilters, filters), { deep: true })
 watch(() => props.news, () => nextTick(startAutoScroll), { deep: true })
 function selectFilter(field, value) {
@@ -101,19 +119,63 @@ function stepAutoScroll(timestamp) {
 function startAutoScroll() { const container = newsScrollRef.value; stopAnimationFrameOnly(); if (!container || isAutoScrollPaused || container.scrollHeight <= container.clientHeight) return; animationFrameId = window.requestAnimationFrame(stepAutoScroll) }
 function pauseAutoScroll() { isAutoScrollPaused = true; stopAutoScroll() }
 function resumeAutoScroll() { isAutoScrollPaused = false; lastTimestamp = null; startAutoScroll() }
+function formatNewsMeta(item) { return [item.tags?.join(' · '), formatPublishedAt(item.publishTime), item.linkUrl].filter(Boolean).join(' · ') }
+function buildShareContent() {
+  const lines = [`政策材料流（${props.news.length} 条）`, `筛选范围：${shareScopeLabel.value}`, '']
+  props.news.forEach((item, index) => lines.push(`${index + 1}. ${item.title}`, `   ${formatNewsMeta(item)}`, ''))
+  return lines.join('\n').trim()
+}
+function buildSingleShareContent(item) {
+  return ['政策材料', item.title, formatNewsMeta(item)].filter(Boolean).join('\n')
+}
+async function writeClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', '')
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!copied) throw new Error('复制失败')
+}
+function openShareDialog() { if (props.news.length) { shareStatus.value = ''; shareDialogOpen.value = true; pauseAutoScroll() } }
+async function copyShareContent() {
+  try { await writeClipboard(buildShareContent()); shareStatus.value = `已复制 ${props.news.length} 条材料的分享内容。` } catch { shareStatus.value = '复制失败，请检查浏览器剪贴板权限。' }
+}
+async function copySingleNews(item) {
+  try {
+    await writeClipboard(buildSingleShareContent(item))
+    singleShareStatus.value = item.id
+    if (singleShareTimerId !== null) window.clearTimeout(singleShareTimerId)
+    singleShareTimerId = window.setTimeout(() => { singleShareStatus.value = null; singleShareTimerId = null }, 1800)
+  } catch {
+    singleShareStatus.value = null
+  }
+}
 onMounted(() => { nextTick(startAutoScroll) })
-onBeforeUnmount(stopAutoScroll)
+onBeforeUnmount(() => { stopAutoScroll(); if (singleShareTimerId !== null) window.clearTimeout(singleShareTimerId) })
 function formatPublishedAt(value) { if (!value) return '—'; const date = new Date(value); return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('zh-CN', { month: '2-digit', day: '2-digit' }).format(date) }
 </script>
 
 <style scoped>
 .pm-pulse { position: sticky; top: 20px; min-width: 0; display: flex; flex-direction: column; gap: 16px; min-height: min(700px, calc(100vh - 104px)); padding: 8px 0 8px 22px; border-left: 1px solid var(--xc-border-soft); background: transparent; }
 .pm-pulse__heading, .pm-pulse__stats-heading, .pm-pulse__stat-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--xc-space-3); }
+.pm-pulse__heading-actions { min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
 .pm-pulse__heading p { margin: 0; color: var(--xc-text-mute); font-family: var(--xc-font-mono); font-size: 10px; }
 .pm-pulse__heading h2 { margin: 4px 0 0; color: var(--xc-text-strong); font-size: var(--xc-fs-md); }
-.pm-pulse__heading > span { display: inline-flex; align-items: center; gap: 5px; color: var(--xc-status-ok); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); }
+.pm-pulse__heading-actions > span { display: inline-flex; align-items: center; gap: 5px; color: var(--xc-status-ok); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); }
+.pm-pulse__share-button { display: inline-flex; align-items: center; gap: 5px; min-height: 28px; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-xs); padding: 5px 7px; background: transparent; color: var(--xc-text-soft); cursor: pointer; }
+.pm-pulse__share-button:hover:not(:disabled), .pm-pulse__share-button:focus-visible { border-color: var(--xc-border-accent); color: var(--pm-accent, var(--xc-accent-blue)); outline: none; }
+.pm-pulse__share-button:disabled { color: var(--xc-text-faint); cursor: not-allowed; opacity: .6; }
+.pm-pulse__share-button small { font-family: var(--xc-font-mono); font-size: 10px; }
 .pm-pulse__stats { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--pm-surface, var(--xc-surface-card)); }
-.pm-pulse__stats-heading, .pm-pulse__stat-foot, .pm-pulse__news-item span { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-pulse__stats-heading, .pm-pulse__stat-foot, .pm-pulse__news-footer span { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
 .pm-pulse__stats-heading > :first-child { color: var(--xc-text-strong); font-weight: var(--xc-fw-semi); }
 .pm-pulse__filters { display: grid; gap: var(--xc-space-2); }
 .pm-pulse__filter-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: var(--xc-space-2); align-items: center; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
@@ -129,19 +191,55 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 .pm-pulse__news { display: grid; max-height: min(432px, 46vh); overflow-y: auto; overscroll-behavior: contain; scrollbar-width: none; -ms-overflow-style: none; }
 .pm-pulse__news::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .pm-pulse__news-item { display: grid; gap: 8px; border-bottom: 1px solid var(--xc-border-soft); padding: 13px 10px 13px 0; color: var(--xc-text-soft); text-align: left; text-decoration: none; transition: background-color 120ms ease, padding 120ms ease; }
-.pm-pulse__news-item:hover, .pm-pulse__news-item:focus-visible { outline: none; background: var(--xc-surface-frosted); }
-.pm-pulse__news-item:focus-visible { box-shadow: inset 0 0 0 2px var(--pm-accent, var(--xc-accent-blue)); }
-.pm-pulse__news-item strong { display: -webkit-box; overflow: hidden; font-size: var(--xc-fs-xs); line-height: var(--xc-lh-normal); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.pm-pulse__news-item span { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; font-family: var(--xc-font-mono); }
-.pm-pulse__news-item span svg { margin-left: auto; }
+.pm-pulse__news-item:hover { background: var(--xc-surface-frosted); }
+.pm-pulse__news-link { min-width: 0; display: flex; align-items: flex-start; gap: 6px; color: inherit; text-decoration: none; }
+.pm-pulse__news-link:focus-visible { border-radius: var(--xc-radius-xs); outline: 1px solid var(--pm-accent, var(--xc-accent-blue)); outline-offset: 2px; }
+.pm-pulse__news-link svg { flex: 0 0 auto; margin-top: 3px; color: var(--xc-text-mute); }
+.pm-pulse__news-link strong, .pm-pulse__news-title { display: -webkit-box; min-width: 0; overflow: hidden; font-size: var(--xc-fs-xs); line-height: var(--xc-lh-normal); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.pm-pulse__news-footer { min-width: 0; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.pm-pulse__news-footer span { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 5px; font-family: var(--xc-font-mono); }
 .pm-pulse__news-item b { display: inline-block; color: var(--pm-accent, var(--xc-accent-blue)); font-weight: var(--xc-fw-medium); margin-right: 2px; }
+.pm-pulse__item-share { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; min-height: 24px; border: 0; border-radius: var(--xc-radius-xs); padding: 3px 5px; background: transparent; color: var(--xc-text-mute); font: inherit; font-size: var(--xc-fs-2xs); cursor: pointer; }
+.pm-pulse__item-share:hover, .pm-pulse__item-share:focus-visible { background: var(--xc-surface-control); color: var(--pm-accent, var(--xc-accent-blue)); outline: none; }
 .pm-pulse__state { margin: var(--xc-space-3) 0; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); text-align: center; }
 .pm-pulse__state--error { color: var(--xc-status-danger); }
 @media (max-width: 1280px) { .pm-pulse { position: static; min-height: 0; padding: 26px 0 0; border-top: 1px solid var(--xc-border-soft); border-left: 0; }.pm-pulse__stats { grid-template-columns: minmax(230px, 300px) minmax(0, 1fr); align-items: start; }.pm-pulse__stats-heading, .pm-pulse__total, .pm-pulse__stat-foot { grid-column: 1; }.pm-pulse__filters { grid-column: 2; grid-row: 1 / span 3; }.pm-pulse__news { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 360px; column-gap: 24px; }.pm-pulse__news-item { align-content: start; } }
-@media (max-width: 640px) { .pm-pulse__stats { grid-template-columns: 1fr; }.pm-pulse__stats-heading, .pm-pulse__total, .pm-pulse__stat-foot, .pm-pulse__filters { grid-column: 1; grid-row: auto; }.pm-pulse__news { grid-template-columns: 1fr; max-height: 420px; } }
+@media (max-width: 640px) { .pm-pulse__heading { align-items: flex-start; }.pm-pulse__heading-actions { flex-wrap: wrap; gap: 6px 10px; }.pm-pulse__stats { grid-template-columns: 1fr; }.pm-pulse__stats-heading, .pm-pulse__total, .pm-pulse__stat-foot, .pm-pulse__filters { grid-column: 1; grid-row: auto; }.pm-pulse__news { grid-template-columns: 1fr; max-height: 420px; } }
 @media (prefers-reduced-motion: reduce) { .pm-pulse__news-item { transition: none; } }
 </style>
 
 <style>
 .pm-filter-popper.el-popper { padding: var(--xc-space-2); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); box-shadow: var(--xc-shadow-md); }.pm-filter-menu { display: grid; max-height: 240px; overflow-y: auto; }.pm-filter-menu__option { border: 0; border-radius: var(--xc-radius-sm); padding: var(--xc-space-2) var(--xc-space-3); background: transparent; color: var(--xc-text-soft); font: inherit; font-size: var(--xc-fs-xs); text-align: left; cursor: pointer; }.pm-filter-menu__option:hover, .pm-filter-menu__option.is-selected { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }.pm-filter-menu__option:focus-visible { outline: 1px solid var(--xc-border-accent); outline-offset: -1px; }
+.pm-share-dialog { border: 1px solid var(--xc-border-strong); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); }
+.pm-share-dialog .el-dialog__header { margin-right: 0; border-bottom: 1px solid var(--xc-border-soft); padding: 18px 20px 14px; }
+.pm-share-dialog .el-dialog__title { color: var(--xc-text-strong); font-size: var(--xc-fs-md); }
+.pm-share-dialog .el-dialog__body { padding: 18px 20px 12px; }
+.pm-share-dialog__intro, .pm-share-dialog__scope, .pm-share-dialog__footer { display: flex; align-items: center; gap: 10px; }
+.pm-share-dialog__intro { color: var(--pm-accent, var(--xc-accent-blue)); }
+.pm-share-dialog__intro strong { color: var(--xc-text-strong); font-size: var(--xc-fs-sm); }
+.pm-share-dialog__intro p { margin: 4px 0 0; color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
+.pm-share-dialog__scope { justify-content: space-between; margin: 16px 0 10px; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-xs); padding: 9px 10px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-share-dialog__scope strong { color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); text-align: right; }
+.pm-share-dialog__preview { max-height: 280px; overflow-y: auto; border-top: 1px solid var(--xc-border-soft); border-bottom: 1px solid var(--xc-border-soft); scrollbar-width: thin; }
+.pm-share-dialog__item { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--xc-border-soft); }
+.pm-share-dialog__item:last-child { border-bottom: 0; }
+.pm-share-dialog__item > span { color: var(--pm-accent, var(--xc-accent-blue)); font-family: var(--xc-font-mono); font-size: var(--xc-fs-2xs); }
+.pm-share-dialog__item strong { display: block; overflow: hidden; color: var(--xc-text-soft); font-size: var(--xc-fs-xs); line-height: var(--xc-lh-normal); text-overflow: ellipsis; white-space: nowrap; }
+.pm-share-dialog__item small { display: block; overflow: hidden; margin-top: 4px; color: var(--xc-text-mute); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.pm-share-dialog__status { margin: 10px 0 0; color: var(--pm-accent, var(--xc-accent-blue)); font-size: var(--xc-fs-2xs); text-align: right; }
+.pm-share-dialog__footer { justify-content: flex-end; }
+.pm-share-dialog__footer button { display: inline-flex; align-items: center; gap: 6px; border-radius: var(--xc-radius-xs); padding: 8px 12px; font: inherit; font-size: var(--xc-fs-xs); cursor: pointer; }
+.pm-share-dialog__copy { border: 1px solid var(--pm-accent, var(--xc-accent-blue)); background: var(--pm-accent, var(--xc-accent-blue)); color: #101719; }
+.pm-share-dialog__footer button:hover, .pm-share-dialog__footer button:focus-visible { filter: brightness(1.12); outline: none; }
+@media (max-width: 480px) {
+  .pm-share-dialog .el-dialog__header { padding: 16px 16px 12px; }
+  .pm-share-dialog .el-dialog__body { padding: 16px 16px 10px; }
+  .pm-share-dialog__scope { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .pm-share-dialog__scope strong { max-width: 100%; text-align: left; overflow-wrap: anywhere; }
+  .pm-share-dialog__item strong, .pm-share-dialog__item small { white-space: normal; overflow-wrap: anywhere; }
+  .pm-share-dialog__item strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .pm-share-dialog__item small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .pm-share-dialog__footer { display: flex; }
+  .pm-share-dialog__footer button { min-width: 0; justify-content: center; padding-inline: 8px; }
+}
 </style>

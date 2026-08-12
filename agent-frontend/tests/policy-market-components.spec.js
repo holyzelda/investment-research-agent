@@ -2,11 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 vi.mock('element-plus', () => ({
-  ElDialog: {},
+  ElDialog: { props: ['modelValue'], template: '<div v-if="modelValue" class="el-dialog-stub"><slot /><slot name="footer" /></div>' },
   ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
 }))
 vi.mock('element-plus/es', () => ({
-  ElDialog: {},
+  ElDialog: { props: ['modelValue'], template: '<div v-if="modelValue" class="el-dialog-stub"><slot /><slot name="footer" /></div>' },
   ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
 }))
 vi.mock('@/api/policyMarket', () => ({ downloadSourceFile: vi.fn() }))
@@ -356,16 +356,90 @@ describe('政策与市场咨询组件', () => {
     expect(wrapper.text()).toContain('政策')
     expect(wrapper.find('.pm-pulse__ticker').exists()).toBe(false)
     const item = wrapper.get('[data-news-id="1"]')
-    expect(item.attributes('href')).toBe('https://example.test/top')
-    expect(item.attributes('target')).toBe('_blank')
-    expect(item.attributes('rel')).toBe('noopener noreferrer')
+    const link = item.get('.pm-pulse__news-link')
+    expect(link.attributes('href')).toBe('https://example.test/top')
+    expect(link.attributes('target')).toBe('_blank')
+    expect(link.attributes('rel')).toBe('noopener noreferrer')
   })
 
   it('无链接资讯不渲染为可跳转链接', () => {
     const wrapper = mount(MarketPulse, { props: { news: [{ id: 2, title: '无链接资讯', publishTime: '2026-07-23T09:00:00', tags: [] }] } })
     const item = wrapper.get('[data-news-id="2"]')
-    expect(item.element.tagName).toBe('DIV')
-    expect(item.attributes('href')).toBeUndefined()
+    expect(item.element.tagName).toBe('ARTICLE')
+    expect(item.find('.pm-pulse__news-link').exists()).toBe(false)
+  })
+
+  it('点击单条分享只复制对应资讯并显示成功状态', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const wrapper = mount(MarketPulse, {
+      props: {
+        news: [
+          { id: 21, title: '单条政策甲', linkUrl: 'https://example.test/single-a', publishTime: '2026-07-23T09:00:00', tags: ['政策'] },
+          { id: 22, title: '单条政策乙', linkUrl: 'https://example.test/single-b', publishTime: '2026-07-24T09:00:00', tags: ['市场'] },
+        ],
+      },
+    })
+
+    await wrapper.get('[data-share-news-id="21"]').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(writeText.mock.calls[0][0]).toContain('单条政策甲')
+    expect(writeText.mock.calls[0][0]).toContain('https://example.test/single-a')
+    expect(writeText.mock.calls[0][0]).not.toContain('单条政策乙')
+    expect(wrapper.get('[data-share-news-id="21"]').text()).toContain('已复制')
+    expect(wrapper.get('[data-share-news-id="22"]').text()).toContain('分享')
+  })
+
+  it('无展示数据时禁用分享，有数据时入口标明当前条数', () => {
+    const empty = mount(MarketPulse, { props: { news: [] } })
+    const filled = mount(MarketPulse, { props: { news: createNews(3) } })
+
+    expect(empty.get('[data-share-button]').attributes('disabled')).toBeDefined()
+    expect(filled.get('[data-share-button]').attributes('disabled')).toBeUndefined()
+    expect(filled.get('[data-share-button]').text()).toContain('3')
+  })
+
+  it('分享预览和复制内容只包含当前筛选后展示的材料', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const wrapper = mount(MarketPulse, {
+      props: {
+        filters: { province: '宁夏', period: 'month', topic: '储能' },
+        topicOptions: [{ value: '储能', label: '储能', count: 2 }],
+        news: [
+          { id: 11, title: '宁夏材料甲', linkUrl: 'https://example.test/a', publishTime: '2026-07-23T09:00:00', tags: ['储能'] },
+          { id: 12, title: '宁夏材料乙', publishTime: '2026-07-24T09:00:00', tags: ['政策'] },
+        ],
+      },
+    })
+
+    await wrapper.get('[data-share-button]').trigger('click')
+    expect(wrapper.findAll('.pm-share-dialog__item')).toHaveLength(2)
+    expect(wrapper.text()).toContain('宁夏 / 本月 / 储能')
+
+    await wrapper.get('[data-copy-share]').trigger('click')
+    await flushPromises()
+    const copied = writeText.mock.calls[0][0]
+    expect(copied).toContain('政策材料流（2 条）')
+    expect(copied).toContain('宁夏材料甲')
+    expect(copied).toContain('宁夏材料乙')
+    expect(copied).toContain('https://example.test/a')
+    expect(copied).not.toContain('资讯 3')
+  })
+
+  it('点击复制分享内容时复制当前材料', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    const wrapper = mount(MarketPulse, { props: { news: createNews(2) } })
+
+    await wrapper.get('[data-share-button]').trigger('click')
+    await wrapper.get('[data-copy-share]').trigger('click')
+    await flushPromises()
+
+    expect(writeText).toHaveBeenCalledOnce()
+    expect(wrapper.text()).toContain('已复制 2 条材料的分享内容')
   })
 
   it('资讯超过五条时全部渲染在内部滚动区域，不再提供查看全部入口', async () => {
