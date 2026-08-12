@@ -18,6 +18,7 @@ from urllib.parse import unquote
 import lark_oapi as lark
 
 from app.core.config.settings import get_settings
+from tools import source_cache
 from tools.policy_refs import (
     ReferenceCollector,
     parse_file_index,
@@ -57,6 +58,10 @@ BASE_TABLE = str(_policy_ask.base.table or "").strip()
 TMP_DIR = Path(__file__).parent / "_tmp_download"
 CACHE_DIR = Path(__file__).parent / "_cache"
 CACHE_TTL = 86400  # 省页缓存24小时
+# 源文件另开子目录：省页缓存后缀硬编码 .md 且无清理机制，源文件体积和类型都不可控。
+SOURCE_CACHE_DIR = CACHE_DIR / "source_files"
+SOURCE_CACHE_TTL = 7 * 86400  # 政策原文基本静态，改版通常是新增文件而非覆盖同一 token
+SOURCE_CACHE_MAX_BYTES = 1024 * 1024 * 1024  # 白名单约 110 个文件、实测总量约 450MB
 # 省份别名(只收无歧义别名, 单字"宁"/"甘"会误路由；"陇"/"晋"需白名单语境见 _province_match)
 PROVINCE_ALIASES = {
     "蒙西": ["蒙西", "内蒙古", "内蒙", "蒙西电网"],
@@ -195,19 +200,26 @@ def source_file_index(force=False):
     return index
 
 
-def fetch_source_file(token):
+def fetch_source_file(token, use_cache=True):
     """下载单个政策源文件，返回 ``(content, filename, content_type)``。
 
     token 不在白名单一律返回 None，由调用方转 404——不区分"不存在"与"不允许"，
-    免得把本应用能访问哪些文件泄露出去。
+    免得把本应用能访问哪些文件泄露出去。**白名单校验永远在读缓存之前**，缓存不
+    得成为绕过白名单的旁路。
 
-    不落 ``_cache``：那目录只为省页 markdown 设计（后缀硬编码 .md、无清理机制），
-    源文件体积和类型都不可控。
+    飞书 drive 下载带宽只有 1MB/s 上下，政策 PDF 普遍 2~9MB，不缓存的话同一份
+    文件每次点击都要重下 5~8 秒。落 ``SOURCE_CACHE_DIR``（独立子目录 + 7 天 TTL
+    + 容量上限），跨请求跨重启命中。
     """
     token = str(token or "").strip()
     meta = source_file_index().get(token)
     if not meta:
         return None
+
+    if use_cache:
+        cached = source_cache.read(SOURCE_CACHE_DIR, token, SOURCE_CACHE_TTL)
+        if cached:
+            return cached
 
     client = _get_client()
     req = lark.BaseRequest.builder() \
@@ -224,7 +236,13 @@ def fetch_source_file(token):
     content_type = _header(headers, "Content-Type").split(";")[0].strip()
     filename = _filename_from_disposition(_header(headers, "Content-Disposition"))
     # 兜底用知识库里的标题：它没有扩展名，所以不猜后缀，让 Content-Type 决定打开方式。
-    return resp.raw.content, filename or str(meta.get("title") or token), content_type
+    filename = filename or str(meta.get("title") or token)
+    content = resp.raw.content
+
+    # 写缓存失败只是没加速，source_cache 内部已吞异常，这里不再包一层。
+    source_cache.write(SOURCE_CACHE_DIR, token, content, filename, content_type)
+    source_cache.evict(SOURCE_CACHE_DIR, SOURCE_CACHE_MAX_BYTES)
+    return content, filename, content_type
 
 
 def _filename_from_disposition(disposition):

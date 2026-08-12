@@ -79,7 +79,7 @@ class _FakeResponse:
 
 
 @pytest.fixture
-def policy_ask(monkeypatch):
+def policy_ask(monkeypatch, tmp_path):
     monkeypatch.setattr("app.core.config.settings.get_settings", lambda: _settings())
     sys.modules.pop(MODULE_NAME, None)
     module = importlib.import_module(MODULE_NAME)
@@ -92,6 +92,9 @@ def policy_ask(monkeypatch):
     # 每个用例都从冷缓存开始，否则白名单会跨用例串味。
     monkeypatch.setattr(module, "_source_index", {})
     monkeypatch.setattr(module, "_source_index_at", 0.0)
+    # 源文件磁盘缓存同理：所有用例共用一个 token，不隔离的话第二个用例会读到
+    # 第一个用例缓存的正文，而且会往真实的 tools/_cache 写垃圾。
+    monkeypatch.setattr(module, "SOURCE_CACHE_DIR", tmp_path / "source_files")
     yield module
     sys.modules.pop(MODULE_NAME, None)
 
@@ -189,3 +192,84 @@ def test_fetch_source_file_raises_on_feishu_failure(policy_ask, monkeypatch):
 
     with pytest.raises(RuntimeError):
         policy_ask.fetch_source_file("exampleToken000000000000078")
+
+
+# --- 磁盘缓存 ---
+
+
+def _counting_client(policy_ask, monkeypatch, content=b"%PDF-1.7", headers=None):
+    """替换飞书 client 并返回调用计数列表。"""
+    calls = []
+    response = _FakeResponse(
+        content=content,
+        headers=headers if headers is not None else {"Content-Type": "application/pdf"},
+    )
+
+    def request(req):
+        calls.append(req)
+        return response
+
+    monkeypatch.setattr(policy_ask, "_get_client", lambda: SimpleNamespace(request=request))
+    return calls
+
+
+def test_fetch_source_file_second_call_hits_disk_cache(policy_ask, monkeypatch):
+    """飞书下载 2~9MB 的 PDF 要 5~8 秒；同一文件重复点击不该再打网络。"""
+    calls = _counting_client(policy_ask, monkeypatch)
+
+    first = policy_ask.fetch_source_file("exampleToken000000000000078")
+    second = policy_ask.fetch_source_file("exampleToken000000000000078")
+
+    assert second == first
+    assert len(calls) == 1, "第二次调用应命中磁盘缓存"
+
+
+def test_fetch_source_file_cache_survives_module_reload(policy_ask, monkeypatch, tmp_path):
+    """缓存必须跨进程存活：历史咨询记录点开来源也要秒回。"""
+    _counting_client(policy_ask, monkeypatch)
+    policy_ask.fetch_source_file("exampleToken000000000000078")
+
+    from tools import source_cache
+
+    cached = source_cache.read(
+        tmp_path / "source_files", "exampleToken000000000000078", policy_ask.SOURCE_CACHE_TTL
+    )
+    assert cached is not None
+    assert cached[0] == b"%PDF-1.7"
+
+
+def test_fetch_source_file_can_bypass_cache(policy_ask, monkeypatch):
+    """预取与调试需要强制回源，否则缓存里的坏数据没法刷掉。"""
+    calls = _counting_client(policy_ask, monkeypatch)
+
+    policy_ask.fetch_source_file("exampleToken000000000000078")
+    policy_ask.fetch_source_file("exampleToken000000000000078", use_cache=False)
+
+    assert len(calls) == 2
+
+
+def test_cache_never_bypasses_whitelist(policy_ask, monkeypatch):
+    """白名单校验必须在读缓存之前：文件被移出知识库后就不能再下载。"""
+    _counting_client(policy_ask, monkeypatch)
+    policy_ask.fetch_source_file("exampleToken000000000000078")
+
+    # 模拟省页更新后该文件不再在白名单里
+    monkeypatch.setattr(policy_ask, "source_file_index", lambda force=False: {})
+
+    assert policy_ask.fetch_source_file("exampleToken000000000000078") is None
+
+
+def test_fetch_source_file_still_works_when_cache_dir_unwritable(policy_ask, monkeypatch):
+    """缓存是加速层，写不进去只是没加速，不能变成新的故障源。"""
+    calls = _counting_client(policy_ask, monkeypatch)
+    # 拿一个已存在的文件当"目录"，mkdir 必然失败
+    blocked = policy_ask.SOURCE_CACHE_DIR.parent / "blocker"
+    blocked.parent.mkdir(parents=True, exist_ok=True)
+    blocked.write_bytes(b"not a dir")
+    monkeypatch.setattr(policy_ask, "SOURCE_CACHE_DIR", blocked / "nested")
+
+    content, filename, _ = policy_ask.fetch_source_file("exampleToken000000000000078")
+
+    assert content == b"%PDF-1.7"
+    assert filename == "容量电费实施细则(试行)"
+    assert len(calls) == 1

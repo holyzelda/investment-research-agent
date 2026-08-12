@@ -25,6 +25,7 @@ from app.modules.middle_platform.interface.router import router as middle_platfo
 from app.modules.index_map.interface.router import router as index_map_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 from app.modules.platform_access.interface.router import router as platform_access_router
+from app.modules.policy_market.infrastructure.policy_ask_executor import stop_source_prefetch
 from app.modules.policy_market.infrastructure.policy_ask_loader import (
     start_policy_ask_warmup,
     stop_policy_ask_warmup,
@@ -65,6 +66,7 @@ async def lifespan(app: FastAPI):
     logger.info(f"{settings.app.name} 启动完成")
     yield
     stop_spot_daily_scheduler()
+    await stop_source_prefetch()
     await stop_policy_ask_warmup()
     await dispose_engine()
     await cleanup_nacos()
