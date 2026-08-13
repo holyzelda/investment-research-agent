@@ -3,10 +3,14 @@ from __future__ import annotations
 
 from datetime import datetime
 
+from loguru import logger
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException, ValidationException
+from app.modules.calculation.application.calculation_share_service import (
+    CalculationShareService,
+)
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
@@ -19,50 +23,74 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 
 
 class ConversationHistoryService:
-    async def list_active(self, session: AsyncSession, *, user_id: str) -> list[dict]:
-        conversations = (await session.execute(
-            select(ConversationORM).where(
+    async def list_active(
+        self, session: AsyncSession, *, user_id: str,
+        cursor: str | None = None,
+        limit: int = 15,
+    ) -> tuple[list[dict], str | None]:
+        """按最近活动时间游标分页列出活跃会话。
+
+        Returns:
+            (items, next_cursor)
+            - items: 当前页会话列表，每项含 conversationId / title / createdAt
+            - next_cursor: 下一页游标字符串（base64 编码），为 None 表示已无更多
+        """
+        from base64 import b64decode, b64encode
+
+        cursor_activity = None
+        cursor_id = None
+        if cursor:
+            raw = b64decode(cursor).decode("utf-8")
+            parts = raw.split("|")
+            cursor_activity = datetime.fromisoformat(parts[0])
+            cursor_id = parts[1]
+
+        query = (
+            select(ConversationORM)
+            .where(
                 ConversationORM.user_id == user_id,
                 ConversationORM.deleted_at.is_(None),
             )
-        )).scalars().all()
-
-        rows = []
-        for conversation in conversations:
-            latest_message_at = await session.scalar(
-                select(func.max(MessageSnapshotORM.created_at)).where(
-                    MessageSnapshotORM.conversation_id == conversation.id
+        )
+        if cursor_activity and cursor_id:
+            query = query.where(
+                (ConversationORM.last_activity_at < cursor_activity)
+                | (
+                    (ConversationORM.last_activity_at == cursor_activity)
+                    & (ConversationORM.id < cursor_id)
                 )
             )
-            # 仅失败、无任何成功消息的空会话不进入历史列表（回放会是空白）
-            if latest_message_at is None:
-                continue
-            latest_task = (await session.execute(
-                select(CalculationTaskORM)
-                .where(CalculationTaskORM.conversation_id == conversation.id)
-                .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
-                .limit(1)
-            )).scalar_one_or_none()
-            latest_activity = max(
-                value for value in (
-                    conversation.created_at,
-                    latest_task.created_at if latest_task else None,
-                    latest_message_at,
-                ) if value is not None
-            )
-            rows.append((latest_activity, conversation, latest_task))
 
-        rows.sort(key=lambda row: (row[0], row[1].id), reverse=True)
-        return [
+        # last_activity_at 可能为 NULL（存量旧数据），用 created_at 降序兜底
+        # MySQL 中 DESC 排序默认 NULL 在最后，无需 nulls_last()
+        query = query.order_by(
+            ConversationORM.last_activity_at.desc(),
+            ConversationORM.id.desc(),
+        ).limit(limit + 1)  # 多取1条判断是否还有更多
+
+        conversations = (await session.execute(query)).scalars().all()
+
+        has_more = len(conversations) > limit
+        if has_more:
+            conversations = conversations[:limit]
+
+        items = [
             {
-                "conversationId": conversation.id,
-                "title": conversation.title,
-                "createdAt": conversation.created_at.isoformat(),
-                "latestVersion": latest_task.version if latest_task else None,
-                "latestStatus": latest_task.status if latest_task else None,
+                "conversationId": c.id,
+                "title": c.title,
+                "createdAt": c.created_at.isoformat(),
             }
-            for _, conversation, latest_task in rows
+            for c in conversations
         ]
+
+        next_cursor = None
+        if has_more and conversations:
+            last = conversations[-1]
+            if last.last_activity_at is not None and last.id is not None:
+                raw = f"{last.last_activity_at.isoformat()}|{last.id}"
+                next_cursor = b64encode(raw.encode("utf-8")).decode("utf-8")
+
+        return items, next_cursor
 
     async def get_detail(
         self, session: AsyncSession, *, conversation_id: str, user_id: str
@@ -89,7 +117,10 @@ class ConversationHistoryService:
             )).scalars().all()
         } if tasks else {}
         input_by_task = {
-            snap.task_id: snap.payload.get("apiInput")
+            snap.task_id: {
+                "input": snap.payload.get("apiInput"),
+                "changeMeta": snap.payload.get("changeMeta") or {},
+            }
             for snap in (await session.execute(
                 select(InputSnapshotORM).where(
                     InputSnapshotORM.task_id.in_([task.id for task in tasks])
@@ -128,7 +159,8 @@ class ConversationHistoryService:
                     "version": task.version,
                     "status": task.status,
                     "result": calculation_result_by_task.get(task.id),
-                    "input": input_by_task.get(task.id),
+                    "input": input_by_task.get(task.id, {}).get("input"),
+                    "changeMeta": input_by_task.get(task.id, {}).get("changeMeta", {}),
                     "calculatedAt": task.created_at.isoformat(),
                     **({"report": summary} if (summary := self._report_summary(
                         report_by_task.get(task.id), generations.get(task.id), task.version
@@ -169,14 +201,32 @@ class ConversationHistoryService:
         return None
 
     async def soft_delete(
-        self, session: AsyncSession, *, conversation_id: str, user_id: str
-    ) -> dict:
+        self, session: AsyncSession, *, conversation_id: str, user_id: str,
+    ) -> tuple[dict, list[str]]:
+        """软删除会话并撤销关联分享，返回待后台清理的飞书副本 token。"""
         conversation = await self.require_active_conversation(
             session, conversation_id=conversation_id, user_id=user_id
         )
+        deleted_conversation_id = conversation.id
+
+        # 撤销该会话的所有有效分享
+        revoked = await CalculationShareService().revoke_by_conversation(
+            session, conversation_id=conversation_id,
+        )
+        if revoked:
+            logger.info("已撤销会话关联的 {} 个分享 conversation_id={}", revoked, conversation_id)
+
+        # 一个会话可有多个版本；去重避免同一副本被重复删除。
+        doc_tokens = [token for token in (await session.scalars(
+            select(CalculationTaskORM.feishu_copy_url).where(
+                CalculationTaskORM.conversation_id == conversation.id,
+                CalculationTaskORM.feishu_copy_url.is_not(None),
+            )
+        )).all() if token]
+        doc_tokens = list(dict.fromkeys(doc_tokens))
         conversation.deleted_at = datetime.now()
         await session.commit()
-        return {"conversationId": conversation.id, "deleted": True}
+        return {"conversationId": deleted_conversation_id, "deleted": True}, doc_tokens
 
     async def rename(
         self, session: AsyncSession, *, conversation_id: str, user_id: str, title: str
@@ -214,6 +264,12 @@ class ConversationHistoryService:
             payload=payload,
         )
         session.add(message)
+        # 更新会话最近活动时间
+        await session.execute(
+            ConversationORM.__table__.update()
+            .where(ConversationORM.id == conversation_id)
+            .values(last_activity_at=func.now())
+        )
         await session.commit()
         await session.refresh(message)
         return message

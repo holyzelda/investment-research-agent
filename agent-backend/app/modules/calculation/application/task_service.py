@@ -112,7 +112,7 @@ class CalculationTaskService:
     ) -> dict:
         request_id = uuid.uuid4().hex
         try:
-            conversation_id, version, previous_input = await self._resolve_version(
+            conversation_id, version, previous_input, previous_task_id = await self._resolve_version(
                 session, conversation_id, user_id, username, basics
             )
         except (ValidationException, NotFoundException) as e:
@@ -134,6 +134,13 @@ class CalculationTaskService:
 
         assembled = self._assembler.assemble(
             basics, overrides=param_overrides, previous_input=previous_input)
+        change_meta = self._build_change_meta(
+            previous_task_id=previous_task_id,
+            previous_input=previous_input,
+            api_input=assembled.api_input,
+            param_overrides=param_overrides,
+            basics=basics,
+        )
         param_hash = _param_hash(assembled.api_input)
         template_token = self._template_token_for(assembled.api_input)
         copy_name = build_copy_name(basics)  # 城市-节点-功率/容量-时间，副本创建时定格
@@ -200,6 +207,7 @@ class CalculationTaskService:
             api_meta=engine_result.meta,
             result=result_dto,
             min_input=_min_input(basics),
+            change_meta=change_meta,
             report_sources=report_sources,
             trigger=trigger,
             assistant_message=f"{version} 测算完成",
@@ -212,17 +220,18 @@ class CalculationTaskService:
             "taskCreated": True,
             "requestId": request_id,
             "input": assembled.api_input,  # 本次冻结入参，供前端调整面板下次重算时做种子基线
+            "changeMeta": change_meta,
         }
 
     async def _resolve_version(
         self, session, conversation_id, user_id, username, basics
-    ) -> tuple[str, str, Optional[dict]]:
+    ) -> tuple[str, str, Optional[dict], Optional[int]]:
         if conversation_id is None:
             conversation_id = await self._snapshot.create_conversation(
                 session, user_id=user_id, username=username,
                 title=f"{basics.province} 储能测算",
             )
-            return conversation_id, "V1", None
+            return conversation_id, "V1", None, None
         conversation = (await session.execute(
             select(ConversationORM).where(
                 ConversationORM.id == conversation_id,
@@ -233,7 +242,7 @@ class CalculationTaskService:
         if conversation is None:
             raise NotFoundException("会话不存在")
 
-        previous_input = await self._latest_completed_input(session, conversation_id)
+        previous_input, previous_task_id = await self._latest_completed_input(session, conversation_id)
         if previous_input is not None and previous_input.get("province") != basics.province:
             # 省份在会话内永久锁定（PRD 2026-07-15 确认）：修改省份必须新建会话重新提问
             raise ValidationException("省份在当前会话中不可修改，请新建会话后重新测算")
@@ -242,9 +251,9 @@ class CalculationTaskService:
             select(func.count()).select_from(CalculationTaskORM)
             .where(CalculationTaskORM.conversation_id == conversation_id)
         )
-        return conversation_id, f"V{(n or 0) + 1}", previous_input
+        return conversation_id, f"V{(n or 0) + 1}", previous_input, previous_task_id
 
-    async def _latest_completed_input(self, session, conversation_id: str) -> Optional[dict]:
+    async def _latest_completed_input(self, session, conversation_id: str) -> tuple[Optional[dict], Optional[int]]:
         """最近一次成功版本冻结的 api_input（现货依赖比较 + 省份锁定校验的基线）。"""
         latest_task = (await session.execute(
             select(CalculationTaskORM)
@@ -256,10 +265,38 @@ class CalculationTaskService:
             .limit(1)
         )).scalar_one_or_none()
         if latest_task is None:
-            return None
+            return None, None
         snapshot = (await session.execute(
             select(InputSnapshotORM).where(InputSnapshotORM.task_id == latest_task.id)
         )).scalar_one_or_none()
         if snapshot is None:
-            return None
-        return snapshot.payload.get("apiInput")
+            return None, latest_task.id
+        return snapshot.payload.get("apiInput"), latest_task.id
+
+    @staticmethod
+    def _build_change_meta(
+        *, previous_task_id: Optional[int], previous_input: Optional[dict],
+        api_input: dict, param_overrides: Optional[dict], basics: ProjectBasics,
+    ) -> dict:
+        if previous_input is None:
+            return {}
+        # 过滤 null 值：中台路径可能提交值=null 的键（AI 未提及的参数），
+        # 面板路径只提交用户实际改动的参数（增量语义），不含 null。
+        # 基线参数（规模/节点/电压）始终视为 submitted。
+        submitted = set(
+            k for k, v in (param_overrides or {}).items()
+            if v is not None and (previous_input is None or previous_input.get(k) != v)
+        ) | {
+            "power_mw", "capacity_mwh", "node_name", "voltage_kv",
+        }
+        changed = {
+            key for key in set(previous_input) | set(api_input)
+            if previous_input.get(key) != api_input.get(key)
+        }
+        explicit = sorted(changed & submitted)
+        derived = sorted(changed - set(explicit))
+        return {
+            "previousTaskId": previous_task_id,
+            "explicitOverrideKeys": explicit,
+            "derivedChangedKeys": derived,
+        }

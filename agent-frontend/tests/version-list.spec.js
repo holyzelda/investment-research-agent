@@ -52,7 +52,9 @@ describe('calculation version list', () => {
     expect(items[0].text()).toContain('9.20%')
     expect(items[1].classes()).not.toContain('ir-ver__item--selected')
     expect(items[1].text()).toContain('查看结果')
-    expect(items[1].text()).not.toContain('项目全投资 IRR')
+    expect(items[1].text()).toContain('项目全投资 IRR')
+    expect(items[1].text()).toContain('8.10%')
+    expect(items[1].text()).toContain('首个测算版本')
     expect(items[1].get('.ir-ver__select').element.tagName).toBe('BUTTON')
     expect(wrapper.findAll('.ir-msg').map((message) => message.text())).toEqual([
       '第一次测算', 'V1-甘肃', '第二次测算', 'V2-宁夏',

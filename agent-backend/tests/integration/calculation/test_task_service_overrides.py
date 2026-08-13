@@ -164,6 +164,12 @@ async def test_recalc_manual_spot_override_not_queried_and_frozen(session_maker)
     assert spot.calls == []
     assert snap.payload["apiInput"]["spot_charge_avg"] == 0.35
     assert snap.payload["apiInput"]["spot_discharge_avg"] == 0.6  # 未改的一侧沿用 V1
+    assert snap.payload["changeMeta"] == {
+        "previousTaskId": v1["taskId"],
+        "explicitOverrideKeys": ["spot_charge_avg"],
+        "derivedChangedKeys": [],
+    }
+    assert v2["changeMeta"] == snap.payload["changeMeta"]
 
 
 @pytest.mark.asyncio
@@ -204,6 +210,46 @@ async def test_node_change_requeries_spot(session_maker):
         )
     assert len(spot.calls) == 1
     assert spot.calls[0]["node_name"] == "新节点"
+
+
+@pytest.mark.asyncio
+async def test_node_change_ai_path_spot_is_derived_not_explicit(session_maker):
+    """AI 路径：修改节点时，AI 原样携带现货基线值到 param_overrides，
+    组装器重新查现货价格后，变化应归为"联动更新"而非"主动调整"。"""
+    spot = _CountingSpot(charge=0.2, discharge=0.6)
+    svc = _service(spot)
+    async with session_maker() as session:
+        v1 = await svc.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
+        # V1: spot_charge=0.2, spot_discharge=0.6, node=祥泰站
+        spot.calls.clear()
+        # 新节点价格不同
+        spot._charge = 0.35
+        spot._discharge = 0.8
+        changed = ProjectBasics(
+            province="甘肃", capacity_mwh=800, power_mw=200, node_name="新节点",
+        )
+        # AI 路径：param_overrides 携带基线值（原样回传，非用户主动改）
+        v2 = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=changed,
+            conversation_id=v1["conversationId"],
+            param_overrides={
+                "spot_charge_avg": 0.2,  # 基线值，非用户主动改
+                "spot_discharge_avg": 0.6,  # 基线值，非用户主动改
+            },
+        )
+        snap = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id == v2["taskId"])
+        )).scalar_one()
+    assert len(spot.calls) == 1
+    assert spot.calls[0]["node_name"] == "新节点"
+    assert snap.payload["apiInput"]["spot_charge_avg"] == 0.35
+    assert snap.payload["apiInput"]["spot_discharge_avg"] == 0.8
+    # 现货应为联动更新，非主动调整
+    assert snap.payload["changeMeta"] == {
+        "previousTaskId": v1["taskId"],
+        "explicitOverrideKeys": ["node_name"],  # 节点是顶层参数，始终算 submitted
+        "derivedChangedKeys": ["spot_charge_avg", "spot_discharge_avg"],
+    }
 
 
 @pytest.mark.asyncio

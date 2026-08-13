@@ -46,6 +46,9 @@ class ConversationORM(Base):
     """会话：UUID 为本应用会话标识；中台 session_id 独立存于映射列。"""
 
     __tablename__ = "ir_conversation"
+    __table_args__ = (
+        Index("ix_ir_conv_user_deleted_activity", "user_id", "deleted_at", "last_activity_at"),
+    )
 
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
@@ -57,6 +60,10 @@ class ConversationORM(Base):
     username: Mapped[str] = mapped_column(String(128), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    last_activity_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True,
+        comment="最近活动时间：会话创建/新消息/新测算时更新，用于历史列表排序",
+    )
     # 中台会话 id：首轮对话未回传前为空，session_start 事件回写后多轮回填。
     middle_platform_session_id: Mapped[Optional[str]] = mapped_column(
         String(255), nullable=True
@@ -198,3 +205,32 @@ class ReportSnapshotORM(_PkTimestamp, Base):
         SmallInteger, nullable=False, default=1, server_default="1"
     )
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+
+
+class CalculationShareORM(_PkTimestamp, Base):
+    """测算结果分享记录：每个测算版本最多一个有效分享链接。"""
+
+    __tablename__ = "ir_calculation_share"
+
+    conversation_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("ir_conversation.id"), nullable=False, index=True
+    )
+    task_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("ir_calculation_task.id"), nullable=False
+    )
+    owner_user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    share_code_hash: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, comment="分享码 SHA-256 哈希，用于公开查询"
+    )
+    share_code_ciphertext: Mapped[str] = mapped_column(
+        String(256), nullable=False, comment="分享码加密存储，用于管理端回显"
+    )
+    duration_days: Mapped[int] = mapped_column(
+        SmallInteger, nullable=False, default=7, comment="有效期天数：7/14/30"
+    )
+    expires_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, comment="过期时间（创建时间 + duration_days）"
+    )
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime, nullable=True, comment="主动撤销时间"
+    )

@@ -23,10 +23,11 @@ export function getCalculationResult(taskId) {
   })
 }
 
-export function listConversations() {
+export function listConversations(cursor) {
   return request({
     url: '/ir/conversations',
     method: 'get',
+    params: cursor ? { cursor } : undefined,
   })
 }
 
@@ -53,6 +54,13 @@ export function getStations(province) {
   })
 }
 
+export function getPlatformStats() {
+  return request({
+    url: '/ir/calc/stats',
+    method: 'get',
+  })
+}
+
 export function deleteConversation(conversationId) {
   return request({
     url: `/ir/conversations/${conversationId}`,
@@ -65,5 +73,36 @@ export function renameConversation(conversationId, title) {
     url: `/ir/conversations/${conversationId}`,
     method: 'patch',
     data: { title },
+  })
+}
+
+export function createShare(taskId, durationDays = 7) {
+  return request({
+    url: '/ir/calc/shares',
+    method: 'post',
+    data: { task_id: taskId, duration_days: durationDays },
+  })
+}
+
+export function listShares(conversationId, taskId) {
+  return request({
+    url: '/ir/calc/shares',
+    method: 'get',
+    params: { conversation_id: conversationId, task_id: taskId },
+  })
+}
+
+export function revokeShare(shareId, taskId) {
+  return request({
+    url: '/ir/calc/shares/revoke',
+    method: 'post',
+    params: { share_id: shareId, task_id: taskId },
+  })
+}
+
+export function getPublicShare(shareCode) {
+  return request({
+    url: `/ir/public/calculation-shares/${shareCode}`,
+    method: 'get',
   })
 }

@@ -11,11 +11,13 @@ from starlette.responses import JSONResponse, Response
 
 
 _PUBLIC_PATHS = frozenset({"/docs", "/redoc", "/openapi.json", "/health"})
+_PUBLIC_PATH_PREFIXES = ("/ir/public/",)
 
 
 class PlatformIdentityMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in _PUBLIC_PATHS:
+        path = request.url.path
+        if path in _PUBLIC_PATHS or path.startswith(_PUBLIC_PATH_PREFIXES):
             return await call_next(request)
 
         user_id = (request.headers.get("userId") or "").strip()

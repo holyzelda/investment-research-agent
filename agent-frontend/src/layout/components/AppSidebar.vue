@@ -73,7 +73,7 @@
         <div class="ir-shell__divider" />
         <div id="ir-shell-history-title" class="ir-shell__history-title">历史测算</div>
         <p v-if="!history.length" class="ir-shell__history-empty">暂无历史测算</p>
-        <ul v-else class="ir-shell__history-list">
+        <ul v-else ref="historyListRef" class="ir-shell__history-list">
           <li
             v-for="conversation in history"
             :key="conversation.conversationId"
@@ -109,24 +109,61 @@
               </button>
             </span>
           </li>
+          <!-- 滚动加载哨兵：列表内最后一个元素，进入视口时自动加载更多 -->
+          <li
+            v-if="hasMore"
+            ref="sentinelRef"
+            class="ir-shell__history-sentinel"
+          >
+            <svg
+              v-if="loading"
+              class="ir-shell__history-more-spin"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              aria-hidden="true"
+            >
+              <circle cx="12" cy="12" r="10" stroke-dasharray="32" stroke-dashoffset="32" />
+            </svg>
+          </li>
         </ul>
       </section>
 
-      <footer class="ir-shell__user">
+      <footer class="ir-shell__user-wrap" ref="userMenuRef">
+        <button
+          class="ir-shell__user"
+          type="button"
+          :aria-expanded="userMenuOpen"
+          aria-haspopup="menu"
+          @click="userMenuOpen = !userMenuOpen"
+        >
         <img v-if="userAvatar" class="ir-shell__user-avatar" :src="userAvatar" alt="" aria-hidden="true" />
         <span v-else class="ir-shell__user-fallback" aria-hidden="true">{{ userInitial }}</span>
         <span class="ir-shell__user-copy ir-shell__label">
           <small>当前用户</small>
           <strong>{{ username || '访客' }}</strong>
         </span>
+          <ChevronDown class="ir-shell__user-chevron" aria-hidden="true" />
+        </button>
+        <div v-if="userMenuOpen" class="ir-shell__user-menu" role="menu">
+          <button type="button" role="menuitem" @click="onUserMenu('ledger')">
+            <Calculator aria-hidden="true" />
+            <span>测算台账</span>
+          </button>
+          <button type="button" role="menuitem" @click="onUserMenu('logout')">
+            <LogOut aria-hidden="true" />
+            <span>退出登录</span>
+          </button>
+        </div>
       </footer>
     </aside>
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from '@lucide/vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Calculator, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from '@lucide/vue'
 import zqLogoUrl from '@/assets/zq_logo.png'
 
 const ICON = {
@@ -160,6 +197,8 @@ const props = defineProps({
   userAvatar: { type: String, default: '' },
   collapsed: { type: Boolean, default: false },
   drawerOpen: { type: Boolean, default: false },
+  hasMore: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
 })
 
 const emit = defineEmits([
@@ -170,7 +209,25 @@ const emit = defineEmits([
   'rename-history',
   'update:collapsed',
   'close-drawer',
+  'load-more',
+  'user-menu',
 ])
+
+const userMenuOpen = ref(false)
+const userMenuRef = ref(null)
+
+function onUserMenu(action) {
+  userMenuOpen.value = false
+  emit('user-menu', action)
+}
+
+function onDocumentPointerdown(event) {
+  if (userMenuOpen.value && !userMenuRef.value?.contains(event.target)) userMenuOpen.value = false
+}
+
+function onDocumentKeydown(event) {
+  if (event.key === 'Escape') userMenuOpen.value = false
+}
 
 function onToggle() {
   if (props.drawerOpen) emit('close-drawer')
@@ -205,6 +262,45 @@ function formatDateLabel(value) {
   if (dayKey(date) === dayKey(yesterday)) return '昨天'
   return `${date.getMonth() + 1}/${date.getDate()}`
 }
+
+// 无限滚动：哨兵元素进入视口时自动加载更多
+const sentinelRef = ref(null)
+const historyListRef = ref(null)
+let observer = null
+
+function setupObserver() {
+  cleanupObserver()
+  if (!props.hasMore || props.loading) return
+  observer = new IntersectionObserver(
+    (entries) => {
+      if (entries[0].isIntersecting && props.hasMore && !props.loading) {
+        emit('load-more')
+      }
+    },
+    { root: historyListRef.value, rootMargin: '100px' },
+  )
+  if (sentinelRef.value) observer.observe(sentinelRef.value)
+}
+
+function cleanupObserver() {
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+}
+
+onMounted(setupObserver)
+onMounted(() => document.addEventListener('pointerdown', onDocumentPointerdown))
+onMounted(() => document.addEventListener('keydown', onDocumentKeydown))
+onBeforeUnmount(() => {
+  cleanupObserver()
+  document.removeEventListener('pointerdown', onDocumentPointerdown)
+  document.removeEventListener('keydown', onDocumentKeydown)
+})
+
+// v-if 会随 hasMore 挂载哨兵，必须等 DOM 更新完成后再连接 observer。
+watch(() => [props.hasMore, props.loading], setupObserver, { flush: 'post' })
+watch(() => props.drawerOpen, (open) => { if (!open) userMenuOpen.value = false })
 </script>
 
 <style scoped>
@@ -512,16 +608,84 @@ function formatDateLabel(value) {
 .ir-shell__history-edit:hover { color: var(--xc-accent-blue); }
 .ir-shell__history-delete:hover { color: var(--xc-status-danger); }
 
-.ir-shell__user {
+.ir-shell__history-sentinel {
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--xc-text-faint);
+  font-size: var(--xc-fs-3xs);
+}
+.ir-shell__history-sentinel-text {
+  opacity: 0;
+  transition: opacity var(--xc-dur-fast);
+}
+.ir-shell__history-list:hover + .ir-shell__history-sentinel .ir-shell__history-sentinel-text,
+.ir-shell__history-sentinel:hover .ir-shell__history-sentinel-text {
+  opacity: 1;
+}
+.ir-shell__history-more-spin {
+  width: 14px;
+  height: 14px;
+  animation: ir-shell-spin 0.8s linear infinite;
+}
+@keyframes ir-shell-spin { to { transform: rotate(360deg); } }
+
+.ir-shell__user-wrap {
   min-height: 48px;
   margin-top: var(--xc-space-4);
+  flex: 0 0 auto;
+  border-top: 1px solid var(--xc-border-soft);
+  position: relative;
+}
+.ir-shell__user {
+  width: 100%;
+  min-height: 48px;
   padding: var(--xc-space-2);
   display: flex;
   align-items: center;
   gap: var(--xc-space-3);
-  flex: 0 0 auto;
-  border-top: 1px solid var(--xc-border-soft);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
+.ir-shell__user:hover, .ir-shell__user:focus-visible { background: var(--xc-surface-frosted); }
+.ir-shell__user-chevron { width: 15px; height: 15px; margin-left: auto; color: var(--xc-text-mute); transition: transform var(--xc-dur-fast); }
+.ir-shell__user[aria-expanded='true'] .ir-shell__user-chevron { transform: rotate(180deg); }
+.ir-shell__user-menu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 8px);
+  z-index: var(--xc-z-raised);
+  width: 180px;
+  padding: 6px;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-2);
+  box-shadow: var(--xc-shadow-raised);
+}
+.ir-shell__user-menu button {
+  width: 100%;
+  min-height: 36px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: var(--xc-radius-xs);
+  background: transparent;
+  color: var(--xc-text-soft);
+  font: inherit;
+  font-size: var(--xc-fs-xs);
+  text-align: left;
+  cursor: pointer;
+}
+.ir-shell__user-menu button:hover, .ir-shell__user-menu button:focus-visible { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }
+.ir-shell__user-menu svg { width: 16px; height: 16px; color: var(--xc-accent-blue); }
 
 .ir-shell__user-avatar,
 .ir-shell__user-fallback {
@@ -604,6 +768,8 @@ function formatDateLabel(value) {
   padding: var(--xc-space-2) 0 0;
   justify-content: center;
 }
+.ir-shell-wrap.is-collapsed .ir-shell__user-wrap { border-top: 1px solid var(--xc-border-soft); }
+.ir-shell-wrap.is-collapsed .ir-shell__user-menu { right: -126px; bottom: 0; }
 
 .ir-shell-wrap.is-collapsed [data-tip]::after {
   content: attr(data-tip);

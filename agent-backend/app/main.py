@@ -20,6 +20,8 @@ from app.modules.calculation.infrastructure.spot_daily_scheduler import (
     stop_spot_daily_scheduler,
 )
 from app.modules.calculation.interface.conversation_router import router as conversation_router
+from app.modules.calculation.interface.ledger_router import router as calculation_ledger_router
+from app.modules.calculation.interface.share_router import router as calculation_share_router
 from app.modules.calculation.interface.router import router as calculation_router
 from app.modules.middle_platform.interface.router import router as middle_platform_router
 from app.modules.index_map.interface.router import router as index_map_router
@@ -40,8 +42,10 @@ def register_routers(app: FastAPI) -> None:
     """集中挂载系统、平台接入、测算、会话和联络线路由。"""
     app.include_router(system_router)
     app.include_router(platform_access_router)
+    app.include_router(calculation_ledger_router)
     app.include_router(calculation_router)
     app.include_router(conversation_router)
+    app.include_router(calculation_share_router)
     app.include_router(middle_platform_router)
     app.include_router(report_router)
     app.include_router(tie_line_router)

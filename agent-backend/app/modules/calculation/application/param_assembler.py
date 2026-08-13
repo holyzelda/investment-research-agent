@@ -38,6 +38,15 @@ _SWITCH_MAP = {
     "switch_return_grid_fee": "return_grid_fee",
 }
 
+# 收益类参数 → 其门控开关 param_id（开关 != 1 时拒绝 override 写入）
+_SWITCH_GATED = {
+    "lease_achievement_rate": "switch_lease",
+    "lease_unit_price": "switch_lease",
+    "mid_long_energy_revenue_first_year_tax": "switch_mid_long",
+    "frequency_first_year_revenue": "switch_frequency",
+    "intervention_first_year_revenue": "switch_intervention",
+}
+
 
 @dataclass
 class AssembledParams:
@@ -217,12 +226,20 @@ class ParamAssembler:
         )
 
     def _apply_overrides(self, result: AssembledParams, overrides: dict, ignore_keys: set) -> None:
-        """受控覆盖：仅接受 g=1 + writable + direction=input 的白名单参数；null/未知键忽略。"""
+        """受控覆盖：仅接受 g=1 + writable + direction=input 的白名单参数；null/未知键忽略。
+
+        收益类参数受开关门控：开关关闭时即使提交了 override 也拒绝写入，
+        防止前端全量提交/中台 null 参数写入不应存在的值。
+        """
         if not overrides:
             return
         writable_g1 = {s.id for s in self._dict.writable_inputs() if s.g == 1}
         for pid, value in overrides.items():
             if pid in ignore_keys or pid not in writable_g1 or value is None:
+                continue
+            # 开关门控：收益类参数在开关关闭时拒绝写入
+            switch_id = _SWITCH_GATED.get(pid)
+            if switch_id is not None and result.switches.get(switch_id) != 1:
                 continue
             result.api_input[pid] = value
 

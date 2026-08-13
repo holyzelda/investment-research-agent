@@ -23,3 +23,10 @@ export function getCodeImg() {
     headers: { isToken: false },
   })
 }
+
+export function logout() {
+  return request({
+    url: '/gateway/ecenter/system/auth/logout',
+    method: 'post',
+  })
+}

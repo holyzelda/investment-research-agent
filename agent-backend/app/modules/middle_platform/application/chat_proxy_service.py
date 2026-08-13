@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
+from datetime import datetime
 from urllib.parse import quote
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -66,6 +67,7 @@ class ChatProxyService:
                 user_id=user.user_id,
                 username=user.username,
                 title=content[:30],
+                last_activity_at=datetime.now(),
             )
             session.add(conversation)
             await session.commit()

@@ -32,6 +32,8 @@
         :user-avatar="userAvatar"
         :collapsed="sidebarCollapsed"
         :drawer-open="drawerOpen"
+        :has-more="calc.historyHasMore"
+        :loading="calc.historyLoading"
         @update:collapsed="sidebarCollapsed = $event"
         @close-drawer="closeDrawer"
         @nav="onNav"
@@ -39,6 +41,8 @@
         @open-history="onOpenHistory"
         @delete-history="onDeleteHistory"
         @rename-history="onRenameHistory"
+        @load-more="calc.loadMoreHistory()"
+        @user-menu="onUserMenu"
       />
 
       <section class="ir-layout__content">
@@ -78,7 +82,7 @@ const navItems = computed(() => permission.railRoutes.length
   : null)
 
 const RAIL_TO_PATH = { home: '/home', index: '/index-map', line: '/tie-line', policy: '/policy-market' }
-const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'line', '/policy-market': 'policy' }
+const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'line', '/policy-market': 'policy', '/calculation-ledger': 'ledger' }
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const isReportView = computed(() => route.name === 'ReportDetail')
 // 欢迎态：仅首页且无会话时挂载全屏场景背景；发首条消息 / 打开历史 / 切换页面后自动隐藏
@@ -97,6 +101,7 @@ function syncHomeSidebarFromViewport() {
 
 watch(() => route.fullPath, () => {
   closeDrawer(false)
+  sidebarCollapsed.value = Boolean(route.meta.collapseSidebar)
   syncHomeSidebarFromViewport()
 })
 
@@ -124,6 +129,33 @@ async function onNav(target) {
   const path = RAIL_TO_PATH[target] || target
   if (path && router.currentRoute.value.path !== path) await router.push(path)
   closeDrawer(false)
+}
+
+async function onUserMenu(action) {
+  if (action === 'ledger') {
+    if (router.currentRoute.value.path !== '/calculation-ledger') await router.push('/calculation-ledger')
+    closeDrawer(false)
+    return
+  }
+  if (action !== 'logout') return
+  try {
+    await ElMessageBox.confirm('退出后需要重新登录才能继续使用，确定退出吗？', '退出登录', {
+      type: 'warning',
+      confirmButtonText: '退出登录',
+      cancelButtonText: '取消',
+    })
+  } catch (error) {
+    return
+  }
+  try {
+    await session.logout()
+  } catch (error) {
+    // session.logout 的 finally 已清理本地认证状态；平台接口异常不应留下半失效会话。
+  } finally {
+    calc.resetConversation()
+    permission.resetRoutes()
+    window.location.replace('/investment/login')
+  }
 }
 
 async function onOpenHistory(conversationId) {

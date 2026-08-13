@@ -14,8 +14,8 @@ export default defineConfig(({ mode }) => {
     base: '/investment/',
     plugins: [
       vue(),
-      AutoImport({ resolvers: [ElementPlusResolver()] }),
-      Components({ resolvers: [ElementPlusResolver()] }),
+      AutoImport({ resolvers: [ElementPlusResolver({ importStyle: false })] }),
+      Components({ resolvers: [ElementPlusResolver({ importStyle: false })] }),
     ],
     resolve: {
       alias: {
@@ -53,6 +53,7 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       globals: true,
       include: ['tests/**/*.spec.js'],
+      css: true,
     },
   }
 })

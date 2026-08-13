@@ -67,6 +67,52 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.findAll('.ir-adjust__zone')).toHaveLength(3)
     expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(3)
     expect(wrapper.find('.ir-adjust__zone-card').exists()).toBe(false)
+    expect(wrapper.find('.ir-adjust__heading-copy small').text()).toBe('修改当前版本参数，拖动滑块或直接输入精确值，生成新的测算版本')
+    const slider = wrapper.find('.ir-adjust__slider')
+    await slider.trigger('pointerenter')
+    expect(wrapper.find('.ps-input-hint').text()).toBe('点击数值可精确输入')
+    await slider.trigger('pointerdown')
+    await slider.trigger('focus')
+    expect(wrapper.find('.ps-input-hint').exists()).toBe(false)
+  })
+
+  it('输入越界值时保留输入、保持滑块有效值并阻止重新测算', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    const input = wrapper.find('.ps-val-input')
+    const slider = wrapper.find('.ir-adjust__slider')
+
+    await input.setValue(0.9)
+
+    expect(input.element.value).toBe('0.9')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(wrapper.find('.ps-validation').text()).toBe('不能高于 0.85')
+    expect(slider.element.value).toBe('0.8')
+    expect(wrapper.find('.ir-adjust__submit').attributes('disabled')).toBeDefined()
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+    expect(wrapper.emitted('recalculate')).toBeUndefined()
+  })
+
+  it('修正输入或拖动滑块后清除越界提示并同步数值', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    const input = wrapper.find('.ps-val-input')
+    const slider = wrapper.find('.ir-adjust__slider')
+
+    await input.setValue(0.9)
+    await input.setValue(0.82)
+    await input.trigger('blur')
+    expect(wrapper.find('.ps-validation').exists()).toBe(false)
+    expect(slider.element.value).toBe('0.82')
+
+    await input.setValue(0.9)
+    await slider.setValue(0.81)
+    expect(wrapper.find('.ps-validation').exists()).toBe(false)
+    expect(input.element.value).toBe('0.81')
   })
 
   it('V1 中省份只读，节点/容量/功率为可编辑控件', async () => {

@@ -75,6 +75,7 @@
               { 'ir-msg--selected-result': m.kind === 'result' && m.version === calc.selectedVersion },
             ]"
             :data-version="m.kind === 'result' ? m.version : undefined"
+            :data-task-id="m.taskId || undefined"
           >
             <img
               v-if="m.role === 'assistant'"
@@ -119,13 +120,22 @@
                   :calculated-at="m.calculatedAt"
                   :seed-input="m.input || {}"
                   :comparison-input="comparisonInputFor(m.taskId)"
-                  :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
+                  :display-comparison-input="displayComparisonFor(m.version)?.input"
+                  :comparison-result="displayComparisonFor(m.version)?.result"
+                  :comparison-version="calc.comparisonVersionFor(m.version) || ''"
+                  :available-versions="availableComparisonVersions(m.version)"
+                  :change-meta="comparisonChangeMetaFor(m.version)"
+                  :param-dict="calc.paramDict"
+                  :adjustable="m.version === calc.latestVersion?.version"
                   :switches="calc.switches"
                   :station-options="calc.stationOptions"
                   :responding="calc.responding"
                   :report="calc.versions.find((item) => item.taskId === m.taskId)?.report"
+                  :conversation-id="calc.conversationId || ''"
+                  :task-id="m.taskId"
                   @recalculate="calc.recalculate($event)"
                   @generate-report="generateReportAndReveal(m.taskId)"
+                  @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
                 />
               </div>
               <ul v-if="m.recommendedQuestions && m.recommendedQuestions.length" class="ir-msg__recommend">
@@ -152,13 +162,22 @@
                 :calculated-at="m.calculatedAt"
                 :seed-input="m.input || {}"
                 :comparison-input="comparisonInputFor(m.taskId)"
-                :param-dict="m.version === calc.latestVersion?.version ? calc.paramDict : []"
+                :display-comparison-input="displayComparisonFor(m.version)?.input"
+                :comparison-result="displayComparisonFor(m.version)?.result"
+                :comparison-version="calc.comparisonVersionFor(m.version) || ''"
+                :available-versions="availableComparisonVersions(m.version)"
+                :change-meta="comparisonChangeMetaFor(m.version)"
+                :param-dict="calc.paramDict"
+                :adjustable="m.version === calc.latestVersion?.version"
                 :switches="calc.switches"
                 :station-options="calc.stationOptions"
                 :responding="calc.responding"
                 :report="m.report || calc.versions.find((item) => item.taskId === m.taskId)?.report"
+                :conversation-id="calc.conversationId || ''"
+                :task-id="m.taskId"
                 @recalculate="calc.recalculate($event)"
                 @generate-report="generateReportAndReveal(m.taskId)"
+                @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
               />
             </div>
             <img
@@ -236,27 +255,42 @@
                       </span>
                     </span>
                     <span class="ir-ver__spec">{{ versionSpec(v) }}</span>
-                    <template v-if="v.version === calc.selectedVersion">
-                      <span class="ir-ver__metric">
-                        <span>项目全投资 IRR</span>
-                        <strong class="xc-num">{{ formatNumber(v.result?.financial?.projectIrr) }}%</strong>
-                      </span>
-                      <span class="ir-ver__time xc-num">测算时间 {{ formatRecordTime(v.calculatedAt) }}</span>
-                    </template>
+                    <span class="ir-ver__metric">
+                      <span>项目全投资 IRR</span>
+                      <strong class="xc-num">{{ formatNumber(v.result?.financial?.projectIrr) }}%</strong>
+                    </span>
+                    <span class="ir-ver__summary">
+                      <strong>{{ archiveSummaryText(v) }}</strong>
+                      <span>{{ archiveSummaryFields(v) }}</span>
+                    </span>
                   </span>
                 </button>
-                <button
-                  v-if="v.version === calc.selectedVersion"
-                  type="button"
-                  class="ir-ver__report-action"
-                  :disabled="v.report?.status === 'generating'"
-                  @click="v.report?.status === 'completed' ? jumpToReportRecord(v.report.reportId) : generateReportAndReveal(v.taskId, true)"
-                >
-                  {{ v.report?.status === 'completed' ? '跳转报告记录' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}
-                  <svg v-if="v.report?.status !== 'generating'" viewBox="0 0 16 16" aria-hidden="true">
-                    <path d="m6 3 5 5-5 5" />
-                  </svg>
-                </button>
+                <div v-if="v.version === calc.selectedVersion" class="ir-ver__actions">
+                  <button
+                    type="button"
+                    class="ir-ver__report-action"
+                    :disabled="v.report?.status === 'generating'"
+                    @click="v.report?.status === 'completed' ? jumpToReportRecord(v.report.reportId) : generateReportAndReveal(v.taskId, true)"
+                  >
+                    {{ v.report?.status === 'completed' ? '跳转报告记录' : v.report?.status === 'generating' ? '报告生成中' : v.report?.status === 'failed' ? '重新生成报告' : '生成报告' }}
+                    <svg v-if="v.report?.status !== 'generating'" viewBox="0 0 16 16" aria-hidden="true">
+                      <path d="m6 3 5 5-5 5" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    class="ir-ver__share-action"
+                    aria-label="分享此版本"
+                    @click="openShareDialog(v)"
+                  >
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                      <path d="M4 11v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="m10 5-2-2-2 2" stroke-linecap="round" stroke-linejoin="round" />
+                      <path d="M8 3v7" stroke-linecap="round" />
+                    </svg>
+                    分享
+                  </button>
+                </div>
               </li>
             </ul>
           </div>
@@ -297,25 +331,35 @@
       </div>
     </aside>
   </div>
+
+  <ShareDialog
+    v-model:visible="shareDialogVisible"
+    :conversation-id="calc.conversationId || ''"
+    :task-id="shareDialogTaskId"
+    :version="shareDialogVersion"
+  />
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { X } from '@lucide/vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
+import { getPlatformStats } from '@/api/calc'
 import ResultCard from './components/ResultCard.vue'
 import ChatComposer from './components/ChatComposer.vue'
 import ThinkingChain from './components/ThinkingChain.vue'
 import AiAnswerContent from './components/AiAnswerContent.vue'
 import ReportGenerationCard from './components/ReportGenerationCard.vue'
+import ShareDialog from './components/ShareDialog.vue'
 import { thinkingNodes, hasActiveNode } from '@/utils/thinkingChain'
 import orbSrc from '@/assets/ai-sphere.png'
 import agentAvatar from '@/assets/agent.png'
 import userAvatar from '@/assets/user.png'
 import { formatNumber } from '@/utils/formatNumber'
+import { buildArchiveSummary } from '@/utils/versionComparison'
 import {
   buildReportProjectName,
   buildReportTitle,
@@ -324,6 +368,7 @@ import {
 } from '@/utils/projectTitle'
 
 const session = useSessionStore()
+const route = useRoute()
 const router = useRouter()
 const calc = useCalculationStore()
 const scrollEl = ref(null)
@@ -331,6 +376,9 @@ const reportListEl = ref(null)
 const ledgerCloseButton = ref(null)
 const highlightedReportId = ref(null)
 const projectRailOpen = ref(false)
+const shareDialogVisible = ref(false)
+const shareDialogTaskId = ref(null)
+const shareDialogVersion = ref('')
 const messageElements = new Map()
 let reportHighlightTimer
 let scrollFrame
@@ -374,7 +422,31 @@ watch(projectRailOpen, async (open) => {
 
 onMounted(() => {
   window.addEventListener('keydown', onProjectRailKeydown)
+  openRouteConversation()
 })
+
+async function openRouteConversation() {
+  const query = route?.query || {}
+  const conversationId = query.conversationId
+  const targetTaskId = query.taskId == null ? null : String(query.taskId)
+  const alreadySelected = targetTaskId == null
+    ? Boolean(calc.conversationId === String(conversationId))
+    : Boolean(calc.conversationId === String(conversationId)
+      && calc.versions.some((version) => String(version.taskId) === targetTaskId)
+      && calc.selectedVersion === calc.versions.find((version) => String(version.taskId) === targetTaskId)?.version)
+  if (!conversationId || alreadySelected) return
+  try {
+    await calc.openConversation(String(conversationId), targetTaskId)
+    await nextTick()
+    if (targetTaskId) {
+      const target = [...document.querySelectorAll('[data-task-id]')]
+        .find((element) => element.dataset.taskId === targetTaskId)
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  } catch (error) {
+    ElMessage.error('打开指定测算记录失败，请稍后重试')
+  }
+}
 
 onBeforeUnmount(() => {
   document.body.classList.remove('is-project-rail-open')
@@ -470,18 +542,20 @@ const examples = [
 
 const flowSteps = ['项目信息识别', '测算参数完善', '投资收益测算', '结果分析', '报告生成']
 
-// 欢迎态平台指标：位于输入区下方，作为产品能力佐证，避免抢占主任务注意力。
-const metrics = [
+const platformStats = reactive({ calculationCount: 1286, projectCount: 128, reportCount: 256 })
+
+// 欢迎态平台指标：固定值是历史基线，接口返回的真实使用量已在后端累加。
+const metrics = computed(() => [
   {
-    label: '累计测算次数', value: '1,286', unit: '次',
+    label: '累计测算次数', value: Number(platformStats.calculationCount).toLocaleString('zh-CN'), unit: '次',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 12h4l2 6 4-14 2 8h6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   },
   {
-    label: '测算项目数', value: '128', unit: '个',
+    label: '测算项目数', value: Number(platformStats.projectCount).toLocaleString('zh-CN'), unit: '个',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m12 3 8 4.5-8 4.5-8-4.5L12 3Z"/><path d="M4 7.5V16l8 5 8-5V7.5"/><path d="M12 12v9"/></svg>',
   },
   {
-    label: '生成报告', value: '256', unit: '份',
+    label: '生成报告', value: Number(platformStats.reportCount).toLocaleString('zh-CN'), unit: '份',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 13h6M9 17h6" stroke-linecap="round"/></svg>',
   },
   {
@@ -492,7 +566,21 @@ const metrics = [
     label: '覆盖省份', value: '28', unit: '个',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   },
-]
+])
+
+async function refreshPlatformStats() {
+  try {
+    const response = await getPlatformStats()
+    const data = response?.data?.data || response?.data || {}
+    for (const key of ['calculationCount', 'projectCount', 'reportCount']) {
+      if (Number.isFinite(Number(data[key]))) platformStats[key] = Number(data[key])
+    }
+  } catch {
+    // 统计接口不可用时保留历史基线，不影响首页主流程。
+  }
+}
+
+onMounted(refreshPlatformStats)
 
 const composerRef = ref(null)
 
@@ -507,6 +595,7 @@ async function onSend(text) {
   await nextTick()
   scheduleAutoScroll()
   await pending
+  await refreshPlatformStats()
 }
 
 async function generateReportAndReveal(taskId, fromProjectArchive = false) {
@@ -522,7 +611,8 @@ async function generateReportAndReveal(taskId, fromProjectArchive = false) {
   } else {
     scheduleAutoScroll()
   }
-  return pending
+  await pending
+  await refreshPlatformStats()
 }
 
 function thinkingNodesOf(message) {
@@ -639,6 +729,48 @@ function comparisonInputFor(taskId) {
   return index > 0 ? calc.versions[index - 1]?.input || null : null
 }
 
+function versionEntryFor(version) {
+  return calc.versions.find((entry) => entry.version === version) || null
+}
+
+function displayComparisonFor(version) {
+  const compareVersion = calc.comparisonVersionFor(version)
+  return compareVersion ? versionEntryFor(compareVersion) : null
+}
+
+function availableComparisonVersions(version) {
+  const currentIndex = calc.versions.findIndex((entry) => entry.version === version)
+  return currentIndex > 0
+    ? calc.versions.slice(0, currentIndex).map((entry, index) => ({
+      version: entry.version,
+      isPrevious: index === currentIndex - 1,
+    })).reverse()
+    : []
+}
+
+function comparisonChangeMetaFor(version) {
+  const currentIndex = calc.versions.findIndex((entry) => entry.version === version)
+  const compareVersion = calc.comparisonVersionFor(version)
+  const compareIndex = calc.versions.findIndex((entry) => entry.version === compareVersion)
+  if (compareIndex < 0 || currentIndex <= compareIndex) return {}
+  const latestSource = new Map()
+  for (const entry of calc.versions.slice(compareIndex + 1, currentIndex + 1)) {
+    for (const key of entry.changeMeta?.derivedChangedKeys || []) latestSource.set(key, 'derived')
+    for (const key of entry.changeMeta?.explicitOverrideKeys || []) latestSource.set(key, 'explicit')
+  }
+  return {
+    previousTaskId: calc.versions[compareIndex]?.taskId ?? null,
+    explicitOverrideKeys: [...latestSource].filter(([, source]) => source === 'explicit').map(([key]) => key),
+    derivedChangedKeys: [...latestSource].filter(([, source]) => source === 'derived').map(([key]) => key),
+  }
+}
+
+function openShareDialog(v) {
+  shareDialogTaskId.value = v.taskId
+  shareDialogVersion.value = v.version
+  shareDialogVisible.value = true
+}
+
 // 右侧测算记录条目摘要使用各版本冻结的地区、节点与规模
 function versionSpec(v) {
   const b = v.result?.basicInfo || {}
@@ -648,6 +780,31 @@ function versionSpec(v) {
   const power = b.powerMw ?? input.powerMw ?? input.power_mw
   const capacity = b.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
   return buildVersionTitle(province, nodeName, power, capacity)
+}
+
+function previousVersionFor(v) {
+  const index = calc.versions.findIndex((entry) => entry.taskId === v.taskId)
+  return index > 0 ? calc.versions[index - 1] : null
+}
+
+function archiveSummaryFor(v) {
+  return buildArchiveSummary(v, previousVersionFor(v), calc.paramDict)
+}
+
+function archiveSummaryText(v) {
+  const summary = archiveSummaryFor(v)
+  if (summary.initial) return '首个测算版本'
+  const parts = []
+  if (summary.explicit.count) parts.push(`主动调整 ${summary.explicit.count} 项`)
+  if (summary.derived.count) parts.push(`联动更新 ${summary.derived.count} 项`)
+  return `较 ${summary.previousVersion}：${parts.length ? parts.join(' · ') : '参数未变化'}`
+}
+
+function archiveSummaryFields(v) {
+  const summary = archiveSummaryFor(v)
+  if (summary.initial) return '作为后续版本的初始参照'
+  const labels = [...summary.explicit.labels, ...summary.derived.labels]
+  return labels.length ? labels.join('、') : '同一组冻结参数重新测算'
 }
 </script>
 
@@ -1000,6 +1157,7 @@ function versionSpec(v) {
 .ir-ver__select:active { transform: translateY(1px); }
 .ir-ver__select:focus-visible,
 .ir-ver__report-action:focus-visible,
+.ir-ver__share-action:focus-visible,
 .ir-report-list__view:focus-visible {
   outline: 2px solid var(--xc-accent-blue);
   outline-offset: 2px;
@@ -1087,11 +1245,21 @@ function versionSpec(v) {
   font-weight: var(--xc-fw-semi);
   font-variant-numeric: tabular-nums;
 }
+.ir-ver__summary { min-width: 0; display: flex; flex-direction: column; gap: 2px; padding-top: var(--xc-space-2); border-top: 1px solid var(--xc-border-soft); font-size: var(--xc-fs-3xs); line-height: var(--xc-lh-normal); }
+.ir-ver__summary strong { overflow: hidden; color: var(--xc-text-soft); font-weight: var(--xc-fw-medium); text-overflow: ellipsis; white-space: nowrap; }
+.ir-ver__summary span { overflow: hidden; color: var(--xc-text-mute); text-overflow: ellipsis; white-space: nowrap; }
 .ir-ver__time { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); }
-.ir-ver__report-action {
+.ir-ver__actions {
   width: calc(100% - var(--xc-space-4));
-  min-height: 36px;
   margin: var(--xc-space-2) 0 var(--xc-space-2) var(--xc-space-4);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(84px, 0.72fr);
+  gap: var(--xc-space-2);
+}
+.ir-ver__report-action {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1110,6 +1278,29 @@ function versionSpec(v) {
   color: var(--xc-text-strong);
 }
 .ir-ver__report-action:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.ir-ver__share-action {
+  width: 100%;
+  min-height: 36px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--xc-space-2);
+  border: 1px solid var(--xc-border-soft);
+  border-radius: var(--xc-radius-sm);
+  background: transparent;
+  color: var(--xc-text-soft);
+  font-size: var(--xc-fs-xs);
+  cursor: pointer;
+  transition: border-color var(--xc-dur-fast), background var(--xc-dur-fast), color var(--xc-dur-fast);
+}
+.ir-ver__share-action:hover:not(:disabled) {
+  border-color: var(--xc-border-accent);
+  background: var(--xc-surface-control);
+  color: var(--xc-text-strong);
+}
+.ir-ver__share-action svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* 报告是版本产物，以文档行而非第二层卡片表达。 */
 .ir-report-list { list-style: none; margin: 0; padding: 0; }
@@ -1257,6 +1448,7 @@ function versionSpec(v) {
   .ir-ver__select,
   .ir-ver__node,
   .ir-ver__report-action,
+  .ir-ver__share-action,
   .ir-report-list__item,
   .ir-report-list__view { transition: none; }
 }

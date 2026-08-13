@@ -64,11 +64,15 @@ vi.mock('@/store/modules/calculation', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRouter: () => router,
+  useRoute: () => ({ params: {} }),
 }))
 vi.mock('@/views/home/components/ChatComposer.vue', () => ({
   default: { template: '<div />' },
 }))
 vi.mock('@/views/home/components/ResultCard.vue', () => ({
+  default: { template: '<div />' },
+}))
+vi.mock('@/views/home/components/ShareDialog.vue', () => ({
   default: { template: '<div />' },
 }))
 
@@ -94,10 +98,14 @@ describe('home records sidebar', () => {
     const items = wrapper.findAll('.ir-ver__item')
     expect(items[0].text()).toContain('项目全投资 IRR')
     expect(items[0].text()).toContain('8.20%')
-    expect(items[0].text()).toContain('测算时间 —')
+    expect(items[0].text()).toContain('较 V1')
     expect(items[0].get('.ir-ver__report-action').text()).toContain('跳转报告记录')
+    const selectedActions = items[0].get('.ir-ver__actions')
+    expect(selectedActions.get('.ir-ver__report-action').exists()).toBe(true)
+    expect(selectedActions.get('.ir-ver__share-action').text()).toContain('分享')
     expect(items[1].text()).toContain('查看结果')
-    expect(items[1].text()).not.toContain('项目全投资 IRR')
+    expect(items[1].text()).toContain('项目全投资 IRR')
+    expect(items[1].text()).toContain('首个测算版本')
 
     expect(wrapper.text()).toContain('2026-07-27 14:10:56')
     expect(wrapper.text()).not.toContain('2026-07-27T14:10:56')

@@ -6,8 +6,10 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Optional
 
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.calculation.application.param_assembler import AssembledParams
@@ -28,7 +30,11 @@ class SnapshotService:
     async def create_conversation(
         self, session: AsyncSession, *, user_id: str, username: str, title: Optional[str] = None
     ) -> str:
-        conv = ConversationORM(user_id=user_id, username=username, title=title)
+        now = datetime.now()
+        conv = ConversationORM(
+            user_id=user_id, username=username, title=title,
+            last_activity_at=now,
+        )
         session.add(conv)
         await session.flush()
         return conv.id
@@ -47,6 +53,7 @@ class SnapshotService:
         api_meta: dict,
         result: CalculationResult,
         min_input: dict,
+        change_meta: Optional[dict] = None,
         report_sources: Optional[dict] = None,
         trigger: Optional[str] = None,
         assistant_message: Optional[str] = None,
@@ -63,9 +70,20 @@ class SnapshotService:
         session.add(task)
         await session.flush()  # 取 task.id
 
+        # 更新会话最近活动时间
+        await session.execute(
+            ConversationORM.__table__.update()
+            .where(ConversationORM.id == conversation_id)
+            .values(last_activity_at=func.now())
+        )
+
         session.add(InputSnapshotORM(
             task_id=task.id,
-            payload={"minInput": min_input, "apiInput": assembled.api_input},
+            payload={
+                "minInput": min_input,
+                "apiInput": assembled.api_input,
+                "changeMeta": change_meta or {},
+            },
         ))
         session.add(DataSnapshotORM(
             task_id=task.id,

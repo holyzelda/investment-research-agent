@@ -66,14 +66,18 @@ export function isFieldLocked(spec) {
   return spec.control === 'fixed'
 }
 
-// 提交当前完整面板值：仅收集 slider/dynamic_slider/select 控件的当前值作为受控 overrides，
-// 是否真的查库由后端按现货依赖规则决定，前端始终提交面板当前值。
-export function buildOverrides(paramDict, values) {
+// 提交当前面板改动值：仅收集 slider/dynamic_slider/select 控件中与 seedInput 基线不同的值，
+// 实现"用户改了哪些就提交哪些"的增量语义。
+// seedInput 默认为空字典，未提供时所有值均视为非基线而提交（兼容无基线场景）。
+export function buildOverrides(paramDict, values, seedInput = {}) {
   const overrides = {}
   for (const spec of paramDict) {
     if (!['slider', 'dynamic_slider', 'select'].includes(spec.control)) continue
     if (!(spec.id in values)) continue
-    overrides[spec.id] = values[spec.id]
+    const baseline = spec.id in seedInput ? seedInput[spec.id] : spec.default
+    if (values[spec.id] !== baseline) {
+      overrides[spec.id] = values[spec.id]
+    }
   }
   return overrides
 }

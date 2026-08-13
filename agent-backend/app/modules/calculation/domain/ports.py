@@ -74,6 +74,13 @@ class FeishuGateway(ABC):
         """读取 API_OUTPUT（参数ID→值）。"""
         raise NotImplementedError
 
+    async def delete_file(self, doc_token: str) -> None:
+        """删除系统为一次测算创建的飞书副本。"""
+        raise NotImplementedError
+
+    async def close(self) -> None:
+        """释放网关持有的网络资源；无状态实现可直接使用默认空操作。"""
+
     async def read_report_sources(
         self,
         *,

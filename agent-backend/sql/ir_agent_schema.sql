@@ -11,11 +11,13 @@ CREATE TABLE ir_conversation (
     username VARCHAR(128) NOT NULL,
     title VARCHAR(255),
     deleted_at DATETIME,
+    last_activity_at DATETIME COMMENT '最近活动时间：会话创建/新消息/新测算时更新，用于历史列表排序',
     middle_platform_session_id VARCHAR(255),
     created_at DATETIME NOT NULL DEFAULT now(),
     PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 CREATE INDEX ix_ir_conversation_user_id ON ir_conversation (user_id);
+CREATE INDEX ix_ir_conv_user_deleted_activity ON ir_conversation (user_id, deleted_at, last_activity_at);
 
 CREATE TABLE consultation_records (
     id BIGINT NOT NULL AUTO_INCREMENT,
@@ -49,6 +51,7 @@ CREATE TABLE ir_calculation_task (
     FOREIGN KEY (conversation_id) REFERENCES ir_conversation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 CREATE INDEX ix_ir_calculation_task_conversation_id ON ir_calculation_task (conversation_id);
+CREATE INDEX ix_ir_task_conv_created_id ON ir_calculation_task (conversation_id, created_at, id);
 CREATE INDEX ix_ir_calculation_task_request_id ON ir_calculation_task (request_id);
 
 CREATE TABLE ir_message_snapshot (
@@ -63,6 +66,7 @@ CREATE TABLE ir_message_snapshot (
     FOREIGN KEY (conversation_id) REFERENCES ir_conversation (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 CREATE INDEX ix_ir_message_snapshot_conversation_id ON ir_message_snapshot (conversation_id);
+CREATE INDEX ix_ir_msg_conv_created ON ir_message_snapshot (conversation_id, created_at);
 
 CREATE TABLE ir_data_snapshot (
     task_id BIGINT NOT NULL,
@@ -288,6 +292,25 @@ CREATE TABLE ir_report_snapshot (
 CREATE INDEX ix_ir_report_snapshot_user_id ON ir_report_snapshot (user_id);
 CREATE INDEX ix_ir_report_snapshot_conversation_created_at
     ON ir_report_snapshot (conversation_id, created_at);
+
+CREATE TABLE ir_calculation_share (
+    conversation_id CHAR(36) NOT NULL,
+    task_id BIGINT NOT NULL,
+    owner_user_id VARCHAR(64) NOT NULL,
+    share_code_hash VARCHAR(64) NOT NULL COMMENT '分享码 SHA-256 哈希，用于公开查询',
+    share_code_ciphertext VARCHAR(256) NOT NULL COMMENT '分享码加密存储，用于管理端回显',
+    duration_days SMALLINT NOT NULL DEFAULT 7 COMMENT '有效期天数：7/14/30',
+    expires_at DATETIME NOT NULL COMMENT '过期时间（创建时间 + duration_days）',
+    revoked_at DATETIME COMMENT '主动撤销时间',
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    created_at DATETIME NOT NULL DEFAULT now(),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_ir_calculation_share_hash (share_code_hash),
+    FOREIGN KEY (conversation_id) REFERENCES ir_conversation (id),
+    FOREIGN KEY (task_id) REFERENCES ir_calculation_task (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX ix_ir_calculation_share_owner ON ir_calculation_share (owner_user_id);
+CREATE INDEX ix_ir_calculation_share_conv ON ir_calculation_share (conversation_id);
 
 SET FOREIGN_KEY_CHECKS = 1;
 

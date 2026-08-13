@@ -12,7 +12,7 @@
         <span class="ir-adjust__caret" :class="{ 'is-open': expanded }" aria-hidden="true">▸</span>
         <span class="ir-adjust__heading-copy">
           <strong>调整参数并重新测算</strong>
-          <small>修改当前版本参数，生成新的测算版本</small>
+          <small>修改当前版本参数，拖动滑块或直接输入精确值，生成新的测算版本</small>
         </span>
       </button>
       <button
@@ -35,7 +35,7 @@
         <button class="ir-adjust__reset" type="button" :disabled="responding" @click="discardChanges">
           放弃修改
         </button>
-        <button class="ir-adjust__submit" type="button" :disabled="responding || !hasPendingChanges" @click="onSubmit">
+        <button class="ir-adjust__submit" type="button" :disabled="responding || !hasPendingChanges || hasValidationErrors" @click="onSubmit">
           {{ responding ? '测算中…' : '重新测算' }}
         </button>
       </div>
@@ -148,26 +148,54 @@
                 <div v-if="rangeOf(spec)" class="pslider">
                   <div class="ps-top">
                     <span class="ps-label">{{ spec.cn || spec.id }}</span>
-                    <span class="ps-val xc-num">
-                      <input
-                        v-model.number="localValues[spec.id]"
-                        type="number"
-                        :min="rangeOf(spec).min" :max="rangeOf(spec).max" :step="spec.step"
-                        class="ir-adjust__number ps-val-input"
-                        @blur="roundField(spec)"
-                      />
-                      <small v-if="displayUnit(spec)">{{ displayUnit(spec) }}</small>
+                    <span class="ps-value-area">
+                      <span v-if="activeSliderHint === spec.id" class="ps-input-hint" role="status">
+                        点击数值可精确输入
+                      </span>
+                      <span class="ps-val xc-num">
+                        <input
+                          :value="sliderInputValues[spec.id]"
+                          type="number"
+                          :min="rangeOf(spec).min" :max="rangeOf(spec).max" :step="spec.step"
+                          class="ir-adjust__number ps-val-input"
+                          :class="{ 'is-invalid': validationErrors[spec.id] }"
+                          :aria-invalid="Boolean(validationErrors[spec.id])"
+                          :aria-describedby="validationErrors[spec.id] ? `ps-error-${spec.id}` : undefined"
+                          @focus="hideSliderHint(spec.id)"
+                          @input="onSliderTextInput(spec, $event)"
+                          @blur="validateSliderInput(spec)"
+                          @keydown.enter.prevent="$event.currentTarget.blur()"
+                        />
+                        <small v-if="displayUnit(spec)">{{ displayUnit(spec) }}</small>
+                      </span>
                     </span>
                   </div>
-                  <input
-                    v-model.number="localValues[spec.id]"
-                    type="range"
-                    :min="rangeOf(spec).min" :max="rangeOf(spec).max" :step="spec.step"
-                    class="ir-adjust__slider"
-                    :style="{ '--pct': pctOf(spec) + '%' }"
-                  />
+                  <div
+                    v-if="validationErrors[spec.id]"
+                    :id="`ps-error-${spec.id}`"
+                    class="ps-validation"
+                    role="alert"
+                  >
+                    <CircleAlert aria-hidden="true" />
+                    <span>{{ validationErrors[spec.id] }}</span>
+                  </div>
+                  <div class="ps-slider-wrap">
+                    <input
+                      v-model.number="localValues[spec.id]"
+                      type="range"
+                      :min="rangeOf(spec).min" :max="rangeOf(spec).max" :step="spec.step"
+                      class="ir-adjust__slider"
+                      :style="{ '--pct': pctOf(spec) + '%' }"
+                      @pointerenter="showSliderHint(spec.id)"
+                      @pointerleave="hideSliderHint(spec.id)"
+                      @pointerdown="onSliderPointerDown(spec.id)"
+                      @focus="onSliderFocus(spec.id)"
+                      @blur="hideSliderHint(spec.id)"
+                      @input="onSliderInput(spec)"
+                    />
+                  </div>
                   <div v-if="deltaOf(spec)" class="ps-foot">
-                    <span class="ps-delta" :class="deltaOf(spec).dir">{{ deltaOf(spec).text }}</span>
+                    <span v-if="deltaOf(spec)" class="ps-delta" :class="deltaOf(spec).dir">{{ deltaOf(spec).text }}</span>
                   </div>
                 </div>
                 <span v-else class="ir-adjust__pending">数据待完善</span>
@@ -186,7 +214,7 @@
           :disabled="responding || !hasPendingChanges"
           @click="discardChanges"
         >放弃修改</button>
-        <button class="ir-adjust__submit" type="button" :disabled="responding || !hasPendingChanges" @click="onSubmit">
+        <button class="ir-adjust__submit" type="button" :disabled="responding || !hasPendingChanges || hasValidationErrors" @click="onSubmit">
           {{ responding ? '测算中…' : '重新测算' }}
         </button>
       </div>
@@ -195,8 +223,9 @@
 </template>
 
 <script setup>
-import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElOption, ElPopover, ElSelect } from 'element-plus'
+import { CircleAlert } from '@lucide/vue'
 import {
   buildOverrides,
   decimalsForStep,
@@ -226,6 +255,11 @@ const nodeEditorOpen = ref(false)
 const nodeTrigger = ref(null)
 const nodeSelect = ref(null)
 const localValues = reactive({})
+const sliderInputValues = reactive({})
+const validationErrors = reactive({})
+const activeSliderHint = ref(null)
+let sliderHintTimer = null
+let suppressedSliderFocus = null
 const advancedButtonLabel = computed(() => props.advancedOverrideCount > 0
   ? `高级参数，已暂存 ${props.advancedOverrideCount} 项修改`
   : '高级参数')
@@ -271,16 +305,25 @@ const DROPPED_FIELDS = new Set([
 function resetLocalValues() {
   nodeEditorOpen.value = false
   Object.keys(localValues).forEach((k) => delete localValues[k])
+  Object.keys(sliderInputValues).forEach((k) => delete sliderInputValues[k])
+  Object.keys(validationErrors).forEach((k) => delete validationErrors[k])
   for (const spec of props.paramDict) {
     let value = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
     if (typeof value === 'number' && spec.step) value = roundToStep(value, spec.step)
     localValues[spec.id] = value
+    if (spec.control === 'slider' || spec.control === 'dynamic_slider') {
+      sliderInputValues[spec.id] = value ?? ''
+    }
   }
 }
 watch(() => props.seedInput, resetLocalValues, { immediate: true })
 watch(() => props.responding, (responding) => {
-  if (responding) nodeEditorOpen.value = false
+  if (responding) {
+    nodeEditorOpen.value = false
+    hideSliderHint()
+  }
 })
+onBeforeUnmount(() => clearTimeout(sliderHintTimer))
 
 async function focusNodeEditor() {
   await nextTick()
@@ -315,6 +358,7 @@ const hasLocalChanges = computed(() => zoneGroups.value.some((group) => group.it
   return current !== normalizeValue(baseline, spec.step)
 })))
 const hasPendingChanges = computed(() => hasLocalChanges.value || props.advancedOverrideCount > 0)
+const hasValidationErrors = computed(() => Object.values(validationErrors).some(Boolean))
 const pendingChangesText = computed(() => {
   if (hasLocalChanges.value && props.advancedOverrideCount > 0) {
     return `常用参数和 ${props.advancedOverrideCount} 项高级参数已修改，重新测算后生效`
@@ -378,14 +422,70 @@ function projectNumberWidth(value) {
 function roundField(spec) {
   if (typeof localValues[spec.id] === 'number') localValues[spec.id] = roundToStep(localValues[spec.id], spec.step)
 }
+function showSliderHint(id) {
+  clearTimeout(sliderHintTimer)
+  activeSliderHint.value = id
+  sliderHintTimer = setTimeout(() => {
+    if (activeSliderHint.value === id) activeSliderHint.value = null
+  }, 1800)
+}
+function hideSliderHint(id) {
+  clearTimeout(sliderHintTimer)
+  sliderHintTimer = null
+  if (!id || activeSliderHint.value === id) activeSliderHint.value = null
+}
+function onSliderPointerDown(id) {
+  suppressedSliderFocus = id
+  hideSliderHint(id)
+  setTimeout(() => {
+    if (suppressedSliderFocus === id) suppressedSliderFocus = null
+  }, 0)
+}
+function onSliderFocus(id) {
+  if (suppressedSliderFocus === id) return
+  showSliderHint(id)
+}
+function sliderError(spec, rawValue) {
+  if (rawValue === '' || rawValue === null || rawValue === undefined) return '请输入有效数值'
+  const value = Number(rawValue)
+  if (!Number.isFinite(value)) return '请输入有效数值'
+  const range = rangeOf(spec)
+  if (!range) return ''
+  const unit = displayUnit(spec)
+  if (value < range.min) return `不能低于 ${formatSpecValue(spec, range.min)}${unit}`
+  if (value > range.max) return `不能高于 ${formatSpecValue(spec, range.max)}${unit}`
+  return ''
+}
+function onSliderTextInput(spec, event) {
+  const rawValue = event.target.value
+  sliderInputValues[spec.id] = rawValue
+  const error = sliderError(spec, rawValue)
+  validationErrors[spec.id] = error
+  if (!error) localValues[spec.id] = Number(rawValue)
+}
+function validateSliderInput(spec) {
+  const error = sliderError(spec, sliderInputValues[spec.id])
+  validationErrors[spec.id] = error
+  if (error) return
+  const value = roundToStep(Number(sliderInputValues[spec.id]), spec.step)
+  localValues[spec.id] = value
+  sliderInputValues[spec.id] = value
+}
+function onSliderInput(spec) {
+  hideSliderHint(spec.id)
+  const value = roundToStep(localValues[spec.id], spec.step)
+  localValues[spec.id] = value
+  sliderInputValues[spec.id] = value
+  delete validationErrors[spec.id]
+}
 function discardChanges() {
   resetLocalValues()
   emit('discard-all-changes')
 }
 function onSubmit() {
-  if (props.responding || !hasPendingChanges.value) return
+  if (props.responding || !hasPendingChanges.value || hasValidationErrors.value) return
   emit('recalculate', {
-    overrides: { ...buildOverrides(props.paramDict, localValues), ...props.advancedOverrides },
+    overrides: { ...buildOverrides(props.paramDict, localValues, props.seedInput), ...props.advancedOverrides },
     basics: {
       node_name: localValues.node_name || null,
       capacity_mwh: localValues.capacity_mwh,
@@ -484,9 +584,15 @@ defineExpose({ focusAdvancedTrigger })
 .pslider { display:flex; flex-direction:column; gap: var(--xc-space-4); padding-top: var(--xc-space-1); }
 .ps-top { display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:var(--xc-space-4); }
 .ps-label { min-width:0; font-size:var(--xc-fs-xs); color:var(--xc-text-soft); }
+.ps-value-area { position:relative; display:inline-flex; justify-content:flex-end; min-width:0; }
 .ps-val { display:inline-flex; align-items:baseline; justify-content:flex-end; gap:var(--xc-space-2); padding:0; background:transparent; }
 .ps-val small { font-size:var(--xc-fs-3xs); color:var(--xc-text-mute); white-space:nowrap; transition:color var(--xc-dur-fast); }
 .ps-val:hover small,.ps-val:focus-within small { color:var(--xc-text-soft); }
+.ps-slider-wrap { position:relative; }
+.ps-input-hint { position:absolute; right:0; bottom:calc(100% + 10px); z-index:2; padding:6px 9px; border:1px solid var(--xc-border-strong); border-radius:var(--xc-radius-sm); background:var(--xc-surface-raised); box-shadow:var(--xc-shadow-sm); color:var(--xc-text-soft); font-size:var(--xc-fs-3xs); line-height:1.2; pointer-events:none; white-space:nowrap; }
+.ps-input-hint::after { content:""; position:absolute; top:100%; right:18px; width:7px; height:7px; border-right:1px solid var(--xc-border-strong); border-bottom:1px solid var(--xc-border-strong); background:var(--xc-surface-raised); transform:translateY(-4px) rotate(45deg); }
+.ps-validation { display:flex; align-items:center; justify-content:flex-end; gap:var(--xc-space-2); min-height:20px; padding:2px 0; color:var(--xc-status-danger); font-size:var(--xc-fs-2xs); font-weight:var(--xc-fw-semi); line-height:1.25; }
+.ps-validation svg { width:14px; height:14px; flex:0 0 auto; }
 .ir-adjust__slider { -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:var(--xc-radius-full); cursor:pointer; background:linear-gradient(90deg,var(--xc-accent-blue) var(--pct,0%),var(--xc-border-soft) var(--pct,0%)); transition:filter var(--xc-dur-base),box-shadow var(--xc-dur-base); }
 .ir-adjust__slider:hover { filter:brightness(1.2); }
 .ir-adjust__slider:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:5px; box-shadow:var(--xc-glow-blue); }
@@ -494,7 +600,7 @@ defineExpose({ focusAdvancedTrigger })
 .ir-adjust__slider::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:var(--xc-text-strong); border:3px solid var(--xc-accent-blue); cursor:pointer; transition:transform var(--xc-dur-base),box-shadow var(--xc-dur-base); }
 .ir-adjust__slider:active::-webkit-slider-thumb { transform:scale(1.15); box-shadow:var(--xc-glow-blue); }
 .ir-adjust__slider:active::-moz-range-thumb { transform:scale(1.15); box-shadow:var(--xc-glow-blue); }
-.ps-foot { display:flex; justify-content:flex-end; min-height:16px; font-size:var(--xc-fs-3xs); }
+.ps-foot { display:flex; justify-content:flex-end; align-items:center; gap:var(--xc-space-3); min-height:16px; font-size:var(--xc-fs-3xs); }
 .ps-delta { font-weight:var(--xc-fw-semi); padding:1px var(--xc-space-2); border-radius:var(--xc-radius-full); }
 .ps-delta.up { color:var(--xc-status-ok); background:var(--xc-status-ok-soft); }
 .ps-delta.down { color:var(--xc-status-danger); background:var(--xc-status-danger-soft); }
@@ -539,6 +645,7 @@ defineExpose({ focusAdvancedTrigger })
 .ps-val-input { width:7ch; height:22px; border:0; border-radius:0; outline:0; background:transparent; font-size:var(--xc-fs-lg); font-weight:var(--xc-fw-semi); color:var(--xc-text-default); caret-color:var(--xc-accent-blue); padding:0; text-align:center; transition:color var(--xc-dur-fast),text-shadow var(--xc-dur-fast); }
 .ps-val-input:hover { color:var(--xc-accent-blue); }
 .ps-val-input:focus-visible { outline:none; border:0; color:var(--xc-accent-blue); text-shadow:var(--xc-glow-blue); }
+.ps-val-input.is-invalid { color:var(--xc-status-danger); text-shadow:none; }
 .ir-adjust__text:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; border-color:var(--xc-border-accent); }
 .ir-adjust__footer { display:flex; justify-content:flex-end; align-items:center; gap:var(--xc-space-4); padding-top:var(--xc-space-5); border-top:1px solid var(--xc-border-soft); }
 .ir-adjust__reset { min-height:40px; padding:0 var(--xc-space-4); border:1px solid var(--xc-border-soft); border-radius:var(--xc-radius-md); background:transparent; color:var(--xc-text-soft); font-size:var(--xc-fs-xs); cursor:pointer; transition:border-color var(--xc-dur-base),color var(--xc-dur-base),box-shadow var(--xc-dur-base); }

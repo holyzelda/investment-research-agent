@@ -20,6 +20,7 @@ class MockFeishuGateway(FeishuGateway):
         self._copy_seq = 0
         self.last_copy_name: Optional[str] = None
         self.copy_templates: list[str] = []
+        self.deleted_files: list[str] = []
 
     async def copy_template(self, template_token: str, name: Optional[str] = None) -> str:
         self._copy_seq += 1
@@ -40,6 +41,11 @@ class MockFeishuGateway(FeishuGateway):
 
     async def read_output(self, doc_token: str) -> dict:
         return dict(self._output)
+
+    async def delete_file(self, doc_token: str) -> None:
+        self.deleted_files.append(doc_token)
+        self.written.pop(doc_token, None)
+        self.meta.pop(doc_token, None)
 
     async def read_report_sources(
         self,

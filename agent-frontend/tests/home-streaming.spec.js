@@ -25,12 +25,16 @@ vi.mock('@/store/modules/session', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: {} }),
 }))
 vi.mock('@/views/home/components/ChatComposer.vue', () => ({
   default: { template: '<button class="composer-stub" @click="$emit(\'send\', \'第二次测算\')" />' },
 }))
 vi.mock('@/views/home/components/ResultCard.vue', () => ({
   default: { template: '<div class="result-card-stub" />' },
+}))
+vi.mock('@/views/home/components/ShareDialog.vue', () => ({
+  default: { template: '<div />' },
 }))
 
 import { useCalculationStore } from '@/store/modules/calculation'

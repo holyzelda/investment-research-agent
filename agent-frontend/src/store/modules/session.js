@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
-import { login as loginRequest } from '@/api/auth'
+import { login as loginRequest, logout as logoutRequest } from '@/api/auth'
 import { getUserInfo } from '@/api/session'
-import { getToken, removeUserIdentity, setToken, setUserIdentity } from '@/utils/auth'
+import { getToken, removeToken, removeUserIdentity, setToken, setUserIdentity } from '@/utils/auth'
 
 function flattenObjects(value, result = [], seen = new Set()) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || seen.has(value)) return result
@@ -81,12 +81,20 @@ export const useSessionStore = defineStore('session', {
         this.loaded = true
       }
     },
+    async logout() {
+      try {
+        await logoutRequest()
+      } finally {
+        this.reset()
+      }
+    },
     reset() {
       this.token = ''
       this.userId = null
       this.username = ''
       this.nickname = ''
       this.loaded = false
+      removeToken()
       removeUserIdentity()
     },
   },

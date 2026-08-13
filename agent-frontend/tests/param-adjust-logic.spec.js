@@ -146,17 +146,30 @@ describe('paramAdjust: 锁项规则（仅字典固定项锁定）', () => {
   })
 })
 
-describe('paramAdjust: 提交当前完整面板值', () => {
-  it('收集 slider/dynamic_slider/select 控件当前值，忽略 fixed/text/number/无control项', () => {
+describe('paramAdjust: 提交增量改动值', () => {
+  it('只收集与 seedInput 基线不同的 slider/dynamic_slider/select 值', () => {
+    const seedInput = {
+      daily_cycles: 1, epc_unit_price: 0.8, operation_years: 20, maint_cost: 0.005,
+      spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
+    }
     const values = {
       province: '甘肃', node_name: '祥泰站', capacity_mwh: 800, power_mw: 200,
       daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, battery_replace_cost: 0,
       maint_cost: 0.006, spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
     }
+    const overrides = buildOverrides(PARAM_DICT, values, seedInput)
+    expect(overrides).toEqual({
+      daily_cycles: 1.5, maint_cost: 0.006,
+    })
+  })
+
+  it('无 seedInput 时所有值均视为改动（兼容无基线场景）', () => {
+    const values = {
+      daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, maint_cost: 0.006,
+    }
     const overrides = buildOverrides(PARAM_DICT, values)
     expect(overrides).toEqual({
       daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, maint_cost: 0.006,
-      spot_charge_avg: 0.22, spot_discharge_avg: 0.61,
     })
   })
 })

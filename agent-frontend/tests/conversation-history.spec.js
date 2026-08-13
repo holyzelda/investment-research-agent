@@ -55,8 +55,8 @@ describe('conversation history sidebar and replay', () => {
   it('renders module navigation before conversation history in the unified shell', () => {
     const store = useCalculationStore()
     store.history = [
-      { conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2' },
-      { conversationId: 6, title: '宁夏 100MW/400MWh', latestVersion: 'V1' },
+      { conversationId: 7, title: '甘肃 200MW/800MWh' },
+      { conversationId: 6, title: '宁夏 100MW/400MWh' },
     ]
     const wrapper = mount(AppSidebar, {
       props: { history: store.history },
@@ -144,14 +144,16 @@ describe('conversation history sidebar and replay', () => {
 
   it('loadHistory stores the current user conversation list', async () => {
     api.listConversations.mockResolvedValue({ data: { items: [
-      { conversationId: 7, title: '甘肃 200MW/800MWh', latestVersion: 'V2', latestStatus: 'completed' },
-    ] } })
+      { conversationId: 7, title: '甘肃 200MW/800MWh' },
+    ], nextCursor: null } })
     const store = useCalculationStore()
 
     await store.loadHistory()
 
     expect(store.history).toHaveLength(1)
     expect(store.history[0].conversationId).toBe(7)
+    expect(store.historyCursor).toBeNull()
+    expect(store.historyHasMore).toBe(false)
   })
 
   it('openConversation replays messages and versions without calling calc APIs', async () => {

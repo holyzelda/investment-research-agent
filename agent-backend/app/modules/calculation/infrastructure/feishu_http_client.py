@@ -234,6 +234,24 @@ class HttpFeishuGateway(FeishuGateway):
         self._pending_initial_sheet_query.add(doc_token)
         return doc_token
 
+    async def delete_file(self, doc_token: str) -> None:
+        """删除测算副本；资源不存在时由调用方按幂等清理处理。"""
+        logger.info(
+            "请求飞书删除文件 method=DELETE path=/open-apis/drive/v1/files/{} type=sheet",
+            doc_token,
+        )
+        await self._authed(
+            "DELETE", f"/open-apis/drive/v1/files/{doc_token}",
+            operation="delete_file",
+            params={"type": "sheet"},
+        )
+        logger.info("飞书删除文件响应成功 doc_token={}", doc_token)
+        self._sheet_ids.pop(doc_token, None)
+        self._pending_initial_sheet_query.discard(doc_token)
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
     async def write_input(self, doc_token: str, payload: dict) -> None:
         value_ranges = []
         for pid, val in payload.items():

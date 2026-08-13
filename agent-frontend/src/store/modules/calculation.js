@@ -84,8 +84,12 @@ export const useCalculationStore = defineStore('calculation', {
     messages: [],
     versions: [],
     history: [],
+    historyCursor: null,
+    historyHasMore: false,
+    historyLoading: false,
     conversationId: null,
     selectedVersion: null,
+    comparisonVersionByVersion: {},
     responding: false,
     paramDict: [],
     switches: {},
@@ -115,6 +119,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.versions = []
       this.conversationId = null
       this.selectedVersion = null
+      this.comparisonVersionByVersion = {}
       this.responding = false
       this.reports = []
       this.reportTasks = {}
@@ -123,9 +128,39 @@ export const useCalculationStore = defineStore('calculation', {
     selectVersion(version) {
       if (this.versions.some((item) => item.version === version)) this.selectedVersion = version
     },
+    comparisonVersionFor(currentVersion) {
+      const currentIndex = this.versions.findIndex((item) => item.version === currentVersion)
+      if (currentIndex <= 0) return null
+      const selected = this.comparisonVersionByVersion[currentVersion]
+      const selectedIndex = this.versions.findIndex((item) => item.version === selected)
+      return selectedIndex >= 0 && selectedIndex < currentIndex
+        ? selected
+        : this.versions[currentIndex - 1].version
+    },
+    selectComparisonVersion(currentVersion, compareVersion) {
+      const currentIndex = this.versions.findIndex((item) => item.version === currentVersion)
+      const compareIndex = this.versions.findIndex((item) => item.version === compareVersion)
+      if (currentIndex <= 0 || compareIndex < 0 || compareIndex >= currentIndex) return
+      this.comparisonVersionByVersion[currentVersion] = compareVersion
+    },
     async loadHistory() {
       const response = await listConversations()
       this.history = response.data?.items || []
+      this.historyCursor = response.data?.nextCursor || null
+      this.historyHasMore = !!this.historyCursor
+    },
+    async loadMoreHistory() {
+      if (!this.historyCursor || this.historyLoading) return
+      this.historyLoading = true
+      try {
+        const response = await listConversations(this.historyCursor)
+        const items = response.data?.items || []
+        this.history.push(...items)
+        this.historyCursor = response.data?.nextCursor || null
+        this.historyHasMore = !!this.historyCursor
+      } finally {
+        this.historyLoading = false
+      }
     },
     async loadParamMeta(province) {
       if (!province) return
@@ -140,7 +175,7 @@ export const useCalculationStore = defineStore('calculation', {
         this.stationOptions = []
       }
     },
-    async openConversation(conversationId) {
+    async openConversation(conversationId, targetTaskId = null) {
       this.disposeActiveTurn({ visible: false })
       this.disposeReportStreams()
       const openEpoch = ++this.historyOpenEpoch
@@ -165,6 +200,7 @@ export const useCalculationStore = defineStore('calculation', {
                 answerText: message.payload.answer_text,
                 taskId: version.taskId,
                 version: version.version, result: version.result, input: version.input,
+                changeMeta: version.changeMeta || {},
                 report: version.report, calculatedAt: version.calculatedAt,
               }
             }
@@ -172,6 +208,7 @@ export const useCalculationStore = defineStore('calculation', {
               id: nextId(), role: 'assistant', kind: 'result',
               taskId: version.taskId,
               version: version.version, result: version.result, input: version.input,
+              changeMeta: version.changeMeta || {},
               report: version.report, calculatedAt: version.calculatedAt,
             }
           }
@@ -188,6 +225,7 @@ export const useCalculationStore = defineStore('calculation', {
         status: version.status,
         result: version.result,
         input: version.input,
+        changeMeta: version.changeMeta || {},
         report: version.report,
         calculatedAt: version.calculatedAt,
       }))
@@ -198,9 +236,12 @@ export const useCalculationStore = defineStore('calculation', {
           .map((report) => [report.reportTaskId, report]),
       )
       this.conversationId = conversationId
-      this.selectedVersion = this.versions.length
-        ? this.versions[this.versions.length - 1].version
-        : null
+      const target = targetTaskId == null
+        ? null
+        : this.versions.find((version) => String(version.taskId) === String(targetTaskId))
+      this.selectedVersion = target?.version || (
+        this.versions.length ? this.versions[this.versions.length - 1].version : null
+      )
       this.responding = false
       const province = completed.length ? completed[completed.length - 1].input?.province : null
       if (province) this.loadParamMeta(province).catch(() => {})
@@ -208,6 +249,9 @@ export const useCalculationStore = defineStore('calculation', {
     async removeConversation(conversationId) {
       await deleteConversation(conversationId)
       this.history = this.history.filter((item) => item.conversationId !== conversationId)
+      // 删除后重置游标，下次加载时重新获取完整列表
+      this.historyCursor = null
+      this.historyHasMore = false
       if (this.conversationId === conversationId) this.resetConversation()
     },
     async renameConversation(conversationId, title) {
@@ -489,6 +533,7 @@ export const useCalculationStore = defineStore('calculation', {
           status: 'completed',
           result,
           input: created.input,
+          changeMeta: created.changeMeta || {},
           calculatedAt: result.calculatedAt,
         },
       }
@@ -580,6 +625,7 @@ export const useCalculationStore = defineStore('calculation', {
           status: 'completed',
           result,
           input: created.input,
+          changeMeta: created.changeMeta || {},
           calculatedAt: result.calculatedAt,
         }
         this.versions.push(entry)
@@ -591,6 +637,7 @@ export const useCalculationStore = defineStore('calculation', {
         streamMsg.result = result
         streamMsg.version = version
         streamMsg.input = created.input
+        streamMsg.changeMeta = created.changeMeta || {}
         streamMsg.calculatedAt = result.calculatedAt
         streamMsg.taskId = created.taskId
         streamMsg.done = true

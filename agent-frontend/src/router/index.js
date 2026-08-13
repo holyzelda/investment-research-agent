@@ -17,6 +17,12 @@ const routes = [
     meta: { title: '正式报告' },
   },
   {
+    path: '/public/calculation-shares/:shareCode',
+    name: 'CalculationShare',
+    component: () => import('@/views/public/calculation-share.vue'),
+    meta: { title: '测算结果分享' },
+  },
+  {
     path: '/',
     name: 'Root',
     component: () => import('@/layout/index.vue'),
@@ -45,6 +51,12 @@ const routes = [
         name: 'PolicyMarket',
         component: () => import('@/views/policy-market/index.vue'),
         meta: { title: '政策与市场', collapseSidebar: true },
+      },
+      {
+        path: 'calculation-ledger',
+        name: 'CalculationLedger',
+        component: () => import('@/views/calculation-ledger/index.vue'),
+        meta: { title: '测算台账', collapseSidebar: true },
       },
     ],
   },

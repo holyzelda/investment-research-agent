@@ -27,6 +27,7 @@ from app.modules.calculation.application.input_normalizer import (
     complete_scale_anchors,
     normalize_project_basics,
 )
+from app.modules.calculation.application.platform_stats_service import get_platform_stats as load_platform_stats
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
@@ -41,6 +42,13 @@ from app.modules.platform_access.interface.deps import get_current_user
 from app.modules.platform_access.domain.models import CurrentUser
 
 router = APIRouter(prefix="/ir/calc", tags=["calculation"])
+
+@router.get("/stats")
+async def get_platform_stats(
+    session: AsyncSession = Depends(get_db_session),
+):
+    """返回首页平台累计指标（固定基线 + 数据库真实使用量）。"""
+    return ok(await load_platform_stats(session))
 
 
 @router.get("/param-dict")

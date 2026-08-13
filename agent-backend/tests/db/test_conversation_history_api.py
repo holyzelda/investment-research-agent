@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
+from fastapi import BackgroundTasks
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -19,6 +20,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     InputSnapshotORM,
     MessageSnapshotORM,
 )
+from app.modules.calculation.interface import conversation_router
+from app.modules.platform_access.domain.models import CurrentUser
 
 _USER_1 = {"userId": "history-user-1", "username": "User One"}
 _USER_2 = {"userId": "history-user-2", "username": "User Two"}
@@ -47,30 +50,35 @@ async def history_context():
             username="User One",
             title="Older active",
             created_at=now,
+            last_activity_at=now + timedelta(minutes=8),
         )
         newer = ConversationORM(
             user_id="history-user-1",
             username="User One",
             title="Newer active",
             created_at=now + timedelta(minutes=1),
+            last_activity_at=now + timedelta(minutes=7),
         )
         deleted = ConversationORM(
             user_id="history-user-1",
             username="User One",
             title="Deleted",
             created_at=now + timedelta(minutes=20),
+            last_activity_at=now + timedelta(minutes=22),
         )
         foreign = ConversationORM(
             user_id="history-user-2",
             username="User Two",
             title="Foreign",
             created_at=now + timedelta(minutes=30),
+            last_activity_at=now + timedelta(minutes=31),
         )
         empty_failed = ConversationORM(
             user_id="history-user-1",
             username="User One",
             title="Failed only",
             created_at=now + timedelta(minutes=40),
+            last_activity_at=now + timedelta(minutes=41),
         )
         session.add_all([older, newer, deleted, foreign, empty_failed])
         await session.flush()
@@ -148,7 +156,14 @@ async def history_context():
             CalculationResultSnapshotORM(task_id=v2.id, payload={"marker": "v2"}),
             CalculationResultSnapshotORM(task_id=foreign_task.id, payload={"marker": "foreign"}),
             CalculationResultSnapshotORM(task_id=deleted_task.id, payload={"marker": "deleted"}),
-            InputSnapshotORM(task_id=v2.id, payload={"apiInput": {"spot_charge_avg": 0.22}}),
+            InputSnapshotORM(task_id=v2.id, payload={
+                "apiInput": {"spot_charge_avg": 0.22},
+                "changeMeta": {
+                    "previousTaskId": None,
+                    "explicitOverrideKeys": [],
+                    "derivedChangedKeys": [],
+                },
+            }),
         ])
         await session.commit()
 
@@ -188,23 +203,22 @@ async def test_list_returns_current_users_active_conversations_by_latest_activit
     response = await client.get("/ir/conversations")
 
     assert response.status_code == 200
+    data = response.json()["data"]
     # deleted（软删）、foreign（他人）、empty_failed（仅失败无消息）均不出现
-    assert response.json()["data"]["items"] == [
+    assert data["items"] == [
         {
             "conversationId": ids["older"],
             "title": "Older active",
             "createdAt": "2026-07-15T09:00:00",
-            "latestVersion": "V1",
-            "latestStatus": "completed",
         },
         {
             "conversationId": ids["newer"],
             "title": "Newer active",
             "createdAt": "2026-07-15T09:01:00",
-            "latestVersion": "V2",
-            "latestStatus": "completed",
         },
     ]
+    # 由于只有2条且limit=15，没有更多数据
+    assert data["nextCursor"] is None
 
 
 @pytest.mark.asyncio
@@ -230,6 +244,11 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
         "status": "completed",
         "result": {"marker": "v2"},
         "input": {"spot_charge_avg": 0.22},
+        "changeMeta": {
+            "previousTaskId": None,
+            "explicitOverrideKeys": [],
+            "derivedChangedKeys": [],
+        },
         "calculatedAt": "2026-07-15T09:07:00",
     }
     assert "reports" not in data
@@ -266,10 +285,92 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
             "conversationId": ids["older"],
             "title": "Older active",
             "createdAt": "2026-07-15T09:00:00",
-            "latestVersion": "V1",
-            "latestStatus": "completed",
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_delete_attempts_all_distinct_feishu_copies_and_ignores_cleanup_failures(
+    history_context, monkeypatch
+):
+    client, maker, ids = history_context
+    attempts = []
+
+    async with maker() as session:
+        v2 = await session.get(CalculationTaskORM, ids["v2"])
+        v2.feishu_copy_url = "doc-v2"
+        session.add_all([
+            CalculationTaskORM(
+                conversation_id=ids["newer"], version="V3", status="completed",
+                request_id="req-v3", feishu_copy_url="doc-v3",
+            ),
+            CalculationTaskORM(
+                conversation_id=ids["newer"], version="V4", status="completed",
+                request_id="req-v4", feishu_copy_url="doc-v3",
+            ),
+        ])
+        await session.commit()
+
+    class Gateway:
+        async def delete_file(self, doc_token):
+            attempts.append(doc_token)
+            if doc_token == "doc-v2":
+                raise RuntimeError("飞书文件不存在")
+
+    monkeypatch.setattr(conversation_router, "build_feishu_gateway", lambda: Gateway())
+
+    response = await client.delete(f"/ir/conversations/{ids['newer']}")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"conversationId": ids["newer"], "deleted": True}
+    assert set(attempts) == {"doc-v2", "doc-v3"}
+    assert len(attempts) == 2
+    async with maker() as session:
+        conversation = await session.get(ConversationORM, ids["newer"])
+        assert conversation.deleted_at is not None
+
+
+@pytest.mark.asyncio
+async def test_delete_route_returns_before_feishu_cleanup_starts(history_context, monkeypatch):
+    _, maker, ids = history_context
+    builds = []
+    attempts = []
+
+    async with maker() as session:
+        task = await session.get(CalculationTaskORM, ids["v2"])
+        task.feishu_copy_url = "doc-v2"
+        await session.commit()
+
+        class Gateway:
+            async def delete_file(self, doc_token):
+                attempts.append(doc_token)
+
+            async def close(self):
+                pass
+
+        def build_gateway():
+            builds.append(True)
+            return Gateway()
+
+        monkeypatch.setattr(conversation_router, "build_feishu_gateway", build_gateway)
+        background_tasks = BackgroundTasks()
+
+        response = await conversation_router.delete_conversation(
+            conversation_id=ids["newer"],
+            background_tasks=background_tasks,
+            user=CurrentUser(user_id="history-user-1", username="User One"),
+            session=session,
+        )
+
+    assert response["data"] == {"conversationId": ids["newer"], "deleted": True}
+    assert builds == []
+    assert attempts == []
+    assert len(background_tasks.tasks) == 1
+
+    await background_tasks()
+
+    assert builds == [True]
+    assert attempts == ["doc-v2"]
 
 
 @pytest.mark.asyncio

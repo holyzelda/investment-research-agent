@@ -5,6 +5,7 @@
 """
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
+    CalculationShareORM,
     CalculationTaskORM,
     ConversationORM,
     DataSnapshotORM,
@@ -20,6 +21,7 @@ __all__ = [
     "MessageSnapshotORM",
     "CalculationTaskORM",
     "CalculationResultSnapshotORM",
+    "CalculationShareORM",
     "InputSnapshotORM",
     "DataSnapshotORM",
     "FeishuIoSnapshotORM",

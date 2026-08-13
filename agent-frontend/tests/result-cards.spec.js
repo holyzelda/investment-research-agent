@@ -69,6 +69,38 @@ describe('result card three modules', () => {
     expect(wrapper.find('.ir-result__banner-sub').text()).toContain('测算时间 —')
   })
 
+  it('renders selectable version differences and semantic KPI trends', async () => {
+    const wrapper = mount(ResultCard, {
+      props: {
+        result: snapshot,
+        version: 'V3',
+        seedInput: { operation_years: 20, spot_charge_avg: 0.34 },
+        comparisonVersion: 'V2',
+        displayComparisonInput: { operation_years: 15, spot_charge_avg: 0.33 },
+        comparisonResult: { financial: { ...snapshot.financial, projectIrr: 8.1, projectStaticPayback: 7.5 } },
+        availableVersions: [{ version: 'V2', isPrevious: true }, { version: 'V1', isPrevious: false }],
+        changeMeta: { explicitOverrideKeys: ['operation_years'], derivedChangedKeys: ['spot_charge_avg'] },
+        paramDict: [
+          { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', g: 1 },
+          { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'slider', g: 1 },
+        ],
+        adjustable: false,
+      },
+    })
+
+    expect(wrapper.get('.ir-result__compare').text()).toContain('对比基准')
+    expect(wrapper.get('.ir-result__compare-wrap').exists()).toBe(true)
+    expect(wrapper.get('.ir-result__compare-wrap select').exists()).toBe(true)
+    expect(wrapper.get('.ir-result__compare-wrap select').attributes('aria-label')).toBe('选择对比版本')
+    expect(wrapper.find('.ir-result__compare-chevron').exists()).toBe(true)
+    expect(wrapper.get('.ir-version-diff').text()).toContain('较 V2 · 2 项变化')
+    expect(wrapper.get('.ir-version-diff').text()).toContain('主动调整')
+    expect(wrapper.get('.ir-version-diff').text()).toContain('联动更新')
+    expect(wrapper.findAll('.ir-fin__delta svg').length).toBeGreaterThan(0)
+    await wrapper.get('.ir-result__compare select').setValue('V1')
+    expect(wrapper.emitted('compare-version-change')[0]).toEqual(['V1'])
+  })
+
   it('counts only advanced values that differ from the frozen input', async () => {
     const paramDict = [
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
@@ -133,7 +165,7 @@ describe('result card three modules', () => {
 
   it('generates a report only after the user clicks the clean result action', async () => {
     const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
-    const action = wrapper.find('.ir-result__act')
+    const action = wrapper.find('[data-testid="report-btn"]')
 
     expect(action.text()).toContain('生成报告')
     expect(action.attributes('disabled')).toBeUndefined()
@@ -153,7 +185,7 @@ describe('result card three modules', () => {
     await wrapper.find('.ir-adjust__toggle').trigger('click')
     await wrapper.find('.ps-val-input').setValue(0.82)
 
-    const action = wrapper.find('.ir-result__act')
+    const action = wrapper.find('[data-testid="report-btn"]')
     expect(action.text()).toContain('请先重新测算')
     expect(action.attributes('disabled')).toBeDefined()
     expect(wrapper.find('.ir-result__report-hint').text()).toContain('参数修改尚未形成新版本')
@@ -172,8 +204,8 @@ describe('result card three modules', () => {
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
     await wrapper.find('.ir-advanced__save').trigger('click')
 
-    expect(wrapper.find('.ir-result__act').text()).toContain('请先重新测算')
-    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="report-btn"]').text()).toContain('请先重新测算')
+    expect(wrapper.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
   })
 
   it('allows recalculation from the collapsed advanced draft action bar', async () => {
@@ -214,13 +246,13 @@ describe('result card three modules', () => {
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(true)
-    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
     await wrapper.find('.ir-adjust__pending-bar .ir-adjust__reset').trigger('click')
 
     expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(false)
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
     expect(wrapper.find('.ir-result__report-hint').text()).not.toContain('参数修改尚未形成新版本')
-    expect(wrapper.find('.ir-result__act').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('[data-testid="report-btn"]').attributes('disabled')).toBeUndefined()
     expect(wrapper.emitted('recalculate')).toBeUndefined()
 
     await wrapper.find('.ir-adjust__toggle').trigger('click')
@@ -233,14 +265,14 @@ describe('result card three modules', () => {
     const generating = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'generating' } },
     })
-    expect(generating.find('.ir-result__act').text()).toContain('报告生成中')
-    expect(generating.find('.ir-result__act').attributes('disabled')).toBeDefined()
+    expect(generating.find('[data-testid="report-btn"]').text()).toContain('报告生成中')
+    expect(generating.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
 
     const failed = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'failed' } },
     })
-    expect(failed.find('.ir-result__act').text()).toContain('重新生成报告')
-    await failed.find('.ir-result__act').trigger('click')
+    expect(failed.find('[data-testid="report-btn"]').text()).toContain('重新生成报告')
+    await failed.find('[data-testid="report-btn"]').trigger('click')
     expect(failed.emitted('generate-report')).toHaveLength(1)
 
     const completed = mount(ResultCard, {

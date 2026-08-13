@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
+
+const api = vi.hoisted(() => ({
+  getPlatformStats: vi.fn().mockResolvedValue({
+    data: { calculationCount: 1295, projectCount: 131, reportCount: 260 },
+  }),
+}))
+
+vi.mock('@/api/calc', () => api)
 
 const calc = {
   messages: [],
@@ -27,6 +36,7 @@ vi.mock('@/store/modules/calculation', () => ({
 
 vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
+  useRoute: () => ({ params: {} }),
 }))
 
 vi.mock('@/views/home/components/ChatComposer.vue', () => ({
@@ -43,6 +53,9 @@ vi.mock('@/views/home/components/ChatComposer.vue', () => ({
 vi.mock('@/views/home/components/ResultCard.vue', () => ({
   default: { template: '<div class="result-card-stub" />' },
 }))
+vi.mock('@/views/home/components/ShareDialog.vue', () => ({
+  default: { template: '<div />' },
+}))
 
 import Home from '@/views/home/index.vue'
 
@@ -56,12 +69,17 @@ describe('home welcome presentation', () => {
     expect(welcome.attributes('style') || '').not.toContain('--ir-welcome-bg')
   })
 
-  it('renders the five platform metrics below the input area', () => {
+  it('renders live platform metrics below the input area', async () => {
     const wrapper = mount(Home, { global: { stubs: {} } })
+    await vi.waitFor(() => expect(api.getPlatformStats).toHaveBeenCalled())
+    await nextTick()
 
     expect(wrapper.find('.ir-welcome__metrics').exists()).toBe(true)
     expect(wrapper.findAll('.ir-welcome__metric')).toHaveLength(5)
     expect(wrapper.text()).toContain('累计测算次数')
+    expect(wrapper.text()).toContain('1,295')
+    expect(wrapper.text()).toContain('131')
+    expect(wrapper.text()).toContain('260')
     expect(wrapper.text()).toContain('覆盖省份')
   })
 

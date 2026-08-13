@@ -44,11 +44,13 @@ def _param_dict() -> ParamDictionary:
 class FakeFeishu:
     """飞书开放平台打桩：路由各端点、记录请求，支持配置错误响应与读值。"""
 
-    def __init__(self, *, update_responses=None, query_responses=None, get_values=None):
+    def __init__(self, *, update_responses=None, query_responses=None, get_values=None,
+                 delete_responses=None):
         self.sheets = {"API_INPUT": "shtI", "API_OUTPUT": "shtO", "API_META": "shtM", "画图数据": "shtChart"}
         self.update_responses = list(update_responses or [])   # 队列：(status_code, json)
         self.query_responses = list(query_responses or [])     # 队列：(status_code, json)
         self.get_values = get_values                            # 按 range 顺序的二维值
+        self.delete_responses = list(delete_responses or [])
         self.token_calls = 0
         self.copy_calls = 0
         self.query_calls = 0
@@ -57,6 +59,8 @@ class FakeFeishu:
         self.copy_path = None
         self.copy_body = None
         self.get_params = None      # 捕获最近一次 values_batch_get 的查询参数
+        self.delete_calls = []
+        self.delete_params = None
 
     def handler(self, request: httpx.Request) -> httpx.Response:
         p = request.url.path
@@ -71,6 +75,13 @@ class FakeFeishu:
             self.copy_body = json.loads(request.content)
             return httpx.Response(200, json={
                 "code": 0, "data": {"file": {"token": "cp-token", "name": "n", "type": "sheet"}}})
+        if "/drive/v1/files/" in p and request.method == "DELETE":
+            self.delete_calls.append(p.rsplit("/", 1)[-1])
+            self.delete_params = dict(request.url.params)
+            if self.delete_responses:
+                sc, body = self.delete_responses.pop(0)
+                return httpx.Response(sc, json=body)
+            return httpx.Response(200, json={"code": 0, "data": {}})
         if p.endswith("/sheets/query"):
             self.query_calls += 1
             if self.query_responses:
@@ -116,6 +127,18 @@ async def test_copy_carries_token_and_returns_new_doc():
     assert fake.copy_body["folder_token"] == "fold"
     assert fake.copy_body["type"] == "sheet"
     assert fake.copy_body["name"] == "宁夏-200/400-20260710091435"  # 副本名透传
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_delete_file_uses_drive_endpoint_and_surfaces_not_found():
+    fake = FakeFeishu(delete_responses=[(404, {"code": 0, "msg": "missing"})])
+    gw = _gateway(fake)
+    with pytest.raises(NonRetryableCalcError) as exc_info:
+        await gw.delete_file("doc-gone")
+    assert exc_info.value.code == "feishu_not_found"
+    assert fake.delete_calls == ["doc-gone"]
+    assert fake.delete_params == {"type": "sheet"}
     await gw._client.aclose()
 
 
