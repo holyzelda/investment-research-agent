@@ -1,4 +1,5 @@
 """政策与市场滚动资讯只读接口。"""
+from datetime import date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, Query
@@ -35,7 +36,6 @@ from app.modules.policy_market.interface.serializers import (
 
 router = APIRouter(prefix="/ir/policy-market", tags=["policy-market"])
 _service = ScrollingMessageService()
-_PERIODS = {"all", "month", "quarter"}
 # 浏览器能直接渲染的类型内联展示，其余一律下载——docx/xlsx 内联只会得到一堆乱码。
 _INLINE_TYPES = {"application/pdf", "text/plain"}
 
@@ -155,16 +155,17 @@ async def download_source_file(
 @router.get("/messages")
 async def list_scrolling_messages(
     province: str = Query("all"),
-    period: str = Query("all"),
+    start_date: date | None = Query(None, alias="startDate"),
+    end_date: date | None = Query(None, alias="endDate"),
     topic: str = Query("all"),
     session: AsyncSession = Depends(get_db_session),
 ):
-    if period not in _PERIODS:
-        raise ValidationException("时间范围仅支持 all、month 或 quarter")
+    _validate_date_range(start_date, end_date)
     messages = await _service.list_messages(
         session,
         province=province or "all",
-        period=period,
+        start_date=start_date,
+        end_date=end_date,
         topic=topic or "all",
     )
     return ok(serialize_messages(messages))
@@ -173,16 +174,24 @@ async def list_scrolling_messages(
 @router.get("/messages/overview")
 async def get_market_overview(
     province: str = Query("all"),
-    period: str = Query("all"),
+    start_date: date | None = Query(None, alias="startDate"),
+    end_date: date | None = Query(None, alias="endDate"),
     topic: str = Query("all"),
     session: AsyncSession = Depends(get_db_session),
 ):
-    if period not in _PERIODS:
-        raise ValidationException("时间范围仅支持 all、month 或 quarter")
+    _validate_date_range(start_date, end_date)
     overview = await _service.get_overview(
         session,
         province=province or "all",
-        period=period,
+        start_date=start_date,
+        end_date=end_date,
         topic=topic or "all",
     )
     return ok(serialize_overview(overview))
+
+
+def _validate_date_range(start_date: date | None, end_date: date | None) -> None:
+    if (start_date is None) != (end_date is None):
+        raise ValidationException("开始日期和结束日期必须同时提供")
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise ValidationException("开始日期不能晚于结束日期")

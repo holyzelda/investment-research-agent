@@ -129,10 +129,10 @@ describe('政策与市场 Store', () => {
     api.getMarketNews.mockResolvedValue([{ id: 'n-1', title: '资讯' }])
     const store = usePolicyMarketStore()
 
-    await store.setStatsFilters({ province: '内蒙古', period: 'month', topic: '储能' })
+    await store.setStatsFilters({ province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' })
 
-    expect(api.getMarketOverview).toHaveBeenCalledWith({ province: '内蒙古', period: 'month', topic: '储能' })
-    expect(api.getMarketNews).toHaveBeenCalledWith({ province: '内蒙古', period: 'month', topic: '储能' })
+    expect(api.getMarketOverview).toHaveBeenCalledWith({ province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' })
+    expect(api.getMarketNews).toHaveBeenCalledWith({ province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' })
     expect(store.stats.total).toBe(186)
   })
 
@@ -142,12 +142,12 @@ describe('政策与市场 Store', () => {
       .mockResolvedValueOnce(overview({ topicOptions: [{ value: '政策', label: '政策', count: 2 }] }))
     api.getMarketNews.mockResolvedValue([{ id: 'n-1', title: '资讯' }])
     const store = usePolicyMarketStore()
-    store.statsFilters = { province: 'all', period: 'all', topic: '储能' }
+    store.statsFilters = { province: 'all', startDate: null, endDate: null, topic: '储能' }
 
     await store.setStatsFilters({ province: '内蒙古' })
 
     expect(store.statsFilters.topic).toBe('all')
-    expect(api.getMarketOverview).toHaveBeenLastCalledWith({ province: '内蒙古', period: 'all', topic: 'all' })
-    expect(api.getMarketNews).toHaveBeenLastCalledWith({ province: '内蒙古', period: 'all', topic: 'all' })
+    expect(api.getMarketOverview).toHaveBeenLastCalledWith({ province: '内蒙古', startDate: null, endDate: null, topic: 'all' })
+    expect(api.getMarketNews).toHaveBeenLastCalledWith({ province: '内蒙古', startDate: null, endDate: null, topic: 'all' })
   })
 })

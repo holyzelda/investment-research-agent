@@ -1,6 +1,5 @@
-from calendar import monthrange
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,12 +19,13 @@ class ScrollingMessageService:
         session: AsyncSession,
         *,
         province: str = "all",
-        period: str = "all",
+        start_date: date | None = None,
+        end_date: date | None = None,
         topic: str = "all",
         now: datetime | None = None,
     ) -> list[ScrollingMessage]:
         query_time = now or datetime.now()
-        current_start, current_end = self._period_window(period, query_time)
+        current_start, current_end = self._date_window(start_date, end_date)
         statement = (
             select(ScrollingMessageORM)
             .where(
@@ -60,12 +60,13 @@ class ScrollingMessageService:
         session: AsyncSession,
         *,
         province: str = "all",
-        period: str = "all",
+        start_date: date | None = None,
+        end_date: date | None = None,
         topic: str = "all",
         now: datetime | None = None,
     ) -> MarketOverview:
         query_time = now or datetime.now()
-        current_start, current_end = self._period_window(period, query_time)
+        current_start, current_end = self._date_window(start_date, end_date)
         base_conditions = self._active_conditions(query_time, province=province)
 
         topic_rows = await self._query_rows(
@@ -76,8 +77,8 @@ class ScrollingMessageService:
         current_rows = self._filter_topic(topic_rows, topic)
 
         trend_percent = None
-        if period != "all":
-            previous_start, previous_end = self._previous_window(period, current_start)
+        if current_start is not None and current_end is not None:
+            previous_start, previous_end = self._previous_window(current_start, current_end)
             previous_rows = await self._query_rows(
                 session,
                 [
@@ -92,7 +93,7 @@ class ScrollingMessageService:
         return MarketOverview(
             total=len(current_rows),
             trend_percent=trend_percent,
-            range_label=self._range_label(province, period),
+            range_label=self._range_label(province, start_date, end_date),
             topic_options=topic_options,
         )
 
@@ -130,20 +131,15 @@ class ScrollingMessageService:
         ]
 
     @staticmethod
-    def _period_window(period: str, now: datetime) -> tuple[datetime | None, datetime | None]:
-        if period == "all":
+    def _date_window(start_date: date | None, end_date: date | None) -> tuple[datetime | None, datetime | None]:
+        if start_date is None or end_date is None:
             return None, None
-        if period == "month":
-            return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0), now
-        return ScrollingMessageService._shift_months(now, -3), now
+        return datetime.combine(start_date, time.min), datetime.combine(end_date + timedelta(days=1), time.min)
 
     @staticmethod
-    def _previous_window(period: str, current_start: datetime | None) -> tuple[datetime, datetime]:
-        if period == "month":
-            previous_start = ScrollingMessageService._shift_months(current_start, -1)
-            return previous_start, current_start
-        previous_start = ScrollingMessageService._shift_months(current_start, -3)
-        return previous_start, current_start
+    def _previous_window(current_start: datetime, current_end: datetime) -> tuple[datetime, datetime]:
+        duration = current_end - current_start
+        return current_start - duration, current_start
 
     @staticmethod
     def _window_conditions(start: datetime | None, end: datetime | None) -> list:
@@ -156,15 +152,7 @@ class ScrollingMessageService:
         ]
 
     @staticmethod
-    def _shift_months(value: datetime, months: int) -> datetime:
-        target_month = value.month + months
-        target_year = value.year + (target_month - 1) // 12
-        target_month = (target_month - 1) % 12 + 1
-        target_day = min(value.day, monthrange(target_year, target_month)[1])
-        return value.replace(year=target_year, month=target_month, day=target_day)
-
-    @staticmethod
-    def _range_label(province: str, period: str) -> str:
+    def _range_label(province: str, start_date: date | None, end_date: date | None) -> str:
         province_label = "全部省份" if province == "all" else province
-        period_label = {"all": "全部时间", "month": "本月", "quarter": "近三个月"}[period]
+        period_label = "全部时间" if start_date is None or end_date is None else f"{start_date:%Y/%m/%d} 至 {end_date:%Y/%m/%d}"
         return f"{province_label} · {period_label}"

@@ -8,7 +8,7 @@ import {
   submitConsultation,
 } from '@/api/policyMarket'
 
-const DEFAULT_FILTERS = { province: 'all', period: 'all', topic: 'all' }
+const DEFAULT_FILTERS = { province: 'all', startDate: null, endDate: null, topic: 'all' }
 const DEFAULT_STATS = { total: 0, trendPercent: null, rangeLabel: '全部省份 · 全部时间' }
 
 export const usePolicyMarketStore = defineStore('policyMarket', {

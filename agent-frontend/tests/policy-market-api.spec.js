@@ -48,11 +48,11 @@ describe('政策与市场 API', () => {
     }
     request.mockResolvedValue({ data: overview })
 
-    await expect(getMarketOverview({ province: '内蒙古', period: 'month', topic: '储能' })).resolves.toEqual(overview)
+    await expect(getMarketOverview({ province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' })).resolves.toEqual(overview)
     expect(request).toHaveBeenCalledWith({
       url: '/ir/policy-market/messages/overview',
       method: 'get',
-      params: { province: '内蒙古', period: 'month', topic: '储能' },
+      params: { province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' },
     })
   })
 
@@ -60,11 +60,11 @@ describe('政策与市场 API', () => {
     const messages = [{ id: 1, title: '置顶资讯', tags: ['政策'] }]
     request.mockResolvedValue({ data: messages })
 
-    await expect(getMarketNews({ province: '内蒙古', period: 'month', topic: '储能' })).resolves.toEqual(messages)
+    await expect(getMarketNews({ province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' })).resolves.toEqual(messages)
     expect(request).toHaveBeenCalledWith({
       url: '/ir/policy-market/messages',
       method: 'get',
-      params: { province: '内蒙古', period: 'month', topic: '储能' },
+      params: { province: '内蒙古', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' },
     })
   })
 })

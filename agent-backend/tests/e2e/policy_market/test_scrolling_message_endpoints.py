@@ -83,10 +83,10 @@ async def test_list_scrolling_messages_returns_response_shell_and_camel_case_dto
 
 
 @pytest.mark.asyncio
-async def test_market_overview_returns_real_stats_and_rejects_invalid_period(seeded_client):
+async def test_market_overview_returns_real_stats_and_validates_date_range(seeded_client):
     response = await seeded_client.get(
         "/ir/policy-market/messages/overview",
-        params={"province": "内蒙古", "period": "all", "topic": "储能"},
+        params={"province": "内蒙古", "topic": "储能"},
     )
 
     assert response.status_code == 200
@@ -104,15 +104,27 @@ async def test_market_overview_returns_real_stats_and_rejects_invalid_period(see
 
     filtered_messages = await seeded_client.get(
         "/ir/policy-market/messages",
-        params={"province": "内蒙古", "period": "month", "topic": "储能"},
+        params={
+            "province": "内蒙古",
+            "startDate": month_start.date().isoformat(),
+            "endDate": now.date().isoformat(),
+            "topic": "储能",
+        },
     )
     assert filtered_messages.status_code == 200
     assert [item["title"] for item in filtered_messages.json()["data"]] == ["置顶资讯"]
 
     invalid = await seeded_client.get(
         "/ir/policy-market/messages/overview",
-        params={"period": "year"},
+        params={"startDate": "2026-08-02", "endDate": "2026-08-01"},
     )
 
     assert invalid.status_code == 400
     assert invalid.json()["code"] == 400
+
+    incomplete = await seeded_client.get(
+        "/ir/policy-market/messages",
+        params={"startDate": "2026-08-01"},
+    )
+    assert incomplete.status_code == 400
+    assert incomplete.json()["code"] == 400

@@ -13,10 +13,22 @@
         </div>
         <div class="pm-pulse__filter-row">
           <span>时间范围</span>
-          <ElPopover v-model:visible="periodOpen" placement="bottom-end" trigger="click" popper-class="pm-filter-popper">
-            <template #reference><button type="button" class="pm-pulse__filter-control" data-filter="period" aria-label="筛选时间范围" aria-haspopup="listbox" :aria-expanded="periodOpen" aria-controls="pm-period-menu"><span>{{ periodLabel }}</span><ChevronDown :size="14" /></button></template>
-            <div id="pm-period-menu" class="pm-filter-menu" role="listbox" aria-label="时间范围选项"><button v-for="option in periodOptions" :key="option.value" type="button" class="pm-filter-menu__option" role="option" :aria-selected="draftFilters.period === option.value" :class="{ 'is-selected': draftFilters.period === option.value }" :data-test="`period-${option.value}`" @click="selectFilter('period', option.value)">{{ option.label }}</button></div>
-          </ElPopover>
+          <ElDatePicker
+            class="pm-pulse__date-picker"
+            data-filter="date-range"
+            type="daterange"
+            :model-value="dateRangeValue"
+            value-format="YYYY-MM-DD"
+            format="YYYY/MM/DD"
+            range-separator="至"
+            start-placeholder="开始日期"
+            end-placeholder="结束日期"
+            unlink-panels
+            clearable
+            popper-class="pm-date-range-popper"
+            aria-label="筛选日期范围"
+            @update:model-value="handleDateRangeChange"
+          />
         </div>
         <div class="pm-pulse__filter-row">
           <span>资讯主题</span>
@@ -54,11 +66,11 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { ElDialog, ElPopover } from 'element-plus'
+import { ElDatePicker, ElDialog, ElPopover } from 'element-plus'
 import { Check, ChevronDown, Copy, ExternalLink, Radio, Share2 } from '@lucide/vue'
 
 const props = defineProps({
-  filters: { type: Object, default: () => ({ province: 'all', period: 'all', topic: 'all' }) },
+  filters: { type: Object, default: () => ({ province: 'all', startDate: null, endDate: null, topic: 'all' }) },
   stats: { type: Object, default: () => ({ total: 0, trendPercent: null, rangeLabel: '全部省份 · 全部时间' }) },
   topicOptions: { type: Array, default: () => [] },
   news: { type: Array, default: () => [] }, loading: { type: Boolean, default: false }, error: { type: String, default: '' }, statsLoading: { type: Boolean, default: false }, statsError: { type: String, default: '' },
@@ -67,7 +79,6 @@ const emit = defineEmits(['filters-change'])
 const draftFilters = reactive({ ...props.filters })
 const newsScrollRef = ref(null)
 const provinceOpen = ref(false)
-const periodOpen = ref(false)
 const topicOpen = ref(false)
 const shareDialogOpen = ref(false)
 const shareStatus = ref('')
@@ -86,9 +97,9 @@ const provinceOptions = [
   '广东', '海南', '四川', '贵州', '云南', '陕西', '甘肃', '青海', '台湾',
   '香港', '澳门',
 ]
-const periodOptions = [{ value: 'all', label: '全部时间' }, { value: 'month', label: '本月' }, { value: 'quarter', label: '近三个月' }]
 const provinceLabel = computed(() => draftFilters.province === 'all' ? '全部省份' : draftFilters.province)
-const periodLabel = computed(() => periodOptions.find((item) => item.value === draftFilters.period)?.label || '全部时间')
+const dateRangeValue = computed(() => draftFilters.startDate && draftFilters.endDate ? [draftFilters.startDate, draftFilters.endDate] : null)
+const periodLabel = computed(() => dateRangeValue.value ? `${formatFilterDate(dateRangeValue.value[0])} 至 ${formatFilterDate(dateRangeValue.value[1])}` : '全部时间')
 const topicLabel = computed(() => draftFilters.topic === 'all' ? '全部主题' : props.topicOptions.find((item) => item.value === draftFilters.topic)?.label || draftFilters.topic)
 const shareScopeLabel = computed(() => [provinceLabel.value, periodLabel.value, topicLabel.value].join(' / '))
 watch(() => props.filters, (filters) => Object.assign(draftFilters, filters), { deep: true })
@@ -96,10 +107,16 @@ watch(() => props.news, () => nextTick(startAutoScroll), { deep: true })
 function selectFilter(field, value) {
   draftFilters[field] = value
   if (field === 'province') provinceOpen.value = false
-  if (field === 'period') periodOpen.value = false
   if (field === 'topic') topicOpen.value = false
   emit('filters-change', { ...draftFilters })
 }
+function handleDateRangeChange(value) {
+  const [startDate, endDate] = Array.isArray(value) ? value : []
+  draftFilters.startDate = startDate || null
+  draftFilters.endDate = endDate || null
+  emit('filters-change', { ...draftFilters })
+}
+function formatFilterDate(value) { return value ? String(value).replaceAll('-', '/') : '' }
 function stopAnimationFrameOnly() { if (animationFrameId !== null) window.cancelAnimationFrame(animationFrameId); animationFrameId = null }
 function stopAutoScroll() { stopAnimationFrameOnly(); if (restartTimerId !== null) window.clearTimeout(restartTimerId); restartTimerId = null; lastTimestamp = null }
 function stepAutoScroll(timestamp) {
@@ -182,6 +199,14 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 .pm-pulse__filter-control { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 6px; overflow: hidden; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); padding: 6px 8px; background: var(--pm-elevated, var(--xc-surface-control)); color: var(--xc-text-soft); font: inherit; text-align: left; cursor: pointer; }
 .pm-pulse__filter-control span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pm-pulse__filter-control:hover, .pm-pulse__filter-control:focus-visible { border-color: var(--xc-border-accent); outline: none; }
+.pm-pulse__date-picker { width: 100% !important; min-width: 0; height: 34px; border: 0; border-radius: var(--xc-radius-sm); padding: 0; background: transparent !important; box-shadow: none !important; --el-fill-color-blank: var(--pm-elevated, var(--xc-surface-control)); --el-fill-color-light: var(--pm-elevated, var(--xc-surface-control)); --el-border-color: var(--xc-border-soft); --el-border-color-hover: var(--xc-border-accent); --el-text-color-regular: var(--xc-text-soft); --el-text-color-placeholder: var(--xc-text-mute); }
+.pm-pulse__date-picker.el-input__wrapper { min-width: 0; height: 34px; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); padding: 0 8px; background: var(--pm-elevated, var(--xc-surface-control)) !important; box-shadow: none !important; }
+.pm-pulse__date-picker.el-input__wrapper:hover, .pm-pulse__date-picker.el-input__wrapper.is-active, .pm-pulse__date-picker.el-input__wrapper:focus-within { border-color: var(--xc-border-accent); box-shadow: none !important; }
+.pm-pulse__date-picker :deep(.el-range-input) { min-width: 0; overflow: hidden; background: transparent; color: var(--xc-text-soft); font: inherit; font-size: var(--xc-fs-2xs); text-overflow: ellipsis; }
+.pm-pulse__date-picker :deep(.el-range-input::placeholder) { color: var(--xc-text-mute); }
+.pm-pulse__date-picker :deep(.el-range-separator) { flex: 0 0 auto; width: auto; padding: 0 3px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.pm-pulse__date-picker :deep(.el-input__prefix), .pm-pulse__date-picker :deep(.el-input__suffix), .pm-pulse__date-picker :deep(.el-input__icon) { color: var(--xc-text-mute); }
+.pm-pulse__date-picker :deep(.el-input__clear:hover), .pm-pulse__date-picker :deep(.el-input__icon:hover) { color: var(--pm-accent, var(--xc-accent-blue)); }
 .pm-pulse__total { display: flex; align-items: baseline; gap: var(--xc-space-2); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
 .pm-pulse__total strong, .pm-pulse__news-item strong { color: var(--xc-text-strong); }
 .pm-pulse__total strong { color: var(--pm-accent, var(--xc-accent-blue)); font-size: 34px; line-height: 1; }
@@ -210,6 +235,29 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 
 <style>
 .pm-filter-popper.el-popper { padding: var(--xc-space-2); border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); box-shadow: var(--xc-shadow-md); }.pm-filter-menu { display: grid; max-height: 240px; overflow-y: auto; }.pm-filter-menu__option { border: 0; border-radius: var(--xc-radius-sm); padding: var(--xc-space-2) var(--xc-space-3); background: transparent; color: var(--xc-text-soft); font: inherit; font-size: var(--xc-fs-xs); text-align: left; cursor: pointer; }.pm-filter-menu__option:hover, .pm-filter-menu__option.is-selected { background: var(--xc-surface-frosted); color: var(--xc-text-strong); }.pm-filter-menu__option:focus-visible { outline: 1px solid var(--xc-border-accent); outline-offset: -1px; }
+.pm-pulse__date-picker.el-date-editor.el-range-editor.el-input__wrapper { width: 100% !important; min-width: 0 !important; height: 34px !important; box-sizing: border-box !important; border: 1px solid var(--xc-border-soft) !important; border-radius: var(--xc-radius-sm) !important; padding: 0 8px !important; background: var(--pm-elevated, var(--xc-surface-control)) !important; box-shadow: none !important; }
+.pm-pulse__date-picker.el-date-editor.el-range-editor.el-input__wrapper:hover, .pm-pulse__date-picker.el-date-editor.el-range-editor.el-input__wrapper.is-active, .pm-pulse__date-picker.el-date-editor.el-range-editor.el-input__wrapper:focus-within { border-color: var(--xc-border-accent) !important; background: var(--pm-elevated, var(--xc-surface-control)) !important; box-shadow: none !important; }
+.pm-pulse__date-picker.el-date-editor .el-range-input { min-width: 0 !important; width: 0 !important; flex: 1 1 0 !important; overflow: hidden !important; background: transparent !important; color: var(--xc-text-soft) !important; font: inherit !important; font-size: var(--xc-fs-2xs) !important; text-overflow: ellipsis; }
+.pm-pulse__date-picker.el-date-editor .el-range-input::placeholder { color: var(--xc-text-mute) !important; }
+.pm-pulse__date-picker.el-date-editor .el-range-separator { flex: 0 0 auto !important; width: auto !important; padding: 0 3px !important; color: var(--xc-text-mute) !important; font-size: var(--xc-fs-2xs) !important; }
+.pm-pulse__date-picker.el-date-editor .el-input__prefix, .pm-pulse__date-picker.el-date-editor .el-input__suffix, .pm-pulse__date-picker.el-date-editor .el-input__icon { color: var(--xc-text-mute) !important; }
+.pm-date-range-popper.el-picker-panel, .pm-date-range-popper.el-popper { --el-bg-color-overlay: var(--xc-surface-raised); --el-bg-color: var(--xc-surface-raised); --el-fill-color-blank: var(--xc-surface-raised); --el-fill-color-light: var(--xc-surface-frosted); --el-fill-color-lighter: var(--xc-surface-frosted); --el-border-color-light: var(--xc-border-soft); --el-border-color-lighter: var(--xc-border-soft); --el-text-color-primary: var(--xc-text-strong); --el-text-color-regular: var(--xc-text-soft); --el-text-color-secondary: var(--xc-text-mute); --el-text-color-placeholder: var(--xc-text-mute); overflow: hidden; border: 1px solid var(--xc-border-strong) !important; border-radius: var(--xc-radius-sm) !important; background: var(--xc-surface-raised) !important; box-shadow: var(--xc-shadow-md) !important; color: var(--xc-text-soft) !important; }
+.pm-date-range-popper .el-picker-panel__body-wrapper, .pm-date-range-popper .el-picker-panel__body, .pm-date-range-popper .el-date-range-picker__content, .pm-date-range-popper .el-date-table, .pm-date-range-popper .el-date-table td, .pm-date-range-popper .el-date-table th { background: transparent !important; }
+.pm-date-range-popper .el-date-range-picker__header { color: var(--xc-text-strong) !important; }
+.pm-date-range-popper .el-date-range-picker__header button, .pm-date-range-popper .el-picker-panel__icon-btn { color: var(--xc-text-mute) !important; }
+.pm-date-range-popper .el-date-range-picker__header button:hover, .pm-date-range-popper .el-picker-panel__icon-btn:hover { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
+.pm-date-range-popper .el-date-table th { border-bottom: 1px solid var(--xc-border-soft) !important; color: var(--xc-text-mute) !important; }
+.pm-date-range-popper .el-date-table td { color: var(--xc-text-soft) !important; }
+.pm-date-range-popper .el-date-table td.available:hover { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
+.pm-date-range-popper .el-date-table td.in-range .el-date-table-cell { background: rgba(84, 198, 214, .14) !important; }
+.pm-date-range-popper .el-date-table td.start-date .el-date-table-cell, .pm-date-range-popper .el-date-table td.end-date .el-date-table-cell { background: var(--pm-accent, var(--xc-accent-blue)) !important; color: #101719 !important; }
+.pm-date-range-popper .el-date-table td.prev-month, .pm-date-range-popper .el-date-table td.next-month { color: var(--xc-text-faint) !important; }
+.pm-date-range-popper .el-date-table td.today .el-date-table-cell__text { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
+.pm-date-range-popper .el-date-table td.start-date.today .el-date-table-cell__text, .pm-date-range-popper .el-date-table td.end-date.today .el-date-table-cell__text { color: #101719 !important; }
+.pm-date-range-popper .el-date-range-picker__content.is-left { border-right: 1px solid var(--xc-border-soft) !important; }
+.pm-date-range-popper .el-date-picker__header-label, .pm-date-range-popper .el-date-range-picker__header-label { color: var(--xc-text-strong) !important; }
+.pm-date-range-popper .el-picker-panel__footer { border-top: 1px solid var(--xc-border-soft) !important; background: var(--xc-surface-raised) !important; }
+.pm-date-range-popper .el-picker-panel__link-btn, .pm-date-range-popper .el-button--text { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
 .pm-share-dialog { border: 1px solid var(--xc-border-strong); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); }
 .pm-share-dialog .el-dialog__header { margin-right: 0; border-bottom: 1px solid var(--xc-border-soft); padding: 18px 20px 14px; }
 .pm-share-dialog .el-dialog__title { color: var(--xc-text-strong); font-size: var(--xc-fs-md); }
@@ -232,6 +280,7 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 .pm-share-dialog__copy { border: 1px solid var(--pm-accent, var(--xc-accent-blue)); background: var(--pm-accent, var(--xc-accent-blue)); color: #101719; }
 .pm-share-dialog__footer button:hover, .pm-share-dialog__footer button:focus-visible { filter: brightness(1.12); outline: none; }
 @media (max-width: 480px) {
+  .pm-date-range-popper .el-date-range-picker__content { padding: 8px; }
   .pm-share-dialog .el-dialog__header { padding: 16px 16px 12px; }
   .pm-share-dialog .el-dialog__body { padding: 16px 16px 10px; }
   .pm-share-dialog__scope { align-items: flex-start; flex-direction: column; gap: 5px; }

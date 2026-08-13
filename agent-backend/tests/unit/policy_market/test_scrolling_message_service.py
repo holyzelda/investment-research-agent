@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -79,7 +79,8 @@ async def test_list_messages_supports_filters_and_preserves_order(session):
     messages = await ScrollingMessageService().list_messages(
         session,
         province="内蒙古",
-        period="month",
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 23),
         topic="储能",
         now=now,
     )
@@ -117,14 +118,15 @@ async def test_get_overview_filters_real_messages_and_returns_top_topics_and_tre
     overview = await ScrollingMessageService().get_overview(
         session,
         province="内蒙古",
-        period="month",
+        start_date=date(2026, 7, 1),
+        end_date=date(2026, 7, 23),
         topic="储能",
         now=now,
     )
 
     assert overview.total == 2
     assert overview.trend_percent == 100.0
-    assert overview.range_label == "内蒙古 · 本月"
+    assert overview.range_label == "内蒙古 · 2026/07/01 至 2026/07/23"
     assert [(item.value, item.count) for item in overview.topic_options] == [
         ("储能", 2),
         ("政策", 1),

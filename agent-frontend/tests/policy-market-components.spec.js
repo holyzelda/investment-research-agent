@@ -4,10 +4,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 vi.mock('element-plus', () => ({
   ElDialog: { props: ['modelValue'], template: '<div v-if="modelValue" class="el-dialog-stub"><slot /><slot name="footer" /></div>' },
   ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
+  ElDatePicker: { props: ['modelValue'], emits: ['update:modelValue'], template: '<div class="el-date-picker-stub"><button type="button" data-date-picker @click="$emit(\'update:modelValue\', [\'2026-07-01\', \'2026-07-23\'])">{{ modelValue?.join(\' 至 \') || \'全部时间\' }}</button></div>' },
 }))
 vi.mock('element-plus/es', () => ({
   ElDialog: { props: ['modelValue'], template: '<div v-if="modelValue" class="el-dialog-stub"><slot /><slot name="footer" /></div>' },
   ElPopover: { template: '<div class="el-popover-stub"><slot name="reference" /><slot /></div>' },
+  ElDatePicker: { props: ['modelValue'], emits: ['update:modelValue'], template: '<div class="el-date-picker-stub"><button type="button" data-date-picker @click="$emit(\'update:modelValue\', [\'2026-07-01\', \'2026-07-23\'])">{{ modelValue?.join(\' 至 \') || \'全部时间\' }}</button></div>' },
 }))
 vi.mock('@/api/policyMarket', () => ({ downloadSourceFile: vi.fn() }))
 import ConsultationComposer from '@/views/policy-market/components/ConsultationComposer.vue'
@@ -321,7 +323,7 @@ describe('政策与市场咨询组件', () => {
   it('动态资讯主题和真实趋势按接口结果展示', () => {
     const wrapper = mount(MarketPulse, {
       props: {
-        filters: { province: 'all', period: 'all', topic: '储能' },
+        filters: { province: 'all', startDate: null, endDate: null, topic: '储能' },
         topicOptions: [{ value: '储能', label: '储能', count: 8 }],
         stats: { total: 8, trendPercent: -12.5, rangeLabel: '内蒙古 · 本月' },
       },
@@ -338,7 +340,7 @@ describe('政策与市场咨询组件', () => {
   })
 
   it('自定义筛选菜单发出完整筛选条件，并展示完整省份选项', async () => {
-    const wrapper = mount(MarketPulse, { props: { filters: { province: 'all', period: 'all', topic: 'all' }, news: [] } })
+    const wrapper = mount(MarketPulse, { props: { filters: { province: 'all', startDate: null, endDate: null, topic: 'all' }, news: [] } })
     await wrapper.get('[data-filter="province"]').trigger('click')
     expect(wrapper.find('[data-test="province-北京"]').exists()).toBe(true)
     expect(wrapper.find('[data-test="province-广西"]').exists()).toBe(true)
@@ -347,7 +349,17 @@ describe('政策与市场咨询组件', () => {
 
     await wrapper.get('[data-test="province-内蒙古"]').trigger('click')
 
-    expect(wrapper.emitted('filters-change')?.[0]?.[0]).toEqual({ province: '内蒙古', period: 'all', topic: 'all' })
+    expect(wrapper.emitted('filters-change')?.[0]?.[0]).toEqual({ province: '内蒙古', startDate: null, endDate: null, topic: 'all' })
+  })
+
+  it('选择日历日期范围后发出开始和结束日期', async () => {
+    const wrapper = mount(MarketPulse, { props: { filters: { province: 'all', startDate: null, endDate: null, topic: 'all' }, news: [] } })
+    await wrapper.get('[data-date-picker]').trigger('click')
+
+    expect(wrapper.emitted('filters-change')?.[0]?.[0]).toEqual({
+      province: 'all', startDate: '2026-07-01', endDate: '2026-07-23', topic: 'all',
+    })
+    expect(wrapper.get('[data-filter="date-range"]').text()).toContain('2026-07-01 至 2026-07-23')
   })
 
   it('市场脉搏显示标签和安全外链，不显示横向滚动资讯', () => {
@@ -406,7 +418,7 @@ describe('政策与市场咨询组件', () => {
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
     const wrapper = mount(MarketPulse, {
       props: {
-        filters: { province: '宁夏', period: 'month', topic: '储能' },
+        filters: { province: '宁夏', startDate: '2026-07-01', endDate: '2026-07-31', topic: '储能' },
         topicOptions: [{ value: '储能', label: '储能', count: 2 }],
         news: [
           { id: 11, title: '宁夏材料甲', linkUrl: 'https://example.test/a', publishTime: '2026-07-23T09:00:00', tags: ['储能'] },
@@ -417,7 +429,7 @@ describe('政策与市场咨询组件', () => {
 
     await wrapper.get('[data-share-button]').trigger('click')
     expect(wrapper.findAll('.pm-share-dialog__item')).toHaveLength(2)
-    expect(wrapper.text()).toContain('宁夏 / 本月 / 储能')
+    expect(wrapper.text()).toContain('宁夏 / 2026/07/01 至 2026/07/31 / 储能')
 
     await wrapper.get('[data-copy-share]').trigger('click')
     await flushPromises()
