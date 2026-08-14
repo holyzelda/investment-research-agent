@@ -7,7 +7,7 @@
 - `bjx_policy_news.py`：抓取指定日期的三个栏目并生成 Excel。
 - `import_excel_to_db.py`：通过项目统一 `Settings` 获取 `database.url`，校验 Excel，按 `link_url` 跳过数据库已有记录并入库。
 - `run_policy_sync.sh`：串联抓取、入库、归档和历史文件清理。
-- `run_policy_sync_cron.sh`：加载项目现有 `.env.prod` 并记录日志，供 crontab 调用。
+- `run_policy_sync_cron.sh`：根据 `test` 或 `prod` 参数加载项目现有环境文件并记录日志，供 crontab 调用。
 
 运行数据默认写入 `agent-backend/data/policy_materials`：
 
@@ -76,7 +76,7 @@ chmod +x tools/policy_materials/run_policy_sync.sh
 chmod +x tools/policy_materials/run_policy_sync_cron.sh
 ```
 
-cron 入口默认加载后端现有的 `.env.prod`，与 `start_prod.sh` 使用同一套 Nacos 启动参数，不需要额外创建环境配置。需要在测试环境执行时设置 `ENV_FILE=.env.test`。
+cron 入口要求明确传入 `test` 或 `prod`，分别加载后端现有的 `.env.test` 或 `.env.prod`，不需要额外创建环境配置。未指定环境时脚本会拒绝执行，避免测试任务误读生产 Nacos 配置。
 
 Python 解释器按以下顺序自动选择：环境变量 `PYTHON_BIN`、项目 `.venv/bin/python`、系统 `python3`、系统 `python`。通常不需要单独配置；如果依赖安装在其他虚拟环境中，可在现有 `.env.prod` 中设置 `PYTHON_BIN=/实际虚拟环境/bin/python`。
 
@@ -91,7 +91,7 @@ database:
 
 ```bash
 sudo -u iragent /usr/bin/bash \
-  /opt/investment-research-agent/agent-backend/tools/policy_materials/run_policy_sync_cron.sh
+  /opt/investment-research-agent/agent-backend/tools/policy_materials/run_policy_sync_cron.sh prod
 ```
 
 查看日志确认 Excel 抓取、入库和归档均成功：
@@ -110,7 +110,7 @@ sudo -u iragent crontab -e
 确认服务器时区为 `Asia/Shanghai` 后，加入以下内容。任务每天北京时间 `06:30` 执行，默认同步昨天的数据：
 
 ```cron
-30 6 * * * /usr/bin/bash /opt/investment-research-agent/agent-backend/tools/policy_materials/run_policy_sync_cron.sh
+30 6 * * * /usr/bin/bash /opt/investment-research-agent/agent-backend/tools/policy_materials/run_policy_sync_cron.sh prod
 ```
 
 保存后检查是否安装成功：

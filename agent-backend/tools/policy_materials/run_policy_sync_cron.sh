@@ -3,7 +3,18 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-ENV_FILE="${ENV_FILE:-.env.prod}"
+DEPLOY_ENV="${1:-}"
+case "$DEPLOY_ENV" in
+    test | prod)
+        ENV_FILE=".env.$DEPLOY_ENV"
+        ;;
+    *)
+        echo "用法：$0 test|prod" >&2
+        echo "错误：必须明确指定运行环境，防止定时任务读取错误的 Nacos 配置。" >&2
+        exit 2
+        ;;
+esac
+
 if [[ "$ENV_FILE" = /* ]]; then
     ENV_PATH="$ENV_FILE"
 else
@@ -33,7 +44,7 @@ on_exit() {
 trap on_exit EXIT
 
 {
-    echo "[$(date '+%F %T')] cron 政策材料同步任务启动"
+    echo "[$(date '+%F %T')] cron 政策材料同步任务启动，环境：$DEPLOY_ENV，配置：$ENV_PATH"
     /usr/bin/bash "$SCRIPT_DIR/run_policy_sync.sh"
     echo "[$(date '+%F %T')] cron 政策材料同步任务结束"
 } >>"$LOG_FILE" 2>&1
