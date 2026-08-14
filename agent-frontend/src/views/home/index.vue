@@ -2,6 +2,21 @@
   <div class="ir-home" :class="{ 'ir-home--welcome': !hasConversation }">
     <!-- 中间：对话区 -->
     <section class="ir-home__chat">
+      <div v-if="hasConversation" class="ir-home__toolbar">
+        <button
+          class="ir-home__ledger-trigger"
+          type="button"
+          data-tip="项目档案"
+          aria-label="打开项目档案"
+          aria-controls="ir-home-ledger"
+          :aria-expanded="projectRailOpen"
+          @click="projectRailOpen = true"
+        >
+          <Archive aria-hidden="true" />
+          <span>项目档案</span>
+        </button>
+      </div>
+
       <!-- 欢迎态：全局 layout 承载背景；本页为一组居中的“测算启动区” -->
       <div v-if="!hasConversation" class="ir-welcome">
         <div class="ir-welcome__inner">
@@ -194,19 +209,6 @@
       </template>
     </section>
 
-    <!-- 窄屏按需打开项目档案，避免辅助信息挤压主研究区。 -->
-    <button
-      v-if="hasConversation"
-      class="ir-home__ledger-trigger"
-      type="button"
-      aria-controls="ir-home-ledger"
-      :aria-expanded="projectRailOpen"
-      @click="projectRailOpen = true"
-    >
-      <span>项目档案</span>
-      <span class="xc-num">{{ reversedVersions.length }} 次测算 · {{ reversedReports.length }} 份报告</span>
-    </button>
-
     <!-- 右侧项目档案：桌面常驻，窄屏按需抽屉。 -->
     <div v-if="projectRailOpen" class="ir-home__ledger-backdrop" aria-hidden="true" @click="projectRailOpen = false" />
     <aside v-if="hasConversation" class="ir-home__side" :class="{ 'is-open': projectRailOpen }">
@@ -342,7 +344,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { X } from '@lucide/vue'
+import { Archive, X } from '@lucide/vue'
 import { ElMessage } from 'element-plus'
 import { useRoute, useRouter } from 'vue-router'
 import { useSessionStore } from '@/store/modules/session'
@@ -1049,6 +1051,18 @@ function archiveSummaryFields(v) {
   margin: 0 auto;
   padding: var(--xc-space-4) 0 var(--xc-space-6);
 }
+.ir-home__toolbar {
+  display: none;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  width: calc(100% - 2 * var(--ir-message-inset));
+  max-width: var(--xc-content-fluid);
+  min-height: 44px;
+  margin: 0 auto;
+  padding-top: var(--xc-space-2);
+  border-bottom: 1px solid var(--xc-border-soft);
+}
 
 /* ---------- 右侧项目档案 ---------- */
 .ir-home__side {
@@ -1365,7 +1379,7 @@ function archiveSummaryFields(v) {
 .ir-home__ledger-close { display: none; }
 .ir-home__ledger-backdrop { display: none; }
 
-@media (max-width: 1100px) {
+@media (max-width: 1439px) {
   .ir-home {
     display: flex;
     flex-direction: column;
@@ -1386,23 +1400,24 @@ function archiveSummaryFields(v) {
   .ir-home__side:not(.is-open) { visibility: hidden; pointer-events: none; }
   .ir-home__ledger { height: 100%; }
   .ir-home__ledger-trigger {
-    position: fixed;
-    z-index: var(--xc-z-nav);
-    right: var(--xc-gutter-x);
-    bottom: 20px;
     display: inline-flex;
     align-items: center;
-    gap: var(--xc-space-3);
-    min-height: 40px;
+    justify-content: center;
+    gap: var(--xc-space-2);
+    min-height: 36px;
     padding: 0 var(--xc-space-4);
     border: 1px solid var(--xc-border-accent);
-    border-radius: var(--xc-radius-full);
+    border-radius: var(--xc-radius-sm);
     background: var(--xc-surface-control);
-    color: var(--xc-text-strong);
-    box-shadow: var(--xc-shadow-md);
+    color: var(--xc-text-soft);
+    font: inherit;
+    font-size: var(--xc-fs-xs);
     cursor: pointer;
   }
-  .ir-home__ledger-trigger .xc-num { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+  .ir-home__ledger-trigger:hover { border-color: var(--xc-accent-blue); color: var(--xc-text-strong); }
+  .ir-home__ledger-trigger:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+  .ir-home__ledger-trigger svg { width: 16px; height: 16px; color: var(--xc-accent-blue); }
+  .ir-home__toolbar { display: flex; }
   .ir-home__ledger-backdrop {
     display: block;
     position: fixed;
@@ -1428,15 +1443,135 @@ function archiveSummaryFields(v) {
   .ir-home__chat { --ir-message-inset: 60px; }
 }
 @media (min-width: 1101px) and (max-width: 1439px) {
-  .ir-home { gap: var(--xc-space-4); grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 300px); }
-  .ir-home__chat { --ir-message-inset: 60px; }
+  .ir-home__chat { --ir-message-inset: 32px; }
+  .ir-home__toolbar {
+    position: fixed;
+    z-index: var(--xc-z-nav);
+    top: 50%;
+    right: 28px;
+    width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    transform: translateY(-50%);
+  }
+  .ir-home__ledger-trigger {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: var(--xc-radius-full);
+    background: var(--xc-surface-raised);
+    box-shadow: var(--xc-shadow-md);
+  }
+  .ir-home__ledger-trigger span { display: none; }
+  .ir-home__ledger-trigger svg { width: 18px; height: 18px; }
+  .ir-home__ledger-trigger::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 10px);
+    padding: 5px 8px;
+    border: 1px solid var(--xc-border-soft);
+    border-radius: var(--xc-radius-xs);
+    background: var(--xc-surface-raised);
+    box-shadow: var(--xc-shadow-sm);
+    color: var(--xc-text-strong);
+    font-size: var(--xc-fs-2xs);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity var(--xc-dur-fast);
+  }
+  .ir-home__ledger-trigger:hover::after,
+  .ir-home__ledger-trigger:focus-visible::after { opacity: 1; }
+  .ir-home--welcome {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) clamp(260px, 24vw, 300px);
+    gap: var(--xc-space-4);
+  }
+}
+@media (min-width: 1240px) and (max-width: 1299px) {
+  .ir-home__chat { --ir-message-inset: 52px; }
+  .ir-home__stream { padding-right: 104px; }
+  .ir-home__toolbar { right: 8px; }
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .ir-home__stream { padding-right: 108px; }
+  .ir-home__toolbar {
+    position: fixed;
+    z-index: var(--xc-z-nav);
+    top: 50%;
+    right: 8px;
+    width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    transform: translateY(-50%);
+  }
+  .ir-home__ledger-trigger {
+    position: relative;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: var(--xc-radius-full);
+    background: var(--xc-surface-raised);
+    box-shadow: var(--xc-shadow-md);
+  }
+  .ir-home__ledger-trigger span { display: none; }
+  .ir-home__ledger-trigger svg { width: 18px; height: 18px; }
+  .ir-home__ledger-trigger::after {
+    content: attr(data-tip);
+    position: absolute;
+    top: 50%;
+    right: calc(100% + 10px);
+    padding: 5px 8px;
+    border: 1px solid var(--xc-border-soft);
+    border-radius: var(--xc-radius-xs);
+    background: var(--xc-surface-raised);
+    box-shadow: var(--xc-shadow-sm);
+    color: var(--xc-text-strong);
+    font-size: var(--xc-fs-2xs);
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-50%);
+    transition: opacity var(--xc-dur-fast);
+  }
+  .ir-home__ledger-trigger:hover::after,
+  .ir-home__ledger-trigger:focus-visible::after { opacity: 1; }
 }
 @media (max-width: 760px) {
-  .ir-home__chat { --ir-message-inset: 44px; }
-  .ir-msg__avatar--ai { left: -38px; }
-  .ir-msg__avatar--user { right: -38px; }
-  .ir-home__ledger-trigger { right: 16px; bottom: 16px; }
-  .ir-home__ledger-trigger .xc-num { display: none; }
+  .ir-home { padding-inline: var(--xc-space-4); }
+  .ir-home__chat { --ir-message-inset: 0px; }
+  .ir-home__stream {
+    padding: var(--xc-space-5) 0 var(--xc-space-6);
+    gap: var(--xc-space-6);
+  }
+  .ir-msg { padding-top: 40px; }
+  .ir-msg__avatar { top: 0; width: 30px; height: 30px; }
+  .ir-msg__avatar--ai { left: 0; }
+  .ir-msg__avatar--user { right: 0; }
+  .ir-home__composer { width: 100%; padding: var(--xc-space-3) 0 var(--xc-space-4); }
+  .ir-home__toolbar {
+    width: 100%;
+    min-height: 48px;
+    padding-top: var(--xc-space-2);
+  }
+  .ir-home__ledger-trigger {
+    width: 40px;
+    height: 40px;
+    min-height: 40px;
+    padding: 0;
+    border-radius: var(--xc-radius-full);
+  }
+  .ir-home__ledger-trigger span { display: none; }
+  .ir-home__ledger-trigger svg { width: 17px; height: 17px; }
   .ir-home__ledger-header { align-items: flex-start; flex-wrap: wrap; padding: var(--xc-space-4); }
   .ir-home__ledger-header .ir-home__ledger-count { width: 100%; margin-left: 0; }
   .ir-home__side-title { padding-inline: var(--xc-space-4); }

@@ -142,4 +142,8 @@ const { el } = useEcharts(buildOption)
 .ir-chart__head { margin-bottom: var(--xc-space-2); }
 .ir-chart__title { font-size: var(--xc-fs-sm); color: var(--xc-text-strong); }
 .ir-chart__canvas { width: 100%; height: 260px; }
+@container (max-width: 480px) {
+  .ir-chart--report { padding: var(--xc-space-5); }
+  .ir-chart__canvas { height: 220px; }
+}
 </style>

@@ -13,6 +13,8 @@
 - 地区成本三项由模型『地区』sheet 按省算出，经 API_OUTPUT 读回，不在本组装器处理
 """
 from dataclasses import dataclass, field
+from math import isfinite
+from numbers import Real
 from typing import Optional
 
 from app.core.exceptions import ValidationException
@@ -142,6 +144,8 @@ class ParamAssembler:
         # 日均充放电次数：override 先生效（影响现货 K 的取值），暂不写回 api_input，
         # 交由末尾的受控覆盖统一写入，避免重复赋值。
         override_cycles = overrides.get("daily_cycles")
+        if override_cycles is not None:
+            self._validate_override_range("daily_cycles", override_cycles, op_years)
         daily_cycles = override_cycles if override_cycles is not None else result.api_input.get("daily_cycles", 1)
 
         # ③ 电价库二次计算（现货充/放均价）——依赖未变则继承上一版本，不查库
@@ -186,7 +190,7 @@ class ParamAssembler:
                 "frequency_first_year_revenue",
                 "intervention_first_year_revenue",
             }
-        self._apply_overrides(result, overrides, ignore_keys)
+        self._apply_overrides(result, overrides, ignore_keys, op_years)
 
         return result
 
@@ -225,7 +229,26 @@ class ParamAssembler:
             or previous_input.get("daily_cycles") != daily_cycles
         )
 
-    def _apply_overrides(self, result: AssembledParams, overrides: dict, ignore_keys: set) -> None:
+    def _validate_override_range(self, param_id: str, value: object, op_years: int) -> None:
+        """按参数字典校验单个覆盖值的有效范围。"""
+        spec = self._dict.get(param_id)
+        if spec is None:
+            return
+        variant = self._dict.variant(param_id, op_years) or {}
+        minimum = variant.get("min", spec.min)
+        maximum = variant.get("max", spec.max)
+        if minimum is None and maximum is None:
+            return
+
+        range_text = f"[{minimum}, {maximum}]"
+        if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value):
+            raise ValidationException(f"{spec.cn}必须为有限数值，正确范围为{range_text}")
+        if (minimum is not None and value < minimum) or (maximum is not None and value > maximum):
+            raise ValidationException(f"{spec.cn}超出允许范围，正确范围为{range_text}")
+
+    def _apply_overrides(
+        self, result: AssembledParams, overrides: dict, ignore_keys: set, op_years: int,
+    ) -> None:
         """受控覆盖：仅接受 g=1 + writable + direction=input 的白名单参数；null/未知键忽略。
 
         收益类参数受开关门控：开关关闭时即使提交了 override 也拒绝写入，
@@ -241,6 +264,7 @@ class ParamAssembler:
             switch_id = _SWITCH_GATED.get(pid)
             if switch_id is not None and result.switches.get(switch_id) != 1:
                 continue
+            self._validate_override_range(pid, value, op_years)
             result.api_input[pid] = value
 
     def _assemble_revenue_structure(

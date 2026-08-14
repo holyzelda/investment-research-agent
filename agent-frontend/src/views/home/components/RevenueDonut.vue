@@ -36,7 +36,7 @@ const buildOption = () => {
   const data = SLICES
     .map((s) => ({ name: s.name, value: d[s.key] }))
     .filter((x) => typeof x.value === 'number' && x.value > 0)
-  return {
+  const baseOption = {
     color: xcChartColors(),
     tooltip: {
       trigger: 'item',
@@ -69,6 +69,22 @@ const buildOption = () => {
         data,
       },
     ],
+  }
+  return {
+    baseOption,
+    media: [{
+      query: { maxWidth: 420 },
+      option: {
+        legend: {
+          orient: 'horizontal',
+          left: 'center',
+          right: 'auto',
+          top: 'auto',
+          bottom: 0,
+        },
+        series: [{ center: ['50%', '42%'], radius: ['42%', '60%'] }],
+      },
+    }],
   }
 }
 
@@ -121,5 +137,10 @@ const { el } = useEcharts(buildOption)
   font-size: 16px;
   font-weight: 600;
   line-height: 24px;
+}
+@container (max-width: 480px) {
+  .ir-chart--report { padding: var(--xc-space-5); }
+  .ir-chart__canvas { height: 220px; }
+  .ir-chart__center { top: 42%; left: 50%; }
 }
 </style>

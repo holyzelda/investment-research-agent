@@ -250,6 +250,7 @@ function discardAllParameterChanges() {
 
 <style scoped>
 .ir-result {
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   gap: var(--xc-space-5);
@@ -273,8 +274,8 @@ function discardAllParameterChanges() {
   height: clamp(160px, 18vw, 220px);
   border-radius: var(--xc-radius-sm) var(--xc-radius-sm) 0 0;
   background-color: #010515;
-  background-position: right center;
-  background-size: 66% auto;
+  background-position: center center;
+  background-size: cover;
   background-repeat: no-repeat;
   overflow: hidden;
 }
@@ -292,7 +293,9 @@ function discardAllParameterChanges() {
 .ir-result__banner-mask {
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, rgba(3, 8, 22, 0.85) 0%, rgba(3, 8, 22, 0.45) 42%, rgba(3, 8, 22, 0) 68%);
+  background:
+    linear-gradient(90deg, rgba(3, 8, 22, 0.9) 0%, rgba(3, 8, 22, 0.58) 44%, rgba(3, 8, 22, 0.14) 82%),
+    linear-gradient(180deg, rgba(3, 8, 22, 0.12), rgba(3, 8, 22, 0.46));
 }
 .ir-result__banner-body {
   position: relative;
@@ -412,7 +415,7 @@ function discardAllParameterChanges() {
 /* 收益环形(占 1/3) + 微债折线(占 2/3) 左右并排；窄屏回退为上下堆叠 */
 .ir-result__charts { display:grid; grid-template-columns:1fr 2fr; gap:var(--xc-space-6); align-items:stretch; }
 .ir-result__charts > * { min-width:0; }
-@media (max-width:900px) { .ir-result__charts { grid-template-columns:1fr; } }
+@container (max-width: 900px) { .ir-result__charts { grid-template-columns:1fr; } }
 .ir-result__warn { display:flex; flex-direction:column; gap:var(--xc-space-2); padding:0 var(--xc-space-6); font-size:var(--xc-fs-xs); color:var(--xc-status-warn); }
 .ir-result__footer { display:flex; align-items:center; justify-content:space-between; gap:var(--xc-space-4); min-height:58px; padding:var(--xc-space-4) var(--xc-space-6); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-tinted); }
 .ir-result__footer-actions { display:flex; align-items:center; gap:var(--xc-space-3); flex-shrink:0; }
@@ -424,5 +427,30 @@ function discardAllParameterChanges() {
 .ir-result__act:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; }
 .ir-result__act:disabled { border-color:var(--xc-border-soft); background:var(--xc-surface-control); color:var(--xc-text-mute); cursor:not-allowed; opacity:.72; box-shadow:none; }
 @media (max-width:640px) { .ir-result__footer { align-items:stretch; flex-direction:column; } .ir-result__act { width:100%; } }
-@media (max-width:760px) { .ir-result__banner { height:auto; min-height:220px; align-items:flex-end; } .ir-result__compare { flex-direction:column; align-items:flex-start; width:180px; } .ir-result__compare-wrap { width:100%; } .ir-version-diff__row { grid-template-columns:minmax(100px,1fr) 72px 18px 72px; } .ir-version-diff__source { grid-column:2 / -1; justify-self:start; } }
+@container (max-width: 760px) {
+  .ir-result__banner {
+    height: 220px;
+    align-items: flex-end;
+    background-position: 60% center;
+  }
+  .ir-result__banner-mask {
+    background: linear-gradient(180deg, rgba(3, 8, 22, 0.18) 0%, rgba(3, 8, 22, 0.14) 34%, rgba(3, 8, 22, 0.94) 100%);
+  }
+  .ir-result__banner-body { padding: var(--xc-space-5); }
+  .ir-result__compare { flex-direction:column; align-items:flex-start; width:180px; }
+  .ir-result__compare-wrap { width:100%; }
+  .ir-version-diff__row { grid-template-columns:minmax(100px,1fr) 72px 18px 72px; }
+  .ir-version-diff__source { grid-column:2 / -1; justify-self:start; }
+}
+@container (max-width: 480px) {
+  .ir-result { gap: var(--xc-space-4); }
+  .ir-result__banner-status { top: var(--xc-space-4); left: var(--xc-space-4); }
+  .ir-result__banner-title { font-size: var(--xc-fs-h4); line-height: var(--xc-lh-snug); }
+  .ir-result__compare { width: 100%; }
+  .ir-report-module { margin-inline: var(--xc-space-4); border-radius: var(--xc-radius-md); }
+  .ir-result__charts { gap: var(--xc-space-4); }
+  .ir-result__warn { padding-inline: var(--xc-space-4); }
+  .ir-result__footer { padding-inline: var(--xc-space-4); }
+  .ir-result__footer-actions { width: 100%; flex-direction: column; }
+}
 </style>

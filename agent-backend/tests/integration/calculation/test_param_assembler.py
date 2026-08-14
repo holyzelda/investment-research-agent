@@ -371,10 +371,10 @@ class TestModifyParameterSeeding:
         }
         r = asm.assemble(
             self._basics(),
-            overrides={"epc_unit_price": 0.95, "loan_rate": 0.036},
+            overrides={"epc_unit_price": 0.82, "loan_rate": 0.036},
             previous_input=previous,
         )
-        assert r.api_input["epc_unit_price"] == 0.95
+        assert r.api_input["epc_unit_price"] == 0.82
         assert r.api_input["loan_rate"] == 0.036
         # 未提交的参数仍沿用上一版
         assert r.api_input["loan_years"] == 12
@@ -400,6 +400,74 @@ class TestModifyParameterSeeding:
         r = asm.assemble(self._basics(), previous_input=previous)
         assert r.api_input["epc_unit_price"] == 0.85
         assert r.api_input["loan_rate"] == 0.04  # 回落到字典默认
+
+
+class TestParamOverrideRanges:
+    """对话/面板显式覆盖必须遵守参数字典定义的闭区间。"""
+
+    _RANGED_PARAMS = [
+        ("daily_cycles", "日均充放电次数", 1.0, 2.0, "甘肃", {}),
+        ("epc_unit_price", "EPC单价", 0.70, 0.85, "甘肃", {}),
+        ("strategy_achievement_rate", "现货策略达成率", 0.70, 0.95, "甘肃", {}),
+        ("capacity_achievement_rate", "容量市场达成率", 0.70, 0.95, "甘肃", {}),
+        ("battery_replace_cost", "换电成本", 0, 1, "甘肃", {"operation_years": 20}),
+        ("loan_rate", "贷款利率", 0.035, 0.045, "甘肃", {}),
+        ("loan_years", "贷款年限", 1, 20, "甘肃", {}),
+        ("maint_cost", "维保成本", 0, 0.02, "甘肃", {}),
+        ("opex_cost", "运营成本", 0, 0.02, "甘肃", {}),
+        ("lease_achievement_rate", "租赁达成率", 0.70, 0.95, "宁夏", {}),
+    ]
+
+    @pytest.mark.parametrize(
+        "param_id,cn,minimum,maximum,province,extra_overrides", _RANGED_PARAMS,
+    )
+    @pytest.mark.parametrize("bound", ["minimum", "maximum"])
+    def test_range_bound_is_accepted(
+        self, param_id, cn, minimum, maximum, province, extra_overrides, bound,
+    ):
+        value = minimum if bound == "minimum" else maximum
+        overrides = {**extra_overrides, param_id: value}
+        result = build_param_assembler().assemble(
+            ProjectBasics(province=province, capacity_mwh=800, power_mw=200),
+            overrides=overrides,
+        )
+        assert result.api_input[param_id] == value
+
+    @pytest.mark.parametrize(
+        "param_id,cn,minimum,maximum,province,extra_overrides", _RANGED_PARAMS,
+    )
+    @pytest.mark.parametrize("side", ["below", "above"])
+    def test_out_of_range_value_is_rejected_with_correct_range(
+        self, param_id, cn, minimum, maximum, province, extra_overrides, side,
+    ):
+        value = minimum - 1 if side == "below" else maximum + 1
+        overrides = {**extra_overrides, param_id: value}
+        with pytest.raises(ValidationException) as exc_info:
+            build_param_assembler().assemble(
+                ProjectBasics(province=province, capacity_mwh=800, power_mw=200),
+                overrides=overrides,
+            )
+        assert cn in str(exc_info.value)
+        assert f"正确范围为[{minimum}, {maximum}]" in str(exc_info.value)
+
+    @pytest.mark.parametrize("value", ["0.8", True, float("nan"), float("inf"), float("-inf")])
+    def test_non_finite_or_non_numeric_value_is_rejected(self, value):
+        with pytest.raises(ValidationException) as exc_info:
+            build_param_assembler().assemble(
+                ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+                overrides={"epc_unit_price": value},
+            )
+        assert "EPC单价必须为有限数值" in str(exc_info.value)
+        assert "正确范围为[0.7, 0.85]" in str(exc_info.value)
+
+    def test_invalid_daily_cycles_is_rejected_before_spot_query(self):
+        spot = _CountingSpot()
+        with pytest.raises(ValidationException, match="日均充放电次数超出允许范围"):
+            build_param_assembler(spot=spot).assemble(
+                ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+                overrides={"daily_cycles": 3},
+            )
+        assert spot.calls == []
 
 
 class TestBatteryReplaceCostByOperationYears:

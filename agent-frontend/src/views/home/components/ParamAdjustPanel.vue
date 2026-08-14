@@ -653,8 +653,8 @@ defineExpose({ focusAdvancedTrigger })
 .ir-adjust__draft-note { margin-right:auto; color:var(--xc-text-mute); font-size:var(--xc-fs-2xs); }
 .ir-adjust__submit { min-height:40px; padding:0 var(--xc-space-6); border:0; border-radius:var(--xc-radius-md); background:var(--xc-grad-brand); color:var(--xc-text-strong); font-size:var(--xc-fs-sm); cursor:pointer; transition:transform var(--xc-dur-base),box-shadow var(--xc-dur-base); }
 .ir-adjust__submit:hover:not(:disabled) { transform:translateY(-1px); box-shadow:var(--xc-glow-blue); }
-@media (max-width:900px) { .ir-adjust__row--project { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-@media (max-width:640px) {
+@container (max-width:900px) { .ir-adjust__row--project { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@container (max-width:640px) {
   .ir-adjust { margin-inline:var(--xc-space-4); }
   .ir-adjust__header { align-items:flex-start; flex-wrap:wrap; }
   .ir-adjust__advanced { margin-left:auto; }

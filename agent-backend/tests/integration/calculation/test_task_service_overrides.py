@@ -122,6 +122,24 @@ async def test_invalid_operation_years_does_not_copy_template(session_maker):
 
 
 @pytest.mark.asyncio
+async def test_out_of_range_override_does_not_copy_template(session_maker):
+    service, gateway = _service_with_templates(_CountingSpot())
+    async with session_maker() as session:
+        with pytest.raises(
+            ValidationException,
+            match=r"EPC单价超出允许范围，正确范围为\[0.7, 0.85\]",
+        ):
+            await service.create_and_run(
+                session,
+                user_id="u1",
+                username="U1",
+                basics=_BASICS,
+                param_overrides={"epc_unit_price": 0.9},
+            )
+    assert gateway.copy_templates == []
+
+
+@pytest.mark.asyncio
 async def test_v1_always_queries_spot(session_maker):
     spot = _CountingSpot()
     svc = _service(spot)

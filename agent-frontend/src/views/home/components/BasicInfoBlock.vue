@@ -109,10 +109,15 @@ const metrics = computed(() => [
   color: var(--xc-text-mute);
   margin-left: 3px;
 }
-@media (max-width: 980px) {
+@container (max-width: 980px) {
   .ir-basic { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
-@media (max-width: 560px) {
+@container (max-width: 560px) {
   .ir-basic { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container (max-width: 480px) {
+  .ir-block { padding: var(--xc-space-5); }
+  .ir-basic { gap: var(--xc-space-5) var(--xc-space-4); }
+  .ir-basic__v { font-size: var(--xc-fs-kpi-sm); }
 }
 </style>

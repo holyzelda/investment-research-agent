@@ -106,10 +106,15 @@ const kpis = computed(() => [
 .ir-fin__delta--good { color: var(--xc-status-ok); }
 .ir-fin__delta--bad { color: var(--xc-status-danger); }
 .ir-fin__delta--neutral { color: var(--xc-text-mute); }
-@media (max-width: 980px) {
+@container (max-width: 980px) {
   .ir-fin { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 520px) {
+@container (max-width: 520px) {
   .ir-fin { grid-template-columns: 1fr; }
+}
+@container (max-width: 480px) {
+  .ir-block { padding: var(--xc-space-5); }
+  .ir-fin__kpi { padding: var(--xc-space-4); }
+  .ir-fin__val { font-size: var(--xc-fs-kpi-sm); }
 }
 </style>
