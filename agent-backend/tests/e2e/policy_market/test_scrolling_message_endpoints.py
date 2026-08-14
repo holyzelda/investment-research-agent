@@ -1,7 +1,8 @@
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 
 import pytest
+import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
@@ -12,7 +13,7 @@ from app.main import app
 from app.modules.policy_market.infrastructure.persistence.orm import ScrollingMessageORM
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def seeded_client():
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -23,11 +24,10 @@ async def seeded_client():
         await connection.run_sync(Base.metadata.create_all)
     maker = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
     now = datetime.now()
-    # 发布时间必须落在“本月 1 日 ~ 当前时刻”内，否则 period=month 过滤为空。
-    # 不可写死具体日期：跨月后固定日期会掉出本月窗口，测试会在某天突然变红。
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    top_publish_time = month_start + (now - month_start) / 2
-    plain_publish_time = month_start + (now - month_start) / 3
+    yesterday = now.date() - timedelta(days=1)
+    yesterday_start = datetime.combine(yesterday, time.min)
+    top_publish_time = yesterday_start + timedelta(hours=9)
+    plain_publish_time = yesterday_start + timedelta(hours=8)
     async with maker() as session:
         session.add_all([
             ScrollingMessageORM(
@@ -57,14 +57,15 @@ async def seeded_client():
         base_url="http://test",
         headers={"userId": "policy-market-pytest", "username": "__pytest__"},
     ) as client:
-        yield client
+        yield client, yesterday, now.date()
     app.dependency_overrides.pop(get_db_session, None)
     await engine.dispose()
 
 
 @pytest.mark.asyncio
 async def test_list_scrolling_messages_returns_response_shell_and_camel_case_dto(seeded_client):
-    response = await seeded_client.get("/ir/policy-market/messages")
+    client, _, _ = seeded_client
+    response = await client.get("/ir/policy-market/messages")
 
     assert response.status_code == 200
     body = response.json()
@@ -84,7 +85,8 @@ async def test_list_scrolling_messages_returns_response_shell_and_camel_case_dto
 
 @pytest.mark.asyncio
 async def test_market_overview_returns_real_stats_and_validates_date_range(seeded_client):
-    response = await seeded_client.get(
+    client, yesterday, today = seeded_client
+    response = await client.get(
         "/ir/policy-market/messages/overview",
         params={"province": "内蒙古", "topic": "储能"},
     )
@@ -95,26 +97,26 @@ async def test_market_overview_returns_real_stats_and_validates_date_range(seede
     assert body["data"] == {
         "total": 1,
         "trendPercent": None,
-        "rangeLabel": "内蒙古 · 全部时间",
+        "rangeLabel": f"内蒙古 · {yesterday:%Y/%m/%d}",
         "topicOptions": [
             {"value": "储能", "label": "储能", "count": 1},
             {"value": "政策", "label": "政策", "count": 1},
         ],
     }
 
-    filtered_messages = await seeded_client.get(
+    filtered_messages = await client.get(
         "/ir/policy-market/messages",
         params={
             "province": "内蒙古",
-            "startDate": month_start.date().isoformat(),
-            "endDate": now.date().isoformat(),
+            "startDate": yesterday.isoformat(),
+            "endDate": today.isoformat(),
             "topic": "储能",
         },
     )
     assert filtered_messages.status_code == 200
     assert [item["title"] for item in filtered_messages.json()["data"]] == ["置顶资讯"]
 
-    invalid = await seeded_client.get(
+    invalid = await client.get(
         "/ir/policy-market/messages/overview",
         params={"startDate": "2026-08-02", "endDate": "2026-08-01"},
     )
@@ -122,7 +124,7 @@ async def test_market_overview_returns_real_stats_and_validates_date_range(seede
     assert invalid.status_code == 400
     assert invalid.json()["code"] == 400
 
-    incomplete = await seeded_client.get(
+    incomplete = await client.get(
         "/ir/policy-market/messages",
         params={"startDate": "2026-08-01"},
     )

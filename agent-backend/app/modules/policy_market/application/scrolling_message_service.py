@@ -1,7 +1,7 @@
 from collections import Counter
 from datetime import date, datetime, time, timedelta
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.policy_market.domain.models import (
@@ -25,11 +25,18 @@ class ScrollingMessageService:
         now: datetime | None = None,
     ) -> list[ScrollingMessage]:
         query_time = now or datetime.now()
-        current_start, current_end = self._date_window(start_date, end_date)
+        base_conditions = self._active_conditions(query_time, province=province)
+        current_start, current_end = await self._resolve_date_window(
+            session,
+            base_conditions,
+            start_date=start_date,
+            end_date=end_date,
+            query_time=query_time,
+        )
         statement = (
             select(ScrollingMessageORM)
             .where(
-                *self._active_conditions(query_time, province=province),
+                *base_conditions,
                 *self._window_conditions(current_start, current_end),
             )
             .order_by(
@@ -66,8 +73,14 @@ class ScrollingMessageService:
         now: datetime | None = None,
     ) -> MarketOverview:
         query_time = now or datetime.now()
-        current_start, current_end = self._date_window(start_date, end_date)
         base_conditions = self._active_conditions(query_time, province=province)
+        current_start, current_end = await self._resolve_date_window(
+            session,
+            base_conditions,
+            start_date=start_date,
+            end_date=end_date,
+            query_time=query_time,
+        )
 
         topic_rows = await self._query_rows(
             session,
@@ -77,7 +90,7 @@ class ScrollingMessageService:
         current_rows = self._filter_topic(topic_rows, topic)
 
         trend_percent = None
-        if current_start is not None and current_end is not None:
+        if start_date is not None and end_date is not None:
             previous_start, previous_end = self._previous_window(current_start, current_end)
             previous_rows = await self._query_rows(
                 session,
@@ -93,9 +106,44 @@ class ScrollingMessageService:
         return MarketOverview(
             total=len(current_rows),
             trend_percent=trend_percent,
-            range_label=self._range_label(province, start_date, end_date),
+            range_label=self._range_label(
+                province,
+                start_date,
+                end_date,
+                fallback_start=(
+                    current_start
+                    if current_start is not None and current_start < current_end
+                    else None
+                ),
+            ),
             topic_options=topic_options,
         )
+
+    async def _resolve_date_window(
+        self,
+        session: AsyncSession,
+        base_conditions: list,
+        *,
+        start_date: date | None,
+        end_date: date | None,
+        query_time: datetime,
+    ) -> tuple[datetime | None, datetime | None]:
+        explicit_window = self._date_window(start_date, end_date)
+        if start_date is not None and end_date is not None:
+            return explicit_window
+
+        today_start = datetime.combine(query_time.date(), time.min)
+        statement = select(func.max(ScrollingMessageORM.publish_time)).where(
+            *base_conditions,
+            ScrollingMessageORM.publish_time.is_not(None),
+            ScrollingMessageORM.publish_time < today_start,
+        )
+        latest_publish_time = (await session.execute(statement)).scalar_one_or_none()
+        if latest_publish_time is None:
+            return today_start, today_start
+
+        latest_start = datetime.combine(latest_publish_time.date(), time.min)
+        return latest_start, latest_start + timedelta(days=1)
 
     @staticmethod
     def _active_conditions(query_time: datetime, *, province: str = "all") -> list:
@@ -152,7 +200,18 @@ class ScrollingMessageService:
         ]
 
     @staticmethod
-    def _range_label(province: str, start_date: date | None, end_date: date | None) -> str:
+    def _range_label(
+        province: str,
+        start_date: date | None,
+        end_date: date | None,
+        *,
+        fallback_start: datetime | None = None,
+    ) -> str:
         province_label = "全部省份" if province == "all" else province
-        period_label = "全部时间" if start_date is None or end_date is None else f"{start_date:%Y/%m/%d} 至 {end_date:%Y/%m/%d}"
+        if start_date is not None and end_date is not None:
+            period_label = f"{start_date:%Y/%m/%d} 至 {end_date:%Y/%m/%d}"
+        elif fallback_start is not None:
+            period_label = f"{fallback_start:%Y/%m/%d}"
+        else:
+            period_label = "暂无历史数据"
         return f"{province_label} · {period_label}"
