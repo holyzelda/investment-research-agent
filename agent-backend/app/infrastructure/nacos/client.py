@@ -6,6 +6,7 @@ Nacos 未启用、不可达或未返回有效 YAML 时，保留本地 applicatio
 from __future__ import annotations
 
 import inspect
+import os
 import socket
 from typing import Any
 
@@ -70,9 +71,15 @@ class NacosClient:
         from v2.nacos import ClientConfig, NacosConfigService, NacosNamingService  # type: ignore
 
         nacos = get_settings().nacos
+        # The v2 SDK uses TimedRotatingFileHandler, which cannot rotate a file
+        # shared by Uvicorn reload workers on Windows. Isolate SDK logs per PID.
+        nacos_log_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "..", "logs", "nacos", str(os.getpid()))
+        )
         client_config = ClientConfig(
             server_addresses=nacos.server_addr,
             namespace_id=nacos.namespace,
+            log_dir=nacos_log_dir,
         )
         config_service = await NacosConfigService.create_config_service(client_config)
         naming_service = await NacosNamingService.create_naming_service(client_config)

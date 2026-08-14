@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config.settings import FeishuConfig
 from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
+from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
 from app.modules.calculation.application.output_mapper import map_output_to_result
 from app.modules.calculation.application.param_assembler import ParamAssembler
 from app.modules.calculation.application.retry_policy import RetryPolicy
@@ -117,6 +118,13 @@ class CalculationTaskService:
             )
         except (ValidationException, NotFoundException) as e:
             error_message = str(e)[:500]
+            if conversation_id is not None and isinstance(e, ValidationException):
+                await ConversationHistoryService().append_calculation_error(
+                    session,
+                    conversation_id=conversation_id,
+                    error_message=error_message,
+                    error_code=e.code,
+                )
             return {
                 "conversationId": conversation_id,
                 "taskId": None,
@@ -170,6 +178,13 @@ class CalculationTaskService:
             )
             session.add(task)
             await session.commit()
+            await ConversationHistoryService().append_calculation_error(
+                session,
+                conversation_id=conversation_id,
+                error_message=error_message,
+                task_id=task.id,
+                error_code=e.code,
+            )
             return {
                 "conversationId": conversation_id,
                 "taskId": task.id,
@@ -249,7 +264,10 @@ class CalculationTaskService:
 
         n = await session.scalar(
             select(func.count()).select_from(CalculationTaskORM)
-            .where(CalculationTaskORM.conversation_id == conversation_id)
+            .where(
+                CalculationTaskORM.conversation_id == conversation_id,
+                CalculationTaskORM.status == "completed",
+            )
         )
         return conversation_id, f"V{(n or 0) + 1}", previous_input, previous_task_id
 

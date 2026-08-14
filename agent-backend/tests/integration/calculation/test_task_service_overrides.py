@@ -20,7 +20,10 @@ from app.modules.calculation.application.task_service import CalculationTaskServ
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.feishu_client import MockFeishuGateway
 from app.modules.calculation.infrastructure.feishu_sample import sample_output
-from app.modules.calculation.infrastructure.persistence.orm import InputSnapshotORM
+from app.modules.calculation.infrastructure.persistence.orm import (
+    CalculationTaskORM,
+    InputSnapshotORM,
+)
 
 
 class _CountingSpot:
@@ -129,6 +132,34 @@ async def test_v1_always_queries_spot(session_maker):
     assert out["version"] == "V1"
     assert len(spot.calls) == 1
     assert out["input"]["spot_charge_avg"] == 0.2  # 成功响应携带本次冻结入参，供前端做种子基线
+
+
+@pytest.mark.asyncio
+async def test_failed_task_does_not_consume_business_version_number(session_maker):
+    svc = _service(_CountingSpot())
+    async with session_maker() as session:
+        v1 = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=_BASICS,
+        )
+        session.add(CalculationTaskORM(
+            conversation_id=v1["conversationId"],
+            version="V2",
+            status="failed",
+            request_id="failed-request",
+            error_code="calculation_failed",
+            error_message="模拟失败",
+        ))
+        await session.commit()
+
+        next_success = await svc.create_and_run(
+            session,
+            user_id="u1",
+            username="U1",
+            basics=_BASICS,
+            conversation_id=v1["conversationId"],
+        )
+
+    assert next_success["version"] == "V2"
 
 
 @pytest.mark.asyncio

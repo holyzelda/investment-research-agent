@@ -210,6 +210,39 @@ describe('conversation history sidebar and replay', () => {
     expect(stream.result.basicInfo.province).toBe('甘肃')
   })
 
+  it('openConversation restores calculation errors without creating a business version', async () => {
+    api.getConversation.mockResolvedValue({ data: {
+      conversationId: 7,
+      messages: [
+        { role: 'user', content: '重新测算', createdAt: '2026-07-15T09:00:00' },
+        {
+          role: 'assistant',
+          messageType: 'calculation_error',
+          content: '测算失败：飞书计算超时',
+          payload: { event_type: 'calculation_error', task_id: 12 },
+          createdAt: '2026-07-15T09:01:00',
+        },
+      ],
+      versions: [],
+    } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+
+    expect(store.versions).toEqual([])
+    expect(store.selectedVersion).toBeNull()
+    expect(store.messages).toHaveLength(2)
+    expect(store.messages[1]).toMatchObject({
+      role: 'assistant',
+      kind: 'assistant-stream',
+      phase: 'error',
+      done: true,
+      error: '测算失败：飞书计算超时',
+      answerText: '测算失败：飞书计算超时',
+      taskId: 12,
+    })
+  })
+
   it('openConversation preserves historical report payload and metadata without restarting generation', async () => {
     api.getConversation.mockResolvedValue({ data: {
       conversationId: 7,

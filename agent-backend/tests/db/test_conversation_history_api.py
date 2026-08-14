@@ -235,10 +235,8 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
         ("user", "first"),
         ("assistant", "second"),
     ]
-    assert [version["version"] for version in data["versions"]] == ["V1", "V2"]
-    assert data["versions"][0]["result"] is None
-    assert data["versions"][0]["input"] is None
-    assert data["versions"][1] == {
+    assert [version["version"] for version in data["versions"]] == ["V2"]
+    assert data["versions"][0] == {
         "taskId": ids["v2"],
         "version": "V2",
         "status": "completed",

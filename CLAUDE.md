@@ -39,3 +39,4 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - 后端依赖只经 `agent-backend/requirements.txt` 管理。Python 命令优先使用 `agent-backend/.venv\Scripts\python.exe`，不要调用 PATH 中的 `python` / `python3`。
 - 改 ORM 时同步检查手工 DDL、增量 migration、快照读写与历史兼容；具体约束见后端 `CLAUDE.md`。
 - 未经用户明确要求，不执行 `git add`、`git commit`、`git push` 等 Git 写操作。
+- 不要建worktree，就在当前分支上直接修改

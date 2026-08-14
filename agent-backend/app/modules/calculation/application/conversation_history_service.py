@@ -105,7 +105,10 @@ class ConversationHistoryService:
         )).scalars().all()
         tasks = (await session.execute(
             select(CalculationTaskORM)
-            .where(CalculationTaskORM.conversation_id == conversation.id)
+            .where(
+                CalculationTaskORM.conversation_id == conversation.id,
+                CalculationTaskORM.status == "completed",
+            )
             .order_by(CalculationTaskORM.created_at.asc(), CalculationTaskORM.id.asc())
         )).scalars().all()
         calculation_result_by_task = {
@@ -274,6 +277,33 @@ class ConversationHistoryService:
         await session.refresh(message)
         return message
 
+    async def append_calculation_error(
+        self,
+        session: AsyncSession,
+        *,
+        conversation_id: str,
+        error_message: str,
+        task_id: int | None = None,
+        error_code: str | int | None = None,
+    ) -> MessageSnapshotORM | None:
+        cleaned = (error_message or "").strip()
+        if not cleaned:
+            cleaned = "未知错误"
+        content = cleaned if cleaned.startswith("测算失败：") else f"测算失败：{cleaned}"
+        payload = {"event_type": "calculation_error"}
+        if task_id is not None:
+            payload["task_id"] = task_id
+        if error_code is not None:
+            payload["error_code"] = error_code
+        return await self.append_message(
+            session,
+            conversation_id=conversation_id,
+            role="assistant",
+            content=content,
+            message_type="calculation_error",
+            payload=payload,
+        )
+
     async def attach_answer_to_calculation(
         self,
         session: AsyncSession,
@@ -293,7 +323,14 @@ class ConversationHistoryService:
             ).order_by(MessageSnapshotORM.created_at.desc(), MessageSnapshotORM.id.desc())
         )).scalars().first()
         if message is None:
-            return False
+            error_message = (await session.execute(
+                select(MessageSnapshotORM).where(
+                    MessageSnapshotORM.conversation_id == conversation_id,
+                    MessageSnapshotORM.message_type == "calculation_error",
+                    MessageSnapshotORM.payload["task_id"].as_integer() == task_id,
+                ).order_by(MessageSnapshotORM.created_at.desc(), MessageSnapshotORM.id.desc())
+            )).scalars().first()
+            return error_message is not None
         payload = dict(message.payload or {})
         payload["answer_text"] = cleaned
         message.payload = payload

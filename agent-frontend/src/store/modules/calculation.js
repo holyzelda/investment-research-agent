@@ -216,6 +216,15 @@ export const useCalculationStore = defineStore('calculation', {
         if (message.messageType === 'report_generated') {
           return { id: nextId(), role: message.role, kind: 'report-generated', text: message.content, payload: message.payload }
         }
+        if (message.messageType === 'calculation_error') {
+          return {
+            id: nextId(), role: 'assistant', kind: 'assistant-stream',
+            phase: 'error', done: true,
+            error: message.content,
+            answerText: message.content,
+            taskId: message.payload?.task_id || null,
+          }
+        }
         return { id: nextId(), role: message.role, kind: 'text', text: message.content }
       })
       this.versions = completed.map((version) => ({

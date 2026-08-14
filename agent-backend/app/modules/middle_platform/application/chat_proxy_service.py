@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config.settings import MiddlePlatformConfig
@@ -87,14 +88,23 @@ class ChatProxyService:
         )
 
         token_key = (self._config.app_id, user.user_id)
-        token = self._token_cache.get(token_key)
-        if token is None:
-            issued = await self._client.issue_token(
-                user_id=user.user_id,
-                user_name=user.username,
+        try:
+            token = self._token_cache.get(token_key)
+            if token is None:
+                issued = await self._client.issue_token(
+                    user_id=user.user_id,
+                    user_name=user.username,
+                )
+                token = issued.value
+                self._token_cache.put(token_key, token, issued.expires_in)
+        except Exception:
+            await self._history.append_calculation_error(
+                session,
+                conversation_id=conversation.id,
+                error_message="对话服务连接失败，请稍后重试",
+                error_code="middle_platform_connection_failed",
             )
-            token = issued.value
-            self._token_cache.put(token_key, token, issued.expires_in)
+            raise
 
         payload = {
             "session_id": conversation.middle_platform_session_id,
@@ -135,67 +145,116 @@ class ChatProxyService:
         buffer = b""
         answer_parts: list[str] = []
         task_ids: list[int] = []
-        async for chunk in self._client.stream_chat(access_token=token, payload=payload):
-            buffer += chunk
-            while True:
-                separator = b"\r\n\r\n" if b"\r\n\r\n" in buffer else b"\n\n"
-                if separator not in buffer:
-                    break
-                record, buffer = buffer.split(separator, 1)
-                normalized = record.replace(b"\r\n", b"\n")
+        calculation_failed = False
+        try:
+            async for chunk in self._client.stream_chat(access_token=token, payload=payload):
+                buffer += chunk
+                while True:
+                    separator = b"\r\n\r\n" if b"\r\n\r\n" in buffer else b"\n\n"
+                    if separator not in buffer:
+                        break
+                    record, buffer = buffer.split(separator, 1)
+                    normalized = record.replace(b"\r\n", b"\n")
+                    error = await self._capture_session_start(
+                        session=session,
+                        conversation=conversation,
+                        record=normalized,
+                    )
+                    if error is not None:
+                        await self._persist_error(
+                            conversation_id=conversation.id,
+                            error_message="中台会话协议异常",
+                            error_code="middle_platform_protocol_error",
+                        )
+                        yield error
+                        return
+                    stream_error, frame_failed = self._collect_answer(
+                        normalized, answer_parts, task_ids
+                    )
+                    calculation_failed = calculation_failed or frame_failed
+                    if stream_error is not None:
+                        await self._persist_error(
+                            conversation_id=conversation.id,
+                            error_message=stream_error,
+                            error_code="middle_platform_error",
+                        )
+                    yield record + separator
+            if buffer:
+                normalized = buffer.replace(b"\r\n", b"\n")
                 error = await self._capture_session_start(
                     session=session,
                     conversation=conversation,
                     record=normalized,
                 )
                 if error is not None:
+                    await self._persist_error(
+                        conversation_id=conversation.id,
+                        error_message="中台会话协议异常",
+                        error_code="middle_platform_protocol_error",
+                    )
                     yield error
                     return
-                self._collect_answer(normalized, answer_parts, task_ids)
-                yield record + separator
-        if buffer:
-            normalized = buffer.replace(b"\r\n", b"\n")
-            error = await self._capture_session_start(
-                session=session,
-                conversation=conversation,
-                record=normalized,
+                stream_error, frame_failed = self._collect_answer(
+                    normalized, answer_parts, task_ids
+                )
+                calculation_failed = calculation_failed or frame_failed
+                if stream_error is not None:
+                    await self._persist_error(
+                        conversation_id=conversation.id,
+                        error_message=stream_error,
+                        error_code="middle_platform_error",
+                    )
+                yield buffer
+        except Exception:
+            await self._persist_error(
+                conversation_id=conversation.id,
+                error_message="对话服务连接中断，请重试",
+                error_code="middle_platform_stream_interrupted",
             )
-            if error is not None:
-                yield error
-                return
-            self._collect_answer(normalized, answer_parts, task_ids)
-            yield buffer
-        await self._persist_answer(
-            conversation_id=conversation.id,
-            answer_text="".join(answer_parts),
-            task_ids=task_ids,
-        )
+            raise
+        if not calculation_failed:
+            await self._persist_answer(
+                conversation_id=conversation.id,
+                answer_text="".join(answer_parts),
+                task_ids=task_ids,
+            )
 
     @staticmethod
-    def _collect_answer(record: bytes, answer_parts: list[str], task_ids: list[int]) -> None:
+    def _collect_answer(
+        record: bytes, answer_parts: list[str], task_ids: list[int]
+    ) -> tuple[str | None, bool]:
         try:
             lines = record.decode("utf-8").split("\n")
             event = next((line[7:].strip() for line in lines if line.startswith("event:")), None)
             raw_data = "\n".join(line[5:].lstrip() for line in lines if line.startswith("data:"))
             data = json.loads(raw_data)
             inner = data.get("data") if isinstance(data, dict) else None
+            if event == "error":
+                if isinstance(data, dict):
+                    return str(data.get("msg") or (inner or {}).get("message") or "对话出错"), True
+                return "对话出错", True
             if not isinstance(inner, dict):
-                return
+                return None, False
             if event == "answer":
                 text = inner.get("answer") or ""
                 if text:
                     answer_parts.append(text)
+                calculation_failed = False
                 for item in inner.get("biz") or []:
                     if item.get("tool") == "create_calculation_task":
-                        task_id = (item.get("payload") or {}).get("data", {}).get("taskId")
+                        task_data = (item.get("payload") or {}).get("data", {})
+                        task_id = task_data.get("taskId")
                         if isinstance(task_id, int):
                             task_ids.append(task_id)
+                        calculation_failed = calculation_failed or task_data.get("status") == "failed"
+                return None, calculation_failed
             elif event == "question":
                 text = inner.get("question_text") or inner.get("text") or ""
                 if text:
                     answer_parts.append(text)
         except (UnicodeDecodeError, json.JSONDecodeError, AttributeError, TypeError):
-            return
+            return None, False
+        return None, False
 
     async def _persist_answer(
         self, *, conversation_id: str, answer_text: str, task_ids: list[int]
@@ -221,7 +280,22 @@ class ChatProxyService:
                     content=cleaned,
                 )
         except Exception:
-            return
+            logger.exception("保存中台 AI 回复失败 conversation_id={}", conversation_id)
+
+    async def _persist_error(
+        self, *, conversation_id: str, error_message: str, error_code: str
+    ) -> None:
+        try:
+            maker = self._sessionmaker
+            async with maker() as write_session:
+                await self._history.append_calculation_error(
+                    write_session,
+                    conversation_id=conversation_id,
+                    error_message=error_message,
+                    error_code=error_code,
+                )
+        except Exception:
+            logger.exception("保存中台 AI 错误消息失败 conversation_id={}", conversation_id)
 
     async def _capture_session_start(
         self,

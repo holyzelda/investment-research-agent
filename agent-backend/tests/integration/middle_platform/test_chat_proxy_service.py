@@ -370,3 +370,35 @@ async def test_empty_answer_writes_no_extra_message(session):
     await session.commit()
     messages = await _conversation_messages(session, conversation.id)
     assert [m.role for m in messages] == ["user"]
+
+
+@pytest.mark.asyncio
+async def test_error_event_persists_assistant_error_message(session):
+    """中台显式错误既透传给前端，也作为 AI 消息进入历史回放。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    error_frame = (
+        "event: error\n"
+        'data: {"code":500,"msg":"测算服务暂时不可用","data":null}\n\n'
+    ).encode()
+    client = FakeMiddlePlatformClient([error_frame])
+    stream = await _service(client, maker=maker).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="测算甘肃项目",
+        conversation_id=None,
+    )
+
+    body = await _collect(stream.chunks)
+
+    assert body == error_frame
+    messages = await _conversation_messages(session, stream.conversation_id)
+    assert [(message.role, message.message_type) for message in messages] == [
+        ("user", "text"),
+        ("assistant", "calculation_error"),
+    ]
+    assert messages[1].content == "测算失败：测算服务暂时不可用"
+    assert messages[1].payload == {
+        "event_type": "calculation_error",
+        "error_code": "middle_platform_error",
+    }
