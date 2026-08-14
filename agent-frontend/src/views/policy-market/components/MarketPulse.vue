@@ -39,7 +39,7 @@
         </div>
       </div>
       <p v-if="statsLoading" class="pm-pulse__state">正在更新统计</p><p v-else-if="statsError" class="pm-pulse__state pm-pulse__state--error">统计加载失败</p>
-      <template v-else><div class="pm-pulse__total"><strong class="xc-num">{{ stats.total }}</strong><span>条资讯</span></div><div class="pm-pulse__stat-foot"><span>{{ stats.rangeLabel }}</span><span v-if="stats.trendPercent === null" class="pm-pulse__trend pm-pulse__trend--mute">暂无可比数据</span><span v-else class="pm-pulse__trend" :class="{ 'pm-pulse__trend--down': stats.trendPercent < 0 }">较上期 {{ stats.trendPercent > 0 ? '+' : '' }}{{ stats.trendPercent }}%</span></div></template>
+      <template v-else><div class="pm-pulse__total"><strong class="xc-num">{{ stats.total }}</strong><span>条资讯</span></div><div class="pm-pulse__stat-foot"><span>{{ stats.rangeLabel }}</span><span v-if="stats.trendPercent === null" class="pm-pulse__trend pm-pulse__trend--mute"></span><span v-else class="pm-pulse__trend" :class="{ 'pm-pulse__trend--down': stats.trendPercent < 0 }">较上期 {{ stats.trendPercent > 0 ? '+' : '' }}{{ stats.trendPercent }}%</span></div></template>
     </section>
     <div ref="newsScrollRef" class="pm-pulse__news" data-news-scroll @mouseenter="pauseAutoScroll" @mouseleave="resumeAutoScroll" @wheel="pauseAutoScroll" @touchstart="pauseAutoScroll" @pointerdown="pauseAutoScroll">
       <p v-if="loading" class="pm-pulse__state">正在加载市场资讯</p><p v-else-if="error" class="pm-pulse__state pm-pulse__state--error">{{ error }}</p><p v-else-if="!news.length" class="pm-pulse__state">暂无市场资讯</p>
