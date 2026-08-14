@@ -78,6 +78,8 @@ chmod +x tools/policy_materials/run_policy_sync_cron.sh
 
 cron 入口默认加载后端现有的 `.env.prod`，与 `start_prod.sh` 使用同一套 Nacos 启动参数，不需要额外创建环境配置。需要在测试环境执行时设置 `ENV_FILE=.env.test`。
 
+Python 解释器按以下顺序自动选择：环境变量 `PYTHON_BIN`、项目 `.venv/bin/python`、系统 `python3`、系统 `python`。通常不需要单独配置；如果依赖安装在其他虚拟环境中，可在现有 `.env.prod` 中设置 `PYTHON_BIN=/实际虚拟环境/bin/python`。
+
 对应的 Nacos Data ID 为 `iresearch-agent-service-prod.yml`，其中应包含：
 
 ```yaml

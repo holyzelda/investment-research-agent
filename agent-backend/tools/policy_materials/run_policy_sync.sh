@@ -3,7 +3,6 @@ set -Eeuo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
-PYTHON="${PYTHON_BIN:-$PROJECT_DIR/.venv/bin/python}"
 DATA_DIR="${POLICY_DATA_DIR:-$PROJECT_DIR/data/policy_materials}"
 PENDING_DIR="$DATA_DIR/pending"
 IMPORTED_DIR="$DATA_DIR/imported"
@@ -29,10 +28,25 @@ validate_retention_days "POLICY_PENDING_RETENTION_DAYS" "$PENDING_RETENTION_DAYS
 validate_retention_days "POLICY_IMPORTED_RETENTION_DAYS" "$IMPORTED_RETENTION_DAYS"
 validate_retention_days "POLICY_FAILED_RETENTION_DAYS" "$FAILED_RETENTION_DAYS"
 
+if [[ -n "${PYTHON_BIN:-}" ]]; then
+    PYTHON="$PYTHON_BIN"
+elif [[ -x "$PROJECT_DIR/.venv/bin/python" ]]; then
+    PYTHON="$PROJECT_DIR/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+    PYTHON="$(command -v python)"
+else
+    echo "错误：未找到可执行的 Python，请安装 Python 3 或设置 PYTHON_BIN。" >&2
+    exit 1
+fi
+
 if [[ ! -x "$PYTHON" ]]; then
     echo "错误：Python 不存在或不可执行：$PYTHON" >&2
     exit 1
 fi
+
+echo "[$(date '+%F %T')] 使用 Python：$PYTHON"
 
 exec 9>"$LOCK_FILE"
 if ! flock -n 9; then
