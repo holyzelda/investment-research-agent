@@ -68,13 +68,7 @@ export POLICY_FAILED_RETENTION_DAYS=90
 
 ## 配置 crontab
 
-以下命令假设项目部署在 `/opt/investment-research-agent`，任务使用 `iragent` 用户运行。先设置脚本执行权限：
-
-```bash
-cd /opt/investment-research-agent/agent-backend
-chmod +x tools/policy_materials/run_policy_sync.sh
-chmod +x tools/policy_materials/run_policy_sync_cron.sh
-```
+以下命令假设项目部署在 `/opt/investment-research-agent`，任务使用 `iragent` 用户运行。crontab 使用 `/usr/bin/bash` 解释执行脚本，因此脚本文件不需要设置可执行权限，GitLab 更新代码后也无需重复执行 `chmod +x`。
 
 cron 入口要求明确传入 `test` 或 `prod`，分别加载后端现有的 `.env.test` 或 `.env.prod`，不需要额外创建环境配置。未指定环境时脚本会拒绝执行，避免测试任务误读生产 Nacos 配置。
 
