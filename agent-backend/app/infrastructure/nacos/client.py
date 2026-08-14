@@ -167,8 +167,8 @@ async def _register_service(client: NacosClient | Any) -> None:
         logger.error(f"Nacos 服务注册失败：{instance['service_name']}")
 
 
-async def init_nacos_config() -> None:
-    """装载 Nacos 业务配置，随后注册服务；任何配置失败均降级到本地。"""
+async def init_nacos_config(*, register_service: bool = True) -> None:
+    """装载 Nacos 业务配置；应用启动时可随后注册服务。"""
     global _nacos_client
     if not is_nacos_enabled():
         logger.info("Nacos 未启用，使用本地配置（application.yml / 环境变量）")
@@ -206,10 +206,11 @@ async def init_nacos_config() -> None:
         logger.warning(f"Nacos 未返回配置：data_id={data_id}，回退本地配置")
         _load_local_config()
 
-    try:
-        await _register_service(client)
-    except Exception as exc:  # noqa: BLE001
-        logger.error(f"Nacos 服务注册失败：{exc}")
+    if register_service:
+        try:
+            await _register_service(client)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Nacos 服务注册失败：{exc}")
 
 
 async def cleanup_nacos() -> None:

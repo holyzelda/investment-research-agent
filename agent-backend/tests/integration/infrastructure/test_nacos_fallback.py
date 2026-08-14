@@ -93,6 +93,25 @@ policy_ask:
     ]
 
 
+def test_nacos_config_can_load_without_registering_service(monkeypatch):
+    monkeypatch.setenv("NACOS_ENABLED", "true")
+    fake_client = FakeNacosClient(
+        """
+database:
+  url: mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent
+"""
+    )
+    monkeypatch.setattr(nacos_module, "get_nacos_client", lambda: fake_client)
+    reload_settings()
+
+    asyncio.run(nacos_module.init_nacos_config(register_service=False))
+
+    assert get_settings().database.url == (
+        "mysql+aiomysql://example_user:example_password@database.example.invalid:3306/ir_agent"
+    )
+    assert fake_client.register_calls == []
+
+
 def test_nacos_empty_config_falls_back_to_local_and_registers_service(monkeypatch):
     monkeypatch.setenv("NACOS_ENABLED", "true")
     monkeypatch.setenv("IR_DB_URL", "sqlite+aiosqlite:///fallback.db")

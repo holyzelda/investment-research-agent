@@ -22,3 +22,4 @@ lark-oapi>=1.0.0
 pytest>=8.2
 pytest-asyncio>=0.23
 openpyxl>=3.1          # 提参/构建工具：离线读取飞书导出的 xlsx（映射表/表2）生成 param_dict.json，应用运行时不依赖
+PyMySQL>=1.1,<2        # 政策材料 Excel 定时入库脚本使用
