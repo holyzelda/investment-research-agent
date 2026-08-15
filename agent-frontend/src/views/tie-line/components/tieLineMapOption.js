@@ -162,14 +162,43 @@ function buildHitLineSeries(lines, voltageColors, unknownColor) {
     cursor: 'pointer',
     lineStyle: {
       color: 'rgba(0,0,0,0)',
-      width: 12,
+      width: 22,
+      opacity: 0,
     },
     emphasis: {
-      focus: 'none',
-      lineStyle: { color, opacity: 1 },
+      disabled: true,
     },
     data: group.map((line) => ({
       ...lineData(line, color),
+      lineStyle: {
+        color: 'rgba(0,0,0,0)',
+        width: 22,
+        opacity: 0,
+        curveness: curveOf(line),
+      },
+    })),
+    zlevel: 4,
+    z: 1,
+  }))
+}
+
+function buildHoverLineSeries(lines, voltageColors, unknownColor) {
+  return Array.from(groupByColor(lines, voltageColors, unknownColor), ([color, group]) => ({
+    id: `tie-line-hover-${color}`,
+    type: 'lines',
+    coordinateSystem: 'geo',
+    polyline: false,
+    silent: true,
+    tooltip: { show: false },
+    lineStyle: { color, opacity: 0 },
+    data: group.map((line) => ({
+      ...lineData(line, color),
+      lineStyle: {
+        color,
+        width: widthOf(line.ratedCapacityMw) + 1.5,
+        opacity: 0,
+        curveness: curveOf(line),
+      },
       emphasis: {
         lineStyle: {
           color,
@@ -335,6 +364,7 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
   const lineUnderlaySeries = buildLineUnderlaySeries(lines, selectedId, theme)
   const baseVisualSeries = buildBaseVisualLineSeries(lines, selectedId, voltageColors, unknownColor)
   const hitSeries = buildHitLineSeries(lines, voltageColors, unknownColor)
+  const hoverSeries = buildHoverLineSeries(lines, voltageColors, unknownColor)
   const selectedLineSeries = buildSelectedLineSeries(lines, selectedId, voltageColors, unknownColor)
   const regularMarkerSeries = buildRegularMarkerSeries(lines, selectedId, theme)
   const selectedMarkerSeries = buildSelectedMarkerSeries(lines, selectedId, voltageColors, unknownColor)
@@ -377,8 +407,7 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
         shadowColor: theme.landShadow,
       },
       emphasis: {
-        itemStyle: { areaColor: theme.landHover },
-        label: { show: true, color: theme.mapLabel, fontWeight: 600 },
+        disabled: true,
       },
       label: {
         show: true,
@@ -392,6 +421,7 @@ export function buildTieLineMapOption({ lines, selectedId, voltageColors, unknow
       ...baseVisualSeries,
       regularMarkerSeries,
       directionMarkerSeries,
+      ...hoverSeries,
       ...hitSeries,
       ...selectedLineSeries,
       ...selectedMarkerSeries,

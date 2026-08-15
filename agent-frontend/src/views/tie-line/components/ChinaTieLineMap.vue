@@ -129,6 +129,25 @@ function onChartClick(p) {
     emit('select', p.data.id)
   }
 }
+function setLineHover(p, type) {
+  if (
+    p.seriesType !== 'lines' ||
+    typeof p.seriesId !== 'string' ||
+    !p.seriesId.startsWith('tie-line-hit-')
+  ) return
+
+  chart?.dispatchAction({
+    type,
+    seriesId: p.seriesId.replace('tie-line-hit-', 'tie-line-hover-'),
+    dataIndex: p.dataIndex,
+  })
+}
+function onChartMouseOver(p) {
+  setLineHover(p, 'highlight')
+}
+function onChartMouseOut(p) {
+  setLineHover(p, 'downplay')
+}
 function resize() {
   chart && chart.resize()
 }
@@ -177,6 +196,8 @@ onMounted(() => {
   chart = echarts.init(el.value)
   chart.setOption(buildOption())
   chart.on('click', onChartClick)
+  chart.on('mouseover', onChartMouseOver)
+  chart.on('mouseout', onChartMouseOut)
   if (typeof ResizeObserver !== 'undefined') {
     resizeObserver = new ResizeObserver(resize)
     resizeObserver.observe(el.value)
@@ -193,6 +214,8 @@ onBeforeUnmount(() => {
   }
   if (chart) {
     chart.off('click', onChartClick)
+    chart.off('mouseover', onChartMouseOver)
+    chart.off('mouseout', onChartMouseOut)
     chart.dispose()
     chart = null
   }

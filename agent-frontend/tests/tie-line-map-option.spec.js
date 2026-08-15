@@ -69,6 +69,10 @@ function hitSeries(chartOption) {
   return chartOption.series.filter((series) => series.id.startsWith('tie-line-hit-'))
 }
 
+function hoverSeries(chartOption) {
+  return chartOption.series.filter((series) => series.id.startsWith('tie-line-hover-'))
+}
+
 describe('联络线地图 option', () => {
   it('使用共享的全国视图缩放常量', () => {
     const chartOption = option()
@@ -81,7 +85,8 @@ describe('联络线地图 option', () => {
   it('保持视觉线宽，同时以透明命中层扩大点击热区并承接悬停', () => {
     const chartOption = option()
     const visual = visualSeries(chartOption).find((series) => series.effect.color === 'runtime-800')
-    const hit = hitSeries(chartOption).find((series) => series.emphasis.lineStyle.color === 'runtime-800')
+    const hit = hitSeries(chartOption).find((series) => series.data[0].color === 'runtime-800')
+    const hover = hoverSeries(chartOption).find((series) => series.data[0].color === 'runtime-800')
 
     expect(visual.data[0]).toMatchObject({
       id: 1,
@@ -98,14 +103,28 @@ describe('联络线地图 option', () => {
     expect(hit).not.toHaveProperty('effect')
     expect(hit).toMatchObject({
       cursor: 'pointer',
-      lineStyle: { color: 'rgba(0,0,0,0)', width: 12 },
-      emphasis: { focus: 'none', lineStyle: { color: 'runtime-800', opacity: 1 } },
+      lineStyle: { color: 'rgba(0,0,0,0)', width: 22, opacity: 0 },
+      emphasis: { disabled: true },
     })
     expect(hit.data[0]).toMatchObject({
       id: 1,
       coords: visual.data[0].coords,
       info: lines[0],
-      emphasis: { lineStyle: { color: 'runtime-800', width: 5.1, opacity: 1 } },
+      lineStyle: {
+        color: 'rgba(0,0,0,0)',
+        width: 22,
+        opacity: 0,
+        curveness: visual.data[0].lineStyle.curveness,
+      },
+    })
+    expect(hover).toMatchObject({
+      silent: true,
+      tooltip: { show: false },
+      data: [{
+        id: 1,
+        lineStyle: { width: 5.1, opacity: 0, curveness: visual.data[0].lineStyle.curveness },
+        emphasis: { lineStyle: { color: 'runtime-800', width: 5.1, opacity: 1 } },
+      }],
     })
   })
 
@@ -190,7 +209,7 @@ describe('联络线地图 option', () => {
       shadowBlur: 10,
       shadowColor: 'land-shadow',
     })
-    expect(chartOption.geo.emphasis.itemStyle).toEqual({ areaColor: 'land-hover' })
+    expect(chartOption.geo.emphasis).toEqual({ disabled: true })
     expect(chartOption.geo.tooltip).toEqual({ show: false })
     expect(chartOption.geo.regions?.find((region) => region.name === '南海诸岛')).toBeUndefined()
   })
