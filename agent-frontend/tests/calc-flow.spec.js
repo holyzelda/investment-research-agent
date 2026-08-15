@@ -185,6 +185,34 @@ describe('calculation chat stream flow', () => {
     expect(message.answerText).toContain(data.error.message)
   })
 
+  it('shows the calculation tool response message from an error event', async () => {
+    const store = useCalculationStore()
+    const promise = store.sendAndCalculate('开始测算')
+
+    handlers.onEvent({
+      type: 'error',
+      id: '242',
+      data: {
+        event: 'error',
+        session: { session_id: 's1', chat_id: 'c1', round: 1, state: 'processing', phase: 'flow' },
+        data: {
+          tool_name: 'create_calculation_task',
+          exception: null,
+          response: { code: 400, msg: 'EPC单价超出允许范围，正确范围为[0.7, 1.1]', data: null },
+        },
+      },
+    })
+    await promise
+
+    const message = store.messages.at(-1)
+    expect(message).toMatchObject({
+      phase: 'error',
+      done: true,
+      error: 'EPC单价超出允许范围，正确范围为[0.7, 1.1]',
+      answerText: '测算失败：EPC单价超出允许范围，正确范围为[0.7, 1.1]',
+    })
+  })
+
   it.each([
     ['question_text', '请问您本次想咨询哪个业务方向？'],
     ['text', '请补充本次需要咨询的业务方向。'],

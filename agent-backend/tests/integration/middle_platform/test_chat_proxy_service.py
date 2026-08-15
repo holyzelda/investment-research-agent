@@ -402,3 +402,64 @@ async def test_error_event_persists_assistant_error_message(session):
         "event_type": "calculation_error",
         "error_code": "middle_platform_error",
     }
+
+
+@pytest.mark.asyncio
+async def test_wrapped_http_error_relays_and_persists_business_message(session):
+    """中台包装的 HTTP 400 只向前端和历史暴露业务响应文案。"""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    maker = async_sessionmaker(session.bind, expire_on_commit=False)
+    business_message = "EPC单价超出允许范围，正确范围为[0.7, 1.1]"
+    response_body = json.dumps(
+        {"code": 400, "msg": business_message, "data": None},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    exception = (
+        "RuntimeError('HTTP 调用失败: POST /ir/calc/tasks | "
+        "HTTPStatusError(\"400 Bad Request for http://internal-6-76.example.invalid:9089/ir/calc/tasks\") "
+        f"| body={response_body}')"
+    )
+    payload = {
+        "event": "error",
+        "session": {"session_id": "mp-session-1", "phase": "flow"},
+        "data": {
+            "tool_name": "create_calculation_task",
+            "exception": exception,
+            "response": None,
+        },
+    }
+    error_frame = (
+        "event: error\n"
+        "id: 248\n"
+        f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+    ).encode()
+    stream = await _service(
+        FakeMiddlePlatformClient([error_frame]), maker=maker,
+    ).start_chat(
+        session=session,
+        user=CurrentUser(user_id="u-1", username="张三"),
+        message="EPC单价改为1.2元/Wh并重新测算",
+        conversation_id=None,
+    )
+
+    body = await _collect(stream.chunks)
+
+    data = json.loads(next(
+        line[6:] for line in body.decode().splitlines() if line.startswith("data: ")
+    ))
+    assert data["msg"] == business_message
+    assert data["data"]["response"] == {
+        "code": 400,
+        "msg": business_message,
+        "data": None,
+    }
+    assert "exception" not in data["data"]
+    assert b"internal-6-76.example.invalid" not in body
+
+    messages = await _conversation_messages(session, stream.conversation_id)
+    assert messages[1].content == f"测算失败：{business_message}"
+    assert messages[1].payload == {
+        "event_type": "calculation_error",
+        "error_code": "middle_platform_error",
+    }

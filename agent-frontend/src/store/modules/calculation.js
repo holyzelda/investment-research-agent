@@ -79,6 +79,14 @@ function failureText(message) {
   return `测算失败：${message || '未知错误'}`
 }
 
+function chatErrorMessage(data, inner) {
+  return inner.response?.msg
+    || inner.response?.message
+    || data.msg
+    || inner.message
+    || '对话出错'
+}
+
 export const useCalculationStore = defineStore('calculation', {
   state: () => ({
     messages: [],
@@ -471,7 +479,7 @@ export const useCalculationStore = defineStore('calculation', {
                   break
                 }
                 case 'error':
-                  fail(data.msg || inner.message || '对话出错')
+                  fail(chatErrorMessage(data, inner))
                   break
                 case 'done':
                   if (Array.isArray(inner.suggestions) && inner.suggestions.length) {

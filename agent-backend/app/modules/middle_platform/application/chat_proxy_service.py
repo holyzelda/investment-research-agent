@@ -20,6 +20,10 @@ from app.core.exceptions import ValidationException
 from app.infrastructure.database.session import get_sessionmaker
 from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
 from app.modules.calculation.infrastructure.persistence.orm import ConversationORM
+from app.modules.middle_platform.application.error_normalizer import (
+    error_message,
+    normalize_error_record,
+)
 from app.modules.middle_platform.application.token_cache import (
     MiddlePlatformTokenCache,
     middle_platform_token_cache,
@@ -178,7 +182,8 @@ class ChatProxyService:
                             error_message=stream_error,
                             error_code="middle_platform_error",
                         )
-                    yield record + separator
+                    outbound = normalize_error_record(normalized)
+                    yield outbound + separator
             if buffer:
                 normalized = buffer.replace(b"\r\n", b"\n")
                 error = await self._capture_session_start(
@@ -204,7 +209,7 @@ class ChatProxyService:
                         error_message=stream_error,
                         error_code="middle_platform_error",
                     )
-                yield buffer
+                yield normalize_error_record(normalized)
         except Exception:
             await self._persist_error(
                 conversation_id=conversation.id,
@@ -230,9 +235,7 @@ class ChatProxyService:
             data = json.loads(raw_data)
             inner = data.get("data") if isinstance(data, dict) else None
             if event == "error":
-                if isinstance(data, dict):
-                    return str(data.get("msg") or (inner or {}).get("message") or "对话出错"), True
-                return "对话出错", True
+                return error_message(data) or "对话出错", True
             if not isinstance(inner, dict):
                 return None, False
             if event == "answer":
