@@ -5,10 +5,6 @@
     </div>
     <div class="ir-chart__body">
       <div ref="el" class="ir-chart__canvas" />
-      <div class="ir-chart__center" aria-hidden="true">
-        <span>首年总收入</span>
-        <strong>{{ formatNumber(donut.totalRevenue) }}</strong>
-      </div>
     </div>
   </div>
 </template>
@@ -29,6 +25,8 @@ const SLICES = [
   { key: 'interventionRevenue', name: '干预补偿' },
   { key: 'subsidyRevenue', name: '补贴' },
 ]
+const DESKTOP_CENTER = ['34%', '50%']
+const MOBILE_CENTER = ['50%', '42%']
 
 const buildOption = () => {
   const d = donut.value
@@ -47,6 +45,7 @@ const buildOption = () => {
     },
     legend: {
       type: 'scroll',
+      data: data.map((item) => item.name),
       orient: 'vertical',
       right: 0,
       top: 'center',
@@ -60,13 +59,42 @@ const buildOption = () => {
       {
         type: 'pie',
         radius: ['48%', '68%'],
-        center: ['34%', '50%'],
+        center: DESKTOP_CENTER,
         avoidLabelOverlap: true,
         itemStyle: { borderColor: 'rgba(36, 36, 36, 0.9)', borderWidth: 2 },
         label: { show: false },
         emphasis: { label: { show: false } },
         labelLine: { show: false },
         data,
+      },
+      {
+        type: 'pie',
+        radius: [0, 0],
+        center: DESKTOP_CENTER,
+        silent: true,
+        tooltip: { show: false },
+        labelLine: { show: false },
+        label: {
+          show: true,
+          position: 'center',
+          formatter: `{label|首年总收入}\n{value|${formatNumber(d.totalRevenue)}}`,
+          rich: {
+            label: {
+              color: xcVar('--xc-text-mute'),
+              fontSize: 11,
+              lineHeight: 18,
+              align: 'center',
+            },
+            value: {
+              color: xcVar('--xc-text-strong'),
+              fontSize: 16,
+              fontWeight: 600,
+              lineHeight: 24,
+              align: 'center',
+            },
+          },
+        },
+        data: [{ value: 1 }],
       },
     ],
   }
@@ -82,7 +110,10 @@ const buildOption = () => {
           top: 'auto',
           bottom: 0,
         },
-        series: [{ center: ['50%', '42%'], radius: ['42%', '60%'] }],
+        series: [
+          { center: MOBILE_CENTER, radius: ['42%', '60%'] },
+          { center: MOBILE_CENTER },
+        ],
       },
     }],
   }
@@ -116,31 +147,8 @@ const { el } = useEcharts(buildOption)
   width: 100%;
   height: 240px;
 }
-.ir-chart__center {
-  position: absolute;
-  top: 50%;
-  left: 34%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  white-space: nowrap;
-}
-.ir-chart__center span {
-  color: var(--xc-text-mute);
-  font-size: 11px;
-  line-height: 18px;
-}
-.ir-chart__center strong {
-  color: var(--xc-text-strong);
-  font-size: 16px;
-  font-weight: 600;
-  line-height: 24px;
-}
 @container (max-width: 480px) {
   .ir-chart--report { padding: var(--xc-space-5); }
   .ir-chart__canvas { height: 220px; }
-  .ir-chart__center { top: 42%; left: 50%; }
 }
 </style>

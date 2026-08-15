@@ -3,11 +3,15 @@ import {
   buildOverrides,
   decimalsForStep,
   dynamicRange,
+  frozenBaseline,
+  frozenMarkerPct,
   groupByZone,
   isFieldLocked,
   isVisible,
+  numericInputError,
   resolveVariant,
   roundToStep,
+  validateNumericInput,
 } from '@/utils/paramAdjust'
 
 const PARAM_DICT = [
@@ -82,6 +86,26 @@ describe('paramAdjust: 动态区间(基准值0~2倍)', () => {
     expect(dynamicRange(0, 0.01)).toBeNull()
     expect(dynamicRange(null, 0.01)).toBeNull()
     expect(dynamicRange(undefined, 0.01)).toBeNull()
+  })
+})
+
+describe('paramAdjust: 冻结基准刻度', () => {
+  const spec = { id: 'daily_cycles', default: 1.2 }
+
+  it('优先使用冻结输入并按轨道范围计算百分比', () => {
+    expect(frozenBaseline(spec, { daily_cycles: 1.5 })).toBe(1.5)
+    expect(frozenMarkerPct({ min: 1, max: 2 }, 1.5)).toBe(50)
+  })
+
+  it('冻结输入缺失时回退默认值，并约束越界位置', () => {
+    expect(frozenBaseline(spec, {})).toBe(1.2)
+    expect(frozenMarkerPct({ min: 1, max: 2 }, 3)).toBe(100)
+  })
+
+  it('缺少数值基准或区间退化时不显示刻度', () => {
+    expect(frozenBaseline({ id: 'missing' }, {})).toBeNull()
+    expect(frozenMarkerPct({ min: 1, max: 1 }, 1)).toBeNull()
+    expect(frozenMarkerPct({ min: 0, max: 2 }, null)).toBeNull()
   })
 })
 
@@ -194,5 +218,20 @@ describe('paramAdjust: 展示/输入精度（由 step 小数位数决定）', ()
     expect(roundToStep('甘肃', 0.01)).toBe('甘肃')
     expect(roundToStep(null, 0.01)).toBeNull()
     expect(roundToStep(undefined, 0.01)).toBeUndefined()
+  })
+})
+
+describe('paramAdjust: 数字输入统一校验', () => {
+  it('拒绝空值和非有限数', () => {
+    expect(validateNumericInput('')).toEqual({ valid: false, value: null, reason: 'invalid' })
+    expect(validateNumericInput('not-a-number')).toEqual({ valid: false, value: null, reason: 'invalid' })
+    expect(numericInputError(validateNumericInput(''))).toBe('请输入有效数值')
+  })
+
+  it('返回统一的上下限错误并保留解析值', () => {
+    const range = { min: 0.7, max: 0.95 }
+    expect(numericInputError(validateNumericInput(0.6, range), String)).toBe('不能低于 0.7')
+    expect(numericInputError(validateNumericInput(1, range), String)).toBe('不能高于 0.95')
+    expect(validateNumericInput(0.8, range)).toEqual({ valid: true, value: 0.8, reason: null })
   })
 })

@@ -84,47 +84,35 @@ describe('ParamAdjustPanel approved layout', () => {
     expect(wrapper.text()).not.toContain('项目运营期')
   })
 
-  it('puts EPC单价 alone on its own half-width row, and 贷款利率/贷款年限 paired on the next row', async () => {
+  it('renders every financial parameter as a full-width adjustment rail', async () => {
     const wrapper = await expandedPanel(['祥泰站'])
     const financial = wrapper.find('.ir-adjust__zone--financial_boundary')
-    const rows = financial.findAll('.ir-adjust__row')
+    const fields = financial.findAll('.ir-adjust__field')
 
-    expect(rows).toHaveLength(2)
-    expect(rows[0].classes()).toContain('ir-adjust__row--single')
-    expect(rows[0].findAll('.ir-adjust__field')).toHaveLength(1)
-    expect(rows[0].text()).toContain('EPC单价')
-
-    expect(rows[1].classes()).not.toContain('ir-adjust__row--single')
-    expect(rows[1].findAll('.ir-adjust__field').map((field) => field.text())).toEqual([
-      expect.stringContaining('贷款利率'),
-      expect.stringContaining('贷款年限'),
-    ])
+    expect(fields.map((field) => field.find('.ps-label').text())).toEqual(['EPC单价', '贷款利率', '贷款年限'])
+    expect(fields.every((field) => field.find('.ps-rail').exists())).toBe(true)
+    expect(fields.every((field) => field.find('.ps-value-area').exists())).toBe(true)
+    expect(fields.every((field) => field.find('input[type="range"]').exists())).toBe(true)
+    expect(fields.every((field) => field.findAll('.ps-range-labels span').length === 2)).toBe(true)
+    expect(fields.every((field) => field.find('.ps-mark').exists())).toBe(true)
   })
 
-  it('pairs 现货充电均价/现货放电均价 on one row and keeps other revenue sliders one-per-row', async () => {
+  it('preserves revenue parameter order while giving each control its own rail', async () => {
     const wrapper = await expandedPanel(['祥泰站'])
     const revenue = wrapper.find('.ir-adjust__zone--revenue_boundary')
-    const rows = revenue.findAll('.ir-adjust__row')
+    const fields = revenue.findAll('.ir-adjust__field')
 
-    expect(rows[0].classes()).not.toContain('ir-adjust__row--single')
-    expect(rows[0].findAll('.ir-adjust__field').map((field) => field.text())).toEqual([
-      expect.stringContaining('现货充电均价'),
-      expect.stringContaining('现货放电均价'),
+    expect(fields.map((field) => field.find('.ps-label').text())).toEqual([
+      '现货充电均价',
+      '现货放电均价',
+      '日均充放电次数',
+      '中长期电能量收入',
+      '调频收入',
+      '干预补偿',
+      '租赁单价',
+      '租赁达成率',
     ])
-
-    const singleRowTexts = rows.filter((row) => row.classes().includes('ir-adjust__row--single')).map((row) => row.text())
-    expect(singleRowTexts).toEqual([
-      expect.stringContaining('日均充放电次数'),
-      expect.stringContaining('中长期电能量收入'),
-      expect.stringContaining('调频收入'),
-      expect.stringContaining('干预补偿'),
-    ])
-
-    const lastRow = rows[rows.length - 1]
-    expect(lastRow.classes()).not.toContain('ir-adjust__row--single')
-    expect(lastRow.findAll('.ir-adjust__field').map((field) => field.text())).toEqual([
-      expect.stringContaining('租赁单价'),
-      expect.stringContaining('租赁达成率'),
-    ])
+    expect(fields.every((field) => field.find('.ps-rail').exists())).toBe(true)
+    expect(fields.every((field) => field.find('.ps-mark').attributes('aria-hidden') === 'true')).toBe(true)
   })
 })

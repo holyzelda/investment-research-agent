@@ -21,6 +21,11 @@ const snapshot = {
   warnings: [],
 }
 
+async function openAdvancedTab(wrapper) {
+  if (!wrapper.find('.ir-adjust__body').exists()) await wrapper.find('.ir-adjust__toggle').trigger('click')
+  await wrapper.findAll('.ir-adjust__tabs button')[1].trigger('click')
+}
+
 describe('result card three modules', () => {
   it('renders basic information, five KPIs and both advanced charts', () => {
     const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
@@ -110,20 +115,17 @@ describe('result card three modules', () => {
       props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 } },
     })
 
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
-    await wrapper.find('.ir-advanced__save').trigger('click')
+    await openAdvancedTab(wrapper)
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
 
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-    await wrapper.find('.ir-advanced__save').trigger('click')
     expect(wrapper.find('.ir-adjust__draft-count').text()).toBe('1')
 
     await wrapper.setProps({ version: 'V2', seedInput: { operation_years: 20, strategy_achievement_rate: 0.9 } })
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
   })
 
-  it('restores the saved advanced draft when reopening and discards unsaved edits', async () => {
+  it('keeps advanced drafts across tabs and restores the frozen calculation values', async () => {
     const paramDict = [
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
       { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
@@ -132,19 +134,21 @@ describe('result card three modules', () => {
       props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 } },
     })
 
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await openAdvancedTab(wrapper)
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
     await wrapper.findAll('.ir-advanced__number')[0].setValue(0.85)
-    await wrapper.find('.ir-advanced__save').trigger('click')
 
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.findAll('.ir-adjust__tabs button')[0].trigger('click')
+    await wrapper.findAll('.ir-adjust__tabs button')[1].trigger('click')
     expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('20')
     expect(wrapper.findAll('.ir-advanced__number')[0].element.value).toBe('0.85')
 
     await wrapper.findAll('.ir-advanced__number')[0].setValue(0.8)
-    await wrapper.find('.ir-advanced__cancel').trigger('click')
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
-    expect(wrapper.findAll('.ir-advanced__number')[0].element.value).toBe('0.85')
+    expect(wrapper.find('.ir-advanced__reset').text()).toBe('撤销高级参数修改')
+    await wrapper.find('.ir-advanced__reset').trigger('click')
+    expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('15')
+    expect(wrapper.findAll('.ir-advanced__number')[0].element.value).toBe('0.9')
+    expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
   })
 
   it('renders the adjustment panel when param dict is provided, hides it otherwise', async () => {
@@ -157,7 +161,8 @@ describe('result card three modules', () => {
     })
     expect(withDict.find('.ir-adjust__toggle').exists()).toBe(true)
     await withDict.find('.ir-adjust__toggle').trigger('click')
-    expect(withDict.find('.ir-adjust__header .ir-adjust__advanced').exists()).toBe(true)
+    expect(withDict.findAll('.ir-adjust__tabs button')).toHaveLength(2)
+    expect(withDict.find('.ir-advanced__mask').exists()).toBe(false)
 
     const withoutDict = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
     expect(withoutDict.find('.ir-adjust__toggle').exists()).toBe(false)
@@ -200,9 +205,8 @@ describe('result card three modules', () => {
     const wrapper = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
     })
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await openAdvancedTab(wrapper)
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-    await wrapper.find('.ir-advanced__save').trigger('click')
 
     expect(wrapper.find('[data-testid="report-btn"]').text()).toContain('请先重新测算')
     expect(wrapper.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
@@ -215,10 +219,9 @@ describe('result card three modules', () => {
     const wrapper = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
     })
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await openAdvancedTab(wrapper)
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-    await wrapper.find('.ir-advanced__save').trigger('click')
-
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
     expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
     await wrapper.find('.ir-adjust__pending-bar .ir-adjust__submit').trigger('click')
 
@@ -240,9 +243,8 @@ describe('result card three modules', () => {
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
     await wrapper.find('.ps-val-input').setValue(0.82)
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await openAdvancedTab(wrapper)
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-    await wrapper.find('.ir-advanced__save').trigger('click')
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(true)
@@ -257,7 +259,7 @@ describe('result card three modules', () => {
 
     await wrapper.find('.ir-adjust__toggle').trigger('click')
     expect(wrapper.find('.ps-val-input').element.value).toBe('0.8')
-    await wrapper.find('.ir-adjust__advanced').trigger('click')
+    await wrapper.findAll('.ir-adjust__tabs button')[1].trigger('click')
     expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('15')
   })
 

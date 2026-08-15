@@ -75,6 +75,18 @@ describe('AdvancedParamDialog', () => {
     wrapper.unmount()
   })
 
+  it('uses aligned full-width rails with frozen-value markers for editable sliders', () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    const railFields = wrapper.findAll('.ir-advanced__field--slider')
+
+    expect(railFields.length).toBeGreaterThan(0)
+    expect(railFields.every((field) => field.find('.ir-advanced__field-label').exists())).toBe(true)
+    expect(railFields.every((field) => field.find('.ir-advanced__value').exists())).toBe(true)
+    expect(railFields.every((field) => field.find('.ir-advanced__slider-wrap').exists())).toBe(true)
+    expect(railFields.every((field) => field.find('.ir-advanced__mark').exists())).toBe(true)
+    expect(railFields.every((field) => field.find('.ir-advanced__mark').attributes('aria-hidden') === 'true')).toBe(true)
+  })
+
   it('prefills editable values from the saved draft before frozen input defaults', () => {
     const wrapper = mount(AdvancedParamDialog, {
       props: {
@@ -108,7 +120,7 @@ describe('AdvancedParamDialog', () => {
     expect(wrapper.emitted('save')).toBeUndefined()
 
     await wrapper.find('.ir-advanced__save').trigger('click')
-    expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 15, strategy_achievement_rate: 0.9 })
+    expect(wrapper.emitted('save')[0][0]).toEqual({})
   })
 
   it('renders operation years as the metadata-defined select and saves 20', async () => {
@@ -127,11 +139,7 @@ describe('AdvancedParamDialog', () => {
     await wrapper.find('.ir-advanced__save').trigger('click')
 
     expect(wrapper.emitted('save')).toEqual([[{
-      operation_years: 15,
       strategy_achievement_rate: 0.85,
-      capacity_achievement_rate: 0.9,
-      maint_cost: 0.005,
-      opex_cost: 0.005,
     }]])
     expect(wrapper.emitted('recalculate')).toBeUndefined()
   })
@@ -148,6 +156,7 @@ describe('AdvancedParamDialog', () => {
     expect(slider?.attributes('min')).toBe('0')
     expect(slider?.attributes('max')).toBe('1')
     expect(slider?.attributes('step')).toBe('0.01')
+    expect(batteryField?.find('.ir-advanced__mark').text()).toContain('0 元/Wh')
   })
 
   it('resets battery replace cost to read-only 0 when switching back to 15-year', async () => {
@@ -167,5 +176,99 @@ describe('AdvancedParamDialog', () => {
     await wrapper.find('.ir-advanced__save').trigger('click')
 
     expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 20, battery_replace_cost: 0.3 })
+  })
+
+  it('edits inline without a modal and disables advanced controls while recalculating', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: { embedded: true, paramDict: PARAM_DICT, seedInput: SEED },
+    })
+
+    expect(wrapper.find('.ir-advanced__mask').exists()).toBe(false)
+    expect(wrapper.find('.ir-advanced-embedded').exists()).toBe(true)
+    expect(wrapper.find('.ir-advanced__save').exists()).toBe(false)
+    expect(wrapper.find('.ir-advanced__embedded-toolbar').text()).toContain('高级参数暂无修改')
+    expect(wrapper.find('.ir-advanced__reset').attributes('disabled')).toBeDefined()
+
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({ operation_years: 20, battery_replace_cost: 0.3 })
+    expect(wrapper.find('.ir-advanced__embedded-toolbar').text()).toContain('已修改 2 项高级参数')
+    expect(wrapper.find('.ir-advanced__reset').text()).toBe('撤销高级参数修改')
+    expect(wrapper.find('.ir-advanced__reset').attributes('disabled')).toBeUndefined()
+
+    await wrapper.setProps({ disabled: true })
+    expect(wrapper.find('.ir-advanced__select').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-advanced__number').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-advanced__slider').attributes('disabled')).toBeDefined()
+    expect(wrapper.find('.ir-advanced__reset').attributes('disabled')).toBeDefined()
+  })
+
+  it('keeps invalid text visible, reports the range error, and blocks draft saving', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED },
+    })
+    const input = wrapper.findAll('.ir-advanced__number').find((node) => node.element.value === '0.9')
+    const field = input.element.closest('.ir-advanced__field')
+
+    await input.setValue(1)
+
+    expect(input.element.value).toBe('1')
+    expect(input.attributes('aria-invalid')).toBe('true')
+    expect(field.textContent).toContain('不能高于 0.95')
+    expect(field.querySelector('.ir-advanced__slider').value).toBe('0.9')
+    expect(wrapper.find('.ir-advanced__save').attributes('disabled')).toBeDefined()
+    expect(wrapper.emitted('validation-change')?.at(-1)).toEqual([true])
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save')).toBeUndefined()
+  })
+
+  it('clears validation by correcting text or moving the slider', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: { embedded: true, paramDict: PARAM_DICT, seedInput: SEED },
+    })
+    const input = wrapper.findAll('.ir-advanced__number').find((node) => node.element.value === '0.9')
+    const field = input.element.closest('.ir-advanced__field')
+
+    await input.setValue('')
+    expect(field.textContent).toContain('请输入有效数值')
+    expect(wrapper.emitted('save')).toBeUndefined()
+
+    const slider = wrapper.findAll('.ir-advanced__slider').find((node) => node.element === field.querySelector('.ir-advanced__slider'))
+    await slider.setValue(0.85)
+    expect(field.querySelector('.ir-advanced__validation')).toBeNull()
+    expect(input.element.value).toBe('0.85')
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toEqual({ strategy_achievement_rate: 0.85 })
+    expect(wrapper.emitted('validation-change')?.at(-1)).toEqual([false])
+  })
+
+  it('shows data pending when an editable dynamic range has no frozen baseline', () => {
+    const dynamicDict = [...PARAM_DICT, {
+      id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary',
+      control: 'dynamic_slider', step: 0.01, default: null, g: 1,
+    }]
+    const wrapper = mount(AdvancedParamDialog, {
+      props: { modelValue: true, paramDict: dynamicDict, seedInput: { ...SEED, strategy_achievement_rate: null } },
+    })
+    const field = wrapper.findAll('.ir-advanced__field').find((node) => node.text().includes('现货策略达成率'))
+
+    expect(field.text()).toContain('数据待完善')
+    expect(field.find('.ir-advanced__number').exists()).toBe(false)
+    expect(field.find('.ir-advanced__slider').exists()).toBe(false)
+  })
+
+  it('shows the same precise-input hint when hovering or focusing an advanced slider', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: { embedded: true, paramDict: PARAM_DICT, seedInput: SEED },
+    })
+    const slider = wrapper.find('.ir-advanced__slider')
+
+    await slider.trigger('pointerenter')
+    expect(wrapper.find('.ir-advanced__input-hint').text()).toBe('点击数值可精确输入')
+    await slider.trigger('pointerleave')
+    expect(wrapper.find('.ir-advanced__input-hint').exists()).toBe(false)
+
+    await slider.trigger('focus')
+    expect(wrapper.find('.ir-advanced__input-hint').exists()).toBe(true)
+    await slider.trigger('pointerdown')
+    expect(wrapper.find('.ir-advanced__input-hint').exists()).toBe(false)
   })
 })

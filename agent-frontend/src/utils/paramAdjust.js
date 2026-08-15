@@ -48,6 +48,19 @@ export function dynamicRange(baseline, step) {
   return { min: 0, max, step }
 }
 
+// 轨道上的冻结值基准：优先取本次测算冻结输入，无冻结值时回退参数默认值。
+export function frozenBaseline(spec, seedInput = {}) {
+  const seed = seedInput?.[spec.id]
+  if (typeof seed === 'number' && Number.isFinite(seed)) return seed
+  return typeof spec.default === 'number' && Number.isFinite(spec.default) ? spec.default : null
+}
+
+export function frozenMarkerPct(range, baseline) {
+  if (!range || range.max === range.min || typeof baseline !== 'number' || !Number.isFinite(baseline)) return null
+  const clamped = Math.min(range.max, Math.max(range.min, baseline))
+  return ((clamped - range.min) / (range.max - range.min)) * 100
+}
+
 // variants 分档解析：参数字典把某参数的 control/default/min/max/step 按另一参数（如 operation_years）
 // 的取值分档（variants: { "15": {...}, "20": {...} }）。命中当前取值时浅合并覆盖基础定义，
 // 未命中或没有 variants 时返回原 spec。返回的可能是新对象，调用方不得依赖引用相等。
@@ -95,4 +108,24 @@ export function decimalsForStep(step) {
 export function roundToStep(value, step) {
   if (typeof value !== 'number' || !Number.isFinite(value)) return value
   return Number(value.toFixed(decimalsForStep(step)))
+}
+
+// 数字输入统一校验：组件保留原始文本，只在 valid=true 时更新业务值。
+// range 为空时仅校验是否为有限数，适用于装机功率/容量等普通数字字段。
+export function validateNumericInput(rawValue, range = null) {
+  if (rawValue === '' || rawValue === null || rawValue === undefined) {
+    return { valid: false, value: null, reason: 'invalid' }
+  }
+  const value = Number(rawValue)
+  if (!Number.isFinite(value)) return { valid: false, value: null, reason: 'invalid' }
+  if (range && value < range.min) return { valid: false, value, reason: 'min', limit: range.min }
+  if (range && value > range.max) return { valid: false, value, reason: 'max', limit: range.max }
+  return { valid: true, value, reason: null }
+}
+
+export function numericInputError(result, formatLimit = String, unit = '') {
+  if (result.valid) return ''
+  if (result.reason === 'min') return `不能低于 ${formatLimit(result.limit)}${unit}`
+  if (result.reason === 'max') return `不能高于 ${formatLimit(result.limit)}${unit}`
+  return '请输入有效数值'
 }

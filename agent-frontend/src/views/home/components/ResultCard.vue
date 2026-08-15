@@ -68,7 +68,6 @@
 
     <ParamAdjustPanel
       v-if="adjustable && paramDict.length"
-      ref="paramAdjustPanel"
       :param-dict="paramDict"
       :switches="switches"
       :seed-input="seedInput"
@@ -78,21 +77,24 @@
       :responding="responding"
       :advanced-overrides="advancedOverrides"
       :advanced-override-count="advancedOverrideCount"
+      :advanced-validation-error="advancedValidationError"
       @recalculate="$emit('recalculate', $event)"
-      @open-advanced="openAdvanced"
       @dirty-change="regularParametersDirty = $event"
       @discard-all-changes="discardAllParameterChanges"
-    />
-
-    <AdvancedParamDialog
-      v-model="advancedOpen"
-      :param-dict="paramDict"
-      :seed-input="seedInput"
-      :comparison-input="comparisonInput"
-      :draft-input="advancedOverrides"
-      @update:model-value="handleAdvancedOpenChange"
-      @save="saveAdvancedDraft"
-    />
+    >
+      <template #advanced>
+        <AdvancedParamDialog
+          embedded
+          :param-dict="paramDict"
+          :seed-input="seedInput"
+          :comparison-input="comparisonInput"
+          :draft-input="advancedOverrides"
+          :disabled="responding"
+          @save="saveAdvancedDraft"
+          @validation-change="advancedValidationError = $event"
+        />
+      </template>
+    </ParamAdjustPanel>
 
     <div v-if="report?.status !== 'completed'" class="ir-result__footer">
       <span v-if="hasPendingParameterChanges" id="ir-result-report-hint" class="ir-result__report-hint">
@@ -140,7 +142,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import BasicInfoBlock from './BasicInfoBlock.vue'
 import FinancialBlock from './FinancialBlock.vue'
 import RevenueDonut from './RevenueDonut.vue'
@@ -200,10 +202,9 @@ const calculatedAtText = computed(() => {
   const [, y, mo, d, hh, mm, ss] = m
   return `${y}年${mo}月${d}日 ${hh}:${mm}:${ss}`
 })
-const advancedOpen = ref(false)
 const advancedOverrides = ref({})
+const advancedValidationError = ref(false)
 const regularParametersDirty = ref(false)
-const paramAdjustPanel = ref(null)
 const shareDialogVisible = ref(false)
 const ADVANCED_IDS = new Set([
   'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
@@ -221,30 +222,23 @@ const advancedOverrideCount = computed(() => props.paramDict.reduce((count, spec
   const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
   return draft === baseline ? count : count + 1
 }, 0))
-const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0)
+const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0 || advancedValidationError.value)
 
 // 高级参数仅是当前结果卡的未提交草稿：新版本/历史版本切换到其他入参时自动清空。
 watch(() => [props.version, props.seedInput], () => {
   advancedOverrides.value = {}
+  advancedValidationError.value = false
   regularParametersDirty.value = false
 }, { deep: true })
 function normalizeAdvancedValue(value, step) {
   return typeof value === 'number' && step ? roundToStep(value, step) : value
-}
-function openAdvanced() {
-  advancedOpen.value = true
-}
-async function handleAdvancedOpenChange(open) {
-  advancedOpen.value = open
-  if (open) return
-  await nextTick()
-  paramAdjustPanel.value?.focusAdvancedTrigger()
 }
 function saveAdvancedDraft(overrides) {
   advancedOverrides.value = overrides
 }
 function discardAllParameterChanges() {
   advancedOverrides.value = {}
+  advancedValidationError.value = false
 }
 </script>
 
