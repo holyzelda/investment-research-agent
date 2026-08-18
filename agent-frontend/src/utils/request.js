@@ -96,6 +96,10 @@ service.interceptors.response.use(
     return Promise.reject(new Error(msg))
   },
   (error) => {
+    const cancelled = error?.code === 'ERR_CANCELED'
+      || error?.name === 'AbortError'
+      || axios.isCancel(error)
+    if (cancelled) return Promise.reject(error)
     if (error.response?.status === 401) {
       const message = error.response?.data?.msg || '登录状态已失效，请重新登录'
       handleUnauthorized(error.config, message)

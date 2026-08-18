@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_province (
 	PRIMARY KEY (province, k, business_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 节点级：现仅蒙西 492 站，一张表 + province 列。主键含 province 便于未来 PARTITION BY 平滑升级。
+-- 节点级：蒙西持续源及甘肃、山西文件导入节点共用，一张表 + province 列。
 CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_node (
-	province      VARCHAR(64)   NOT NULL,   -- 现统一"蒙西"
+	province      VARCHAR(64)   NOT NULL,   -- 数据所属省份
 	station_name  VARCHAR(128)  NOT NULL,
 	business_date DATE          NOT NULL,
 	k             TINYINT       NOT NULL,
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_node (
 
 -- 站点维表：前端下拉/搜索用。last_seen 判活跃。
 CREATE TABLE IF NOT EXISTS ir_spot_station (
-	province      VARCHAR(64)   NOT NULL,   -- 现统一"蒙西"
+	province      VARCHAR(64)   NOT NULL,   -- 数据所属省份
 	station_name  VARCHAR(128)  NOT NULL,
 	last_seen     DATE          NOT NULL,
 	PRIMARY KEY (province, station_name)

@@ -31,7 +31,8 @@ def _to_decimal(v) -> Optional[Decimal]:
     if v is None or v == "":
         return None
     try:
-        return Decimal(str(v))
+        value = Decimal(str(v))
+        return value if value.is_finite() else None
     except (InvalidOperation, ValueError):
         return None
 
@@ -121,6 +122,75 @@ class NodeSpotRepository:
             raise SpotDataError(
                 f"节点电价库无数据：station={station_name} price_type={self._price_type}")
         return daily
+
+
+class UploadedNodeSpotRepository:
+    """主库文件导入节点电价（wide 格式），按省份、节点和价格类型隔离。"""
+
+    def __init__(self, dsn: str, table: str = "ir_spot_price", price_type: int = 1):
+        self._dsn, self._table, self._price_type = dsn, table, price_type
+        self._engine: Optional[Engine] = None
+
+    def _eng(self) -> Engine:
+        if self._engine is None:
+            self._engine = create_engine(self._dsn, pool_pre_ping=True)
+        return self._engine
+
+    def list_stations(self, area: str) -> list[str]:
+        sql = text(
+            f"SELECT DISTINCT station_name FROM {self._table} "
+            "WHERE area=:area AND price_type=:pt ORDER BY station_name"
+        )
+        with self._eng().connect() as conn:
+            return [
+                row[0]
+                for row in conn.execute(sql, {"area": area, "pt": self._price_type})
+                if row[0]
+            ]
+
+    def fetch_daily_prices(
+        self,
+        area: str,
+        station_name: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+    ) -> dict:
+        cols = ", ".join(f"`{label}`" for label in GRID_LABELS)
+        sql = text(
+            f"SELECT `date`, {cols} FROM {self._table} "
+            "WHERE area=:area AND price_type=:pt AND station_name=:station "
+            "ORDER BY `date`"
+        )
+        rows = 0
+        daily: dict = {}
+        with self._eng().connect() as conn:
+            result = conn.execute(sql, {
+                "area": area,
+                "pt": self._price_type,
+                "station": station_name,
+            })
+            for row in result:
+                rows += 1
+                business_date = _parse_date(row[0])
+                if business_date is None or business_date in daily:
+                    continue
+                if start_date is not None and business_date < start_date:
+                    continue
+                if end_date is not None and business_date >= end_date:
+                    continue
+                prices = [_to_decimal(value) for value in row[1:]]
+                if len(prices) == 96 and all(price is not None for price in prices):
+                    daily[business_date] = prices
+        if rows == 0:
+            raise SpotDataError(
+                f"上传节点电价库无数据：area={area} station={station_name} "
+                f"price_type={self._price_type}"
+            )
+        return daily
+
+    def last_complete_date(self, area: str, station_name: str) -> Optional[date]:
+        daily = self.fetch_daily_prices(area, station_name)
+        return max(daily, default=None)
 
 
 def _complete_days(by_day: dict) -> dict:

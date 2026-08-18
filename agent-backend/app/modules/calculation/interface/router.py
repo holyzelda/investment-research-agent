@@ -75,18 +75,39 @@ async def get_param_dict(
 @router.get("/stations")
 async def list_stations(
     province: str = Query(..., min_length=1, description="项目省份，精确匹配 ir_spot_station.province"),
+    keyword: Optional[str] = Query(default=None, max_length=128, description="节点名称关键字"),
+    cursor: Optional[str] = Query(default=None, max_length=128, description="上一批最后一个节点名称"),
+    limit: int = Query(default=30, ge=1, le=100, description="每批返回数量"),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """按项目省份返回可选节点，供参数调整面板下拉选择。
+    """按项目省份搜索节点；滚动到底时用 nextCursor 继续加载后一批。"""
+    statement = select(SpotStationORM.station_name).where(
+        SpotStationORM.province == province
+    )
+    normalized_keyword = (keyword or "").strip()
+    if normalized_keyword:
+        escaped_keyword = (
+            normalized_keyword
+            .replace("!", "!!")
+            .replace("%", "!%")
+            .replace("_", "!_")
+        )
+        statement = statement.where(
+            SpotStationORM.station_name.like(f"%{escaped_keyword}%", escape="!")
+        )
+    if cursor:
+        statement = statement.where(SpotStationORM.station_name > cursor)
 
-    当前不做省份别名/区域映射；数据表的 province 值与项目省份精确匹配时才返回。
-    """
     rows = (await session.execute(
-        select(SpotStationORM.station_name)
-        .where(SpotStationORM.province == province)
-        .order_by(SpotStationORM.station_name.asc())
+        statement.order_by(SpotStationORM.station_name.asc()).limit(limit + 1)
     )).scalars().all()
-    return ok({"items": rows})
+    items = list(rows[:limit])
+    has_more = len(rows) > limit
+    return ok({
+        "items": items,
+        "hasMore": has_more,
+        "nextCursor": items[-1] if has_more else None,
+    })
 
 
 class AssembleReq(BaseModel):
@@ -166,6 +187,19 @@ async def create_task(
         power_mw=req.power_mw,
         duration_hours=req.duration_hours,
     )
+    inherited_node = (
+        previous_input is not None
+        and previous_input.get("node_name") == req.node_name
+    )
+    if req.node_name and not inherited_node:
+        station = (await session.execute(
+            select(SpotStationORM.station_name).where(
+                SpotStationORM.province == req.province,
+                SpotStationORM.station_name == req.node_name,
+            )
+        )).scalar_one_or_none()
+        if station is None:
+            raise ValidationException(f"节点“{req.node_name}”不属于省份“{req.province}”")
     out = await svc.create_and_run(
         session,
         user_id=user.user_id,

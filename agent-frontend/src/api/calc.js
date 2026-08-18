@@ -46,11 +46,16 @@ export function getParamDict(province) {
   })
 }
 
-export function getStations(province) {
+export function getStations({ province, keyword, cursor, limit, signal }) {
+  const params = { province }
+  if (keyword) params.keyword = keyword
+  if (cursor) params.cursor = cursor
+  if (limit) params.limit = limit
   return request({
     url: '/ir/calc/stations',
     method: 'get',
-    params: { province },
+    params,
+    signal,
   })
 }
 

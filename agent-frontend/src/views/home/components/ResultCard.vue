@@ -73,6 +73,9 @@
       :seed-input="seedInput"
       :comparison-input="comparisonInput"
       :station-options="stationOptions"
+      :station-loading="stationLoading"
+      :station-has-more="stationHasMore"
+      :station-error="stationError"
       :version="version"
       :responding="responding"
       :advanced-overrides="advancedOverrides"
@@ -81,6 +84,9 @@
       @recalculate="$emit('recalculate', $event)"
       @dirty-change="regularParametersDirty = $event"
       @discard-all-changes="discardAllParameterChanges"
+      @station-open="$emit('station-open', $event)"
+      @station-search="$emit('station-search', $event)"
+      @station-load-more="$emit('station-load-more', $event)"
     >
       <template #advanced>
         <AdvancedParamDialog
@@ -165,6 +171,9 @@ const props = defineProps({
   paramDict: { type: Array, default: () => [] },
   switches: { type: Object, default: () => ({}) },
   stationOptions: { type: Array, default: () => [] },
+  stationLoading: { type: Boolean, default: false },
+  stationHasMore: { type: Boolean, default: false },
+  stationError: { type: String, default: '' },
   responding: { type: Boolean, default: false },
   report: { type: Object, default: null },
   comparisonVersion: { type: String, default: '' },
@@ -176,7 +185,14 @@ const props = defineProps({
   conversationId: { type: String, default: '' },
   taskId: { type: [Number, String], default: null },
 })
-defineEmits(['recalculate', 'generate-report', 'compare-version-change'])
+defineEmits([
+  'recalculate',
+  'generate-report',
+  'compare-version-change',
+  'station-open',
+  'station-search',
+  'station-load-more',
+])
 const advanced = computed(() => props.result.advanced || { donut: {}, debtServiceCoverage: {} })
 const warnings = computed(() => props.result.warnings || [])
 const versionDiff = computed(() => diffVersionInputs(

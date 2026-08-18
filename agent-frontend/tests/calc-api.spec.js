@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const request = vi.hoisted(() => vi.fn())
 vi.mock('@/utils/request', () => ({ default: request }))
 
-import { createCalculationTask } from '@/api/calc'
+import { createCalculationTask, getStations } from '@/api/calc'
 
 describe('calc api', () => {
   beforeEach(() => {
@@ -34,6 +34,30 @@ describe('calc api', () => {
       method: 'post',
       data: payload,
       headers: undefined,
+    })
+  })
+
+  it('按省份、关键字和游标分批查询节点并传递取消信号', () => {
+    const signal = new AbortController().signal
+
+    getStations({ province: '甘肃', keyword: '兰州', cursor: '兰州东', limit: 30, signal })
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/calc/stations',
+      method: 'get',
+      params: { province: '甘肃', keyword: '兰州', cursor: '兰州东', limit: 30 },
+      signal,
+    })
+  })
+
+  it('节点查询不发送空的可选参数', () => {
+    getStations({ province: '甘肃', keyword: '', cursor: null })
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/calc/stations',
+      method: 'get',
+      params: { province: '甘肃' },
+      signal: undefined,
     })
   })
 })

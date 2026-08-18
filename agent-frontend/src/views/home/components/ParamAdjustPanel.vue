@@ -80,7 +80,7 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" v-html="projectFieldIcon(spec.id)" />
               </span>
               <div class="ir-adjust__field-content">
-              <!-- 项目信息：仅当该省存在节点时显示节点选择卡；节点来源于 ir_spot_station。 -->
+              <!-- 节点候选按需从 ir_spot_station 远程搜索，历史已选节点始终可见。 -->
               <template v-if="spec.id === 'node_name'">
                 <span class="ir-adjust__label">节点名称</span>
                 <el-popover
@@ -89,7 +89,6 @@
                   trigger="click"
                   :show-arrow="false"
                   popper-class="ir-adjust__node-editor"
-                  @show="focusNodeEditor"
                 >
                   <template #reference>
                     <button
@@ -105,24 +104,30 @@
                     </button>
                   </template>
                   <div class="ir-adjust__node-editor-body" @keydown.esc.stop.prevent="closeNodeEditor(true)">
-                    <span class="ir-adjust__node-editor-sizer" aria-hidden="true">
-                      <span>搜索或选择节点</span>
-                      <span v-for="station in stationOptions" :key="station">{{ station }}</span>
-                    </span>
                     <el-select
                       v-if="nodeEditorOpen"
                       ref="nodeSelect"
                       v-model="localValues.node_name"
                       class="ir-adjust__node-select"
                       filterable
+                      remote
+                      :remote-method="searchNodes"
+                      :loading="stationLoading && props.stationOptions.length === 0"
                       :suffix-icon="null"
                       :teleported="false"
                       placeholder="搜索或选择节点"
+                      :no-data-text="stationError || '暂无节点'"
                       no-match-text="未找到匹配节点"
-                      popper-class="ir-adjust__node-popper"
+                      :popper-class="nodePopperClass"
+                      @popup-scroll="handleNodePopupScroll"
                       @change="selectNode"
                     >
-                      <el-option v-for="station in stationOptions" :key="station" :label="station" :value="station" />
+                      <template #footer>
+                        <div v-if="stationLoading && props.stationOptions.length" class="ir-adjust__node-load-more" role="status">
+                          加载更多节点…
+                        </div>
+                      </template>
+                      <el-option v-for="station in nodeOptions" :key="station" :label="station" :value="station" />
                     </el-select>
                   </div>
                 </el-popover>
@@ -261,7 +266,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElOption, ElPopover, ElSelect } from 'element-plus'
 import { ChevronDown, CircleAlert } from '@lucide/vue'
 import {
@@ -284,19 +289,30 @@ const props = defineProps({
   seedInput: { type: Object, default: () => ({}) },
   comparisonInput: { type: Object, default: null },
   stationOptions: { type: Array, default: () => [] },
+  stationLoading: { type: Boolean, default: false },
+  stationHasMore: { type: Boolean, default: false },
+  stationError: { type: String, default: '' },
   advancedOverrides: { type: Object, default: () => ({}) },
   advancedOverrideCount: { type: Number, default: 0 },
   advancedValidationError: { type: Boolean, default: false },
   version: { type: String, default: '' },
   responding: { type: Boolean, default: false },
 })
-const emit = defineEmits(['recalculate', 'dirty-change', 'discard-all-changes'])
+const emit = defineEmits([
+  'recalculate',
+  'dirty-change',
+  'discard-all-changes',
+  'station-open',
+  'station-search',
+  'station-load-more',
+])
 
 const expanded = ref(false)
 const activeTab = ref('common')
 const nodeEditorOpen = ref(false)
 const nodeTrigger = ref(null)
 const nodeSelect = ref(null)
+const nodePopperClass = `ir-adjust__node-popper ir-adjust__node-popper--${getCurrentInstance().uid}`
 const localValues = reactive({})
 const numberInputValues = reactive({})
 const sliderInputValues = reactive({})
@@ -304,6 +320,7 @@ const validationErrors = reactive({})
 const activeSliderHint = ref(null)
 let sliderHintTimer = null
 let suppressedSliderFocus = null
+let nodeSearchTimer = null
 
 const PROJECT_ORDER = ['province', 'node_name', 'power_mw', 'capacity_mwh']
 // 每个分区的行布局：一行一个 id = 该项独占半宽一行；一行多个 id = 并排共享一行。
@@ -360,17 +377,55 @@ function resetLocalValues() {
   }
 }
 watch(() => props.seedInput, resetLocalValues, { immediate: true })
+watch(nodeEditorOpen, (open, wasOpen) => {
+  if (open && !wasOpen) focusNodeEditor()
+})
 watch(() => props.responding, (responding) => {
   if (responding) {
     nodeEditorOpen.value = false
     hideSliderHint()
   }
 })
-onBeforeUnmount(() => clearTimeout(sliderHintTimer))
+onBeforeUnmount(() => {
+  clearTimeout(sliderHintTimer)
+  clearTimeout(nodeSearchTimer)
+})
+
+const nodeOptions = computed(() => [...new Set([
+  localValues.node_name,
+  ...props.stationOptions,
+].filter(Boolean))])
 
 async function focusNodeEditor() {
+  emit('station-open', {
+    province: localValues.province || props.seedInput.province,
+    selectedNode: localValues.node_name || null,
+  })
   await nextTick()
-  nodeSelect.value?.focus()
+  nodeSelect.value?.focus?.()
+}
+function searchNodes(keyword) {
+  clearTimeout(nodeSearchTimer)
+  nodeSearchTimer = setTimeout(() => {
+    emit('station-search', {
+      province: localValues.province || props.seedInput.province,
+      keyword,
+      selectedNode: localValues.node_name || null,
+    })
+  }, 300)
+}
+function handleNodePopupScroll(event) {
+  if (!props.stationHasMore || props.stationLoading) return
+  const eventTarget = event?.target
+  const scrollContainer = eventTarget && typeof eventTarget === 'object'
+    && 'clientHeight' in eventTarget && 'scrollHeight' in eventTarget
+    ? eventTarget
+    : document.querySelector(`.${nodePopperClass.split(' ').at(-1)} .el-select-dropdown__wrap`)
+  if (!scrollContainer) return
+  const eventScrollTop = Number(event?.scrollTop)
+  const scrollTop = Number.isFinite(eventScrollTop) ? eventScrollTop : scrollContainer.scrollTop
+  if (scrollTop + scrollContainer.clientHeight < scrollContainer.scrollHeight - 24) return
+  emit('station-load-more', { selectedNode: localValues.node_name || null })
 }
 async function closeNodeEditor(restoreFocus = false) {
   nodeEditorOpen.value = false
@@ -388,7 +443,6 @@ const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
   .map((group) => {
     let items = group.items.filter((spec) => !DROPPED_FIELDS.has(spec.id))
     if (group.zone === 'project_definition') {
-      items = items.filter((spec) => spec.id !== 'node_name' || props.stationOptions.length > 0)
       items = [...items].sort((a, b) => PROJECT_ORDER.indexOf(a.id) - PROJECT_ORDER.indexOf(b.id))
     }
     return { ...group, label: group.zone === 'project_definition' ? '项目信息' : group.label, items }
@@ -686,11 +740,9 @@ function onSubmit() {
 .ir-adjust__node-action { flex:0 0 auto; color:var(--xc-text-faint); font-size:var(--xc-fs-3xs); font-weight:var(--xc-fw-regular); }
 .ir-adjust__node-trigger:hover:not(:disabled) .ir-adjust__node-action,
 .ir-adjust__node-trigger:focus-visible .ir-adjust__node-action { color:var(--xc-accent-blue); }
-:global(.ir-adjust__node-editor.el-popper) { width:max-content !important; max-width:calc(100vw - var(--xc-space-8)); min-width:0; padding:var(--xc-space-3); border:1px solid var(--xc-border-strong); border-radius:var(--xc-radius-sm); background:var(--xc-surface-raised); box-shadow:var(--xc-shadow-md); }
-:global(.ir-adjust__node-editor .ir-adjust__node-editor-body) { position:relative; display:grid; width:max-content; max-width:100%; }
-:global(.ir-adjust__node-editor .ir-adjust__node-editor-sizer) { grid-area:1 / 1; display:grid; height:0; overflow:hidden; pointer-events:none; visibility:hidden; white-space:nowrap; }
-:global(.ir-adjust__node-editor .ir-adjust__node-editor-sizer > span) { padding-inline:calc(var(--xc-space-3) + var(--xc-space-4)); }
-:global(.ir-adjust__node-editor .ir-adjust__node-select) { grid-area:1 / 1; width:100%; min-width:0; }
+:global(.ir-adjust__node-editor.el-popper) { width:min(320px, calc(100vw - var(--xc-space-8))) !important; max-width:calc(100vw - var(--xc-space-8)); min-width:220px; padding:var(--xc-space-3); border:1px solid var(--xc-border-strong); border-radius:var(--xc-radius-sm); background:var(--xc-surface-raised); box-shadow:var(--xc-shadow-md); }
+:global(.ir-adjust__node-editor .ir-adjust__node-editor-body) { width:100%; max-width:100%; }
+:global(.ir-adjust__node-editor .ir-adjust__node-select) { width:100%; min-width:0; }
 :global(.ir-adjust__node-editor .ir-adjust__node-select .el-select__wrapper) { min-height:34px; padding:0 var(--xc-space-3); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-inline-bg); box-shadow:none; }
 :global(.ir-adjust__node-editor .ir-adjust__node-select .el-select__wrapper.is-focused) { box-shadow:0 0 0 1px var(--xc-accent-blue); }
 :global(.ir-adjust__node-editor .ir-adjust__node-select .el-select__selected-item),
@@ -713,6 +765,7 @@ function onSubmit() {
 :global(.ir-adjust__node-popper .el-select-dropdown__item.is-selected:hover),
 :global(.ir-adjust__node-popper .el-select-dropdown__item.is-selected.hover) { background:var(--xc-accent-blue-soft); color:var(--xc-accent-blue); }
 :global(.ir-adjust__node-popper .el-select-dropdown__empty) { margin:0; padding:var(--xc-space-5) var(--xc-space-4); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-frosted); color:var(--xc-text-mute); font-size:var(--xc-fs-xs); }
+:global(.ir-adjust__node-popper .el-select-dropdown__footer) { padding:var(--xc-space-2) var(--xc-space-4); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-frosted); color:var(--xc-text-mute); font-size:var(--xc-fs-3xs); line-height:20px; text-align:center; }
 .ir-adjust__number::-webkit-inner-spin-button,.ir-adjust__number::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .ir-adjust__number:disabled,.ir-adjust__slider:disabled { cursor:not-allowed; opacity:.55; }
 .ir-adjust__number.is-invalid { border-color:var(--xc-status-danger); color:var(--xc-status-danger); }

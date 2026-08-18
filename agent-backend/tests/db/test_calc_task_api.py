@@ -5,13 +5,24 @@
 """
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.database.session import get_db_session
 from app.main import app
 
 _HEADERS = {"userId": "1001", "username": "__pytest__"}
+
+
+@pytest.fixture(autouse=True)
+async def station_rows(db_engine):
+    async with db_engine.begin() as connection:
+        await connection.execute(text("""
+            INSERT INTO ir_spot_station (province, station_name, last_seen)
+            VALUES ('甘肃', '兰州东', '2026-08-17')
+            ON DUPLICATE KEY UPDATE last_seen = VALUES(last_seen)
+        """))
+    yield
 
 
 @pytest.fixture
@@ -107,6 +118,74 @@ async def test_province_change_returns_failed_without_creating_task(client, db_e
             )
         )).scalars().all()
     assert len(tasks) == 1
+
+
+@pytest.mark.asyncio
+async def test_new_or_changed_node_must_belong_to_request_province(client, db_engine):
+    from app.modules.calculation.infrastructure.persistence.orm import CalculationTaskORM
+
+    invalid_first = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": "不存在节点",
+    })
+    assert invalid_first.status_code == 400
+    assert "不属于省份" in invalid_first.json()["msg"]
+
+    first = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": "兰州东",
+    })
+    assert first.status_code == 200
+    conversation_id = first.json()["data"]["conversationId"]
+
+    invalid_changed = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": "不存在节点",
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": conversation_id})
+    assert invalid_changed.status_code == 400
+
+    maker = async_sessionmaker(db_engine, expire_on_commit=False)
+    async with maker() as session:
+        task_count = (await session.execute(
+            select(func.count()).select_from(CalculationTaskORM).where(
+                CalculationTaskORM.conversation_id == conversation_id
+            )
+        )).scalar_one()
+    assert task_count == 1
+
+
+@pytest.mark.asyncio
+async def test_unchanged_deleted_node_and_empty_node_remain_compatible(client, db_engine):
+    first = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": "兰州东",
+    })
+    assert first.status_code == 200
+    first_data = first.json()["data"]
+
+    async with db_engine.begin() as connection:
+        await connection.execute(text("""
+            DELETE FROM ir_spot_station
+            WHERE province = '甘肃' AND station_name = '兰州东'
+        """))
+
+    unchanged = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": "兰州东",
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": first_data["conversationId"]})
+    assert unchanged.status_code == 200
+    assert unchanged.json()["data"]["version"] == "V2"
+
+    historical = await client.get(f"/ir/calc/tasks/{first_data['taskId']}/result")
+    assert historical.status_code == 200
+    assert historical.json()["data"]["basicInfo"]["nodeName"] == "兰州东"
+
+    cleared = await client.post("/ir/calc/tasks", json={
+        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200,
+        "node_name": None,
+    }, headers={**_HEADERS, "X-IR-Conversation-Id": first_data["conversationId"]})
+    assert cleared.status_code == 200
+    assert cleared.json()["data"]["version"] == "V3"
 
 
 @pytest.mark.asyncio

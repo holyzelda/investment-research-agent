@@ -55,10 +55,10 @@ describe('param adjustment: recalculate + param meta', () => {
 
     expect(store.versions[0].input).toEqual({ province: '甘肃', spot_charge_avg: 0.2 })
     expect(api.getParamDict).toHaveBeenCalledWith('甘肃')
-    expect(api.getStations).toHaveBeenCalledWith('甘肃')
+    expect(api.getStations).not.toHaveBeenCalled()
     expect(store.paramDict).toEqual([{ id: 'epc_unit_price' }])
     expect(store.switches).toEqual({ switch_spot: 1 })
-    expect(store.stationOptions).toEqual(['祥泰站'])
+    expect(store.stationOptions).toEqual([])
   })
 
   it('recalculate 携带锁定省份、面板基础字段与受控 overrides 发起新版本', async () => {

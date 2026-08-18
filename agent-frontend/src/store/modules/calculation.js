@@ -28,6 +28,24 @@ const nextId = () => `m${++messageId}`
 const nextTurnId = () => ++turnId
 const answerTimers = new Map()
 const reportStreams = new Map()
+const STATION_PAGE_SIZE = 30
+const STATION_CACHE_TTL = 30 * 1000
+
+function isCancelledRequest(error) {
+  return error?.code === 'ERR_CANCELED' || error?.name === 'AbortError'
+}
+
+function uniqueStations(items, selectedNode) {
+  const values = selectedNode ? [selectedNode, ...items] : items
+  return [...new Set(values.filter(Boolean))]
+}
+
+function pruneStationCache(cache) {
+  const now = Date.now()
+  for (const [key, entry] of cache) {
+    if (now - entry.savedAt >= STATION_CACHE_TTL) cache.delete(key)
+  }
+}
 
 function createReportStreamMessage(taskId) {
   return {
@@ -102,6 +120,16 @@ export const useCalculationStore = defineStore('calculation', {
     paramDict: [],
     switches: {},
     stationOptions: [],
+    stationProvince: '',
+    stationKeyword: '',
+    stationCursor: null,
+    stationHasMore: false,
+    stationLoading: false,
+    stationError: '',
+    stationRequestSequence: 0,
+    stationController: null,
+    stationCache: new Map(),
+    stationInflight: new Map(),
     reports: [],
     reportTasks: {},
     activeReportCount: 0,
@@ -129,6 +157,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.selectedVersion = null
       this.comparisonVersionByVersion = {}
       this.responding = false
+      this.resetStationQuery()
       this.reports = []
       this.reportTasks = {}
       this.activeReportCount = 0
@@ -170,17 +199,131 @@ export const useCalculationStore = defineStore('calculation', {
         this.historyLoading = false
       }
     },
+    resetStationQuery() {
+      this.stationController?.abort()
+      this.stationRequestSequence += 1
+      this.stationController = null
+      this.stationProvince = ''
+      this.stationKeyword = ''
+      this.stationCursor = null
+      this.stationHasMore = false
+      this.stationLoading = false
+      this.stationError = ''
+      this.stationOptions = []
+    },
     async loadParamMeta(province) {
       if (!province) return
       const paramResponse = await getParamDict(province)
       this.paramDict = paramResponse.data?.parameters || []
       this.switches = paramResponse.data?.switches || {}
+    },
+    async searchStations({ province, keyword = '', selectedNode = null } = {}) {
+      if (!province) return
+      const normalizedKeyword = String(keyword || '').trim()
+      const queryKey = JSON.stringify([province, normalizedKeyword, null])
+      pruneStationCache(this.stationCache)
+      if (
+        this.stationLoading
+        && this.stationProvince === province
+        && this.stationKeyword === normalizedKeyword
+      ) return this.stationInflight.get(queryKey)
+
+      this.stationController?.abort()
+      const sequence = ++this.stationRequestSequence
+      const controller = new AbortController()
+      this.stationController = controller
+      this.stationProvince = province
+      this.stationKeyword = normalizedKeyword
+      this.stationCursor = null
+      this.stationHasMore = false
+      this.stationLoading = true
+      this.stationError = ''
+      this.stationOptions = uniqueStations([], selectedNode)
+
       try {
-        const stationResponse = await getStations(province)
-        this.stationOptions = stationResponse.data?.items || []
+        const cached = this.stationCache.get(queryKey)
+        let promise
+        if (cached && Date.now() - cached.savedAt < STATION_CACHE_TTL) {
+          promise = Promise.resolve(cached.page)
+        } else {
+          promise = this.stationInflight.get(queryKey)
+          if (!promise) {
+            promise = getStations({
+              province,
+              keyword: normalizedKeyword,
+              limit: STATION_PAGE_SIZE,
+              signal: controller.signal,
+            }).then((response) => response.data || {})
+            this.stationInflight.set(queryKey, promise)
+            promise.finally(() => {
+              if (this.stationInflight.get(queryKey) === promise) this.stationInflight.delete(queryKey)
+            }).catch(() => {})
+          }
+        }
+        const page = await promise
+        if (sequence !== this.stationRequestSequence) return
+        this.stationCache.set(queryKey, { savedAt: Date.now(), page })
+        this.stationOptions = uniqueStations(page.items || [], selectedNode)
+        this.stationCursor = page.nextCursor || null
+        this.stationHasMore = !!page.hasMore
       } catch (error) {
-        // 节点维表或 stations 接口不可用时，仍可展示和调整其他参数；节点卡片自然隐藏。
-        this.stationOptions = []
+        if (sequence !== this.stationRequestSequence || isCancelledRequest(error)) return
+        this.stationError = error?.response?.data?.msg || error?.message || '节点加载失败'
+        this.stationOptions = uniqueStations([], selectedNode)
+      } finally {
+        if (sequence === this.stationRequestSequence) {
+          this.stationLoading = false
+          if (this.stationController === controller) this.stationController = null
+        }
+      }
+    },
+    async loadMoreStations({ selectedNode = null } = {}) {
+      if (!this.stationProvince || !this.stationHasMore || !this.stationCursor || this.stationLoading) return
+      const province = this.stationProvince
+      const keyword = this.stationKeyword
+      const cursor = this.stationCursor
+      const queryKey = JSON.stringify([province, keyword, cursor])
+      pruneStationCache(this.stationCache)
+      const sequence = this.stationRequestSequence
+      const controller = new AbortController()
+      this.stationController = controller
+      this.stationLoading = true
+      this.stationError = ''
+      try {
+        const cached = this.stationCache.get(queryKey)
+        let promise
+        if (cached && Date.now() - cached.savedAt < STATION_CACHE_TTL) {
+          promise = Promise.resolve(cached.page)
+        } else {
+          promise = this.stationInflight.get(queryKey)
+          if (!promise) {
+            promise = getStations({
+              province,
+              keyword,
+              cursor,
+              limit: STATION_PAGE_SIZE,
+              signal: controller.signal,
+            }).then((response) => response.data || {})
+            this.stationInflight.set(queryKey, promise)
+            promise.finally(() => {
+              if (this.stationInflight.get(queryKey) === promise) this.stationInflight.delete(queryKey)
+            }).catch(() => {})
+          }
+        }
+        const page = await promise
+        if (sequence !== this.stationRequestSequence) return
+        this.stationCache.set(queryKey, { savedAt: Date.now(), page })
+        this.stationOptions = uniqueStations([...this.stationOptions, ...(page.items || [])], selectedNode)
+        this.stationCursor = page.nextCursor || null
+        this.stationHasMore = !!page.hasMore
+      } catch (error) {
+        if (sequence !== this.stationRequestSequence || isCancelledRequest(error)) return
+        this.stationError = error?.response?.data?.msg || error?.message || '节点加载失败'
+      } finally {
+        if (sequence === this.stationRequestSequence) {
+          this.stationLoading = false
+          if (this.stationController === controller) this.stationController = null
+        }
       }
     },
     async openConversation(conversationId, targetTaskId = null) {

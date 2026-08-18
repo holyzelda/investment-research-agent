@@ -6,6 +6,7 @@
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import date, timedelta
 from decimal import Decimal
+from time import perf_counter
 
 from sqlalchemy import create_engine, text
 
@@ -14,7 +15,11 @@ from app.modules.calculation.domain.spot_pricing import day_optimal_by_k
 from app.modules.calculation.infrastructure.spot_price_repo import (
     NodeSpotRepository,
     ProvinceSpotRepository,
+    UploadedNodeSpotRepository,
 )
+
+
+UPLOADED_WRITE_BATCH_DAYS = 25
 
 
 PROVINCE_PRECOMPUTE_SPECS = (
@@ -65,7 +70,10 @@ def _done_dates(conn, table, scope_id, start, end):
     return {row[0] if isinstance(row[0], date) else date.fromisoformat(str(row[0])) for row in rows}
 
 
-def _upsert_day(conn, table, scope_id, day_iso, by_k):
+def _upsert_days(conn, table, scope_id, results):
+    """批量 upsert 多个节点日，减少逐个 k 执行 SQL 的往返次数。"""
+    if not results:
+        return
     id_cols = list(scope_id.keys())
     cols = ", ".join(id_cols) + ", business_date, k, charge_sum, discharge_sum, slot_count"
     vals = ", ".join(f":{column}" for column in id_cols) + ", :d, :k, :cs, :ds, :sl"
@@ -83,11 +91,37 @@ def _upsert_day(conn, table, scope_id, day_iso, by_k):
             "charge_sum=VALUES(charge_sum), discharge_sum=VALUES(discharge_sum), "
             "slot_count=VALUES(slot_count)"
         )
-    for k, (charge_sum, discharge_sum, slot_count) in by_k.items():
-        conn.execute(text(upsert), {
-            **scope_id, "d": day_iso, "k": k,
-            "cs": str(charge_sum), "ds": str(discharge_sum), "sl": slot_count,
-        })
+    params = []
+    for day_iso, by_k_str in results:
+        for k, (charge_sum, discharge_sum, slot_count) in by_k_str.items():
+            params.append({
+                **scope_id, "d": day_iso, "k": k,
+                "cs": str(charge_sum), "ds": str(discharge_sum), "sl": slot_count,
+            })
+    conn.execute(text(upsert), params)
+
+
+def _upsert_day(conn, table, scope_id, day_iso, by_k):
+    """兼容单日调用；批量路径使用 _upsert_days。"""
+    _upsert_days(conn, table, scope_id, [(day_iso, {
+        k: (str(charge_sum), str(discharge_sum), slot_count)
+        for k, (charge_sum, discharge_sum, slot_count) in by_k.items()
+    })])
+
+
+def _upsert_station(conn, province, station_name, last_seen):
+    if conn.dialect.name == "sqlite":
+        statement = (
+            "INSERT INTO ir_spot_station (province, station_name, last_seen) "
+            "VALUES (:p,:s,:d) ON CONFLICT (province, station_name) DO UPDATE SET "
+            "last_seen=excluded.last_seen"
+        )
+    else:
+        statement = (
+            "INSERT INTO ir_spot_station (province, station_name, last_seen) "
+            "VALUES (:p,:s,:d) ON DUPLICATE KEY UPDATE last_seen=VALUES(last_seen)"
+        )
+    conn.execute(text(statement), {"p": province, "s": station_name, "d": last_seen})
 
 
 def _process_identifier(ex, ir, repo, identifier, start, end, table, scope_id, mode=None):
@@ -176,10 +210,12 @@ def run_precompute(
                 "ir_spot_daily_optimal_node",
                 {"province": node_province, "station_name": station})
             with ir.begin() as conn:
-                conn.execute(text(
-                    "INSERT INTO ir_spot_station (province, station_name, last_seen) "
-                    "VALUES (:p,:s,:d) ON DUPLICATE KEY UPDATE last_seen=VALUES(last_seen)"),
-                    {"p": node_province, "s": station, "d": (end - timedelta(days=1)).isoformat()})
+                _upsert_station(
+                    conn,
+                    node_province,
+                    station,
+                    (end - timedelta(days=1)).isoformat(),
+                )
     finally:
         if executor is not None:
             executor.shutdown(wait=True)
@@ -192,3 +228,187 @@ def run_precompute(
                 log(f"清理 {table} 旧数据 {result.rowcount} 行")
 
     return {"province_days_written": province_written, "node_days_written": node_written}
+
+
+def run_uploaded_node_precompute(
+    *,
+    province: str,
+    stations: list[str],
+    workers: int = 4,
+    force: bool = True,
+    dry_run: bool = False,
+    price_type: int = 1,
+    write_batch_days: int = UPLOADED_WRITE_BATCH_DAYS,
+    ir_engine=None,
+    uploaded_repo=None,
+) -> dict:
+    """按上传节点各自最后完整日回填主库文件节点。"""
+    if write_batch_days < 1:
+        raise ValueError("write_batch_days 必须大于 0")
+    settings = get_settings()
+    ir = ir_engine or create_engine(
+        settings.database.url.replace("+aiomysql", "+pymysql"), pool_pre_ping=True)
+    repo = uploaded_repo or UploadedNodeSpotRepository(
+        settings.database.url.replace("+aiomysql", "+pymysql"),
+        "ir_spot_price",
+        price_type,
+    )
+    selected = repo.list_stations(province) if stations == ["*"] else list(stations)
+    summaries = []
+    station_count = len(selected)
+    total_written = 0
+    executor = (
+        ProcessPoolExecutor(max_workers=workers)
+        if not dry_run and workers > 1
+        else None
+    )
+    log(
+        f"文件节点预计算开始：省份={province} 节点={station_count} "
+        f"workers={workers} force={force} dry_run={dry_run}"
+    )
+    if not dry_run:
+        log("逐节点有界计算：每次只提交当前节点的待计算日期")
+
+    try:
+        for station_index, station in enumerate(selected, start=1):
+            prefix = f"[{station_index}/{station_count}] {station}"
+            station_started = perf_counter()
+            log(f"{prefix}：开始扫描完整数据日")
+            read_started = perf_counter()
+            all_daily = repo.fetch_daily_prices(province, station)
+            read_elapsed = perf_counter() - read_started
+            last_valid = max(all_daily, default=None)
+            if last_valid is None:
+                log(
+                    f"{prefix}：无完整 96 点数据日，跳过，"
+                    f"读取耗时={read_elapsed:.1f}s"
+                )
+                summaries.append({"station_name": station, "status": "no_complete_day"})
+                continue
+
+            end = last_valid + timedelta(days=1)
+            start, _ = _window(end)
+            daily = {
+                day: prices for day, prices in all_daily.items()
+                if start <= day < end
+            }
+            with ir.connect() as conn:
+                done = _done_dates(
+                    conn,
+                    "ir_spot_daily_optimal_node",
+                    {"province": province, "station_name": station},
+                    start,
+                    end,
+                )
+            todo = daily if force else {
+                day: prices for day, prices in daily.items() if day not in done
+            }
+            summary = {
+                "station_name": station,
+                "last_valid_date": last_valid.isoformat(),
+                "start": start.isoformat(),
+                "end_exclusive": end.isoformat(),
+                "complete_days": len(daily),
+                "existing_days": len(done),
+                "to_write": len(todo),
+                "status": "dry_run" if dry_run else "pending",
+            }
+            log(
+                f"{prefix}：last={last_valid} window=[{start},{end}) "
+                f"完整日={len(daily)} 已有={len(done)} 待计算={len(todo)} "
+                f"读取耗时={read_elapsed:.1f}s"
+            )
+            if dry_run:
+                log(f"{prefix}：预览完成，不计算、不写库")
+                summaries.append(summary)
+                continue
+
+            if executor is None:
+                result_iter = (
+                    _compute_day((day.isoformat(), [str(price) for price in prices]))
+                    for day, prices in todo.items()
+                )
+            else:
+                futures = [
+                    executor.submit(
+                        _compute_day,
+                        (day.isoformat(), [str(price) for price in prices]),
+                    )
+                    for day, prices in todo.items()
+                ]
+                result_iter = (
+                    future.result() for future in as_completed(futures)
+                )
+
+            result_count = len(todo)
+            progress_step = max(1, min(25, result_count // 20))
+            result_buffer = []
+            completed = 0
+            written = 0
+            write_elapsed = 0.0
+            compute_started = perf_counter()
+            scope_id = {"province": province, "station_name": station}
+
+            for result in result_iter:
+                result_buffer.append(result)
+                completed += 1
+                if completed == result_count or completed % progress_step == 0:
+                    log(f"{prefix}：DP计算进度 {completed}/{result_count}")
+                if len(result_buffer) < write_batch_days:
+                    continue
+
+                write_started = perf_counter()
+                with ir.begin() as conn:
+                    _upsert_days(
+                        conn,
+                        "ir_spot_daily_optimal_node",
+                        scope_id,
+                        result_buffer,
+                    )
+                write_elapsed += perf_counter() - write_started
+                written += len(result_buffer)
+                result_buffer.clear()
+                log(f"{prefix}：批量写入进度 {written}/{result_count}")
+
+            if result_buffer:
+                write_started = perf_counter()
+                with ir.begin() as conn:
+                    _upsert_days(
+                        conn,
+                        "ir_spot_daily_optimal_node",
+                        scope_id,
+                        result_buffer,
+                    )
+                write_elapsed += perf_counter() - write_started
+                written += len(result_buffer)
+                result_buffer.clear()
+                log(f"{prefix}：批量写入进度 {written}/{result_count}")
+
+            if result_count == 0:
+                log(f"{prefix}：无待计算日期，仅更新节点最后数据日")
+
+            compute_elapsed = perf_counter() - compute_started - write_elapsed
+            with ir.begin() as conn:
+                _upsert_station(conn, province, station, last_valid.isoformat())
+
+            total_written += written
+            summary["status"] = "written" if written else "up_to_date"
+            summaries.append(summary)
+            log(
+                f"{prefix}：完成，实际写入={written} 个节点日，"
+                f"ir_spot_station.last_seen={last_valid}，"
+                f"DP计算耗时={compute_elapsed:.1f}s，"
+                f"数据库写入耗时={write_elapsed:.1f}s，"
+                f"节点总耗时={perf_counter() - station_started:.1f}s，"
+                f"累计实际写入={total_written}"
+            )
+    finally:
+        if executor is not None:
+            executor.shutdown(wait=True)
+
+    return {
+        "province": province,
+        "stations": summaries,
+        "station_count": len(summaries),
+        "node_days_written": total_written,
+    }

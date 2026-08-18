@@ -263,18 +263,74 @@ def k_from_inputs(
 def day_optimal_by_k(
     prices, k_values=PRECOMPUTE_K_VALUES, min_action_minutes: int = 30, switch_gap_minutes: int = 15
 ) -> dict:
-    """对一天价格，按给定的每个 K 求当日最优，返回 {k: (charge_sum, discharge_sum, slot_count)}。
+    """对一天价格按多个 K 求最优，返回 {k: (charge_sum, discharge_sum, slot_count)}。
 
     预计算的原子单位：一天 × 各 K。charge/discharge_sum 为入选槽电价之和（原始，不乘系数）。
+    一次按最大 K 推进状态，再从同一棵状态树提取各个 K，避免对同一天重复执行状态转移。
     非 96 点的日返回空 dict（调用方跳过）。
     """
     if len(prices) != SLOTS_PER_DAY:
         return {}
+    requested = list(dict.fromkeys(k_values))
+    if not requested:
+        return {}
     min_run = min_action_minutes // SLOT_MINUTES
     gap = switch_gap_minutes // SLOT_MINUTES
+    max_k = max(requested)
+
+    # 所有较小 K 的可行路径都包含在 max_k 的状态树中；保留完整父指针，
+    # 以便对每个 K 独立选择终态并回溯，保持原有的收益和并列规则。
+    current = {(0, 0, _NONE): (Decimal(0), 0)}
+    parents: list = []
+    for price in prices:
+        nxt: dict = {}
+        par: dict = {}
+        for state, (score, segs) in current.items():
+            for action in (IDLE, CHARGE, DISCHARGE):
+                res = _transition(state, action, max_k, min_run, gap)
+                if res is None:
+                    continue
+                ncc, ndc, nfsm, seg_delta = res
+                if action == CHARGE:
+                    nscore = score - price
+                elif action == DISCHARGE:
+                    nscore = score + price
+                else:
+                    nscore = score
+                nstate = (ncc, ndc, nfsm)
+                cand = (nscore, segs + seg_delta)
+                cur = nxt.get(nstate)
+                if cur is None or cand[0] > cur[0] or (cand[0] == cur[0] and cand[1] < cur[1]):
+                    nxt[nstate] = cand
+                    par[nstate] = (state, action)
+        parents.append(par)
+        current = nxt
+
     out: dict = {}
-    for k in k_values:
-        actions = _optimize_day_core(prices, k, min_run, gap)
+    for target_k in requested:
+        best_state = None
+        best_key = None
+        for state, (score, segs) in current.items():
+            cc, dc, fsm = state
+            if cc != dc or cc > target_k or not _terminal_ok(fsm, min_run):
+                continue
+            key = (score, -cc, -segs)
+            if best_key is None or key > best_key:
+                best_key = key
+                best_state = state
+
+        if best_state is None:
+            # 全 IDLE 状态始终存在；此分支仅用于防御异常参数。
+            out[target_k] = (Decimal(0), Decimal(0), 0)
+            continue
+
+        actions = [IDLE] * len(prices)
+        state = best_state
+        for index in range(len(prices) - 1, -1, -1):
+            previous, action = parents[index][state]
+            actions[index] = action
+            state = previous
+
         c_sum = Decimal(0)
         d_sum = Decimal(0)
         slots = 0
@@ -284,5 +340,5 @@ def day_optimal_by_k(
                 slots += 1
             elif action == DISCHARGE:
                 d_sum += price
-        out[k] = (c_sum, d_sum, slots)
+        out[target_k] = (c_sum, d_sum, slots)
     return out

@@ -10,6 +10,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.modules.calculation.domain import spot_pricing
 from app.modules.calculation.domain.spot_pricing import (
     CHARGE,
     DISCHARGE,
@@ -212,6 +213,28 @@ def test_day_optimal_by_k_sum_equals_yearly_average():
 
     assert pre_avg_c == rt_avg_c
     assert pre_avg_d == rt_avg_d
+
+
+@pytest.mark.parametrize("seed", range(5))
+def test_day_optimal_by_k_matches_independent_dp_for_all_business_k(seed):
+    """共享最大 K 状态树提取出的每个 K 必须与独立 DP 完全一致。"""
+    randomizer = random.Random(seed)
+    prices = [Decimal(randomizer.randint(-100, 300)) / 10 for _ in range(96)]
+    actual = day_optimal_by_k(prices)
+    expected = {}
+    for k in PRECOMPUTE_K_VALUES:
+        actions = spot_pricing._optimize_day_core(prices, k, min_run=2, gap=1)
+        charge_sum = Decimal(0)
+        discharge_sum = Decimal(0)
+        slots = 0
+        for price, action in zip(prices, actions):
+            if action == CHARGE:
+                charge_sum += price
+                slots += 1
+            elif action == DISCHARGE:
+                discharge_sum += price
+        expected[k] = (charge_sum, discharge_sum, slots)
+    assert actual == expected
 
 
 def test_day_optimal_by_k_incomplete_day_returns_empty():

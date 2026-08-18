@@ -70,12 +70,13 @@ describe('ParamAdjustPanel approved layout', () => {
     expect(project.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
   })
 
-  it('hides 节点名称 entirely when the selected province has no station options', async () => {
+  it('keeps 节点名称 available before remote options are loaded', async () => {
     const wrapper = await expandedPanel([])
     const project = wrapper.find('.ir-adjust__zone--project_definition')
 
-    expect(project.text()).not.toContain('节点名称')
-    expect(project.findAll('.ir-adjust__project-item')).toHaveLength(3)
+    expect(project.text()).toContain('节点名称')
+    expect(project.findAll('.ir-adjust__project-item')).toHaveLength(4)
+    expect(project.find('.ir-adjust__node-trigger').text()).toContain('祥泰站')
   })
 
   it('drops 项目运营期 everywhere even though the backend dictionary still returns it', async () => {

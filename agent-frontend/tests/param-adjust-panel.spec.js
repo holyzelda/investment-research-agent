@@ -65,7 +65,7 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.text()).toContain('金融边界')
     expect(wrapper.text()).toContain('收益边界')
     expect(wrapper.findAll('.ir-adjust__zone')).toHaveLength(3)
-    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(3)
+    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(4)
     expect(wrapper.find('.ir-adjust__zone-card').exists()).toBe(false)
     expect(wrapper.find('.ir-adjust__heading-copy small').text()).toBe('可修改项目、财务、收益及运营参数')
     expect(wrapper.findAll('.ir-adjust__tabs button').map((button) => button.text())).toEqual(['常用参数', '高级参数'])
@@ -166,13 +166,111 @@ describe('ParamAdjustPanel', () => {
     expect(nodeSelect.props('filterable')).toBe(true)
     expect(nodeSelect.props('placeholder')).toBe('搜索或选择节点')
     expect(nodeSelect.props('noMatchText')).toBe('未找到匹配节点')
-    expect(nodeSelect.props('popperClass')).toBe('ir-adjust__node-popper')
+    expect(nodeSelect.props('popperClass')).toContain('ir-adjust__node-popper')
 
     const projectFields = wrapper.findAll('.ir-adjust__project-item')
     const capacityField = projectFields.find((field) => field.text().includes('装机容量'))
     const powerField = projectFields.find((field) => field.text().includes('储能装机功率'))
     expect(capacityField?.find('input.ir-adjust__number').exists()).toBe(true)
     expect(powerField?.find('input.ir-adjust__number').exists()).toBe(true)
+  })
+
+  it('节点选择器使用远程搜索，并转发打开、搜索和续载意图', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      attachTo: document.body,
+      props: {
+        paramDict: PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: SEED,
+        stationOptions: [],
+        stationLoading: true,
+        stationHasMore: true,
+        stationError: '节点目录暂不可用',
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    const nodePopover = wrapper.findComponent({ name: 'ElPopover' })
+    nodePopover.vm.$emit('update:visible', true)
+    await wrapper.vm.$nextTick()
+
+    const nodeSelect = wrapper.findComponent({ name: 'ElSelect' })
+    expect(nodeSelect.props('remote')).toBe(true)
+    expect(nodeSelect.props('loading')).toBe(true)
+    expect(nodeSelect.props('noDataText')).toBe('节点目录暂不可用')
+    expect(wrapper.emitted('station-open')?.[0][0]).toEqual({
+      province: '甘肃', selectedNode: '祥泰站',
+    })
+
+    nodeSelect.props('remoteMethod')('新')
+    await new Promise((resolve) => setTimeout(resolve, 320))
+    expect(wrapper.emitted('station-search')?.[0][0]).toEqual({
+      province: '甘肃', keyword: '新', selectedNode: '祥泰站',
+    })
+
+    await wrapper.setProps({ stationOptions: ['新节点'], stationLoading: false })
+    const scrollContainer = document.querySelector(
+      `.${nodeSelect.props('popperClass').split(' ').at(-1)} .el-select-dropdown__wrap`,
+    )
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 240 },
+      scrollHeight: { configurable: true, value: 320 },
+    })
+    nodeSelect.vm.$emit('popup-scroll', { scrollTop: 80, scrollLeft: 0 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('station-load-more')?.[0][0]).toEqual({
+      selectedNode: '祥泰站',
+    })
+  })
+
+  it('节点选择器按实际滚动尺寸连续续载，不依赖选项数量估算高度', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      attachTo: document.body,
+      props: {
+        paramDict: PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: SEED,
+        stationOptions: Array.from({ length: 30 }, (_, index) => `节点${index + 1}`),
+        stationHasMore: true,
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    wrapper.findComponent({ name: 'ElPopover' }).vm.$emit('update:visible', true)
+    await wrapper.vm.$nextTick()
+
+    const nodeSelect = wrapper.findComponent({ name: 'ElSelect' })
+    expect(nodeSelect.props('loading')).toBe(false)
+    const popperClass = nodeSelect.props('popperClass').split(' ').at(-1)
+    expect(document.querySelector(`.${popperClass} .ir-adjust__node-load-more`)).toBeNull()
+    const scrollContainer = document.querySelector(
+      `.${popperClass} .el-select-dropdown__wrap`,
+    )
+    Object.defineProperties(scrollContainer, {
+      clientHeight: { configurable: true, value: 180 },
+      scrollHeight: { configurable: true, value: 900 },
+    })
+
+    nodeSelect.vm.$emit('popup-scroll', { scrollTop: 500, scrollLeft: 0 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('station-load-more')).toBeUndefined()
+
+    nodeSelect.vm.$emit('popup-scroll', { scrollTop: 720, scrollLeft: 0 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('station-load-more')).toHaveLength(1)
+
+    await wrapper.setProps({ stationLoading: true })
+    expect(nodeSelect.props('loading')).toBe(false)
+    expect(document.querySelector(`.${popperClass} .ir-adjust__node-load-more`)?.textContent).toContain('加载更多节点')
+
+    await wrapper.setProps({
+      stationLoading: false,
+      stationOptions: Array.from({ length: 60 }, (_, index) => `节点${index + 1}`),
+    })
+    Object.defineProperty(scrollContainer, 'scrollHeight', { configurable: true, value: 1800 })
+    nodeSelect.vm.$emit('popup-scroll', { scrollTop: 1620, scrollLeft: 0 })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('station-load-more')).toHaveLength(2)
   })
 
   it('V2 中省份仍只读，节点/容量/功率仍可编辑', async () => {
