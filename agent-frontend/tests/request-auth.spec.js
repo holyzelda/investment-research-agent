@@ -75,6 +75,32 @@ describe('request authentication expiry', () => {
     expect(window.sessionStorage.getItem('ir-login-required')).toBe('1')
   })
 
+  it('does not authenticate public calculation-share requests', async () => {
+    let capturedConfig
+    request.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return { data: { code: 200, msg: 'success', data: { status: 'not_found' } }, status: 200, statusText: 'OK', headers: {}, config, request: {} }
+    }
+
+    const { getPublicShare } = await import('@/api/calc')
+    await getPublicShare('public-share-code')
+
+    expect(capturedConfig.headers.Authorization).toBeUndefined()
+    expect(capturedConfig.headers.userId).toBeUndefined()
+    expect(capturedConfig.headers.username).toBeUndefined()
+    expect(capturedConfig.headers.isToken).toBeUndefined()
+  })
+
+  it('does not trigger re-login for an anonymous public share 401', async () => {
+    request.defaults.adapter = responseAdapter({ code: 401, msg: '令牌为空' })
+
+    const { getPublicShare } = await import('@/api/calc')
+    await expect(getPublicShare('public-share-code')).rejects.toThrow('令牌为空')
+
+    expect(confirm).not.toHaveBeenCalled()
+    expect(window.sessionStorage.getItem('ir-login-required')).toBeNull()
+  })
+
   it('adds ecenter identity only to IR business requests', async () => {
     let capturedConfig
     request.defaults.adapter = async (config) => {

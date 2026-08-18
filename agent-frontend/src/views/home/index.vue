@@ -34,7 +34,7 @@
             ref="composerRef"
             class="ir-welcome__composer"
             :responding="calc.responding"
-            placeholder="例如：测算甘肃酒泉 200MW/800MWh 独立储能项目，运营期20年"
+            placeholder="例如：测算甘肃 200MW/800MWh 独立储能项目，运营期15年"
             @send="onSend"
             @stop="calc.stopStream"
           />

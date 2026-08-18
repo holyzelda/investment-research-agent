@@ -109,5 +109,6 @@ export function getPublicShare(shareCode) {
   return request({
     url: `/ir/public/calculation-shares/${shareCode}`,
     method: 'get',
+    headers: { isToken: false },
   })
 }

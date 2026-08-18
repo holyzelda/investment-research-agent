@@ -62,7 +62,7 @@ service.interceptors.request.use(
     if (token && config.headers.isToken !== false) {
       config.headers.Authorization = config.headers.Authorization || `Bearer ${token}`
     }
-    if (!usesRootGateway(config.url)) {
+    if (!usesRootGateway(config.url) && config.headers.isToken !== false) {
       const { userId, username } = getUserIdentity()
       if (userId && !config.headers.userId) config.headers.userId = userId
       if (username && !config.headers.username) config.headers.username = encodeURIComponent(username)
