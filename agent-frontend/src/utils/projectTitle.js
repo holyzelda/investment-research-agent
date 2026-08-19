@@ -73,7 +73,7 @@ export function buildReportProjectName(region, nodeName, power, capacity) {
 }
 
 export function buildVersionTitle(region, nodeName, power, capacity) {
-  return [`测算${formatProjectLocation(region, nodeName)}`, formatProjectScale(power, capacity)]
+  return [formatProjectLocation(region, nodeName), formatProjectScale(power, capacity), '测算']
     .filter(Boolean)
     .join(' ')
 }

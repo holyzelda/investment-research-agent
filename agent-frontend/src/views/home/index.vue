@@ -1249,6 +1249,7 @@ function archiveSummaryFields(v) {
 .ir-ver__select {
   position: relative;
   width: 100%;
+  min-width: 0;
   min-height: 44px;
   display: block;
   padding: var(--xc-space-3) var(--xc-space-4);
@@ -1291,7 +1292,7 @@ function archiveSummaryFields(v) {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--xc-accent-blue) 16%, transparent);
 }
 .ir-ver__content { min-width: 0; display: flex; flex-direction: column; gap: var(--xc-space-2); }
-.ir-ver__row { display: flex; align-items: center; gap: var(--xc-space-2); min-width: 0; }
+.ir-ver__row { display: flex; align-items: center; gap: var(--xc-space-2); min-width: 0; flex-wrap: wrap; }
 .ir-ver__tag {
   flex: 0 0 auto;
   color: var(--xc-accent-blue);
@@ -1308,6 +1309,7 @@ function archiveSummaryFields(v) {
 }
 .ir-ver__cue {
   margin-left: auto;
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -1329,12 +1331,12 @@ function archiveSummaryFields(v) {
 }
 .ir-ver__spec {
   min-width: 0;
-  overflow: hidden;
+  max-width: 100%;
+  overflow-wrap: anywhere;
   color: var(--xc-text-default);
   font-size: var(--xc-fs-xs);
   line-height: var(--xc-lh-normal);
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 .ir-ver__metric {
   display: flex;
