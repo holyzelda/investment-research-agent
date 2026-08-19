@@ -38,9 +38,11 @@
           <h5>{{ group.label }} <span>{{ group.items.length }} 项</span></h5>
           <div v-for="item in group.items" :key="item.id" class="ir-version-diff__row">
             <span class="ir-version-diff__name">{{ item.label }}</span>
-            <span class="ir-version-diff__old xc-num">{{ displayParam(item.oldValue) }}</span>
-            <span class="ir-version-diff__arrow">→</span>
-            <span class="ir-version-diff__new xc-num">{{ displayParam(item.newValue) }}</span>
+            <span class="ir-version-diff__change">
+              <span class="ir-version-diff__old xc-num">{{ displayParam(item.oldValue) }}</span>
+              <span class="ir-version-diff__arrow">→</span>
+              <span class="ir-version-diff__new xc-num">{{ displayParam(item.newValue) }}</span>
+            </span>
             <span class="ir-version-diff__source" :class="`is-${item.source}`">{{ item.source === 'explicit' ? '主动调整' : '联动更新' }}</span>
           </div>
         </div>
@@ -102,10 +104,11 @@
       </template>
     </ParamAdjustPanel>
 
-    <div v-if="report?.status !== 'completed'" class="ir-result__footer">
+    <div class="ir-result__footer">
       <span v-if="hasPendingParameterChanges" id="ir-result-report-hint" class="ir-result__report-hint">
         参数修改尚未形成新版本，请先重新测算
       </span>
+      <span v-else-if="report?.status === 'completed'" class="ir-result__report-hint">正式投资报告已生成，可从报告记录查看</span>
       <span v-else class="ir-result__report-hint">确认当前测算结果后，可生成正式投资报告</span>
       <div class="ir-result__footer-actions">
         <button
@@ -122,6 +125,21 @@
           分享
         </button>
         <button
+          v-if="report?.status === 'completed'"
+          type="button"
+          class="ir-result__act"
+          data-testid="report-btn"
+          aria-label="查看正式投资报告"
+          @click="$emit('view-report', report.reportId)"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <path d="M6 2.75h8l4 4V21.25H6z" stroke-linejoin="round" />
+            <path d="M14 2.75v4h4M9 11h6M9 14.5h6M9 18h4" stroke-linecap="round" />
+          </svg>
+          查看报告
+        </button>
+        <button
+          v-else
           type="button"
           class="ir-result__act"
           data-testid="report-btn"
@@ -188,6 +206,7 @@ const props = defineProps({
 defineEmits([
   'recalculate',
   'generate-report',
+  'view-report',
   'compare-version-change',
   'station-open',
   'station-search',
@@ -411,10 +430,12 @@ function discardAllParameterChanges() {
 .ir-version-diff__group + .ir-version-diff__group { margin-top: var(--xc-space-3); border-top: 1px solid var(--xc-border-soft); }
 .ir-version-diff__group h5 { margin: 0 0 var(--xc-space-2); color: var(--xc-text-soft); font-size: var(--xc-fs-2xs); }
 .ir-version-diff__group h5 span { color: var(--xc-text-mute); font-weight: var(--xc-fw-regular); }
-.ir-version-diff__row { min-height: 36px; display: grid; grid-template-columns: minmax(150px, 1fr) minmax(80px, 120px) 24px minmax(80px, 120px) 72px; align-items: center; gap: var(--xc-space-2); font-size: var(--xc-fs-xs); }
-.ir-version-diff__old { color: var(--xc-text-mute); text-align: right; }
+.ir-version-diff__row { min-height: 36px; display: grid; grid-template-columns: minmax(140px, 240px) minmax(240px, 320px) 88px; width: 100%; align-items: center; column-gap: var(--xc-space-6); font-size: var(--xc-fs-xs); }
+.ir-version-diff__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ir-version-diff__change { min-width: 0; display: grid; grid-template-columns: minmax(88px, 1fr) 24px minmax(88px, 1fr); align-items: center; }
+.ir-version-diff__old { min-width: 0; color: var(--xc-text-mute); text-align: right; white-space: nowrap; }
 .ir-version-diff__arrow { color: var(--xc-text-mute); text-align: center; }
-.ir-version-diff__new { color: var(--xc-text-strong); }
+.ir-version-diff__new { min-width: 0; color: var(--xc-text-strong); white-space: nowrap; }
 .ir-version-diff__source { justify-self: end; padding: 2px 7px; border-radius: var(--xc-radius-full); font-size: var(--xc-fs-3xs); white-space: nowrap; }
 .ir-version-diff__source.is-explicit { color: var(--xc-accent-blue); background: var(--xc-status-info-soft); }
 .ir-version-diff__source.is-derived { color: var(--xc-status-warn); background: var(--xc-status-warn-soft); }
@@ -449,8 +470,8 @@ function discardAllParameterChanges() {
   .ir-result__banner-body { padding: var(--xc-space-5); }
   .ir-result__compare { flex-direction:column; align-items:flex-start; width:180px; }
   .ir-result__compare-wrap { width:100%; }
-  .ir-version-diff__row { grid-template-columns:minmax(100px,1fr) 72px 18px 72px; }
-  .ir-version-diff__source { grid-column:2 / -1; justify-self:start; }
+  .ir-version-diff__row { grid-template-columns:minmax(100px,180px) minmax(220px,300px) 80px; column-gap:var(--xc-space-4); }
+  .ir-version-diff__change { grid-template-columns:minmax(76px,1fr) 20px minmax(76px,1fr); }
 }
 @container (max-width: 480px) {
   .ir-result { gap: var(--xc-space-4); }
@@ -458,6 +479,9 @@ function discardAllParameterChanges() {
   .ir-result__banner-title { font-size: var(--xc-fs-h4); line-height: var(--xc-lh-snug); }
   .ir-result__compare { width: 100%; }
   .ir-report-module { margin-inline: var(--xc-space-4); border-radius: var(--xc-radius-md); }
+  .ir-version-diff__row { grid-template-columns:minmax(0,1fr) auto; row-gap:var(--xc-space-2); column-gap:var(--xc-space-4); padding-block:var(--xc-space-2); }
+  .ir-version-diff__source { grid-column:2; grid-row:1; justify-self:end; }
+  .ir-version-diff__change { grid-column:1 / -1; grid-row:2; width:min(100%,280px); grid-template-columns:minmax(56px,1fr) 20px minmax(56px,1fr); }
   .ir-result__charts { gap: var(--xc-space-4); }
   .ir-result__warn { padding-inline: var(--xc-space-4); }
   .ir-result__footer { padding-inline: var(--xc-space-4); }

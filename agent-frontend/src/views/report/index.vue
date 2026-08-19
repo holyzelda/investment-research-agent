@@ -220,9 +220,9 @@ const ownerBackground = computed(() => checkbox(project.value.ownerBackground ==
 const projectType = computed(() => checkbox(project.value.projectType === '源网侧', '源网侧') + '　' + checkbox(project.value.projectType === '用户侧', '用户侧'))
 const singularityRole = computed(() => [checkbox(String(project.value.singularityRole || '').includes('设备'), '设备厂商'), checkbox(String(project.value.singularityRole || '').includes('运营'), '运营商'), checkbox(String(project.value.singularityRole || '').includes('运维'), '运维商')].join('　'))
 const operationGroups = computed(() => [
-  { title: '现货市场情况', items: [['充电价格', operations.value.spotChargePrice], ['放电价格', operations.value.spotDischargePrice], ['现货价差', operations.value.spotSpread]].map(([label, value]) => ({ label, value })) },
+  { title: '现货市场情况', items: [['充电价格', operations.value.spotChargePrice], ['放电价格', operations.value.spotDischargePrice], ['现货价差', operations.value.spotSpread], ['实际价差', operations.value.actualSpread]].map(([label, value]) => ({ label, value })) },
   { title: '充电成本情况', items: [['输配电价', operations.value.transmissionPrice], ['线损费用', operations.value.lineLossFee], ['系统运行费', operations.value.systemOperationFee], ['政府基金及附加', operations.value.governmentFundSurcharge]].map(([label, value]) => ({ label, value })) },
-  { title: '实际运营情况', items: [['充电收取费用', operations.value.chargeCost], ['放电返还费用', operations.value.dischargeReturn], ['实际充放价差', operations.value.actualSpread]].map(([label, value]) => ({ label, value })) },
+  { title: '实际运营情况', items: [['充电收取费用', operations.value.chargeCost], ['放电返还费用', operations.value.dischargeReturn], ['度电损耗费用', operations.value.degreeLossCost]].map(([label, value]) => ({ label, value })) },
 ])
 const revenueRows = computed(() => {
   const donut = calculation.value.advanced?.donut || {}

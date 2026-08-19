@@ -67,6 +67,7 @@ def map_output_to_result(
         charge_cost=_f(api_output, "charge_cost"),
         discharge_return=_f(api_output, "discharge_return"),
         loss_cost=_f(api_output, "loss_cost"),
+        actual_spread=_f(api_output, "actual_spread"),
         transmission_price=_f(api_output, "transmission_price"),
         line_loss_fee=_f(api_output, "line_loss_fee"),
         system_operation_fee=_f(api_output, "system_operation_fee"),

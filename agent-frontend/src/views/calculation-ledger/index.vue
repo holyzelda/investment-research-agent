@@ -140,20 +140,27 @@
             <td class="xc-num" data-label="静态回收期">{{ formatMetric(item.projectStaticPayback, ' 年') }}</td>
             <td data-label="报告状态"><span class="ledger-status" :class="`is-${item.report.status}`">{{ reportLabel(item.report.status) }}</span></td>
             <td class="ledger-actions" data-label="操作">
-              <button class="ledger-icon-button" type="button" title="查看测算结果" @click="openResult(item)">
+              <a
+                class="ledger-icon-button"
+                :href="resultUrl(item)"
+                target="_blank"
+                rel="noopener noreferrer"
+                title="查看测算结果"
+              >
                 <ArrowUpRight aria-hidden="true" />
                 <span>结果</span>
-              </button>
-              <button
+              </a>
+              <a
                 v-if="item.report.status === 'completed' && item.report.reportId"
                 class="ledger-icon-button ledger-icon-button--report"
-                type="button"
+                :href="reportUrl(item.report.reportId)"
+                target="_blank"
+                rel="noopener noreferrer"
                 title="查看报告"
-                @click="openReport(item.report.reportId)"
               >
                 <FileText aria-hidden="true" />
                 <span>报告</span>
-              </button>
+              </a>
             </td>
           </tr>
         </tbody>
@@ -341,14 +348,17 @@ function changePage(targetPage) {
   if (targetPage >= 1 && targetPage <= pageCount.value) fetchRecords(targetPage)
 }
 
-function openResult(item) {
-  router.push({ path: '/home', query: { conversationId: item.conversationId, taskId: item.taskId } })
+function resultUrl(item) {
+  if (!item?.conversationId || item?.taskId === null || item?.taskId === undefined) return '#'
+  return router.resolve({
+    path: '/home',
+    query: { conversationId: item.conversationId, taskId: item.taskId },
+  }).href
 }
 
-function openReport(reportId) {
-  if (!reportId || typeof window === 'undefined') return
-  const reportUrl = router.resolve(`/reports/${reportId}`).href
-  window.open(reportUrl, '_blank', 'noopener,noreferrer')
+function reportUrl(reportId) {
+  if (!reportId) return '#'
+  return router.resolve({ name: 'ReportDetail', params: { reportId } }).href
 }
 
 function formatDate(value) {
@@ -470,7 +480,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onProvinceOuts
 .ledger-status.is-completed { background: var(--xc-status-info-soft); color: var(--xc-status-positive); }
 .ledger-status.is-failed { background: var(--xc-status-danger-soft); color: var(--xc-status-danger); }
 .ledger-actions { display: flex; align-items: center; gap: 4px; }
-.ledger-icon-button { height: 30px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--xc-radius-xs); background: transparent; color: var(--xc-accent-blue); font: inherit; font-size: var(--xc-fs-2xs); cursor: pointer; }
+.ledger-icon-button { height: 30px; padding: 0 7px; display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: var(--xc-radius-xs); background: transparent; color: var(--xc-accent-blue); font: inherit; font-size: var(--xc-fs-2xs); text-decoration: none; cursor: pointer; }
 .ledger-icon-button:hover { background: var(--xc-status-info-soft); }
 .ledger-icon-button--report { color: var(--xc-status-positive); }
 .ledger-icon-button--report:hover { background: var(--xc-status-info-soft); }

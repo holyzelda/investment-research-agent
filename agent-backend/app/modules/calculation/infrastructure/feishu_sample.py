@@ -22,6 +22,11 @@ SAMPLE_API_OUTPUT: dict = {
     "first_year_lease_revenue": 400.0,
     "first_year_intervention_revenue": 200.0,
     "first_year_subsidy_revenue": 100.0,
+    # ③ 基础运营输出（API_OUTPUT 桥接结果）
+    "charge_cost": 0.3012,
+    "discharge_return": 0.0211,
+    "loss_cost": 0.0045,
+    "actual_spread": 0.42,
     # ③-b 现金流口径下偿债倍数（贷款期序列）
     "cashflow_debt_service_coverage_ratio": [1.12, 1.24, 0.0, None, 1.36, 1.48],
 }

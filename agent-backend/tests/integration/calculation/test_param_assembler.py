@@ -407,7 +407,7 @@ class TestParamOverrideRanges:
 
     _RANGED_PARAMS = [
         ("daily_cycles", "日均充放电次数", 1.0, 2.0, "甘肃", {}),
-        ("epc_unit_price", "EPC单价", 0.70, 0.85, "甘肃", {}),
+        ("epc_unit_price", "EPC单价", 0.70, 1.10, "甘肃", {}),
         ("strategy_achievement_rate", "现货策略达成率", 0.70, 0.95, "甘肃", {}),
         ("capacity_achievement_rate", "容量市场达成率", 0.70, 0.95, "甘肃", {}),
         ("battery_replace_cost", "换电成本", 0, 1, "甘肃", {"operation_years": 20}),
@@ -458,7 +458,7 @@ class TestParamOverrideRanges:
                 overrides={"epc_unit_price": value},
             )
         assert "EPC单价必须为有限数值" in str(exc_info.value)
-        assert "正确范围为[0.7, 0.85]" in str(exc_info.value)
+        assert "正确范围为[0.7, 1.1]" in str(exc_info.value)
 
     def test_invalid_daily_cycles_is_rejected_before_spot_query(self):
         spot = _CountingSpot()

@@ -1,7 +1,17 @@
 <template>
-  <div class="ir-home" :class="{ 'ir-home--welcome': !hasConversation }">
+  <div class="ir-home" :class="{ 'ir-home--welcome': !hasConversation && !routeHistoryPending }">
     <!-- 中间：对话区 -->
     <section class="ir-home__chat">
+      <div v-if="routeHistoryLoading" class="ir-home__history-state" role="status">
+        <span class="ir-home__history-spinner" aria-hidden="true" />
+        <span>正在加载历史会话…</span>
+      </div>
+      <div v-else-if="routeHistoryError" class="ir-home__history-state" role="alert">
+        <strong>历史会话加载失败</strong>
+        <span>{{ calc.conversationLoadError }}</span>
+        <button type="button" @click="openRouteConversation">重新加载</button>
+      </div>
+      <template v-else>
       <div v-if="hasConversation" class="ir-home__toolbar">
         <button
           class="ir-home__ledger-trigger"
@@ -156,6 +166,7 @@
                   @station-search="calc.searchStations($event)"
                   @station-load-more="calc.loadMoreStations($event)"
                   @generate-report="generateReportAndReveal(m.taskId)"
+                  @view-report="openReport"
                   @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
                 />
               </div>
@@ -218,6 +229,7 @@
         </div>
 
         <ChatComposer class="ir-home__composer" :responding="calc.responding" @send="onSend" @stop="calc.stopStream" />
+      </template>
       </template>
     </section>
 
@@ -436,29 +448,64 @@ watch(projectRailOpen, async (open) => {
 
 onMounted(() => {
   window.addEventListener('keydown', onProjectRailKeydown)
-  openRouteConversation()
 })
 
+const routeConversationId = computed(() => {
+  const value = route?.query?.conversationId
+  return value == null || value === '' ? '' : String(value)
+})
+const routeTaskId = computed(() => {
+  const value = route?.query?.taskId
+  return value == null || value === '' ? null : String(value)
+})
+const routeHistoryLoading = computed(() => (
+  Boolean(routeConversationId.value)
+  && calc.conversationLoading
+  && String(calc.conversationLoadingId || '') === routeConversationId.value
+))
+const routeHistoryError = computed(() => (
+  Boolean(routeConversationId.value)
+  && Boolean(calc.conversationLoadError)
+  && !routeHistoryLoading.value
+  && String(calc.conversationId || '') !== routeConversationId.value
+))
+const routeHistoryPending = computed(() => Boolean(routeConversationId.value))
+
+function routeMatches(conversationId, taskId) {
+  return routeConversationId.value === conversationId
+    && routeTaskId.value === taskId
+}
+
+watch(
+  () => [route?.query?.conversationId, route?.query?.taskId],
+  () => { openRouteConversation() },
+  { immediate: true },
+)
+
 async function openRouteConversation() {
-  const query = route?.query || {}
-  const conversationId = query.conversationId
-  const targetTaskId = query.taskId == null ? null : String(query.taskId)
+  const conversationId = routeConversationId.value
+  const targetTaskId = routeTaskId.value
+  if (!conversationId) return
   const alreadySelected = targetTaskId == null
-    ? Boolean(calc.conversationId === String(conversationId))
-    : Boolean(calc.conversationId === String(conversationId)
+    ? String(calc.conversationId || '') === conversationId
+    : String(calc.conversationId || '') === conversationId
       && calc.versions.some((version) => String(version.taskId) === targetTaskId)
-      && calc.selectedVersion === calc.versions.find((version) => String(version.taskId) === targetTaskId)?.version)
-  if (!conversationId || alreadySelected) return
+      && calc.selectedVersion === calc.versions.find((version) => String(version.taskId) === targetTaskId)?.version
+  if (alreadySelected) return
   try {
-    await calc.openConversation(String(conversationId), targetTaskId)
+    await calc.openConversation(conversationId, targetTaskId)
+    if (!routeMatches(conversationId, targetTaskId)) return
     await nextTick()
+    if (!routeMatches(conversationId, targetTaskId)) return
     if (targetTaskId) {
       const target = [...document.querySelectorAll('[data-task-id]')]
         .find((element) => element.dataset.taskId === targetTaskId)
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     }
   } catch (error) {
-    ElMessage.error('打开指定测算记录失败，请稍后重试')
+    if (routeMatches(conversationId, targetTaskId)) {
+      ElMessage.error('打开指定测算记录失败，请稍后重试')
+    }
   }
 }
 
@@ -841,6 +888,40 @@ function archiveSummaryFields(v) {
   flex-direction: column;
   overflow: hidden;
 }
+.ir-home__history-state {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--xc-space-3);
+  color: var(--xc-text-muted);
+  text-align: center;
+}
+.ir-home__history-state strong { color: var(--xc-text-strong); }
+.ir-home__history-state button {
+  min-height: 36px;
+  padding: 0 var(--xc-space-4);
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-raised);
+  color: var(--xc-text-strong);
+  cursor: pointer;
+}
+.ir-home__history-state button:focus-visible {
+  outline: 2px solid var(--xc-accent-blue);
+  outline-offset: 2px;
+}
+.ir-home__history-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--xc-border-card);
+  border-top-color: var(--xc-accent-blue);
+  border-radius: 50%;
+  animation: ir-history-spin 0.8s linear infinite;
+}
+@keyframes ir-history-spin { to { transform: rotate(360deg); } }
 
 /* ---------- 欢迎态：全局 layout 承载背景；本页为一组居中的“测算启动区” ---------- */
 .ir-welcome {

@@ -22,8 +22,8 @@ async def test_mock_overview_uses_excel_derived_summary_without_database_session
     assert [item.rank for item in overview.investment_heat] == [1, 2, 3, 4, 5]
     assert overview.opened_grade_counts == {"S": 2, "A": 5, "B": 2, "C": 1}
     assert overview.opened_province_count == 10
-    # “C 类区域”语义：仅河北，highPotentialCount 与 C 类计数一致。
-    assert overview.high_potential_count == 6
+    # “C 类区域”语义：按已开通的 C 类区域计数，与摘要第四张卡片一致。
+    assert overview.high_potential_count == 1
     # 收益稳定榜按 annualized_return 降序取前 5，并携带分数供前端展示。
     assert [(item.province_name, item.annualized_return, item.rank) for item in overview.return_stability] == [
         ("宁夏", Decimal("98"), 1),

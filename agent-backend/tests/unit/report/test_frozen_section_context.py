@@ -26,7 +26,13 @@ def _payload():
         },
         "policyEnvironment": {"available": True, "rows": [{"name": "现货市场", "enabled": True}, {"name": "补贴政策", "enabled": False}]},
         "marketSupplyDemand": {"energyStructure": "新能源占比较高"},
-        "marketOperations": {"spotSpread": 0.23},
+        "marketOperations": {
+            "spotSpread": 0.23,
+            "actualSpread": 0.42,
+            "chargeCost": 0.30,
+            "dischargeReturn": 0.02,
+            "degreeLossCost": 0.28,
+        },
         "calculation": {"warnings": ["冻结提示\n第一条"]},
     }
 
@@ -41,6 +47,13 @@ def test_debt_context_preserves_operating_years_and_excludes_return_metrics():
     assert context["派生事实"]["平均偿债倍数"] == 1.05
     assert "projectIrr" not in str(context)
     assert "totalInvestmentRoi" not in str(context)
+
+
+def test_investment_context_includes_real_spread_and_degree_loss_cost():
+    context = build_section_context(_rule("investment_conclusion"), _payload())
+
+    assert context["市场运营"]["actualSpread"] == 0.42
+    assert context["市场运营"]["degreeLossCost"] == 0.28
     assert has_minimum_frozen_data(context) is True
 
 

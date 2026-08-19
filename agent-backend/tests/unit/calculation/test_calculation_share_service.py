@@ -33,13 +33,13 @@ def test_valid_durations():
 def test_extract_public_fields_flat_top_level():
     """顶层字段直接提取。"""
     payload = {
-        "basicInfo": {"province": "甘肃", "powerMw": 200},
+        "basicInfo": {"province": "甘肃", "powerMw": 200, "actualSpread": 0.42},
         "financial": {"projectIrr": 8.5},
         "calculatedAt": "2026-08-13T10:00:00",
         "warnings": ["注意：换电成本较高"],
     }
     result = CalculationShareService._extract_public_fields(payload)
-    assert result["basicInfo"] == {"province": "甘肃", "powerMw": 200}
+    assert result["basicInfo"] == {"province": "甘肃", "powerMw": 200, "actualSpread": 0.42}
     assert result["financial"] == {"projectIrr": 8.5}
     assert result["calculatedAt"] == "2026-08-13T10:00:00"
     assert result["warnings"] == ["注意：换电成本较高"]
@@ -111,7 +111,9 @@ def test_share_code_hash_is_collision_resistant():
 
 def test_fernet_encrypt_decrypt_roundtrip():
     """Fernet 加解密往返。"""
-    svc = CalculationShareService()
+    from cryptography.fernet import Fernet
+
+    svc = CalculationShareService(fernet_key=Fernet.generate_key())
     code = "test-share-code-123"
     encrypted = svc._encrypt_share_code(code)
     decrypted = svc._decrypt_share_code(encrypted)

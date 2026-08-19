@@ -29,6 +29,10 @@ describe('CalculationSharePage', () => {
           nodeName: '西安节点',
           powerMw: 100,
           capacityMwh: 200,
+          actualSpread: 0.4567,
+          chargeCost: 0.2,
+          dischargeReturn: 0.6,
+          lossCost: 0.03,
         },
         financial: { projectIrr: 8.2 },
         advanced: {
@@ -46,6 +50,9 @@ describe('CalculationSharePage', () => {
     expect(wrapper.find('.ir-share-page__content').exists()).toBe(true)
     expect(wrapper.text()).toContain('V2')
     expect(wrapper.text()).toContain('100')
+    expect(wrapper.text()).toContain('实际价差')
+    expect(wrapper.text()).toContain('0.4567元/kWh')
+    expect(wrapper.findAll('.ir-share-basic__stat')).toHaveLength(6)
     expect(wrapper.text()).toContain('核心投资收益指标')
     expect(wrapper.text()).toContain('首年收入结构')
     expect(wrapper.text()).toContain('偿债覆盖倍数')

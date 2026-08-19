@@ -3,7 +3,6 @@
 生产切换：Batch3 将 revenue_structure/spot/feishu 替换为飞书/真实算法实现，
 本工厂是唯一装配点，application/domain 无需改动。
 """
-from app.modules.calculation.application.calculation_service import CalculationService
 from app.modules.calculation.application.feishu_calc_engine import (
     FeishuCalcEngine,
     SnapshotHook,
@@ -61,17 +60,6 @@ def build_param_assembler(spot=None) -> ParamAssembler:
         revenue_structure=revenue,
         mid_long=ConstMidLongPriceProvider(),
         spot=spot,
-    )
-
-
-def build_calculation_service() -> CalculationService:
-    """薄片 Mock 主链路：飞书网关回放样例 output（不依赖真飞书）。
-
-    Batch3 将 MockFeishuGateway 替换为 HttpFeishuGateway，此处是唯一装配点。
-    """
-    return CalculationService(
-        assembler=build_param_assembler(),
-        feishu=MockFeishuGateway(output=sample_output()),
     )
 
 

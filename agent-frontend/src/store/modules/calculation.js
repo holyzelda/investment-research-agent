@@ -137,6 +137,13 @@ export const useCalculationStore = defineStore('calculation', {
     activeTurnId: null,
     conversationEpoch: 0,
     historyOpenEpoch: 0,
+    conversationDetailCache: new Map(),
+    conversationDetailInflight: new Map(),
+    conversationDetailGenerations: new Map(),
+    conversationDetailCacheEpoch: 0,
+    conversationLoading: false,
+    conversationLoadingId: null,
+    conversationLoadError: '',
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -161,6 +168,54 @@ export const useCalculationStore = defineStore('calculation', {
       this.reports = []
       this.reportTasks = {}
       this.activeReportCount = 0
+      this.conversationLoading = false
+      this.conversationLoadingId = null
+      this.conversationLoadError = ''
+    },
+    invalidateConversationDetail(conversationId) {
+      if (conversationId == null) return
+      const key = String(conversationId)
+      this.conversationDetailCache.delete(key)
+      this.conversationDetailGenerations.set(
+        key,
+        (this.conversationDetailGenerations.get(key) || 0) + 1,
+      )
+      this.conversationDetailInflight.delete(key)
+    },
+    clearConversationDetailCache() {
+      this.conversationDetailCacheEpoch += 1
+      this.conversationDetailCache.clear()
+      this.conversationDetailInflight.clear()
+      this.conversationDetailGenerations.clear()
+    },
+    async loadConversationDetail(conversationId, { force = false } = {}) {
+      const key = String(conversationId)
+      if (!force && this.conversationDetailCache.has(key)) {
+        return this.conversationDetailCache.get(key)
+      }
+      const generation = this.conversationDetailGenerations.get(key) || 0
+      const cacheEpoch = this.conversationDetailCacheEpoch
+      const active = this.conversationDetailInflight.get(key)
+      if (active && active.generation === generation && active.cacheEpoch === cacheEpoch) {
+        return active.promise
+      }
+      const promise = getConversation(key).then((response) => {
+        const detail = response.data || {}
+        if (
+          this.conversationDetailCacheEpoch === cacheEpoch
+          && (this.conversationDetailGenerations.get(key) || 0) === generation
+        ) this.conversationDetailCache.set(key, detail)
+        return detail
+      })
+      this.conversationDetailInflight.set(key, { generation, cacheEpoch, promise })
+      // 失败不缓存：按 promise 身份清理在途记录，避免下次打开复用已 reject 的 promise。
+      // 不能按 entry 对象比较——Pinia state 中读回的是响应式代理，与原对象永不全等。
+      promise.finally(() => {
+        if (this.conversationDetailInflight.get(key)?.promise === promise) {
+          this.conversationDetailInflight.delete(key)
+        }
+      }).catch(() => {})
+      return promise
     },
     selectVersion(version) {
       if (this.versions.some((item) => item.version === version)) this.selectedVersion = version
@@ -326,14 +381,9 @@ export const useCalculationStore = defineStore('calculation', {
         }
       }
     },
-    async openConversation(conversationId, targetTaskId = null) {
-      this.disposeActiveTurn({ visible: false })
-      this.disposeReportStreams()
-      const openEpoch = ++this.historyOpenEpoch
-      const conversationEpoch = ++this.conversationEpoch
-      const response = await getConversation(conversationId)
-      if (openEpoch !== this.historyOpenEpoch || conversationEpoch !== this.conversationEpoch) return
-      const detail = response.data || {}
+    _applyConversationDetail(detail, conversationId, targetTaskId = null) {
+      // 会话标识以服务端快照为准，缓存键才做字符串归一，避免历史回放改变后续请求体的 id 类型
+      const resolvedId = detail.conversationId != null ? detail.conversationId : conversationId
       const completed = (detail.versions || []).filter((version) => version.result)
       const completedByTaskId = new Map(
         completed.map((version) => [String(version.taskId), version]),
@@ -342,25 +392,21 @@ export const useCalculationStore = defineStore('calculation', {
         if (message.messageType === 'calculation_completed') {
           const version = completedByTaskId.get(String(message.payload?.task_id))
           if (version) {
-            // 新版历史带当时可见的 assistant 回答 → 恢复为流式消息形态并附结果卡；
-            // 旧版仅结果完成事件 → 回退为纯结果卡，保持兼容。
             if (message.payload?.answer_text) {
               return {
                 id: nextId(), role: 'assistant', kind: 'assistant-stream',
                 phase: 'completed', done: true,
-                answerText: message.payload.answer_text,
-                taskId: version.taskId,
+                answerText: message.payload.answer_text, taskId: version.taskId,
                 version: version.version, result: version.result, input: version.input,
-                changeMeta: version.changeMeta || {},
-                report: version.report, calculatedAt: version.calculatedAt,
+                changeMeta: version.changeMeta || {}, report: version.report,
+                calculatedAt: version.calculatedAt,
               }
             }
             return {
-              id: nextId(), role: 'assistant', kind: 'result',
-              taskId: version.taskId,
+              id: nextId(), role: 'assistant', kind: 'result', taskId: version.taskId,
               version: version.version, result: version.result, input: version.input,
-              changeMeta: version.changeMeta || {},
-              report: version.report, calculatedAt: version.calculatedAt,
+              changeMeta: version.changeMeta || {}, report: version.report,
+              calculatedAt: version.calculatedAt,
             }
           }
         }
@@ -368,25 +414,14 @@ export const useCalculationStore = defineStore('calculation', {
           return { id: nextId(), role: message.role, kind: 'report-generated', text: message.content, payload: message.payload }
         }
         if (message.messageType === 'calculation_error') {
-          return {
-            id: nextId(), role: 'assistant', kind: 'assistant-stream',
-            phase: 'error', done: true,
-            error: message.content,
-            answerText: message.content,
-            taskId: message.payload?.task_id || null,
-          }
+          return { id: nextId(), role: 'assistant', kind: 'assistant-stream', phase: 'error', done: true, error: message.content, answerText: message.content, taskId: message.payload?.task_id || null }
         }
         return { id: nextId(), role: message.role, kind: 'text', text: message.content }
       })
       this.versions = completed.map((version) => ({
-        conversationId,
-        taskId: version.taskId,
-        version: version.version,
-        status: version.status,
-        result: version.result,
-        input: version.input,
-        changeMeta: version.changeMeta || {},
-        report: version.report,
+        conversationId: resolvedId, taskId: version.taskId, version: version.version,
+        status: version.status, result: version.result, input: version.input,
+        changeMeta: version.changeMeta || {}, report: version.report,
         calculatedAt: version.calculatedAt,
       }))
       this.reports = detail.reports || []
@@ -395,16 +430,39 @@ export const useCalculationStore = defineStore('calculation', {
           .filter((report) => report.reportTaskId)
           .map((report) => [report.reportTaskId, report]),
       )
-      this.conversationId = conversationId
+      this.conversationId = resolvedId
       const target = targetTaskId == null
         ? null
         : this.versions.find((version) => String(version.taskId) === String(targetTaskId))
-      this.selectedVersion = target?.version || (
-        this.versions.length ? this.versions[this.versions.length - 1].version : null
-      )
+      this.selectedVersion = target?.version || (this.versions.length ? this.versions[this.versions.length - 1].version : null)
       this.responding = false
       const province = completed.length ? completed[completed.length - 1].input?.province : null
       if (province) this.loadParamMeta(province).catch(() => {})
+    },
+    async openConversation(conversationId, targetTaskId = null) {
+      const key = String(conversationId)
+      this.disposeActiveTurn({ visible: false })
+      this.disposeReportStreams()
+      const openEpoch = ++this.historyOpenEpoch
+      const conversationEpoch = ++this.conversationEpoch
+      this.conversationLoading = true
+      this.conversationLoadingId = key
+      this.conversationLoadError = ''
+      try {
+        const detail = await this.loadConversationDetail(key)
+        if (openEpoch !== this.historyOpenEpoch || conversationEpoch !== this.conversationEpoch) return
+        this._applyConversationDetail(detail, key, targetTaskId)
+      } catch (error) {
+        if (openEpoch === this.historyOpenEpoch && conversationEpoch === this.conversationEpoch) {
+          this.conversationLoadError = error?.response?.data?.msg || error?.message || '历史会话加载失败'
+        }
+        throw error
+      } finally {
+        if (openEpoch === this.historyOpenEpoch) {
+          this.conversationLoading = false
+          this.conversationLoadingId = null
+        }
+      }
     },
     async removeConversation(conversationId) {
       await deleteConversation(conversationId)
@@ -412,14 +470,17 @@ export const useCalculationStore = defineStore('calculation', {
       // 删除后重置游标，下次加载时重新获取完整列表
       this.historyCursor = null
       this.historyHasMore = false
-      if (this.conversationId === conversationId) this.resetConversation()
+      this.invalidateConversationDetail(conversationId)
+      if (String(this.conversationId) === String(conversationId)) this.resetConversation()
     },
     async renameConversation(conversationId, title) {
       const cleaned = String(title || '').trim()
       if (!cleaned) return
       await renameConversation(conversationId, cleaned)
-      const item = this.history.find((entry) => entry.conversationId === conversationId)
+      const item = this.history.find((entry) => String(entry.conversationId) === String(conversationId))
       if (item) item.title = cleaned
+      const cached = this.conversationDetailCache.get(String(conversationId))
+      if (cached) cached.title = cleaned
     },
     _pushUser(text) {
       this.messages.push({ id: nextId(), role: 'user', kind: 'text', text })
@@ -487,6 +548,7 @@ export const useCalculationStore = defineStore('calculation', {
       streamMsg.calculatedAt = entry.calculatedAt
       streamMsg.taskId = entry.taskId
       streamMsg.pendingResult = null
+      this.invalidateConversationDetail(entry.conversationId || this.conversationId)
       this.loadHistory().catch(() => {})
       if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
     },
@@ -790,6 +852,7 @@ export const useCalculationStore = defineStore('calculation', {
         }
         this.versions.push(entry)
         this.selectedVersion = version
+        this.invalidateConversationDetail(created.conversationId || conversationId)
         applyThinkingFrame(streamMsg.thinkingState, '2', {
           node_id: 'recalc', node_status: 'completed', node_subtitle: '测算完成',
         })
@@ -954,8 +1017,10 @@ export const useCalculationStore = defineStore('calculation', {
     },
     async syncReportsFromConversation() {
       if (!this.conversationId) return
-      const response = await getConversation(this.conversationId)
-      const detail = response.data || {}
+      const conversationId = String(this.conversationId)
+      const epoch = this.conversationEpoch
+      const detail = await this.loadConversationDetail(conversationId, { force: true })
+      if (String(this.conversationId) !== conversationId || this.conversationEpoch !== epoch) return
       this.reports = detail.reports || []
       for (const version of this.versions) {
         const remote = (detail.versions || []).find((item) => item.taskId === version.taskId)
@@ -968,6 +1033,7 @@ export const useCalculationStore = defineStore('calculation', {
       )
     },
     _applyReport(report) {
+      this.invalidateConversationDetail(this.conversationId)
       if (report.reportTaskId) this.reportTasks[report.reportTaskId] = report
       const index = this.reports.findIndex((item) => item.taskId === report.taskId)
       const prior = index >= 0 ? this.reports[index] : {}

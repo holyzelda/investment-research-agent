@@ -74,11 +74,13 @@ def test_basic_info_from_basics_and_region_output():
     r = map_output_to_result(
         _basics(node="兰州东"),
         _assembled(),
-        {**SAMPLE, "charge_cost": 0.3, "discharge_return": 0.05, "loss_cost": 0.02},
+        {**SAMPLE, "charge_cost": 0.3, "discharge_return": 0.05, "loss_cost": 0.02, "actual_spread": 0.41},
     )
     assert r.basic_info.province == "甘肃"
     assert r.basic_info.node_name == "兰州东"
     assert r.basic_info.charge_cost == 0.3
+    assert r.basic_info.actual_spread == 0.41
+    assert to_report_payload(r)["basicInfo"]["actualSpread"] == 0.41
 
 
 def test_maps_report_only_outputs_into_their_calculation_domain_groups():

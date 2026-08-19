@@ -22,6 +22,7 @@ def to_report_payload(r: CalculationResult) -> dict:
             "chargeCost": b.charge_cost,
             "dischargeReturn": b.discharge_return,
             "lossCost": b.loss_cost,
+            "actualSpread": b.actual_spread,
             "transmissionPrice": b.transmission_price,
             "lineLossFee": b.line_loss_fee,
             "systemOperationFee": b.system_operation_fee,

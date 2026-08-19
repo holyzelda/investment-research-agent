@@ -3,7 +3,11 @@ import { flushPromises, mount } from '@vue/test-utils'
 import CalculationLedger from '@/views/calculation-ledger/index.vue'
 
 const push = vi.fn()
-const resolve = vi.fn(() => ({ href: '/investment/reports/report-1' }))
+const resolve = vi.fn((location) => ({
+  href: location?.name === 'ReportDetail'
+    ? '/investment/reports/report-1'
+    : '/investment/home?conversationId=conversation-1&taskId=42',
+}))
 
 vi.mock('@/api/ledger', () => ({
   getLedgerProvinces: vi.fn(() => Promise.resolve({ data: { items: ['甘肃', '宁夏'] } })),
@@ -39,8 +43,7 @@ afterEach(() => {
 })
 
 describe('CalculationLedger', () => {
-  it('loads the default ledger and routes result/report actions to their exact targets', async () => {
-    const open = vi.spyOn(window, 'open').mockImplementation(() => null)
+  it('loads the default ledger and renders result/report actions as exact new-tab links', async () => {
     const wrapper = mount(CalculationLedger)
     await flushPromises()
 
@@ -49,14 +52,23 @@ describe('CalculationLedger', () => {
     expect(wrapper.text()).toContain('省级测算')
     expect(wrapper.text()).toContain('已生成')
 
-    const actionButtons = wrapper.findAll('.ledger-icon-button')
-    await actionButtons[0].trigger('click')
-    expect(push).toHaveBeenLastCalledWith({
+    const actionLinks = wrapper.findAll('.ledger-icon-button')
+    expect(actionLinks[0].attributes()).toMatchObject({
+      href: '/investment/home?conversationId=conversation-1&taskId=42',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+    expect(resolve).toHaveBeenCalledWith({
       path: '/home', query: { conversationId: 'conversation-1', taskId: 42 },
     })
 
-    await actionButtons[1].trigger('click')
-    expect(open).toHaveBeenLastCalledWith('/investment/reports/report-1', '_blank', 'noopener,noreferrer')
+    expect(actionLinks[1].attributes()).toMatchObject({
+      href: '/investment/reports/report-1',
+      target: '_blank',
+      rel: 'noopener noreferrer',
+    })
+    expect(resolve).toHaveBeenCalledWith({ name: 'ReportDetail', params: { reportId: 'report-1' } })
+    expect(push).not.toHaveBeenCalled()
   })
 
   it('renders the province picker and themed calendar instead of native controls', async () => {

@@ -23,6 +23,7 @@ class BasicInfo:
     charge_cost: Optional[float] = None       # 地区表 W，元/kWh（经 API_OUTPUT 读回）
     discharge_return: Optional[float] = None  # 地区表 X（经 API_OUTPUT 读回）
     loss_cost: Optional[float] = None         # 地区表 Y（经 API_OUTPUT 读回）
+    actual_spread: Optional[float] = None     # 输入1-基础参数 D48（经 API_OUTPUT 读回）
     transmission_price: Optional[float] = None
     line_loss_fee: Optional[float] = None
     system_operation_fee: Optional[float] = None

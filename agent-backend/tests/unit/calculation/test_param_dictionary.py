@@ -9,7 +9,7 @@ def _dict():
 
 def test_dictionary_loads():
     d = _dict()
-    assert len(d) == 66  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+3地区+30输出
+    assert len(d) == 67  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+4地区/基础输出+30输出
 
 def test_f_column_only_controls_display_not_write():
     """表2开关 F=0，但仍应写入 API_INPUT（F 列只管展示）。"""
@@ -39,6 +39,8 @@ def test_reclassified_params_directions():
     assert d.get("charge_cost").direction == Direction.OUTPUT.value
     assert d.get("charge_cost").api_cell == "API_OUTPUT!B14"
     assert d.get("loss_cost").api_cell == "API_OUTPUT!B16"
+    assert d.get("actual_spread").direction == Direction.OUTPUT.value
+    assert d.get("actual_spread").api_cell == "API_OUTPUT!B34"
 
 def test_defaults_present():
     d = _dict()
@@ -83,8 +85,8 @@ def test_corrected_cells():
 
 def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
     d = _dict()
-    assert d.get("maint_cost").max == 0.01
-    assert d.get("opex_cost").max == 0.01
+    assert d.get("maint_cost").max == 0.02
+    assert d.get("opex_cost").max == 0.02
     loan_years = d.get("loan_years")
     assert loan_years.api_cell == "API_INPUT!B34"
     assert loan_years.default == 10
@@ -93,7 +95,7 @@ def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
 
 def test_outputs_count():
     d = _dict()
-    assert len(d.outputs()) == 33
+    assert len(d.outputs()) == 34
     assert [(d.get(pid).api_cell, d.get(pid).dtype) for pid in [
         "repayment_method", "discount_rate", "energy_revenue_vat_rate", "ancillary_service_vat_rate",
         "capacity_compensation_vat_rate", "capacity_lease_vat_rate", "subsidy_vat_rate",

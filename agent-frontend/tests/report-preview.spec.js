@@ -89,7 +89,7 @@ describe('formal report preview', () => {
       marketOperations: {
         spotChargePrice: 0.1234, spotDischargePrice: 0.5678, spotSpread: 0.4444,
         transmissionPrice: 0.0123, lineLossFee: 0.0034, systemOperationFee: 0.0056, governmentFundSurcharge: 0.0078,
-        chargeCost: 0.3012, dischargeReturn: 0.0211, actualSpread: 0.2801,
+        chargeCost: 0.3012, dischargeReturn: 0.0211, actualSpread: 0.42, degreeLossCost: 0.2801,
       },
       calculation: {
         result: {
@@ -149,8 +149,12 @@ describe('formal report preview', () => {
     const operationGroups = operationLayout.findAll('.ir-report-operation-group')
     expect(operationGroups).toHaveLength(3)
     expect(operationGroups.map((group) => group.find('h4').text())).toEqual(['现货市场情况', '充电成本情况', '实际运营情况'])
-    expect(operationGroups.map((group) => group.findAll('dt').length)).toEqual([3, 4, 3])
-    expect(operationGroups.map((group) => group.findAll('dd').length)).toEqual([3, 4, 3])
+    expect(operationGroups.map((group) => group.findAll('dt').length)).toEqual([4, 4, 3])
+    expect(operationGroups.map((group) => group.findAll('dd').length)).toEqual([4, 4, 3])
+    expect(wrapper.text()).toContain('实际价差')
+    expect(wrapper.text()).toContain('0.4200 元/kWh')
+    expect(wrapper.text()).toContain('度电损耗费用')
+    expect(wrapper.text()).toContain('0.2801 元/kWh')
     expect(operationGroups.every((group) => group.findAll('dd').every((cell) => cell.classes().includes('xc-num')))).toBe(true)
     expect(wrapper.text()).toContain('3.3 项目首年收益结构')
     expect(wrapper.find('.ir-report-revenue-layout').exists()).toBe(true)

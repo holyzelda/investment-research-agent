@@ -7,7 +7,7 @@
       </svg>
       项目基础边界条件
     </h4>
-    <!-- 一行 5 项裸排数值（无卡片边框/背景）：装机功率/装机容量/充电成本/放电返还/损耗费用。
+    <!-- 一行 6 项裸排数值（无卡片边框/背景）：装机功率/装机容量/实际价差/充电成本/放电返还/损耗费用。
          省份、节点不在此展示——省份由横幅标题体现，节点仅在参数区修改。
          装机功率/装机容量为规模量，数值上品牌紫；电价类保持白色。 -->
     <div class="ir-basic">
@@ -45,6 +45,7 @@ const ICON_LOSS = '<circle cx="12" cy="12" r="9"/><path d="M8 12h8" stroke-linec
 const metrics = computed(() => [
   { key: 'powerMw', label: '装机功率', text: formatNumber(b.value.powerMw), unit: 'MW', accent: true, icon: ICON_POWER },
   { key: 'capacityMwh', label: '装机容量', text: formatNumber(b.value.capacityMwh), unit: 'MWh', accent: true, icon: ICON_CAPACITY },
+  { key: 'actualSpread', label: '实际价差', text: priceText(b.value.actualSpread), unit: '元/kWh', accent: false, icon: ICON_LOSS },
   { key: 'chargeCost', label: '充电成本', text: priceText(b.value.chargeCost), unit: '元/kWh', accent: false, icon: ICON_CHARGE },
   { key: 'dischargeReturn', label: '放电返还', text: priceText(b.value.dischargeReturn), unit: '元/kWh', accent: false, icon: ICON_DISCHARGE },
   { key: 'lossCost', label: '损耗费用', text: priceText(b.value.lossCost), unit: '元/kWh', accent: false, icon: ICON_LOSS },
@@ -73,7 +74,7 @@ const metrics = computed(() => [
 /* 一行 5 项裸排数值：无边框、无背景，仅靠列宽均分 */
 .ir-basic {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--xc-space-5);
 }
 .ir-basic__stat {

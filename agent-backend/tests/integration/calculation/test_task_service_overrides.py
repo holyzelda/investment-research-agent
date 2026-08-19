@@ -127,14 +127,14 @@ async def test_out_of_range_override_does_not_copy_template(session_maker):
     async with session_maker() as session:
         with pytest.raises(
             ValidationException,
-            match=r"EPC单价超出允许范围，正确范围为\[0.7, 0.85\]",
+            match=r"EPC单价超出允许范围，正确范围为\[0.7, 1.1\]",
         ):
             await service.create_and_run(
                 session,
                 user_id="u1",
                 username="U1",
                 basics=_BASICS,
-                param_overrides={"epc_unit_price": 0.9},
+                param_overrides={"epc_unit_price": 1.2},
             )
     assert gateway.copy_templates == []
 

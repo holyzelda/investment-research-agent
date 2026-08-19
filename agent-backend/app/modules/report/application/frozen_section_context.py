@@ -157,7 +157,7 @@ def _conclusion_context(rule: dict, payload: dict) -> dict:
         "已启动": [row.get("name") for row in rows if row.get("enabled")],
         "未启动": [row.get("name") for row in rows if not row.get("enabled")],
     }
-    context["市场运营"] = _pick(payload.get("marketOperations", {}), "spotChargePrice", "spotDischargePrice", "spotSpread", "chargeCost", "dischargeReturn", "actualSpread")
+    context["市场运营"] = _pick(payload.get("marketOperations", {}), "spotChargePrice", "spotDischargePrice", "spotSpread", "actualSpread", "chargeCost", "dischargeReturn", "degreeLossCost")
     context["测算边界"] = _pick(payload.get("measurementBoundary", {}), "epcUnitPrice", "batteryReplaceCost", "strategyAchievementRate", "annualOperationDays", "loanRate", "loanYears", "repaymentMethod")
     context["基准财务指标"] = _pick(payload.get("financialMetrics", {}), "averageProfit", "averageRevenue")
     coverage = payload.get("charts", {}).get("series", {}).get("debtServiceCoverage", [])

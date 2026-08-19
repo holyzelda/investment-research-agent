@@ -110,7 +110,8 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
             "chargeCost": basic.get("chargeCost"),
             "dischargeReturn": basic.get("dischargeReturn"),
             "lossCost": basic.get("lossCost"),
-            "actualSpread": _difference(basic.get("chargeCost"), basic.get("dischargeReturn")),
+            "actualSpread": basic.get("actualSpread"),
+            "degreeLossCost": _difference(basic.get("chargeCost"), basic.get("dischargeReturn")),
         },
         "measurementBoundary": {
             "epcUnitPrice": api_input.get("epc_unit_price"),

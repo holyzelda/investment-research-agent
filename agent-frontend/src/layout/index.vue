@@ -86,7 +86,13 @@ const PATH_TO_RAIL = { '/home': 'home', '/index-map': 'index', '/tie-line': 'lin
 const activeRail = computed(() => PATH_TO_RAIL[route.path] || route.path.replace(/^\//, ''))
 const isReportView = computed(() => route.name === 'ReportDetail')
 // 欢迎态：仅首页且无会话时挂载全屏场景背景；发首条消息 / 打开历史 / 切换页面后自动隐藏
-const isWelcome = computed(() => route.name === 'Home' && calc.messages.length === 0)
+const isWelcome = computed(() => (
+  route.name === 'Home'
+  && !route.query?.conversationId
+  && calc.messages.length === 0
+  && !calc.conversationLoading
+  && !calc.conversationLoadError
+))
 
 const sidebarCollapsed = ref(Boolean(route.meta.collapseSidebar))
 const drawerOpen = ref(false)
@@ -115,8 +121,12 @@ watch(drawerOpen, (open) => {
   }
 })
 
-async function goHome() {
-  if (router.currentRoute.value.path !== '/home') await router.push('/home')
+async function goHome(query) {
+  const target = query ? { path: '/home', query } : { path: '/home' }
+  const current = router.currentRoute.value
+  const needsNavigation = current.path !== '/home'
+    || JSON.stringify(current.query || {}) !== JSON.stringify(query || {})
+  if (needsNavigation) await router.push(target)
   closeDrawer(false)
 }
 
@@ -153,18 +163,14 @@ async function onUserMenu(action) {
     // session.logout 的 finally 已清理本地认证状态；平台接口异常不应留下半失效会话。
   } finally {
     calc.resetConversation()
+    calc.clearConversationDetailCache()
     permission.resetRoutes()
     window.location.replace('/investment/login')
   }
 }
 
 async function onOpenHistory(conversationId) {
-  try {
-    await calc.openConversation(conversationId)
-    await goHome()
-  } catch (error) {
-    ElMessage.error('打开历史会话失败，请稍后重试')
-  }
+  await goHome({ conversationId: String(conversationId) })
 }
 
 async function onDeleteHistory(conversationId) {
@@ -179,6 +185,10 @@ async function onDeleteHistory(conversationId) {
   }
   try {
     await calc.removeConversation(conversationId)
+    if (
+      route.path === '/home'
+      && String(route.query.conversationId || '') === String(conversationId)
+    ) await goHome()
     ElMessage.success('已删除')
   } catch (error) {
     ElMessage.error('删除失败，请稍后重试')

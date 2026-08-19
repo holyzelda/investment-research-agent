@@ -204,8 +204,13 @@ async def test_list_returns_current_users_active_conversations_by_latest_activit
 
     assert response.status_code == 200
     data = response.json()["data"]
-    # deleted（软删）、foreign（他人）、empty_failed（仅失败无消息）均不出现
+    # deleted（软删）、foreign（他人）不出现；仅失败会话仍属于当前用户活跃会话
     assert data["items"] == [
+        {
+            "conversationId": ids["empty_failed"],
+            "title": "Failed only",
+            "createdAt": "2026-07-15T09:40:00",
+        },
         {
             "conversationId": ids["older"],
             "title": "Older active",
@@ -280,10 +285,15 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
     assert after == before
     assert (await client.get("/ir/conversations")).json()["data"]["items"] == [
         {
+            "conversationId": ids["empty_failed"],
+            "title": "Failed only",
+            "createdAt": "2026-07-15T09:40:00",
+        },
+        {
             "conversationId": ids["older"],
             "title": "Older active",
             "createdAt": "2026-07-15T09:00:00",
-        }
+        },
     ]
 
 

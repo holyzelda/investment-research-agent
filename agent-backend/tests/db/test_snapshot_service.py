@@ -9,10 +9,8 @@ import uuid
 import pytest
 from sqlalchemy import func, select
 
-from app.modules.calculation.application.factory import (
-    build_calculation_service,
-    build_param_assembler,
-)
+from app.modules.calculation.application.factory import build_param_assembler
+from app.modules.calculation.application.output_mapper import map_output_to_result
 from app.modules.calculation.application.snapshot_service import SnapshotService
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.feishu_sample import SAMPLE_API_OUTPUT
@@ -30,7 +28,13 @@ from tests.db.conftest import PYTEST_TITLE_PREFIX, PYTEST_USERNAME
 async def _persist(session, svc, conv_id, version, trigger=None):
     basics = ProjectBasics("甘肃", 800, 200, node_name="兰州东")
     assembled = build_param_assembler().assemble(basics)
-    result = await build_calculation_service().run(basics, version=version, request_id=f"req-{version}")
+    result = map_output_to_result(
+        basics,
+        assembled,
+        SAMPLE_API_OUTPUT,
+        version=version,
+        request_id=f"req-{version}",
+    )
     return await svc.persist_success(
         session,
         conversation_id=conv_id,

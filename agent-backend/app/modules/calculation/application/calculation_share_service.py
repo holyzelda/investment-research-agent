@@ -9,6 +9,7 @@ from cryptography.fernet import Fernet
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config.settings import get_settings
 from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
@@ -39,12 +40,17 @@ class CalculationShareService:
     """分享生命周期管理。"""
 
     def __init__(self, fernet_key: bytes | None = None):
-        """Fernet 密钥用于加密分享码以便管理端回显。缺少时使用固定测试密钥。"""
-        if fernet_key is not None:
-            self._fernet = Fernet(fernet_key)
-        else:
-            # 生产环境应从配置/环境变量注入；开发期使用固定密钥（不要用于生产数据）。
-            self._fernet = Fernet(Fernet.generate_key())
+        """分享码使用稳定的配置密钥加密，支持测试时显式注入密钥。"""
+        self._fernet_key = fernet_key
+
+    def _get_fernet(self) -> Fernet:
+        key = self._fernet_key
+        if key is None:
+            configured_key = get_settings().calc.share_fernet_key.strip()
+            if not configured_key:
+                raise RuntimeError("未配置 calc.share_fernet_key")
+            key = configured_key.encode("utf-8")
+        return Fernet(key)
 
     # ── 分享码处理 ────────────────────────────────────────────────
 
@@ -58,10 +64,10 @@ class CalculationShareService:
         return hashlib.sha256(code.encode("utf-8")).hexdigest()
 
     def _encrypt_share_code(self, code: str) -> str:
-        return self._fernet.encrypt(code.encode("utf-8")).decode("utf-8")
+        return self._get_fernet().encrypt(code.encode("utf-8")).decode("utf-8")
 
     def _decrypt_share_code(self, ciphertext: str) -> str:
-        return self._fernet.decrypt(ciphertext.encode("utf-8")).decode("utf-8")
+        return self._get_fernet().decrypt(ciphertext.encode("utf-8")).decode("utf-8")
 
     # ── 创建分享 ───────────────────────────────────────────────────
 

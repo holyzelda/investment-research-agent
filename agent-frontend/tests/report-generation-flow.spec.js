@@ -117,4 +117,60 @@ describe('report generation conversation cards', () => {
     expect(store.selectedVersion).toBe('V1')
     expect(store.messages.find((message) => message.id === 'm-existing')).toBeTruthy()
   })
+
+  it('force-refreshes conversation detail so a cached copy cannot hide the new report', async () => {
+    reportApi.createReport.mockResolvedValue({ data: { reportTaskId: 8, taskId: 42, status: 'generating', steps: [] } })
+    calcApi.getConversation.mockResolvedValue({
+      data: {
+        conversationId: 'c-1',
+        messages: [],
+        versions: [{ taskId: 42, version: 'V1', status: 'completed', result: { marker: 'v1' } }],
+        reports: [{ reportId: 'r-8', taskId: 42, version: 'V1', status: 'completed', title: '甘肃项目投资报告' }],
+      },
+    })
+    stream.mockImplementation(async (_id, { onEvent }) => {
+      onEvent({ type: 'complete', data: { reportTaskId: 8, taskId: 42, reportId: 'r-8', status: 'completed' } })
+    })
+    const store = useCalculationStore()
+
+    // 先把会话详情读入缓存，报告完成后仍必须拿到权威副本
+    await store.openConversation('c-1')
+    expect(calcApi.getConversation).toHaveBeenCalledTimes(1)
+
+    await store.generateReport(42)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(calcApi.getConversation).toHaveBeenCalledTimes(2)
+    expect(store.reports[0]).toMatchObject({ reportId: 'r-8', title: '甘肃项目投资报告' })
+  })
+
+  it('does not let a late report sync overwrite a conversation the user switched away from', async () => {
+    reportApi.createReport.mockResolvedValue({ data: { reportTaskId: 8, taskId: 42, status: 'generating', steps: [] } })
+    let resolveSync
+    const pendingSync = new Promise((resolve) => {
+      resolveSync = () => resolve({
+        data: { reports: [{ reportId: 'r-stale', taskId: 42, version: 'V1', status: 'completed', title: '旧会话报告' }] },
+      })
+    })
+    calcApi.getConversation.mockImplementation(() => pendingSync)
+    stream.mockImplementation(async (_id, { onEvent }) => {
+      onEvent({ type: 'complete', data: { reportTaskId: 8, taskId: 42, reportId: 'r-8', status: 'completed' } })
+    })
+    const store = useCalculationStore()
+    store.conversationId = 'c-1'
+    store.selectedVersion = 'V1'
+    store.versions = [{ taskId: 42, version: 'V1' }]
+
+    await store.generateReport(42)
+
+    store.conversationId = 'c-2'
+    store.conversationEpoch += 1
+    store.reports = []
+    resolveSync()
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(store.reports).toEqual([])
+  })
 })

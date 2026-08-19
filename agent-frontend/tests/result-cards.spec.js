@@ -11,7 +11,7 @@ vi.mock('@/views/home/composables/useEcharts', () => ({
 const snapshot = {
   basicInfo: {
     province: '甘肃', nodeName: null, powerMw: 200, capacityMwh: 800,
-    chargeCost: 0.2, dischargeReturn: 0.61234, lossCost: 0.03,
+    chargeCost: 0.2, dischargeReturn: 0.61234, lossCost: 0.03, actualSpread: 0.4567,
   },
   financial: {
     projectIrr: 7.1, projectStaticPayback: 8.256, capitalIrr: 9.3,
@@ -27,11 +27,13 @@ async function openAdvancedTab(wrapper) {
 }
 
 describe('result card three modules', () => {
-  it('renders basic information, five KPIs and both advanced charts', () => {
+  it('renders basic information, six KPIs and both advanced charts', () => {
     const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
     const text = wrapper.text()
 
     expect(text).toContain('项目基础边界条件')
+    expect(text).toContain('实际价差')
+    expect(wrapper.findAll('.ir-basic__stat')).toHaveLength(6)
     expect(text).toContain('甘肃')
     expect(text).not.toContain('节点')
     expect(text).toContain('核心投资收益指标')
@@ -263,12 +265,13 @@ describe('result card three modules', () => {
     expect(wrapper.find('select[data-param-id="operation_years"]').element.value).toBe('15')
   })
 
-  it('keeps generation non-repeatable, exposes retry, and removes the completed duplicate action', async () => {
+  it('keeps generation non-repeatable, exposes retry, and switches completed reports to view', async () => {
     const generating = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'generating' } },
     })
     expect(generating.find('[data-testid="report-btn"]').text()).toContain('报告生成中')
     expect(generating.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
+    expect(generating.find('[aria-label="分享此测算结果"]').exists()).toBe(true)
 
     const failed = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'failed' } },
@@ -280,8 +283,12 @@ describe('result card three modules', () => {
     const completed = mount(ResultCard, {
       props: { result: snapshot, version: 'V1', report: { status: 'completed', reportId: 'r-1' } },
     })
-    expect(completed.find('.ir-result__footer').exists()).toBe(false)
-    expect(completed.text()).not.toContain('已生成报告')
-    expect(completed.emitted('view-report')).toBeUndefined()
+    expect(completed.find('.ir-result__footer').exists()).toBe(true)
+    expect(completed.find('.ir-result__report-hint').text()).toContain('正式投资报告已生成')
+    expect(completed.find('[aria-label="分享此测算结果"]').exists()).toBe(true)
+    expect(completed.find('[data-testid="report-btn"]').text()).toContain('查看报告')
+    await completed.find('[data-testid="report-btn"]').trigger('click')
+    expect(completed.emitted('view-report')).toEqual([['r-1']])
+    expect(completed.emitted('generate-report')).toBeUndefined()
   })
 })

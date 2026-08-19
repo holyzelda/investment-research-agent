@@ -22,7 +22,7 @@ async def test_param_dict_endpoint(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 200
-    assert body["data"]["total"] == 49
+    assert body["data"]["total"] == 67
 
 
 @pytest.mark.asyncio
@@ -30,7 +30,7 @@ async def test_param_dict_display_only(client):
     resp = await client.get("/ir/calc/param-dict", params={"display_only": True})
     body = resp.json()
     # F=1 展示项应少于全量
-    assert body["data"]["total"] == 40
+    assert body["data"]["total"] == 58
 
 
 @pytest.mark.asyncio
@@ -73,19 +73,3 @@ async def test_assemble_preview_rejects_non_positive_power(client):
     })
     assert resp.status_code == 400
 
-
-@pytest.mark.asyncio
-async def test_run_returns_three_modules(client):
-    resp = await client.post("/ir/calc/run", json={
-        "province": "甘肃", "capacity_mwh": 800, "power_mw": 200, "node_name": "兰州东",
-    })
-    assert resp.status_code == 200
-    data = resp.json()["data"]
-    assert data["basicInfo"]["province"] == "甘肃"
-    assert data["basicInfo"]["nodeName"] == "兰州东"
-    assert data["financial"]["projectIrr"] == 8.5
-    assert data["advanced"]["donut"]["totalRevenue"] == 8600.0
-    assert data["advanced"]["donut"]["interventionRevenue"] == 200.0
-    assert data["advanced"]["debtServiceCoverage"]["cashflowRatio"] == [
-        1.12, 1.24, 0.0, None, 1.36, 1.48,
-    ]

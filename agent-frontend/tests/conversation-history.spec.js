@@ -370,8 +370,7 @@ describe('conversation history sidebar and replay', () => {
     expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
   })
 
-  it('removeConversation soft-deletes and drops it from history', async () => {
-    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
+  it('removeConversation soft-deletes and drops it from history', async () => {    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
     const store = useCalculationStore()
     store.history = [
       { conversationId: 7, title: '甘肃' },
@@ -384,5 +383,113 @@ describe('conversation history sidebar and replay', () => {
     expect(api.deleteConversation).toHaveBeenCalledWith(7)
     expect(store.history.map((h) => h.conversationId)).toEqual([6])
     expect(store.conversationId).toBeNull()
+  })
+
+  it('dedupes concurrent opens of the same conversation into one request', async () => {
+    api.getConversation.mockResolvedValue({ data: detail })
+    const store = useCalculationStore()
+
+    await Promise.all([store.openConversation(7), store.openConversation(7, 11)])
+
+    expect(api.getConversation).toHaveBeenCalledTimes(1)
+    // 后发起的打开决定最终选中版本，早到的响应不得覆盖它
+    expect(store.selectedVersion).toBe('V1')
+  })
+
+  it('serves a repeated open from the memory cache and selects the target task locally', async () => {
+    api.getConversation.mockResolvedValue({ data: detail })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    await store.openConversation(7, 11)
+
+    expect(api.getConversation).toHaveBeenCalledTimes(1)
+    expect(store.selectedVersion).toBe('V1')
+    expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
+  })
+
+  it('does not cache a failed detail load and retries on the next open', async () => {
+    api.getConversation.mockRejectedValueOnce(new Error('网络异常'))
+    api.getConversation.mockResolvedValueOnce({ data: detail })
+    const store = useCalculationStore()
+
+    await expect(store.openConversation(7)).rejects.toThrow('网络异常')
+    expect(store.conversationLoadError).toBe('网络异常')
+    expect(store.conversationLoading).toBe(false)
+
+    await store.openConversation(7)
+
+    expect(api.getConversation).toHaveBeenCalledTimes(2)
+    expect(store.conversationLoadError).toBe('')
+    expect(store.selectedVersion).toBe('V2')
+  })
+
+  it('ignores an out-of-order response from a superseded conversation open', async () => {
+    const slow = {
+      conversationId: 6,
+      messages: [],
+      versions: [{ taskId: 21, version: 'V1', status: 'completed', result: { basicInfo: { province: '宁夏' } } }],
+    }
+    let resolveSlow
+    const slowResponse = new Promise((resolve) => { resolveSlow = () => resolve({ data: slow }) })
+    api.getConversation.mockImplementation((id) => (
+      String(id) === '6' ? slowResponse : Promise.resolve({ data: detail })
+    ))
+    const store = useCalculationStore()
+
+    const stale = store.openConversation(6)
+    await store.openConversation(7)
+    resolveSlow()
+    await stale
+
+    // 旧会话的迟到响应不得覆盖已切换到的新会话
+    expect(store.conversationId).toBe(7)
+    expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
+  })
+
+  it('refetches a conversation after its cache is invalidated by a new result', async () => {
+    api.getConversation.mockResolvedValue({ data: detail })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    store.invalidateConversationDetail(7)
+    await store.openConversation(7)
+
+    expect(api.getConversation).toHaveBeenCalledTimes(2)
+  })
+
+  it('clearConversationDetailCache forces a fresh load for the next login session', async () => {
+    api.getConversation.mockResolvedValue({ data: detail })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    store.clearConversationDetailCache()
+    await store.openConversation(7)
+
+    expect(api.getConversation).toHaveBeenCalledTimes(2)
+  })
+
+  it('renameConversation patches the cached detail title without refetching', async () => {
+    api.getConversation.mockResolvedValue({ data: { ...detail } })
+    api.renameConversation.mockResolvedValue({ data: { conversationId: 7, title: '甘肃复核' } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    await store.renameConversation(7, '甘肃复核')
+    await store.openConversation(7)
+
+    expect(api.getConversation).toHaveBeenCalledTimes(1)
+    expect(store.conversationDetailCache.get('7').title).toBe('甘肃复核')
+  })
+
+  it('removeConversation drops the deleted conversation from the detail cache', async () => {
+    api.getConversation.mockResolvedValue({ data: detail })
+    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    await store.removeConversation(7)
+
+    expect(store.conversationDetailCache.has('7')).toBe(false)
   })
 })

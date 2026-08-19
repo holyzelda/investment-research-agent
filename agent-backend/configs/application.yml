@@ -73,6 +73,9 @@ spot_price:
       charge: 0.5
       discharge: 0.5
 
+calc:
+   share_fernet_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+
 policy_ask:
   # 政策与市场知识库问答的本地凭据；生产环境应通过 Nacos/环境注入覆盖。
   feishu:

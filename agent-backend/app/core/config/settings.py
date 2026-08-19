@@ -155,6 +155,7 @@ class CalcConfig(BaseModel):
     poll_interval_seconds: float = 3.0
     poll_timeout_seconds: float = 10.0
     max_retries: int = 3
+    share_fernet_key: str = ""
 
 
 class FeishuConfig(BaseModel):
@@ -317,6 +318,9 @@ def _build_settings() -> Settings:
         poll_interval_seconds=float(_business_value("IR_CALC_POLL_INTERVAL", y, ["calc", "poll_interval_seconds"], 3.0)),
         poll_timeout_seconds=float(_business_value("IR_CALC_POLL_TIMEOUT", y, ["calc", "poll_timeout_seconds"], 10.0)),
         max_retries=int(_business_value("IR_CALC_MAX_RETRIES", y, ["calc", "max_retries"], 3)),
+        share_fernet_key=str(_business_value(
+            "IR_CALC_SHARE_FERNET_KEY", y, ["calc", "share_fernet_key"], ""
+        )),
     )
     _mpd = MiddlePlatformConfig()
     middle_platform = MiddlePlatformConfig(

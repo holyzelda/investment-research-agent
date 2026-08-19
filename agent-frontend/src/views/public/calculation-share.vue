@@ -124,6 +124,7 @@ const basicMetrics = computed(() => {
   return [
     { key: 'powerMw', label: '装机功率', text: formatNumber(b.powerMw), unit: 'MW', accent: true, icon: ICON_POWER },
     { key: 'capacityMwh', label: '装机容量', text: formatNumber(b.capacityMwh), unit: 'MWh', accent: true, icon: ICON_CAPACITY },
+    { key: 'actualSpread', label: '实际价差', text: priceText(b.actualSpread), unit: '元/kWh', accent: false, icon: ICON_LOSS },
     { key: 'chargeCost', label: '充电成本', text: priceText(b.chargeCost), unit: '元/kWh', accent: false, icon: ICON_CHARGE },
     { key: 'dischargeReturn', label: '放电返还', text: priceText(b.dischargeReturn), unit: '元/kWh', accent: false, icon: ICON_DISCHARGE },
     { key: 'lossCost', label: '损耗费用', text: priceText(b.lossCost), unit: '元/kWh', accent: false, icon: ICON_LOSS },
@@ -351,7 +352,7 @@ onMounted(() => {
 /* 基础信息 */
 .ir-share-basic {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: var(--xc-space-5);
 }
 .ir-share-basic__stat {

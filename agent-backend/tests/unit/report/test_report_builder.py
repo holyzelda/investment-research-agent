@@ -133,6 +133,7 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
         "basicInfo": {
             "province": "甘肃", "powerMw": 200, "capacityMwh": 800,
             "chargeCost": 0.3012, "dischargeReturn": 0.0211, "lossCost": 0.0045,
+            "actualSpread": 0.42,
             "transmissionPrice": 0.0123, "lineLossFee": 0.0034,
             "systemOperationFee": 0.0056, "governmentFundSurcharge": 0.0078,
         },
@@ -171,7 +172,8 @@ def test_builds_template_facing_operations_boundary_and_financial_sections():
         "chargeCost": 0.3012,
         "dischargeReturn": 0.0211,
         "lossCost": 0.0045,
-        "actualSpread": 0.2801,
+        "actualSpread": 0.42,
+        "degreeLossCost": 0.2801,
     }
     assert payload["measurementBoundary"]["equityRatio"] == 0.2
     assert payload["measurementBoundary"]["annualOperationDays"] == 330

@@ -15,7 +15,6 @@ from app.core.response import ok
 from app.core.exceptions import NotFoundException, ValidationException
 from app.infrastructure.database.session import get_db_session
 from app.modules.calculation.application.factory import (
-    build_calculation_service,
     build_param_assembler,
     build_revenue_structure_reader,
     build_task_service,
@@ -37,7 +36,6 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     InputSnapshotORM,
     SpotStationORM,
 )
-from app.modules.calculation.interface.serializers import serialize_result
 from app.modules.platform_access.interface.deps import get_current_user
 from app.modules.platform_access.domain.models import CurrentUser
 
@@ -131,20 +129,6 @@ async def assemble_preview(req: AssembleReq):
         "switches": r.switches,
         "warnings": r.warnings,
     })
-
-
-@router.post("/run")
-async def run_calculation(req: AssembleReq):
-    """Mock 主链路测算：最小三项 → 组装 → 飞书写入/读取(Mock) → 结果三模块。
-
-    薄片阶段飞书网关回放样例 output，不依赖真飞书；Batch3 换真网关+状态机+快照。
-    """
-    svc = build_calculation_service()
-    result = await svc.run(ProjectBasics(
-        province=req.province, capacity_mwh=req.capacity_mwh, power_mw=req.power_mw,
-        node_name=req.node_name, voltage_kv=req.voltage_kv,
-    ))
-    return ok(serialize_result(result))
 
 
 # ---- Batch3：测算任务（发起 / 状态 / 结果）----

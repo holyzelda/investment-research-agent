@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
 const state = vi.hoisted(() => {
-  const route = { name: 'Home', path: '/home', fullPath: '/home', meta: {} }
+  const route = { name: 'Home', path: '/home', fullPath: '/home', query: {}, meta: {} }
   return {
     route,
     router: {
@@ -14,6 +14,10 @@ const state = vi.hoisted(() => {
       messages: [],
       history: [{ conversationId: 7, title: '甘肃储能测算' }],
       conversationId: null,
+      conversationLoading: false,
+      conversationLoadingId: null,
+      conversationLoadError: '',
+      clearConversationDetailCache: vi.fn(),
       loadHistory: vi.fn().mockResolvedValue(undefined),
       resetConversation: vi.fn(),
       openConversation: vi.fn().mockResolvedValue(undefined),
@@ -74,6 +78,7 @@ describe('left AppShell layout', () => {
     state.route.name = 'Home'
     state.route.path = '/home'
     state.route.fullPath = '/home'
+    state.route.query = {}
     state.route.meta = {}
     state.calc.messages = []
     state.calc.conversationId = null
@@ -109,10 +114,10 @@ describe('left AppShell layout', () => {
     await flushPromises()
 
     expect(state.calc.resetConversation).toHaveBeenCalledTimes(1)
-    expect(state.router.push).toHaveBeenCalledWith('/home')
+    expect(state.router.push).toHaveBeenCalledWith({ path: '/home' })
   })
 
-  it('returns to home after replaying a conversation from another module', async () => {
+  it('routes history replay through the Home query instead of opening it directly', async () => {
     const wrapper = mountLayout()
     state.route.path = '/tie-line'
     state.route.fullPath = '/tie-line'
@@ -120,8 +125,8 @@ describe('left AppShell layout', () => {
     await wrapper.find('.ir-shell__history-item').trigger('click')
     await flushPromises()
 
-    expect(state.calc.openConversation).toHaveBeenCalledWith(7)
-    expect(state.router.push).toHaveBeenCalledWith('/home')
+    expect(state.calc.openConversation).not.toHaveBeenCalled()
+    expect(state.router.push).toHaveBeenCalledWith({ path: '/home', query: { conversationId: '7' } })
   })
 
   it('opens and closes the mobile drawer without removing the shell', async () => {
