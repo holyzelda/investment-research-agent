@@ -215,6 +215,7 @@
                 @station-search="calc.searchStations($event)"
                 @station-load-more="calc.loadMoreStations($event)"
                 @generate-report="generateReportAndReveal(m.taskId)"
+                @view-report="openReport"
                 @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
               />
             </div>

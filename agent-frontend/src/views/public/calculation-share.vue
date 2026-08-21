@@ -383,6 +383,7 @@ onMounted(() => {
 }
 
 .ir-share-module {
+  container-type: inline-size;
   margin: 0 var(--xc-space-6);
   border: 1px solid var(--xc-border-card);
   border-radius: var(--xc-radius-lg);
@@ -397,6 +398,10 @@ onMounted(() => {
   grid-template-columns: 1fr 2fr;
   gap: var(--xc-space-6);
   margin: 0 var(--xc-space-6);
+}
+.ir-share-charts > * {
+  min-width: 0;
+  container-type: inline-size;
 }
 
 /* 警告 */
@@ -427,8 +432,7 @@ onMounted(() => {
 /* ── 响应式 ── */
 @media (max-width: 768px) {
   .ir-share-page__content { padding: var(--xc-space-4); }
-  .ir-share-basic,
-  .ir-share-fin {
+  .ir-share-basic {
     grid-template-columns: repeat(2, 1fr);
     gap: var(--xc-space-4);
   }
@@ -443,8 +447,7 @@ onMounted(() => {
 }
 @media (max-width: 480px) {
   .ir-share-page__content { padding: var(--xc-space-3); }
-  .ir-share-basic,
-  .ir-share-fin {
+  .ir-share-basic {
     grid-template-columns: 1fr 1fr;
     gap: var(--xc-space-3);
   }
