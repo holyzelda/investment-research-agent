@@ -14,7 +14,32 @@
           <span v-if="version" class="ir-result__banner-dot">·</span>
           <span v-if="version">测算版本 {{ version }}</span>
         </p>
-        <label v-if="availableVersions.length" class="ir-result__compare">
+        <button
+          v-if="availableVersions.length"
+          type="button"
+          class="ir-result__comparison-toggle"
+          :class="{ 'is-open': comparisonExpanded }"
+          :aria-expanded="comparisonExpanded"
+          :aria-controls="comparisonPanelId"
+          @click="comparisonExpanded = !comparisonExpanded"
+        >
+          <span>{{ comparisonExpanded ? '收起版本对比' : '查看版本对比' }}</span>
+          <ChevronDown :size="18" aria-hidden="true" />
+        </button>
+      </div>
+    </div>
+
+    <section
+      v-if="comparisonExpanded && comparisonVersion"
+      :id="comparisonPanelId"
+      class="ir-report-module ir-version-diff"
+    >
+      <header class="ir-version-diff__head">
+        <div class="ir-version-diff__heading">
+          <h4>版本对比</h4>
+          <span>当前版本 {{ version }}（固定）</span>
+        </div>
+        <label class="ir-result__compare">
           <span>对比基准</span>
           <div class="ir-result__compare-wrap">
             <select :value="comparisonVersion" @change="$emit('compare-version-change', $event.target.value)" aria-label="选择对比版本">
@@ -22,17 +47,11 @@
                 {{ item.version }}{{ item.isPrevious ? ' · 上一版' : '' }}
               </option>
             </select>
-            <ChevronDown class="ir-result__compare-chevron" :size="14" aria-hidden="true" />
+            <ChevronDown class="ir-result__compare-chevron" :size="16" aria-hidden="true" />
           </div>
         </label>
-      </div>
-    </div>
-
-    <section v-if="comparisonVersion" class="ir-report-module ir-version-diff">
-      <header class="ir-version-diff__head">
-        <h4>版本变化</h4>
-        <span>较 {{ comparisonVersion }} · {{ versionDiff.totalCount }} 项变化</span>
       </header>
+      <div class="ir-version-diff__summary">{{ version }} 较 {{ comparisonVersion }} · {{ versionDiff.totalCount }} 项参数变化</div>
       <div v-if="versionDiff.totalCount" class="ir-version-diff__body">
         <div v-for="group in versionDiff.groups" :key="group.category" class="ir-version-diff__group">
           <h5>{{ group.label }} <span>{{ group.items.length }} 项</span></h5>
@@ -54,7 +73,11 @@
       <BasicInfoBlock :basic-info="result.basicInfo" />
     </section>
     <section class="ir-report-module">
-      <FinancialBlock :financial="result.financial" :comparison-financial="comparisonResult?.financial" :comparison-version="comparisonVersion" />
+      <FinancialBlock
+        :financial="result.financial"
+        :comparison-financial="comparisonExpanded ? comparisonResult?.financial : null"
+        :comparison-version="comparisonExpanded ? comparisonVersion : ''"
+      />
     </section>
 
     <section class="ir-report-module ir-report-module--bare">
@@ -241,6 +264,8 @@ const advancedOverrides = ref({})
 const advancedValidationError = ref(false)
 const regularParametersDirty = ref(false)
 const shareDialogVisible = ref(false)
+const comparisonExpanded = ref(false)
+const comparisonPanelId = computed(() => `ir-version-comparison-${String(props.taskId ?? (props.version || 'result')).replace(/[^a-zA-Z0-9_-]/g, '-')}`)
 const ADVANCED_IDS = new Set([
   'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
   'strategy_achievement_rate', 'capacity_achievement_rate',
@@ -264,7 +289,11 @@ watch(() => [props.version, props.seedInput], () => {
   advancedOverrides.value = {}
   advancedValidationError.value = false
   regularParametersDirty.value = false
+  comparisonExpanded.value = false
 }, { deep: true })
+watch(() => props.availableVersions.length, (count) => {
+  if (!count) comparisonExpanded.value = false
+})
 function normalizeAdvancedValue(value, step) {
   return typeof value === 'number' && step ? roundToStep(value, step) : value
 }
@@ -292,7 +321,7 @@ function discardAllParameterChanges() {
   overflow: hidden;
 }
 .ir-result__ok { font-size:var(--xc-fs-base); color:var(--xc-status-ok); font-weight:var(--xc-fw-semi); }
-.ir-result__ver { font-size:var(--xc-fs-2xs); color:var(--xc-text-inverse); background:var(--xc-accent-blue); border-radius:var(--xc-radius-full); padding:1px var(--xc-space-3); }
+.ir-result__ver { font-size:var(--xc-fs-xs); color:var(--xc-text-inverse); background:var(--xc-accent-blue); border-radius:var(--xc-radius-full); padding:2px var(--xc-space-3); line-height:var(--xc-lh-normal); }
 /* 顶部图靠右对齐占 66% 宽，高度压短；图垂直方向居中裁剪（上下各裁一点），
    左侧 34% 为深蓝黑填充，放标题/时间内容。 */
 .ir-result__banner {
@@ -335,36 +364,68 @@ function discardAllParameterChanges() {
   gap: var(--xc-space-2);
   padding: var(--xc-space-7);
 }
-.ir-result__compare {
+.ir-result__comparison-toggle {
   position: relative;
   z-index: 1;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--xc-space-2);
+  min-height: 44px;
+  margin-top: var(--xc-space-3);
+  padding: 0 var(--xc-space-5);
+  border: 1px solid var(--xc-border-accent);
+  border-radius: var(--xc-radius-sm);
+  background: rgba(3, 8, 22, 0.54);
+  color: var(--xc-text-default);
+  font: inherit;
+  font-size: var(--xc-fs-sm);
+  font-weight: var(--xc-fw-semi);
+  cursor: pointer;
+  transition: border-color var(--xc-dur-fast) var(--xc-ease-out),
+              background-color var(--xc-dur-fast) var(--xc-ease-out),
+              color var(--xc-dur-fast) var(--xc-ease-out);
+}
+.ir-result__comparison-toggle svg {
+  flex: 0 0 auto;
+  transition: transform var(--xc-dur-base) var(--xc-ease-out);
+}
+.ir-result__comparison-toggle:hover,
+.ir-result__comparison-toggle.is-open {
+  border-color: var(--xc-accent-blue);
+  background: var(--xc-accent-blue-soft);
+  color: var(--xc-text-strong);
+}
+.ir-result__comparison-toggle.is-open svg { transform: rotate(180deg); }
+.ir-result__comparison-toggle:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+.ir-result__compare {
   display: flex;
   align-items: center;
   gap: var(--xc-space-3);
-  margin-top: var(--xc-space-4);
   color: var(--xc-text-soft);
-  font-size: var(--xc-fs-2xs);
+  font-size: var(--xc-fs-sm);
   font-weight: var(--xc-fw-medium);
   white-space: nowrap;
 }
-.ir-result__compare span { flex-shrink: 0; }
+.ir-result__compare > span { flex-shrink: 0; }
 .ir-result__compare-wrap {
   position: relative;
   display: flex;
   align-items: center;
-  min-width: 148px;
+  min-width: 176px;
 }
 .ir-result__compare-wrap select {
   width: 100%;
-  height: 30px;
-  padding: 0 var(--xc-space-7) 0 var(--xc-space-3);
+  min-height: 44px;
+  padding: 0 var(--xc-space-7) 0 var(--xc-space-4);
   border: 1px solid var(--xc-border-accent);
   border-radius: var(--xc-radius-sm);
   outline: none;
   background: var(--xc-surface-control);
   color: var(--xc-text-strong);
   font-family: var(--xc-font-zh);
-  font-size: var(--xc-fs-xs);
+  font-size: var(--xc-fs-sm);
   cursor: pointer;
   appearance: none;
   -webkit-appearance: none;
@@ -387,13 +448,15 @@ function discardAllParameterChanges() {
 }
 .ir-result__compare-chevron {
   position: absolute;
-  right: 8px;
+  right: 10px;
   top: 50%;
   transform: translateY(-50%);
   pointer-events: none;
-  color: var(--xc-text-mute);
+  color: var(--xc-text-soft);
 }
 @media (prefers-reduced-motion: reduce) {
+  .ir-result__comparison-toggle,
+  .ir-result__comparison-toggle svg,
   .ir-result__compare-wrap select { transition: none; }
 }
 .ir-result__banner-title {
@@ -422,24 +485,40 @@ function discardAllParameterChanges() {
 }
 /* 双图并排容器不套外层卡片外观，两图各自成卡直接铺在结果卡上 */
 .ir-report-module--bare { border:0; background:transparent; box-shadow:none; overflow:visible; }
-.ir-version-diff__head { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: var(--xc-space-4); padding: 0 var(--xc-space-5); border-bottom: 1px solid var(--xc-border-soft); }
-.ir-version-diff__head h4 { margin: 0; color: var(--xc-text-strong); font-size: var(--xc-fs-md); }
-.ir-version-diff__head span { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
+.ir-version-diff__head {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--xc-space-5);
+  padding: var(--xc-space-4) var(--xc-space-5);
+  border-bottom: 1px solid var(--xc-border-soft);
+}
+.ir-version-diff__heading { display: flex; flex-direction: column; gap: var(--xc-space-1); min-width: 0; }
+.ir-version-diff__heading h4 { margin: 0; color: var(--xc-text-strong); font-size: var(--xc-fs-h4); line-height: var(--xc-lh-snug); }
+.ir-version-diff__heading span { color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
+.ir-version-diff__summary {
+  padding: var(--xc-space-4) var(--xc-space-5) 0;
+  color: var(--xc-text-default);
+  font-size: var(--xc-fs-sm);
+  font-weight: var(--xc-fw-medium);
+  line-height: var(--xc-lh-normal);
+}
 .ir-version-diff__body { padding: var(--xc-space-2) var(--xc-space-5) var(--xc-space-5); }
 .ir-version-diff__group { padding-top: var(--xc-space-4); }
 .ir-version-diff__group + .ir-version-diff__group { margin-top: var(--xc-space-3); border-top: 1px solid var(--xc-border-soft); }
-.ir-version-diff__group h5 { margin: 0 0 var(--xc-space-2); color: var(--xc-text-soft); font-size: var(--xc-fs-2xs); }
-.ir-version-diff__group h5 span { color: var(--xc-text-mute); font-weight: var(--xc-fw-regular); }
-.ir-version-diff__row { min-height: 36px; display: grid; grid-template-columns: minmax(140px, 240px) minmax(240px, 320px) 88px; width: 100%; align-items: center; column-gap: var(--xc-space-6); font-size: var(--xc-fs-xs); }
-.ir-version-diff__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ir-version-diff__group h5 { margin: 0 0 var(--xc-space-3); color: var(--xc-text-default); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
+.ir-version-diff__group h5 span { color: var(--xc-text-soft); font-weight: var(--xc-fw-regular); }
+.ir-version-diff__row { min-height: 44px; display: grid; grid-template-columns: minmax(140px, 240px) minmax(240px, 320px) 96px; width: 100%; align-items: center; column-gap: var(--xc-space-6); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
+.ir-version-diff__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--xc-text-default); }
 .ir-version-diff__change { min-width: 0; display: grid; grid-template-columns: minmax(88px, 1fr) 24px minmax(88px, 1fr); align-items: center; }
-.ir-version-diff__old { min-width: 0; color: var(--xc-text-mute); text-align: right; white-space: nowrap; }
-.ir-version-diff__arrow { color: var(--xc-text-mute); text-align: center; }
+.ir-version-diff__old { min-width: 0; color: var(--xc-text-soft); text-align: right; white-space: nowrap; }
+.ir-version-diff__arrow { color: var(--xc-text-soft); text-align: center; }
 .ir-version-diff__new { min-width: 0; color: var(--xc-text-strong); white-space: nowrap; }
-.ir-version-diff__source { justify-self: end; padding: 2px 7px; border-radius: var(--xc-radius-full); font-size: var(--xc-fs-3xs); white-space: nowrap; }
+.ir-version-diff__source { justify-self: end; padding: 3px 8px; border-radius: var(--xc-radius-full); font-size: var(--xc-fs-xs); line-height: var(--xc-lh-normal); white-space: nowrap; }
 .ir-version-diff__source.is-explicit { color: var(--xc-accent-blue); background: var(--xc-status-info-soft); }
 .ir-version-diff__source.is-derived { color: var(--xc-status-warn); background: var(--xc-status-warn-soft); }
-.ir-version-diff__empty { padding: var(--xc-space-5); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); }
+.ir-version-diff__empty { padding: var(--xc-space-5); color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
 .ir-block { padding:var(--xc-space-7); }
 .ir-block__title { display:flex; align-items:center; gap:var(--xc-space-2); font-size:var(--xc-fs-md); color:var(--xc-text-strong); font-weight:var(--xc-fw-semi); margin:0 0 var(--xc-space-5); }
 .ir-block__title-icon { width:18px; height:18px; flex:0 0 auto; color:var(--xc-accent-blue); }
@@ -451,8 +530,8 @@ function discardAllParameterChanges() {
 .ir-result__footer { display:flex; align-items:center; justify-content:space-between; gap:var(--xc-space-4); min-height:58px; padding:var(--xc-space-4) var(--xc-space-6); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-tinted); }
 .ir-result__footer-actions { display:flex; align-items:center; gap:var(--xc-space-3); flex-shrink:0; }
 .ir-result__footer-actions .ir-result__act:first-child svg { transform:translateY(-1px); }
-.ir-result__report-hint { color:var(--xc-text-mute); font-size:var(--xc-fs-2xs); line-height:var(--xc-lh-normal); }
-.ir-result__act { display:inline-flex; align-items:center; justify-content:center; gap:var(--xc-space-2); min-height:38px; flex:0 0 auto; padding:0 var(--xc-space-5); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-accent-blue-soft); color:var(--xc-accent-blue); font:inherit; font-size:var(--xc-fs-xs); font-weight:var(--xc-fw-medium); cursor:pointer; transition:border-color var(--xc-dur-fast),background var(--xc-dur-fast),color var(--xc-dur-fast),box-shadow var(--xc-dur-fast); }
+.ir-result__report-hint { color:var(--xc-text-soft); font-size:var(--xc-fs-xs); line-height:var(--xc-lh-normal); }
+.ir-result__act { display:inline-flex; align-items:center; justify-content:center; gap:var(--xc-space-2); min-height:44px; flex:0 0 auto; padding:0 var(--xc-space-5); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-accent-blue-soft); color:var(--xc-accent-blue); font:inherit; font-size:var(--xc-fs-xs); font-weight:var(--xc-fw-medium); cursor:pointer; transition:border-color var(--xc-dur-fast),background var(--xc-dur-fast),color var(--xc-dur-fast),box-shadow var(--xc-dur-fast); }
 .ir-result__act svg { width:16px; height:16px; }
 .ir-result__act:hover:not(:disabled) { border-color:var(--xc-accent-blue); color:var(--xc-text-strong); box-shadow:var(--xc-glow-blue); }
 .ir-result__act:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; }
@@ -468,8 +547,10 @@ function discardAllParameterChanges() {
     background: linear-gradient(180deg, rgba(3, 8, 22, 0.18) 0%, rgba(3, 8, 22, 0.14) 34%, rgba(3, 8, 22, 0.94) 100%);
   }
   .ir-result__banner-body { padding: var(--xc-space-5); }
-  .ir-result__compare { flex-direction:column; align-items:flex-start; width:180px; }
-  .ir-result__compare-wrap { width:100%; }
+  .ir-result__comparison-toggle { width: 100%; }
+  .ir-version-diff__head { align-items: flex-start; flex-direction: column; }
+  .ir-result__compare { width: 100%; }
+  .ir-result__compare-wrap { flex: 1 1 auto; min-width: 0; }
   .ir-version-diff__row { grid-template-columns:minmax(100px,180px) minmax(220px,300px) 80px; column-gap:var(--xc-space-4); }
   .ir-version-diff__change { grid-template-columns:minmax(76px,1fr) 20px minmax(76px,1fr); }
 }

@@ -122,7 +122,7 @@ function onSend() {
   margin-top: auto;
   padding-top: var(--xc-space-4);
 }
-.ir-composer__hint { font-size: var(--xc-fs-2xs); color: var(--xc-text-faint); }
+.ir-composer__hint { font-size: var(--xc-fs-xs); color: var(--xc-text-mute); line-height: var(--xc-lh-normal); }
 .ir-composer__send {
   width: 44px;
   height: 44px;

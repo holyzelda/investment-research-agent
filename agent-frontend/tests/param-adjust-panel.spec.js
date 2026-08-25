@@ -6,7 +6,7 @@ const PARAM_DICT = [
   { id: 'province', cn: '所在省份', zone: 'project_definition', control: 'fixed', default: null },
   { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
   { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
-  { id: 'power_mw', cn: '储能装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
+  { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
   { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, unit: '元/Wh' },
   { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
   { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
@@ -170,7 +170,7 @@ describe('ParamAdjustPanel', () => {
 
     const projectFields = wrapper.findAll('.ir-adjust__project-item')
     const capacityField = projectFields.find((field) => field.text().includes('装机容量'))
-    const powerField = projectFields.find((field) => field.text().includes('储能装机功率'))
+    const powerField = projectFields.find((field) => field.text().includes('装机功率'))
     expect(capacityField?.find('input.ir-adjust__number').exists()).toBe(true)
     expect(powerField?.find('input.ir-adjust__number').exists()).toBe(true)
   })

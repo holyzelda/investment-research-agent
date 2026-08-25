@@ -34,7 +34,7 @@ const renderedText = computed(() => markdown.render(props.text || props.fallback
   border-radius: var(--xc-radius-md);
   background: color-mix(in srgb, var(--xc-text-strong) 4%, transparent);
   color: var(--xc-text-default);
-  font-size: var(--xc-fs-sm);
+  font-size: var(--xc-fs-base);
   line-height: var(--xc-lh-loose);
 }
 .ir-ai-answer--error { color: var(--xc-status-danger); }
@@ -106,7 +106,7 @@ const renderedText = computed(() => markdown.render(props.text || props.fallback
 .ir-ai-answer__markdown :deep(td) { color: var(--xc-text-default); }
 .ir-ai-answer__actions { display: flex; flex-wrap: wrap; gap: var(--xc-space-3); margin-top: var(--xc-space-4); }
 .ir-ai-answer__actions :deep(button) {
-  min-height: 30px;
+  min-height: 44px;
   padding: var(--xc-space-1) var(--xc-space-4);
   border: 1px solid var(--xc-accent-blue);
   border-radius: var(--xc-radius-sm);

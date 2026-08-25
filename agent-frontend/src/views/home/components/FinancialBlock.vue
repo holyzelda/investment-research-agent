@@ -130,22 +130,22 @@ const kpis = computed(() => [
   color: transparent;
 }
 .ir-fin__unit {
-  font-size: var(--xc-fs-2xs);
-  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-xs);
+  color: var(--xc-text-soft);
   margin-left: 2px;
 }
 .ir-fin__label {
   min-height: 0;
-  font-size: var(--xc-fs-xs);
-  line-height: 1.35;
+  font-size: var(--xc-fs-sm);
+  line-height: var(--xc-lh-normal);
   color: var(--xc-text-soft);
 }
 .ir-fin__delta {
   display: flex;
   align-items: center;
   gap: 4px;
-  min-height: 18px;
-  font-size: var(--xc-fs-3xs);
+  min-height: 22px;
+  font-size: var(--xc-fs-xs);
   line-height: var(--xc-lh-normal);
 }
 .ir-fin__delta svg {

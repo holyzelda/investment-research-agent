@@ -87,8 +87,9 @@ const metrics = computed(() => [
   display: inline-flex;
   align-items: center;
   gap: var(--xc-space-2);
-  font-size: var(--xc-fs-xs);
-  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-sm);
+  line-height: var(--xc-lh-normal);
+  color: var(--xc-text-soft);
 }
 .ir-basic__icon {
   width: 14px;
@@ -106,8 +107,8 @@ const metrics = computed(() => [
 /* 装机功率/装机容量：品牌紫强调 */
 .ir-basic__v--accent { color: var(--xc-brand-violet-2); }
 .ir-basic__unit {
-  font-size: var(--xc-fs-2xs);
-  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-xs);
+  color: var(--xc-text-soft);
   margin-left: 3px;
 }
 @container (max-width: 980px) {

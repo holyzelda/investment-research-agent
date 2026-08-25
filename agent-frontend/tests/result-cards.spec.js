@@ -95,17 +95,29 @@ describe('result card three modules', () => {
       },
     })
 
+    const toggle = wrapper.get('.ir-result__comparison-toggle')
+    expect(toggle.text()).toContain('查看版本对比')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('.ir-version-diff').exists()).toBe(false)
+    expect(wrapper.findAll('.ir-fin__delta')).toHaveLength(0)
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(toggle.attributes('aria-controls')).toBeTruthy()
     expect(wrapper.get('.ir-result__compare').text()).toContain('对比基准')
-    expect(wrapper.get('.ir-result__compare-wrap').exists()).toBe(true)
-    expect(wrapper.get('.ir-result__compare-wrap select').exists()).toBe(true)
     expect(wrapper.get('.ir-result__compare-wrap select').attributes('aria-label')).toBe('选择对比版本')
-    expect(wrapper.find('.ir-result__compare-chevron').exists()).toBe(true)
-    expect(wrapper.get('.ir-version-diff').text()).toContain('较 V2 · 2 项变化')
+    expect(wrapper.get('.ir-version-diff').text()).toContain('当前版本 V3（固定）')
+    expect(wrapper.get('.ir-version-diff').text()).toContain('较 V2 · 2 项参数变化')
     expect(wrapper.get('.ir-version-diff').text()).toContain('主动调整')
     expect(wrapper.get('.ir-version-diff').text()).toContain('联动更新')
     expect(wrapper.findAll('.ir-fin__delta svg').length).toBeGreaterThan(0)
     await wrapper.get('.ir-result__compare select').setValue('V1')
     expect(wrapper.emitted('compare-version-change')[0]).toEqual(['V1'])
+
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(wrapper.find('.ir-version-diff').exists()).toBe(false)
+    expect(wrapper.findAll('.ir-fin__delta')).toHaveLength(0)
   })
 
   it('counts only advanced values that differ from the frozen input', async () => {
@@ -233,7 +245,7 @@ describe('result card three modules', () => {
 
   it('discards regular and advanced drafts together', async () => {
     const paramDict = [
-      { id: 'power_mw', cn: '储能装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
+      { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
       { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
     ]

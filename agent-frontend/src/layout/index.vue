@@ -257,7 +257,7 @@ function onDocumentKeydown(event) {
 
 onMounted(() => {
   if (typeof window.matchMedia === 'function') {
-    homeSidebarMedia = window.matchMedia('(max-width: 1439px)')
+    homeSidebarMedia = window.matchMedia('(max-width: 1519px)')
     syncHomeSidebarFromViewport()
     homeSidebarMedia.addEventListener?.('change', syncHomeSidebarFromViewport)
   }

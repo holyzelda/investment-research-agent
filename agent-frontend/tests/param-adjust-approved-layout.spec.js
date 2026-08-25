@@ -29,7 +29,7 @@ const SEED = {
   intervention_first_year_revenue: 50, lease_unit_price: 20,
 }
 
-async function expandedPanel(stationOptions = []) {
+async function expandedPanel(stationOptions = [], seedInput = SEED) {
   const wrapper = mount(ParamAdjustPanel, {
     props: {
       paramDict: PARAM_DICT,
@@ -37,7 +37,7 @@ async function expandedPanel(stationOptions = []) {
         switch_spot: 1, switch_mid_long: 1, switch_frequency: 1,
         switch_intervention: 1, switch_lease: 1,
       },
-      seedInput: SEED,
+      seedInput,
       stationOptions,
       version: 'V2',
     },
@@ -77,6 +77,24 @@ describe('ParamAdjustPanel approved layout', () => {
     expect(project.text()).toContain('节点名称')
     expect(project.findAll('.ir-adjust__project-item')).toHaveLength(4)
     expect(project.find('.ir-adjust__node-trigger').text()).toContain('祥泰站')
+  })
+
+  it('preserves long node names while keeping the compact trigger discoverable', async () => {
+    const longNodeName = '甘肃省超高压电网西部新能源汇集送出祥泰变电站扩建工程节点'
+    const wrapper = await expandedPanel([longNodeName], { ...SEED, node_name: longNodeName })
+    const nodeTrigger = wrapper.find('.ir-adjust__node-trigger')
+    const nodeName = wrapper.find('.ir-adjust__node-name')
+    const tooltip = wrapper.findComponent({ name: 'ElTooltip' })
+
+    expect(nodeTrigger.text()).toContain(longNodeName)
+    expect(nodeTrigger.text()).toContain('更改')
+    expect(nodeTrigger.attributes('aria-label')).toContain(longNodeName)
+    expect(nodeName.attributes('title')).toBe(longNodeName)
+    expect(tooltip.exists()).toBe(true)
+    expect(tooltip.props('disabled')).toBe(false)
+    expect(wrapper.findAll('.ir-adjust__project-item .ir-adjust__ro')).toHaveLength(1)
+    expect(wrapper.findAll('.ir-adjust__project-item .ir-adjust__node-trigger')).toHaveLength(1)
+    expect(wrapper.findAll('.ir-adjust__project-item .ir-adjust__number-value')).toHaveLength(2)
   })
 
   it('drops 项目运营期 everywhere even though the backend dictionary still returns it', async () => {

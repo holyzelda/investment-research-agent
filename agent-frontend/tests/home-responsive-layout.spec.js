@@ -6,8 +6,8 @@ const homeSource = readFileSync(resolve(process.cwd(), 'src/views/home/index.vue
 
 describe('home responsive layout', () => {
   it('keeps the laptop layout compact and removes the stacked page scroll', () => {
-    const narrowStart = homeSource.indexOf('@media (max-width: 1100px)')
-    const laptopStart = homeSource.indexOf('@media (min-width: 1101px) and (max-width: 1439px)')
+    const narrowStart = homeSource.indexOf('@media (max-width: 1519px)')
+    const laptopStart = homeSource.indexOf('@media (min-width: 1101px) and (max-width: 1519px)')
     const narrowBlock = homeSource.slice(narrowStart, laptopStart)
 
     expect(narrowBlock).toContain('display: flex')

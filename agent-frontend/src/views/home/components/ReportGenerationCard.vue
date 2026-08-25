@@ -264,8 +264,8 @@ const statusDescription = computed(() => ({
 .ir-report-delivery__document {
   display: grid;
   place-items: center;
-  width: 38px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   color: var(--xc-accent-blue);
   border: 1px solid var(--xc-border-accent);
@@ -275,8 +275,8 @@ const statusDescription = computed(() => ({
 .ir-report-delivery__document svg { width: 21px; height: 21px; }
 .ir-report-delivery__identity { min-width: 0; display: flex; flex: 1; flex-direction: column; gap: 2px; }
 .ir-report-delivery__identity strong { overflow: hidden; color: var(--xc-text-strong); font-size: var(--xc-fs-md); font-weight: var(--xc-fw-semi); text-overflow: ellipsis; white-space: nowrap; }
-.ir-report-delivery__eyebrow { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); letter-spacing: .08em; }
-.ir-report-delivery__status { display: inline-flex; align-items: center; gap: var(--xc-space-2); padding: var(--xc-space-1) var(--xc-space-3); color: var(--xc-status-info); border-radius: var(--xc-radius-full); background: var(--xc-status-info-soft); font-size: var(--xc-fs-2xs); font-weight: var(--xc-fw-medium); white-space: nowrap; }
+.ir-report-delivery__eyebrow { color: var(--xc-text-soft); font-size: var(--xc-fs-xs); letter-spacing: .08em; }
+.ir-report-delivery__status { display: inline-flex; align-items: center; gap: var(--xc-space-2); padding: var(--xc-space-2) var(--xc-space-3); color: var(--xc-status-info); border-radius: var(--xc-radius-full); background: var(--xc-status-info-soft); font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-medium); white-space: nowrap; }
 .ir-report-delivery--completed .ir-report-delivery__status { color: var(--xc-status-ok); background: var(--xc-status-ok-soft); }
 .ir-report-delivery--failed .ir-report-delivery__status { color: var(--xc-status-danger); background: var(--xc-status-danger-soft); }
 .ir-report-delivery__status svg { width: 13px; height: 13px; }
@@ -319,7 +319,7 @@ const statusDescription = computed(() => ({
   align-items: center;
   justify-content: center;
   gap: var(--xc-space-2);
-  min-height: 36px;
+  min-height: 44px;
   border-radius: var(--xc-radius-sm);
   font: inherit;
   font-size: var(--xc-fs-xs);
