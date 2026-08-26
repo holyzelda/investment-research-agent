@@ -56,6 +56,60 @@ class TestNingxia:
         assert r.switches["switch_intervention"] == 1
         assert r.api_input["intervention_first_year_revenue"] == 1080.0
 
+    def test_tier_revenue_inherits_previous_frozen_values_when_dependencies_unchanged(self):
+        asm = build_param_assembler()
+        previous = {
+            "province": "宁夏",
+            "capacity_mwh": 800,
+            "power_mw": 200,
+            "daily_cycles": 1,
+            "spot_charge_avg": 0.2,
+            "spot_discharge_avg": 0.6,
+            "mid_long_energy_revenue_first_year_tax": 1234.5,
+            "frequency_first_year_revenue": 2345.6,
+            "intervention_first_year_revenue": 3456.7,
+            "operation_years": 15,
+        }
+        result = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=800, power_mw=200),
+            overrides={"operation_years": 20},
+            previous_input=previous,
+        )
+
+        assert result.api_input["mid_long_energy_revenue_first_year_tax"] == 1234.5
+        assert result.api_input["frequency_first_year_revenue"] == 2345.6
+        assert result.api_input["intervention_first_year_revenue"] == 3456.7
+
+    def test_tier_revenue_override_still_wins_when_dependencies_unchanged(self):
+        asm = build_param_assembler()
+        previous = {
+            "province": "宁夏",
+            "capacity_mwh": 800,
+            "power_mw": 200,
+            "frequency_first_year_revenue": 2345.6,
+        }
+        result = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=800, power_mw=200),
+            overrides={"frequency_first_year_revenue": 4567.8},
+            previous_input=previous,
+        )
+
+        assert result.api_input["frequency_first_year_revenue"] == 4567.8
+
+    def test_missing_tier_revenue_key_recomputes_when_dependencies_unchanged(self):
+        asm = build_param_assembler()
+        previous = {
+            "province": "宁夏",
+            "capacity_mwh": 800,
+            "power_mw": 200,
+        }
+        result = asm.assemble(
+            ProjectBasics(province="宁夏", capacity_mwh=800, power_mw=200),
+            previous_input=previous,
+        )
+
+        assert result.api_input["frequency_first_year_revenue"] == 1920.0
+
     def test_mid_long_price_written_to_api_input(self):
         # 常量表宁夏占位为 null（数值待业务给），但键应写入 API_INPUT（来源后端 json）
         r = _assemble("宁夏", 800, 200)
@@ -86,6 +140,72 @@ class TestCommon:
         r = asm.assemble(ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200))
         assert r.api_input["spot_charge_avg"] == 0.05
         assert r.api_input["spot_discharge_avg"] == 0.51
+
+    def test_spot_prices_are_normalized_to_dictionary_precision(self):
+        class _FakeSpot:
+            def compute(self, province, node_name, capacity_mwh, power_mw, daily_cycles):
+                return 0.07032071762870515, 0.4832751404056162
+
+        asm = build_param_assembler(spot=_FakeSpot())
+        r = asm.assemble(ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200))
+
+        assert r.api_input["spot_charge_avg"] == 0.0703
+        assert r.api_input["spot_discharge_avg"] == 0.4833
+
+    def test_override_precision_uses_step_decimals_and_half_up_rounding(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={
+                "epc_unit_price": 0.805,
+                "frequency_first_year_revenue": 801.595,
+            },
+            previous_input={
+                "capacity_mwh": 800,
+                "power_mw": 200,
+                "daily_cycles": 1,
+                "spot_charge_avg": None,
+                "spot_discharge_avg": None,
+            },
+        )
+
+        assert r.api_input["epc_unit_price"] == 0.81
+        assert r.api_input["frequency_first_year_revenue"] == 801.6
+
+    def test_variant_step_uses_target_operation_years(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={
+                "operation_years": 20,
+                "battery_replace_cost": 0.306,
+            },
+        )
+
+        assert r.api_input["battery_replace_cost"] == 0.31
+
+    def test_integer_step_keeps_integer_parameters_as_integers(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={"loan_years": 10.4},
+        )
+
+        assert r.api_input["loan_years"] == 10
+        assert type(r.api_input["loan_years"]) is int
+
+    def test_values_without_decimal_step_keep_their_types(self):
+        asm = build_param_assembler()
+        r = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+        )
+
+        assert r.api_input["operation_years"] == 15
+        assert type(r.api_input["operation_years"]) is int
+        assert r.api_input["loan_years"] == 10
+        assert type(r.api_input["loan_years"]) is int
+        assert r.api_input["frequency_first_year_revenue"] is None
+        assert r.api_input["province"] == "甘肃"
 
     def test_spot_none_when_disabled(self):
         # 测试环境 spot_price.enabled=false → NullSpotPriceAlgo → None
@@ -349,7 +469,7 @@ class TestModifyParameterSeeding:
         )
         assert r.api_input["power_mw"] == 300
         assert r.api_input["capacity_mwh"] == 800
-        # 未覆盖的高级参数沿用上一版冻结值
+        # 普通高级参数沿用上一版冻结值；运营期分档参数重新使用目标档基线。
         assert r.api_input["epc_unit_price"] == 0.85
         assert r.api_input["loan_rate"] == 0.042
         assert r.api_input["loan_years"] == 12
@@ -357,7 +477,7 @@ class TestModifyParameterSeeding:
         assert r.api_input["opex_cost"] == 28.0
         assert r.api_input["strategy_achievement_rate"] == 0.9
         assert r.api_input["capacity_achievement_rate"] == 0.95
-        assert r.api_input["battery_replace_cost"] == 60.0
+        assert r.api_input["battery_replace_cost"] == 0.3
         assert r.api_input["operation_years"] == 20
 
     def test_explicit_override_still_wins_over_previous_seed(self):
@@ -471,7 +591,7 @@ class TestParamOverrideRanges:
 
 
 class TestBatteryReplaceCostByOperationYears:
-    """换电成本随运营期（variants）：15年固定0 / 20年默认0.3、首切用默认、同档沿用、覆盖优先。"""
+    """换电成本随运营期（variants）：15年固定0 / 20年默认0.3、跨档重置、覆盖优先。"""
 
     def _basics(self, cap=800, pwr=200):
         return ProjectBasics(province="甘肃", capacity_mwh=cap, power_mw=pwr)
@@ -499,15 +619,15 @@ class TestBatteryReplaceCostByOperationYears:
         )
         assert r.api_input["battery_replace_cost"] == 0.3
 
-    def test_20_to_20_inherits_previous_value(self):
-        """上一版已是20年 → 未提交换电成本时沿用上一版值（用户值）。"""
+    def test_20_to_20_uses_target_default_without_explicit_override(self):
+        """20年版本即使上一版有用户值，本次未显式提交时也重新使用20年默认值。"""
         previous = {
             "operation_years": 20, "battery_replace_cost": 0.5,
         }
         r = build_param_assembler().assemble(
             self._basics(), overrides={"operation_years": 20}, previous_input=previous,
         )
-        assert r.api_input["battery_replace_cost"] == 0.5
+        assert r.api_input["battery_replace_cost"] == 0.3
 
     def test_20_year_override_wins(self):
         """20年档用户显式提交换电成本 → 以用户值为准。"""
@@ -515,6 +635,14 @@ class TestBatteryReplaceCostByOperationYears:
             self._basics(), overrides={"operation_years": 20, "battery_replace_cost": 0.6},
         )
         assert r.api_input["battery_replace_cost"] == 0.6
+
+    def test_20_year_battery_override_out_of_range_is_rejected(self):
+        """20年档显式值必须满足目标档范围。"""
+        with pytest.raises(ValidationException, match="换电成本超出允许范围"):
+            build_param_assembler().assemble(
+                self._basics(),
+                overrides={"operation_years": 20, "battery_replace_cost": 1.01},
+            )
 
     def test_15_year_override_is_ignored_and_forced_to_zero(self):
         """15年档即便提交非0换电成本也被忽略，恒为 0（后端兜底，防中台/直接 API 绕过）。"""

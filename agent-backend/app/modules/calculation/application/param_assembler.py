@@ -13,6 +13,7 @@
 - 地区成本三项由模型『地区』sheet 按省算出，经 API_OUTPUT 读回，不在本组装器处理
 """
 from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_HALF_UP
 from math import isfinite
 from numbers import Real
 from typing import Optional
@@ -111,24 +112,14 @@ class ParamAssembler:
         if basics.node_name:  # 用户没提节点则不写入、不展示
             result.api_input["node_name"] = basics.node_name
 
-        # 换电成本随运营期解析（字典 variants 定义）——直白规则：
-        # 15 年档恒为 0，不继承、不接受覆盖；
-        # 20 年档：上一版已是 20 年则沿用上一版值，否则（首次/从 15 年切来）用分档默认 0.3；
-        # 用户显式覆盖在末尾受控覆盖阶段写入，优先级最高（override 里存在即视为用户提了值，
-        # 中台侧由 ir_agent.yaml 保证切运营期时不搬运基线换电成本）。
-        # 此处先写入 api_input，② 默认值种子循环会因 `pid in result.api_input` 跳过它，
-        # 避免被上一版 15 年档的 0 覆盖掉 20 年默认值。
+        # 换电成本随运营期解析（字典 variants 定义）：
+        # 15 年档恒为 0；20 年档每次按目标档默认值起步，不继承其他版本的用户值。
+        # 用户显式覆盖在末尾受控覆盖阶段写入，优先级最高。
+        # 此处先写入 api_input，② 默认值种子循环会因 `pid in result.api_input` 跳过它。
         battery_spec = self._dict.get("battery_replace_cost")
         battery_variant = self._dict.variant("battery_replace_cost", op_years) or {}
         battery_default = battery_variant.get("default", battery_spec.default if battery_spec else 0)
-        prev_battery = (previous_input or {}).get("battery_replace_cost")
-        prev_op = (previous_input or {}).get("operation_years")
-        if op_years == 20:
-            result.api_input["battery_replace_cost"] = (
-                prev_battery if (prev_battery is not None and prev_op == 20) else battery_default
-            )
-        else:
-            result.api_input["battery_replace_cost"] = 0
+        result.api_input["battery_replace_cost"] = 0 if op_years == 15 else battery_default
 
         # ② 系统默认值：有上一版本冻结入参（同会话修改参数）时，本次未显式提供的参数
         #    优先沿用上一版冻结值，否则取字典默认——"只改一项、其余不变"的修改语义。
@@ -164,7 +155,15 @@ class ParamAssembler:
         if profile is None:
             result.warnings.append(f"省份[{basics.province}]不在《各省收益结构》，收益类明细暂缺")
         else:
-            self._assemble_revenue_structure(result, profile, cap, pwr)
+            capacity_power_changed = self._capacity_power_changed(previous_input, basics)
+            self._assemble_revenue_structure(
+                result,
+                profile,
+                cap,
+                pwr,
+                previous_input=previous_input,
+                recompute_tier_revenue=capacity_power_changed,
+            )
 
         # ⑤ 中长期充/放均价（常量表，仅宁夏有值，来源后端 json）→ 写入 API_INPUT
         ml_c, ml_d = self._mid_long.get_prices(basics.province)
@@ -191,8 +190,34 @@ class ParamAssembler:
                 "intervention_first_year_revenue",
             }
         self._apply_overrides(result, overrides, ignore_keys, op_years)
+        self._normalize_api_input(result.api_input, op_years)
 
         return result
+
+    def _normalize_api_input(self, api_input: dict, op_years: int) -> None:
+        """按字典 step 的小数位规范化最终冻结入参。"""
+        for param_id, value in api_input.items():
+            if isinstance(value, bool) or not isinstance(value, Real) or not isfinite(value):
+                continue
+            spec = self._dict.get(param_id)
+            if spec is None:
+                continue
+            variant = self._dict.variant(param_id, op_years) or {}
+            step = variant.get("step", spec.step)
+            if step is None:
+                continue
+            step_decimal = Decimal(str(step)).normalize()
+            decimal_places = max(0, -step_decimal.as_tuple().exponent)
+            quantum = Decimal(1).scaleb(-decimal_places)
+            normalized = Decimal(str(value)).quantize(
+                quantum,
+                rounding=ROUND_HALF_UP,
+            )
+            api_input[param_id] = (
+                int(normalized)
+                if decimal_places == 0
+                else float(normalized)
+            )
 
     def _validate_operation_years(self, overrides: dict) -> None:
         value = overrides.get("operation_years")
@@ -268,7 +293,14 @@ class ParamAssembler:
             result.api_input[pid] = value
 
     def _assemble_revenue_structure(
-        self, result: AssembledParams, profile: ProvinceRevenueProfile, cap: float, pwr: float
+        self,
+        result: AssembledParams,
+        profile: ProvinceRevenueProfile,
+        cap: float,
+        pwr: float,
+        *,
+        previous_input: Optional[dict],
+        recompute_tier_revenue: bool,
     ) -> None:
         # 开关（F=0 但仍写入 API_INPUT）
         for pid, attr in _SWITCH_MAP.items():
@@ -276,16 +308,28 @@ class ParamAssembler:
             result.switches[pid] = val
             result.api_input[pid] = val
 
-        # 参与项下游明细（开关=1 才取）
+        # 参与项下游明细（开关=1 才取）；依赖未变时继承上一冻结值。
         if profile.is_on("mid_long"):
-            result.api_input["mid_long_energy_revenue_first_year_tax"] = \
-                services.mid_long_first_year_revenue(profile.mid_long_tier, cap, pwr)
+            key = "mid_long_energy_revenue_first_year_tax"
+            if not recompute_tier_revenue and previous_input is not None and key in previous_input:
+                result.api_input[key] = previous_input[key]
+            else:
+                result.api_input[key] = \
+                    services.mid_long_first_year_revenue(profile.mid_long_tier, cap, pwr)
         if profile.is_on("frequency"):
-            result.api_input["frequency_first_year_revenue"] = \
-                services.frequency_first_year_revenue(profile.frequency_tier, cap, pwr)
+            key = "frequency_first_year_revenue"
+            if not recompute_tier_revenue and previous_input is not None and key in previous_input:
+                result.api_input[key] = previous_input[key]
+            else:
+                result.api_input[key] = \
+                    services.frequency_first_year_revenue(profile.frequency_tier, cap, pwr)
         if profile.is_on("intervention"):
-            result.api_input["intervention_first_year_revenue"] = \
-                services.intervention_first_year_revenue(profile.intervention_tier, cap, pwr)
+            key = "intervention_first_year_revenue"
+            if not recompute_tier_revenue and previous_input is not None and key in previous_input:
+                result.api_input[key] = previous_input[key]
+            else:
+                result.api_input[key] = \
+                    services.intervention_first_year_revenue(profile.intervention_tier, cap, pwr)
         if profile.is_on("lease"):
             result.api_input["lease_unit_price"] = profile.lease_unit_price
             rate = profile.lease_achievement_rate

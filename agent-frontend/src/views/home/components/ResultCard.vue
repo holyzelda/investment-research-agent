@@ -271,17 +271,26 @@ const ADVANCED_IDS = new Set([
   'strategy_achievement_rate', 'capacity_achievement_rate',
   'battery_replace_cost', 'maint_cost', 'opex_cost',
 ])
-const advancedOverrideCount = computed(() => props.paramDict.reduce((count, spec) => {
-  if (!ADVANCED_IDS.has(spec.id) || spec.g !== 1) return count
-  // 控件形态/步长/默认值按当前版本运营期解析 variants（换电成本 20 年档才是可编辑 slider）
-  const resolved = resolveVariant(spec, props.seedInput?.operation_years)
-  if (!['slider', 'dynamic_slider', 'select'].includes(resolved.control)) return count
-  if (!(spec.id in advancedOverrides.value)) return count
-  const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], resolved.step)
-  const baselineValue = spec.id in props.seedInput ? props.seedInput[spec.id] : resolved.default
-  const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
-  return draft === baseline ? count : count + 1
-}, 0))
+const advancedOverrideCount = computed(() => {
+  const draftOperationYears = advancedOverrides.value.operation_years
+    ?? props.seedInput?.operation_years
+    ?? 15
+  return props.paramDict.reduce((count, spec) => {
+    if (!ADVANCED_IDS.has(spec.id) || spec.g !== 1) return count
+    // 控件形态/步长/默认值按草稿中的运营期解析 variants。
+    const resolved = resolveVariant(spec, draftOperationYears)
+    if (!['slider', 'dynamic_slider', 'select'].includes(resolved.control)) return count
+    if (!(spec.id in advancedOverrides.value)) return count
+    const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], resolved.step)
+    const baselineValue = spec.variants
+      ? resolved.default
+      : spec.id in props.seedInput
+        ? props.seedInput[spec.id]
+        : resolved.default
+    const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
+    return draft === baseline ? count : count + 1
+  }, 0)
+})
 const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0 || advancedValidationError.value)
 
 // 高级参数仅是当前结果卡的未提交草稿：新版本/历史版本切换到其他入参时自动清空。

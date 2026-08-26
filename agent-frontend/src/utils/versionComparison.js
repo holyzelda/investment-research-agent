@@ -28,17 +28,34 @@ const METRIC_META = {
 
 export const CATEGORY_LABEL = CATEGORY_LABELS
 
-export function normalizeComparableValue(value) {
+function decimalPlaces(step) {
+  if (typeof step !== 'number' || !Number.isFinite(step) || step <= 0) return null
+  const text = step.toString().toLowerCase()
+  if (text.includes('e-')) {
+    const [coefficient, exponent] = text.split('e-')
+    return Number(exponent) + (coefficient.split('.')[1]?.length || 0)
+  }
+  return text.split('.')[1]?.length || 0
+}
+
+function comparisonPrecision(spec, currentOperationYears, compareOperationYears) {
+  const currentVariant = spec?.variants?.[String(currentOperationYears)]
+  const compareVariant = spec?.variants?.[String(compareOperationYears)]
+  const places = decimalPlaces(currentVariant?.step ?? compareVariant?.step ?? spec?.step)
+  return places === null ? 8 : places
+}
+
+export function normalizeComparableValue(value, precision = 8) {
   if (value === null || value === undefined || value === '') return null
-  if (typeof value === 'number') return Number(value.toFixed(8))
+  if (typeof value === 'number') return Number(value.toFixed(precision))
   if (typeof value === 'string' && value.trim() !== '' && Number.isFinite(Number(value))) {
-    return Number(Number(value).toFixed(8))
+    return Number(Number(value).toFixed(precision))
   }
   return value
 }
 
-function changed(oldValue, newValue) {
-  return normalizeComparableValue(oldValue) !== normalizeComparableValue(newValue)
+function changed(oldValue, newValue, precision) {
+  return normalizeComparableValue(oldValue, precision) !== normalizeComparableValue(newValue, precision)
 }
 
 function labelFor(spec, id) {
@@ -65,8 +82,13 @@ export function diffVersionInputs(currentInput = {}, compareInput = {}, changeMe
   for (const id of ids) {
     const oldValue = compareInput?.[id]
     const newValue = currentInput?.[id]
-    if (!changed(oldValue, newValue)) continue
     const spec = specs.get(id)
+    const precision = comparisonPrecision(
+      spec,
+      currentInput?.operation_years,
+      compareInput?.operation_years,
+    )
+    if (!changed(oldValue, newValue, precision)) continue
     const category = categoryFor(spec, id)
     const source = explicit.has(id) ? 'explicit' : derived.has(id) ? 'derived' : 'unknown'
     groups.find((group) => group.category === category).items.push({

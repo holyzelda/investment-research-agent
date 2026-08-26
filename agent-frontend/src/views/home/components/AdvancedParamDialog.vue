@@ -235,9 +235,18 @@ const sections = computed(() => {
     }))
     .filter((section) => section.items.length)
 })
+function normalizeValue(value, step) {
+  return typeof value === 'number' && step ? roundToStep(value, step) : value
+}
+function baselineValueOf(spec, operationYears = values['operation_years']) {
+  if (spec.variants) {
+    return resolveVariant(spec, operationYears ?? 15).default
+  }
+  return spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+}
 const advancedChangeCount = computed(() => sections.value.reduce((count, section) => count + section.items.reduce((sectionCount, spec) => {
   if (!isEditable(spec) || spec.g !== 1) return sectionCount
-  const baseline = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+  const baseline = baselineValueOf(spec)
   return normalizeValue(values[spec.id], spec.step) !== normalizeValue(baseline, spec.step)
     ? sectionCount + 1
     : sectionCount
@@ -246,9 +255,6 @@ const hasChangesFromSeed = computed(() => advancedChangeCount.value > 0)
 const hasValidationErrors = computed(() => Object.values(validationErrors).some(Boolean))
 watch(hasValidationErrors, (invalid) => emit('validation-change', invalid), { immediate: true })
 
-function normalizeValue(value, step) {
-  return typeof value === 'number' && step ? roundToStep(value, step) : value
-}
 function resetToSeed() {
   for (const section of sections.value) {
     for (const spec of section.items) {
@@ -390,7 +396,7 @@ function collectOverrides() {
   for (const section of sections.value) {
     for (const spec of section.items) {
       if (!isEditable(spec) || spec.g !== 1 || values[spec.id] === null || values[spec.id] === undefined) continue
-      const baselineValue = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+      const baselineValue = baselineValueOf(spec)
       if (normalizeValue(values[spec.id], spec.step) !== normalizeValue(baselineValue, spec.step)) {
         overrides[spec.id] = values[spec.id]
       }

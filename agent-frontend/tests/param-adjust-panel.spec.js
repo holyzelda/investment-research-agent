@@ -51,6 +51,34 @@ describe('ParamAdjustPanel', () => {
     expect(frequency?.find('.ps-delta').text()).toBe('+1000.00万元')
   })
 
+  it('只修改EPC和首年调频收益时不提交未触碰的高精度现货基线', async () => {
+    const paramDict = [
+      ...PARAM_DICT,
+      { id: 'frequency_first_year_revenue', cn: '首年调频收益', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01, unit: '万元' },
+    ]
+    const seedInput = {
+      ...SEED,
+      spot_charge_avg: 0.07032071762870515,
+      spot_discharge_avg: 0.4832751404056162,
+      frequency_first_year_revenue: 2000,
+    }
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict, switches: { switch_spot: 1, switch_frequency: 1 }, seedInput, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const fields = wrapper.findAll('.ir-adjust__field')
+    const epc = fields.find((field) => field.text().includes('EPC单价'))
+    const frequency = fields.find((field) => field.text().includes('首年调频收益'))
+    await epc.find('.ps-val-input').setValue(0.83)
+    await frequency.find('.ps-val-input').setValue(801.59)
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')[0][0].overrides).toEqual({
+      epc_unit_price: 0.83,
+      frequency_first_year_revenue: 801.59,
+    })
+  })
   it('default collapsed; expanding renders zones', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },

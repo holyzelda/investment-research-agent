@@ -48,6 +48,78 @@ describe('version comparison model', () => {
     expect(result.groups[0].items[0]).toMatchObject({ id: 'operation_years', oldValue: 15, newValue: null })
   })
 
+  it('does not report unchanged four-decimal spot prices when only EPC and frequency revenue change', () => {
+    const dict = [
+      { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', g: 1 },
+      { id: 'frequency_first_year_revenue', cn: '首年调频收益', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1 },
+      { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1 },
+      { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1 },
+    ]
+    const result = diffVersionInputs(
+      {
+        epc_unit_price: 0.8,
+        frequency_first_year_revenue: 1200,
+        spot_charge_avg: 0.0703,
+        spot_discharge_avg: 0.4833,
+      },
+      {
+        epc_unit_price: 0.75,
+        frequency_first_year_revenue: 1000,
+        spot_charge_avg: 0.0703,
+        spot_discharge_avg: 0.4833,
+      },
+      {
+        explicitOverrideKeys: ['epc_unit_price', 'frequency_first_year_revenue'],
+        derivedChangedKeys: [],
+      },
+      dict,
+    )
+
+    expect(result.totalCount).toBe(2)
+    expect(result.groups.flatMap((group) => group.items).map((item) => item.id)).toEqual([
+      'frequency_first_year_revenue',
+      'epc_unit_price',
+    ])
+  })
+
+  it('treats historical full-precision values as equal at the parameter step precision', () => {
+    const dict = [
+      { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
+      { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
+    ]
+    const result = diffVersionInputs(
+      {
+        spot_charge_avg: 0.0703,
+        spot_discharge_avg: 0.4833,
+      },
+      {
+        spot_charge_avg: 0.07032071762870515,
+        spot_discharge_avg: 0.4832751404056162,
+      },
+      {
+        derivedChangedKeys: ['spot_charge_avg', 'spot_discharge_avg'],
+      },
+      dict,
+    )
+
+    expect(result.totalCount).toBe(0)
+    expect(result.groups).toEqual([])
+  })
+
+  it('keeps real changes visible at the parameter step precision', () => {
+    const dict = [
+      { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
+    ]
+    const result = diffVersionInputs(
+      { spot_charge_avg: 0.0704 },
+      { spot_charge_avg: 0.07032071762870515 },
+      {},
+      dict,
+    )
+
+    expect(result.totalCount).toBe(1)
+  })
+
   it('uses economic meaning for KPI delta tone and line direction', () => {
     expect(getMetricDelta('projectIrr', 9, 8)).toMatchObject({ direction: 'up', tone: 'good' })
     expect(getMetricDelta('projectStaticPayback', 9, 8)).toMatchObject({ direction: 'up', tone: 'bad' })

@@ -377,12 +377,13 @@ function resetLocalValues() {
   Object.keys(sliderInputValues).forEach((k) => delete sliderInputValues[k])
   Object.keys(validationErrors).forEach((k) => delete validationErrors[k])
   for (const spec of props.paramDict) {
-    let value = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
-    if (typeof value === 'number' && spec.step) value = roundToStep(value, spec.step)
+    const value = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
     localValues[spec.id] = value
     if (spec.control === 'number') numberInputValues[spec.id] = value ?? ''
     if (spec.control === 'slider' || spec.control === 'dynamic_slider') {
-      sliderInputValues[spec.id] = value ?? ''
+      sliderInputValues[spec.id] = typeof value === 'number' && spec.step
+        ? roundToStep(value, spec.step)
+        : value ?? ''
     }
   }
 }

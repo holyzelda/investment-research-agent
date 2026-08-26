@@ -170,12 +170,42 @@ describe('AdvancedParamDialog', () => {
     expect(batteryField?.text()).toContain('换电成本0元/Wh')
   })
 
-  it('collects battery replace cost when saving in 20-year mode', async () => {
+  it('does not collect the target-period battery default when saving in 20-year mode', async () => {
     const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
     await wrapper.find('.ir-advanced__save').trigger('click')
 
-    expect(wrapper.emitted('save')[0][0]).toMatchObject({ operation_years: 20, battery_replace_cost: 0.3 })
+    expect(wrapper.emitted('save')[0][0]).toEqual({ operation_years: 20 })
+  })
+
+  it('collects only a battery value that differs from the target-period default', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    const batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    const number = batteryField.find('.ir-advanced__number')
+
+    await number.setValue(0.6)
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save').at(-1)[0]).toEqual({ operation_years: 20, battery_replace_cost: 0.6 })
+
+    await number.setValue(0.3)
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save').at(-1)[0]).toEqual({ operation_years: 20 })
+  })
+
+  it('does not restore a prior 20-year battery draft after switching away and back', async () => {
+    const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
+    const select = wrapper.find('select[data-param-id="operation_years"]')
+    await select.setValue('20')
+    let batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    await batteryField.find('.ir-advanced__number').setValue(0.6)
+
+    await select.setValue('15')
+    await select.setValue('20')
+    batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    expect(batteryField.find('.ir-advanced__number').element.value).toBe('0.3')
+    await wrapper.find('.ir-advanced__save').trigger('click')
+    expect(wrapper.emitted('save').at(-1)[0]).toEqual({ operation_years: 20 })
   })
 
   it('edits inline without a modal and disables advanced controls while recalculating', async () => {
@@ -190,8 +220,8 @@ describe('AdvancedParamDialog', () => {
     expect(wrapper.find('.ir-advanced__reset').attributes('disabled')).toBeDefined()
 
     await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-    expect(wrapper.emitted('save')?.at(-1)?.[0]).toMatchObject({ operation_years: 20, battery_replace_cost: 0.3 })
-    expect(wrapper.find('.ir-advanced__embedded-toolbar').text()).toContain('已修改 2 项高级参数')
+    expect(wrapper.emitted('save')?.at(-1)?.[0]).toEqual({ operation_years: 20 })
+    expect(wrapper.find('.ir-advanced__embedded-toolbar').text()).toContain('已修改 1 项高级参数')
     expect(wrapper.find('.ir-advanced__reset').text()).toBe('撤销高级参数修改')
     expect(wrapper.find('.ir-advanced__reset').attributes('disabled')).toBeUndefined()
 

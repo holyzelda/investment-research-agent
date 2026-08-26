@@ -139,6 +139,30 @@ describe('result card three modules', () => {
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
   })
 
+  it('counts variant drafts against the target-period default and omits automatic defaults', async () => {
+    const paramDict = [
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+      { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, g: 1, variants: { '15': { control: 'fixed', default: 0 }, '20': { control: 'slider', default: 0.3, min: 0, max: 1, step: 0.01 } } },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, battery_replace_cost: 0 } },
+    })
+
+    await openAdvancedTab(wrapper)
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    expect(wrapper.find('.ir-adjust__draft-count').text()).toBe('1')
+
+    const batteryField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('换电成本'))
+    const number = batteryField.find('.ir-advanced__number')
+    await number.setValue(0.6)
+    expect(wrapper.find('.ir-adjust__draft-count').text()).toBe('2')
+
+    await number.setValue(0.3)
+    expect(wrapper.find('.ir-adjust__draft-count').text()).toBe('1')
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+    expect(wrapper.emitted('recalculate').at(-1)[0].overrides).toEqual({ operation_years: 20 })
+  })
+
   it('keeps advanced drafts across tabs and restores the frozen calculation values', async () => {
     const paramDict = [
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },

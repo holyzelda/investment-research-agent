@@ -16,7 +16,10 @@ from app.modules.calculation.application.factory import build_param_assembler
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
 from app.modules.calculation.application.retry_policy import RetryPolicy
 from app.modules.calculation.application.snapshot_service import SnapshotService
-from app.modules.calculation.application.task_service import CalculationTaskService
+from app.modules.calculation.application.task_service import (
+    CalculationTaskService,
+    _param_hash,
+)
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.feishu_client import MockFeishuGateway
 from app.modules.calculation.infrastructure.feishu_sample import sample_output
@@ -193,6 +196,80 @@ async def test_recalc_unchanged_dependencies_no_override_inherits_v1_price(sessi
         )
     assert v2["version"] == "V2"
     assert spot.calls == []  # 依赖未变、未提交 override → 不查库
+
+
+@pytest.mark.asyncio
+async def test_recalc_epc_and_frequency_only_preserves_normalized_spot_prices(session_maker):
+    """V1 统一冻结四位现货价格；V2 只改 EPC 与首年调频收益时原值继承。"""
+    spot = _CountingSpot(
+        charge=0.07032071762870515,
+        discharge=0.4832751404056162,
+    )
+    svc, gateway = _service_with_templates(spot)
+    async with session_maker() as session:
+        v1 = await svc.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
+        spot.calls.clear()
+        v2 = await svc.create_and_run(
+            session,
+            user_id="u1",
+            username="U1",
+            basics=_BASICS,
+            conversation_id=v1["conversationId"],
+            param_overrides={
+                "epc_unit_price": 0.8,
+                "frequency_first_year_revenue": 1200.0,
+            },
+        )
+        snap = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id == v2["taskId"])
+        )).scalar_one()
+
+    assert spot.calls == []
+    assert v1["input"]["spot_charge_avg"] == 0.0703
+    assert v1["input"]["spot_discharge_avg"] == 0.4833
+    assert gateway.written["mock-doc-1"]["spot_charge_avg"] == 0.0703
+    assert gateway.written["mock-doc-1"]["spot_discharge_avg"] == 0.4833
+    assert gateway.meta["mock-doc-1"]["param_hash"] == _param_hash(v1["input"])
+    assert v2["input"]["spot_charge_avg"] == 0.0703
+    assert v2["input"]["spot_discharge_avg"] == 0.4833
+    assert snap.payload["apiInput"]["spot_charge_avg"] == 0.0703
+    assert snap.payload["apiInput"]["spot_discharge_avg"] == 0.4833
+    assert snap.payload["changeMeta"] == {
+        "previousTaskId": v1["taskId"],
+        "explicitOverrideKeys": ["epc_unit_price", "frequency_first_year_revenue"],
+        "derivedChangedKeys": [],
+    }
+
+
+@pytest.mark.asyncio
+async def test_operation_year_change_preserves_manual_frequency_revenue(session_maker):
+    """V1→V2 修改调频收益后，V3 只切换运营期仍继承 V2 冻结值。"""
+    svc, gateway = _service_with_templates(_CountingSpot())
+    async with session_maker() as session:
+        v1 = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=_BASICS,
+        )
+        v2 = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=_BASICS,
+            conversation_id=v1["conversationId"],
+            param_overrides={"frequency_first_year_revenue": 1200.0},
+        )
+        v3 = await svc.create_and_run(
+            session, user_id="u1", username="U1", basics=_BASICS,
+            conversation_id=v1["conversationId"],
+            param_overrides={"operation_years": 20},
+        )
+        snap = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id == v3["taskId"])
+        )).scalar_one()
+
+    assert gateway.copy_templates == ["template-15", "template-15", "template-20"]
+    assert v2["input"]["frequency_first_year_revenue"] == 1200.0
+    assert v3["input"]["frequency_first_year_revenue"] == 1200.0
+    assert snap.payload["apiInput"]["frequency_first_year_revenue"] == 1200.0
+    assert v3["changeMeta"]["explicitOverrideKeys"] == ["operation_years"]
+    assert "frequency_first_year_revenue" not in v3["changeMeta"]["derivedChangedKeys"]
+    assert "battery_replace_cost" in v3["changeMeta"]["derivedChangedKeys"]
 
 
 @pytest.mark.asyncio
