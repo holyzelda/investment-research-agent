@@ -113,6 +113,7 @@ export const useCalculationStore = defineStore('calculation', {
     historyCursor: null,
     historyHasMore: false,
     historyLoading: false,
+    historyRequestSequence: 0,
     conversationId: null,
     selectedVersion: null,
     comparisonVersionByVersion: {},
@@ -236,22 +237,32 @@ export const useCalculationStore = defineStore('calculation', {
       this.comparisonVersionByVersion[currentVersion] = compareVersion
     },
     async loadHistory() {
-      const response = await listConversations()
-      this.history = response.data?.items || []
-      this.historyCursor = response.data?.nextCursor || null
-      this.historyHasMore = !!this.historyCursor
+      const sequence = ++this.historyRequestSequence
+      this.historyLoading = true
+      try {
+        const response = await listConversations()
+        if (sequence !== this.historyRequestSequence) return
+        this.history = response.data?.items || []
+        this.historyCursor = response.data?.nextCursor || null
+        this.historyHasMore = !!this.historyCursor
+      } finally {
+        if (sequence === this.historyRequestSequence) this.historyLoading = false
+      }
     },
     async loadMoreHistory() {
       if (!this.historyCursor || this.historyLoading) return
+      const cursor = this.historyCursor
+      const sequence = this.historyRequestSequence
       this.historyLoading = true
       try {
-        const response = await listConversations(this.historyCursor)
+        const response = await listConversations(cursor)
+        if (sequence !== this.historyRequestSequence || cursor !== this.historyCursor) return
         const items = response.data?.items || []
         this.history.push(...items)
         this.historyCursor = response.data?.nextCursor || null
         this.historyHasMore = !!this.historyCursor
       } finally {
-        this.historyLoading = false
+        if (sequence === this.historyRequestSequence) this.historyLoading = false
       }
     },
     resetStationQuery() {
@@ -466,12 +477,11 @@ export const useCalculationStore = defineStore('calculation', {
     },
     async removeConversation(conversationId) {
       await deleteConversation(conversationId)
-      this.history = this.history.filter((item) => item.conversationId !== conversationId)
-      // 删除后重置游标，下次加载时重新获取完整列表
-      this.historyCursor = null
-      this.historyHasMore = false
+      const key = String(conversationId)
+      this.history = this.history.filter((item) => String(item.conversationId) !== key)
       this.invalidateConversationDetail(conversationId)
-      if (String(this.conversationId) === String(conversationId)) this.resetConversation()
+      if (String(this.conversationId) === key) this.resetConversation()
+      await this.loadHistory()
     },
     async renameConversation(conversationId, title) {
       const cleaned = String(title || '').trim()

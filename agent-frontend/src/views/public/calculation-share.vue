@@ -352,7 +352,7 @@ onMounted(() => {
 /* 基础信息 */
 .ir-share-basic {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--xc-space-5);
 }
 .ir-share-basic__stat {

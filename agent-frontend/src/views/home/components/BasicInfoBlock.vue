@@ -71,10 +71,10 @@ const metrics = computed(() => [
   flex: 0 0 auto;
   color: var(--xc-accent-blue);
 }
-/* 一行 5 项裸排数值：无边框、无背景，仅靠列宽均分 */
+/* 六项基础边界条件：桌面端按 3 列 2 行排列，避免单项过窄 */
 .ir-basic {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--xc-space-5);
 }
 .ir-basic__stat {

@@ -16,6 +16,13 @@ const api = vi.hoisted(() => ({
 
 const chat = vi.hoisted(() => ({ openChatStream: vi.fn() }))
 
+const deferred = () => {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
+
 vi.mock('@/api/calc', () => api)
 vi.mock('@/utils/chatSse', () => chat)
 
@@ -370,7 +377,75 @@ describe('conversation history sidebar and replay', () => {
     expect(store.versions.map((v) => v.version)).toEqual(['V1', 'V2'])
   })
 
+  it('removeConversation refreshes pagination after deleting a conversation', async () => {
+    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
+    api.listConversations.mockResolvedValue({ data: {
+      items: [
+        { conversationId: 6, title: '宁夏' },
+        { conversationId: 5, title: '青海' },
+      ],
+      nextCursor: 'fresh-cursor',
+    } })
+    const store = useCalculationStore()
+    store.history = [
+      { conversationId: 7, title: '甘肃' },
+      { conversationId: 6, title: '宁夏' },
+    ]
+    store.historyCursor = 'old-cursor'
+    store.historyHasMore = true
+
+    await store.removeConversation('7')
+
+    expect(api.listConversations).toHaveBeenCalledWith()
+    expect(store.history.map((item) => item.conversationId)).toEqual([6, 5])
+    expect(store.historyCursor).toBe('fresh-cursor')
+    expect(store.historyHasMore).toBe(true)
+  })
+
+  it('ignores an in-flight page response after deletion refreshes history', async () => {
+    const page = deferred()
+    api.listConversations.mockImplementation((cursor) => (
+      cursor ? page.promise : Promise.resolve({ data: {
+        items: [{ conversationId: 6, title: '宁夏' }],
+        nextCursor: 'fresh-cursor',
+      } })
+    ))
+    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
+    const store = useCalculationStore()
+    store.history = [{ conversationId: 7, title: '甘肃' }]
+    store.historyCursor = 'old-cursor'
+    store.historyHasMore = true
+
+    const loading = store.loadMoreHistory()
+    await Promise.resolve()
+    await store.removeConversation(7)
+    page.resolve({ data: {
+      items: [{ conversationId: 7, title: '已删除' }, { conversationId: 4, title: '陕西' }],
+      nextCursor: 'stale-cursor',
+    } })
+    await loading
+
+    expect(store.history.map((item) => item.conversationId)).toEqual([6])
+    expect(store.historyCursor).toBe('fresh-cursor')
+  })
+
+  it('keeps pagination state unchanged when deletion fails', async () => {
+    api.deleteConversation.mockRejectedValue(new Error('delete failed'))
+    const store = useCalculationStore()
+    store.history = [{ conversationId: 7, title: '甘肃' }]
+    store.historyCursor = 'cursor'
+    store.historyHasMore = true
+
+    await expect(store.removeConversation(7)).rejects.toThrow('delete failed')
+
+    expect(store.history).toHaveLength(1)
+    expect(store.historyCursor).toBe('cursor')
+    expect(store.historyHasMore).toBe(true)
+    expect(api.listConversations).not.toHaveBeenCalled()
+  })
+
   it('removeConversation soft-deletes and drops it from history', async () => {    api.deleteConversation.mockResolvedValue({ data: { conversationId: 7, deleted: true } })
+    api.listConversations.mockResolvedValue({ data: { items: [{ conversationId: 6, title: '宁夏' }], nextCursor: null } })
     const store = useCalculationStore()
     store.history = [
       { conversationId: 7, title: '甘肃' },
