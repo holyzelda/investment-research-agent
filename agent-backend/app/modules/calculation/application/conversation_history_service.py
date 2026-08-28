@@ -32,7 +32,7 @@ class ConversationHistoryService:
 
         Returns:
             (items, next_cursor)
-            - items: 当前页会话列表，每项含 conversationId / title / createdAt
+            - items: 当前页会话列表，每项含 conversationId / title / createdAt / lastActivityAt
             - next_cursor: 下一页游标字符串（base64 编码），为 None 表示已无更多
         """
         from base64 import b64decode, b64encode
@@ -79,6 +79,9 @@ class ConversationHistoryService:
                 "conversationId": c.id,
                 "title": c.title,
                 "createdAt": c.created_at.isoformat(),
+                "lastActivityAt": (
+                    c.last_activity_at or c.created_at
+                ).isoformat(),
             }
             for c in conversations
         ]

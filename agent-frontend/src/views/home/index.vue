@@ -1161,10 +1161,13 @@ function archiveSummaryFields(v) {
 
 /* ---------- 右侧项目档案 ---------- */
 .ir-home__side {
+  min-width: 0;
   min-height: 0;
   padding: var(--xc-space-6) 0;
 }
 .ir-home__ledger {
+  width: 100%;
+  min-width: 0;
   height: 100%;
   min-height: 0;
   display: grid;
@@ -1199,13 +1202,20 @@ function archiveSummaryFields(v) {
   white-space: nowrap;
 }
 .ir-home__side-section {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
 }
 .ir-home__side-section--reports { border-top: 1px solid var(--xc-border-soft); }
 .ir-home__side-scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 0;
+  overflow-x: hidden;
   overflow-y: auto;
   padding: 0 var(--xc-space-4) var(--xc-space-4);
   scrollbar-gutter: stable;
@@ -1231,6 +1241,9 @@ function archiveSummaryFields(v) {
 /* 版本顺序由左侧轨道表达，选中项才展开完整档案。 */
 .ir-ver {
   position: relative;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   list-style: none;
   margin: 0;
   padding: 0 0 0 var(--xc-space-4);
@@ -1251,6 +1264,7 @@ function archiveSummaryFields(v) {
 .ir-ver__select {
   position: relative;
   width: 100%;
+  max-width: 100%;
   min-width: 0;
   min-height: 44px;
   display: block;
@@ -1341,6 +1355,9 @@ function archiveSummaryFields(v) {
   white-space: normal;
 }
 .ir-ver__metric {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1348,6 +1365,13 @@ function archiveSummaryFields(v) {
   margin-top: var(--xc-space-2);
   color: var(--xc-text-soft);
   font-size: var(--xc-fs-2xs);
+}
+.ir-ver__metric > span,
+.ir-ver__metric > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .ir-ver__metric strong {
   color: var(--xc-text-strong);
@@ -1361,7 +1385,9 @@ function archiveSummaryFields(v) {
 .ir-ver__summary span { overflow: hidden; color: var(--xc-text-mute); text-overflow: ellipsis; white-space: nowrap; }
 .ir-ver__time { color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); }
 .ir-ver__actions {
-  width: calc(100% - var(--xc-space-4));
+  width: auto;
+  max-width: calc(100% - var(--xc-space-4));
+  min-width: 0;
   margin: var(--xc-space-2) 0 var(--xc-space-2) var(--xc-space-4);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(84px, 0.72fr);

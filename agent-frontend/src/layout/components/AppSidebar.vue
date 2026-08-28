@@ -87,7 +87,7 @@
             @keydown.space.prevent="$emit('open-history', conversation.conversationId)"
           >
             <span v-if="conversation.createdAt" class="ir-shell__history-date xc-num">
-              {{ formatDateLabel(conversation.createdAt) }}
+              {{ formatDateLabel(conversation.lastActivityAt || conversation.createdAt) }}
             </span>
             <span class="ir-shell__history-name">{{ conversation.title || '未命名会话' }}</span>
             <span class="ir-shell__history-actions" @click.stop @keydown.stop>

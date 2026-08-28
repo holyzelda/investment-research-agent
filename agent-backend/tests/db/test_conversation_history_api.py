@@ -210,16 +210,19 @@ async def test_list_returns_current_users_active_conversations_by_latest_activit
             "conversationId": ids["empty_failed"],
             "title": "Failed only",
             "createdAt": "2026-07-15T09:40:00",
+            "lastActivityAt": "2026-07-15T09:40:00",
         },
         {
             "conversationId": ids["older"],
             "title": "Older active",
             "createdAt": "2026-07-15T09:00:00",
+            "lastActivityAt": "2026-07-15T09:08:00",
         },
         {
             "conversationId": ids["newer"],
             "title": "Newer active",
             "createdAt": "2026-07-15T09:01:00",
+            "lastActivityAt": "2026-07-15T09:07:00",
         },
     ]
     # 由于只有2条且limit=15，没有更多数据
@@ -288,11 +291,13 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
             "conversationId": ids["empty_failed"],
             "title": "Failed only",
             "createdAt": "2026-07-15T09:40:00",
+            "lastActivityAt": "2026-07-15T09:40:00",
         },
         {
             "conversationId": ids["older"],
             "title": "Older active",
             "createdAt": "2026-07-15T09:00:00",
+            "lastActivityAt": "2026-07-15T09:08:00",
         },
     ]
 
