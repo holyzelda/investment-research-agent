@@ -28,6 +28,7 @@ class NullSpotPriceAlgo(SpotPriceAlgo):
     """现货取数关闭（spot_price.enabled=false）时的空实现：不算、不连库，返回 (None, None)。"""
 
     def compute(
-        self, province: str, node_name, capacity_mwh: float, power_mw: float, daily_cycles: float
+        self, province: str, node_name, capacity_mwh: float, power_mw: float,
+        daily_cycles: float, *, city: Optional[str] = None,
     ) -> tuple[Optional[float], Optional[float]]:
         return None, None

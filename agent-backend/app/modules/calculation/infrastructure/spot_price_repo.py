@@ -68,13 +68,32 @@ class ProvinceSpotRepository:
             "WHERE market=:market AND mode=:mode AND area=:area "
             "AND business_date >= :start AND business_date < :end"
         )
+        return self._fetch_daily_query(sql, {
+            "market": self._market, "mode": mode, "area": area,
+            "start": start_date, "end": end_date,
+        }, area=area, mode=mode, start_date=start_date, end_date=end_date)
+
+    def fetch_daily_dual_prices(
+        self, area: str, charge_mode: str, discharge_mode: str,
+        start_date: date, end_date: date, *, discharge_area: str | None = None,
+    ) -> dict:
+        """读取充、放电价格对；可为河南指定独立的区域放电源。"""
+        charge = self.fetch_daily_prices(area, charge_mode, start_date, end_date)
+        discharge = self.fetch_daily_prices(
+            discharge_area if discharge_area is not None else area,
+            discharge_mode, start_date, end_date,
+        )
+        return {
+            day: (charge[day], discharge[day])
+            for day in charge.keys() & discharge.keys()
+            if len(charge[day]) == len(discharge[day]) == len(GRID_LABELS)
+        }
+
+    def _fetch_daily_query(self, sql, params, *, area, mode, start_date, end_date):
         rows = 0
         by_day: dict = {}  # date -> {label: Decimal}
         with self._eng().connect() as conn:
-            result = conn.execute(sql, {
-                "market": self._market, "mode": mode, "area": area,
-                "start": start_date, "end": end_date,
-            })
+            result = conn.execute(sql, params)
             for business_date, tlabel, price in result:
                 rows += 1
                 d = _parse_date(business_date)

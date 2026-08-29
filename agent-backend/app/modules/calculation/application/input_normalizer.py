@@ -18,6 +18,7 @@ def normalize_project_basics(
     duration_hours: Optional[float],
     node_name: Optional[str],
     voltage_kv: int,
+    city: Optional[str] = None,
 ) -> ProjectBasics:
     """将容量、功率、时长的有效请求组合归一化为既有项目基础参数。"""
     if capacity_mwh is not None and power_mw is not None:
@@ -44,6 +45,7 @@ def normalize_project_basics(
         power_mw=power_mw,
         node_name=node_name,
         voltage_kv=voltage_kv,
+        city=city,
     )
 
 

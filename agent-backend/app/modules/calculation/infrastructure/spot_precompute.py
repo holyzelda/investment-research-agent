@@ -8,10 +8,21 @@ from datetime import date, timedelta
 from decimal import Decimal
 from time import perf_counter
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 
 from app.core.config.settings import get_settings
 from app.modules.calculation.domain.spot_pricing import day_optimal_by_k
+
+
+DUAL_PROVINCE_PRECOMPUTE_SPECS = (
+    # 河南省级：充、放电均使用省级统一结算点。
+    ("河南", "日前", "日前", "河南", "省级"),
+    # 河南区域：充电使用省级统一结算点，放电使用城市所属区域。
+    ("河南", "日前", "日前", "河南", "豫北"),
+    ("河南", "日前", "日前", "河南", "豫西"),
+    ("河南", "日前", "日前", "河南", "豫中东"),
+    ("河南", "日前", "日前", "河南", "豫南"),
+)
 from app.modules.calculation.infrastructure.spot_price_repo import (
     NodeSpotRepository,
     ProvinceSpotRepository,
@@ -59,6 +70,47 @@ def _compute_day(args):
     prices = [Decimal(p) for p in prices_str]
     by_k = day_optimal_by_k(prices)
     return day_iso, {k: (str(cs), str(ds), slots) for k, (cs, ds, slots) in by_k.items()}
+
+
+def _compute_dual_day(args):
+    """双结算价子进程 worker。"""
+    day_iso, charge_str, discharge_str = args
+    by_k = day_optimal_by_k(
+        [Decimal(p) for p in charge_str],
+        discharge_prices=[Decimal(p) for p in discharge_str],
+    )
+    return day_iso, {k: (str(cs), str(ds), slots) for k, (cs, ds, slots) in by_k.items()}
+
+
+def _process_dual_identifier(ex, ir, repo, area, charge_mode, discharge_mode,
+                             start, end, table, scope_id, discharge_area=None,
+                             force=False):
+    with ir.connect() as conn:
+        done = set() if force else _done_dates(conn, table, scope_id, start, end)
+    try:
+        daily = repo.fetch_daily_dual_prices(
+            area, charge_mode, discharge_mode, start, end,
+            discharge_area=discharge_area,
+        )
+    except TypeError:
+        # 兼容尚未升级的价格仓库实现。
+        daily = repo.fetch_daily_dual_prices(area, charge_mode, discharge_mode, start, end)
+    todo = {day: prices for day, prices in daily.items() if day not in done}
+    if ex is None:
+        results = [_compute_dual_day((day.isoformat(), [str(p) for p in pair[0]],
+                                       [str(p) for p in pair[1]])) for day, pair in todo.items()]
+    else:
+        futures = [ex.submit(_compute_dual_day, (day.isoformat(), [str(p) for p in pair[0]],
+                                                   [str(p) for p in pair[1]]))
+                   for day, pair in todo.items()]
+        results = [future.result() for future in as_completed(futures)]
+    with ir.begin() as conn:
+        for day_iso, by_k_str in results:
+            _upsert_day(conn, table, scope_id, day_iso, {
+                k: (Decimal(cs), Decimal(ds), slots)
+                for k, (cs, ds, slots) in by_k_str.items()
+            })
+    return len(results)
 
 
 def _done_dates(conn, table, scope_id, start, end):
@@ -187,6 +239,7 @@ def run_precompute(
         spot.province_dsn, spot.province_table, spot.province_market)
     node_repo = node_repo or NodeSpotRepository(spot.node_dsn, spot.node_table, spot.node_price_type)
     province_written = 0
+    dual_written = 0
     node_written = 0
     executor = ProcessPoolExecutor(max_workers=workers) if workers > 1 else None
 
@@ -196,6 +249,17 @@ def run_precompute(
             province_written += _process_identifier(
                 executor, ir, province_repo, area, start, end,
                 "ir_spot_daily_optimal_province", {"province": province}, mode=mode)
+
+        # 河南区域表由增量 DDL 单独发布；旧库尚未建表时不影响其他省份回填。
+        has_henan_table = inspect(ir).has_table("ir_spot_daily_optimal_henan")
+        if has_henan_table:
+            for area, charge_mode, discharge_mode, province, region in DUAL_PROVINCE_PRECOMPUTE_SPECS:
+                dual_written += _process_dual_identifier(
+                    executor, ir, province_repo, area, charge_mode, discharge_mode, start, end,
+                    "ir_spot_daily_optimal_henan", {"province": province, "region": region},
+                    discharge_area=None if region == "省级" else region)
+        else:
+            log("河南结果表不存在，跳过河南省级/区域双价格预计算")
 
         stations = node_stations
         if stations == ["*"]:
@@ -222,12 +286,19 @@ def run_precompute(
 
     if cleanup_old:
         with ir.begin() as conn:
-            for table in ("ir_spot_daily_optimal_province", "ir_spot_daily_optimal_node"):
+            for table in (
+                "ir_spot_daily_optimal_province",
+                "ir_spot_daily_optimal_henan",
+                "ir_spot_daily_optimal_node",
+            ):
+                if not inspect(ir).has_table(table):
+                    log(f"清理 {table}：表不存在，跳过")
+                    continue
                 result = conn.execute(
                     text(f"DELETE FROM {table} WHERE business_date < :s"), {"s": start})
                 log(f"清理 {table} 旧数据 {result.rowcount} 行")
 
-    return {"province_days_written": province_written, "node_days_written": node_written}
+    return {"province_days_written": province_written, "dual_province_days_written": dual_written, "node_days_written": node_written}
 
 
 def run_uploaded_node_precompute(

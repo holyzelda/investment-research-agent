@@ -16,7 +16,6 @@ _DDL_PROV = (
     " PRIMARY KEY (province,k,business_date))"
 )
 
-
 class _FakeProvinceRepo:
     """一天 96 点合成价格：前 48 点低价、后 48 点高价，制造正价差。"""
 

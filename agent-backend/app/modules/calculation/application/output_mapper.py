@@ -63,6 +63,7 @@ def map_output_to_result(
         province=basics.province,
         capacity_mwh=basics.capacity_mwh,
         power_mw=basics.power_mw,
+        city=basics.city,
         node_name=basics.node_name,
         charge_cost=_f(api_output, "charge_cost"),
         discharge_return=_f(api_output, "discharge_return"),

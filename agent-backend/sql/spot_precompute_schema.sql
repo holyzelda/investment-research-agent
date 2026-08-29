@@ -14,7 +14,17 @@ CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_province (
 	PRIMARY KEY (province, k, business_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- 节点级：蒙西持续源及甘肃、山西文件导入节点共用，一张表 + province 列。
+-- 河南双价按内部区域隔离；充电源为河南省级统一结算点，放电源为区域价格。
+CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_henan (
+	province      VARCHAR(64)   NOT NULL,	region        VARCHAR(64)   NOT NULL,
+	business_date DATE          NOT NULL,
+	k             TINYINT       NOT NULL,
+	charge_sum    DECIMAL(20,6) NOT NULL,
+	discharge_sum DECIMAL(20,6) NOT NULL,
+	slot_count    INT           NOT NULL,
+	PRIMARY KEY (province, region, k, business_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE IF NOT EXISTS ir_spot_daily_optimal_node (
 	province      VARCHAR(64)   NOT NULL,   -- 数据所属省份
 	station_name  VARCHAR(128)  NOT NULL,

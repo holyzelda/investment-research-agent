@@ -795,7 +795,8 @@ export const useCalculationStore = defineStore('calculation', {
         province,
         capacity_mwh: basics.capacity_mwh,
         power_mw: basics.power_mw,
-        node_name: basics.node_name || null,
+        ...(province === '河南' ? { city: basics.city || null } : {}),
+        node_name: province === '河南' ? null : (basics.node_name || null),
         param_overrides: overrides,
         trigger: 'recalculate',
       }, this.conversationId)

@@ -252,6 +252,7 @@ function displayParam(value) {
 const bannerTitle = computed(() => buildResultTitle(
   props.result.basicInfo?.province,
   props.result.basicInfo?.nodeName,
+  props.result.basicInfo?.city ?? props.result.basicInfo?.cityName,
 ))
 // 直接从 ISO 串取分量拼成本地展示，避免 new Date 引入时区偏移；缺失时展示占位
 const calculatedAtText = computed(() => {

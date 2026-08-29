@@ -47,6 +47,7 @@ class ProjectBasics:
     power_mw: float
     node_name: Optional[str] = None
     voltage_kv: int = 220
+    city: Optional[str] = None
 
 
 @dataclass(frozen=True)

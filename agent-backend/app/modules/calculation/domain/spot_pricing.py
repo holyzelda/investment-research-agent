@@ -157,7 +157,26 @@ def optimize_day(prices, cfg: SpotConfig) -> list:
     return _optimize_day_core(prices, K, min_run, gap)
 
 
-def _optimize_day_core(prices, K: int, min_run: int, gap: int) -> list:
+def optimize_day_dual_prices(charge_prices, discharge_prices, cfg: SpotConfig) -> list:
+    """用独立的充电价和放电价求一天的最优动作序列。
+
+    约束和并列决策与 :func:`optimize_day` 完全一致；目标为
+    ``Σ discharge_price·D − Σ charge_price·C``。两个价格序列必须等长。
+    """
+    if len(charge_prices) != len(discharge_prices):
+        raise ValueError("charge_prices 和 discharge_prices 长度必须一致")
+    t_total = len(charge_prices)
+    K = _max_energy_slots(cfg, t_total)
+    min_run = _min_run_slots(cfg)
+    gap = _switch_gap_slots(cfg)
+    return _optimize_day_core(
+        charge_prices, K, min_run, gap, discharge_prices=discharge_prices
+    )
+
+
+def _optimize_day_core(
+    prices, K: int, min_run: int, gap: int, discharge_prices=None
+) -> list:
     """DP 核心：直接以 (K, min_run, gap) 驱动，返回长度 T 的动作串。
 
     与 SpotConfig 解耦，便于预计算按 K 直接遍历（capacity/power 只经 K 影响结果，见 spec §7）。
@@ -170,7 +189,8 @@ def _optimize_day_core(prices, K: int, min_run: int, gap: int) -> list:
     current = {(0, 0, _NONE): (Decimal(0), 0)}
     parents: list = []
     for i in range(t_total):
-        p = prices[i]
+        charge_price = prices[i]
+        discharge_price = charge_price if discharge_prices is None else discharge_prices[i]
         nxt: dict = {}
         par: dict = {}
         for state, (score, segs) in current.items():
@@ -180,9 +200,9 @@ def _optimize_day_core(prices, K: int, min_run: int, gap: int) -> list:
                     continue
                 ncc, ndc, nfsm, seg_delta = res
                 if action == CHARGE:
-                    nscore = score - p
+                    nscore = score - charge_price
                 elif action == DISCHARGE:
-                    nscore = score + p
+                    nscore = score + discharge_price
                 else:
                     nscore = score
                 nstate = (ncc, ndc, nfsm)
@@ -261,14 +281,21 @@ def k_from_inputs(
 
 
 def day_optimal_by_k(
-    prices, k_values=PRECOMPUTE_K_VALUES, min_action_minutes: int = 30, switch_gap_minutes: int = 15
+    prices, k_values=PRECOMPUTE_K_VALUES, min_action_minutes: int = 30,
+    switch_gap_minutes: int = 15, discharge_prices=None
 ) -> dict:
     """对一天价格按多个 K 求最优，返回 {k: (charge_sum, discharge_sum, slot_count)}。
+
+    ``discharge_prices`` 可选，用于充、放电结算价分离的市场（如河南）；省略时
+    保持原有的单一价格序列语义。传入时必须与 ``prices`` 等长，结果分别按
+    充电价和放电价累计。
 
     预计算的原子单位：一天 × 各 K。charge/discharge_sum 为入选槽电价之和（原始，不乘系数）。
     一次按最大 K 推进状态，再从同一棵状态树提取各个 K，避免对同一天重复执行状态转移。
     非 96 点的日返回空 dict（调用方跳过）。
     """
+    if discharge_prices is not None and len(prices) != len(discharge_prices):
+        raise ValueError("prices 和 discharge_prices 长度必须一致")
     if len(prices) != SLOTS_PER_DAY:
         return {}
     requested = list(dict.fromkeys(k_values))
@@ -282,7 +309,10 @@ def day_optimal_by_k(
     # 以便对每个 K 独立选择终态并回溯，保持原有的收益和并列规则。
     current = {(0, 0, _NONE): (Decimal(0), 0)}
     parents: list = []
-    for price in prices:
+    for price_index, charge_price in enumerate(prices):
+        discharge_price = (
+            charge_price if discharge_prices is None else discharge_prices[price_index]
+        )
         nxt: dict = {}
         par: dict = {}
         for state, (score, segs) in current.items():
@@ -292,9 +322,9 @@ def day_optimal_by_k(
                     continue
                 ncc, ndc, nfsm, seg_delta = res
                 if action == CHARGE:
-                    nscore = score - price
+                    nscore = score - charge_price
                 elif action == DISCHARGE:
-                    nscore = score + price
+                    nscore = score + discharge_price
                 else:
                     nscore = score
                 nstate = (ncc, ndc, nfsm)
@@ -334,11 +364,15 @@ def day_optimal_by_k(
         c_sum = Decimal(0)
         d_sum = Decimal(0)
         slots = 0
-        for price, action in zip(prices, actions):
+        for price_index, action in enumerate(actions):
             if action == CHARGE:
-                c_sum += price
+                c_sum += prices[price_index]
                 slots += 1
             elif action == DISCHARGE:
-                d_sum += price
+                d_sum += (
+                    prices[price_index]
+                    if discharge_prices is None
+                    else discharge_prices[price_index]
+                )
         out[target_k] = (c_sum, d_sum, slots)
     return out

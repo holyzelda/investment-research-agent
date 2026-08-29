@@ -34,8 +34,9 @@ class SpotPriceAlgo(ABC):
     def compute(
         self, province: str, node_name: Optional[str],
         capacity_mwh: float, power_mw: float, daily_cycles: float,
+        *, city: Optional[str] = None,
     ) -> tuple[Optional[float], Optional[float]]:
-        """返回 (现货充电均价, 现货放电均价)。node_name 有值走节点级库，否则省级库。"""
+        """返回 (现货充电均价, 现货放电均价)。河南按城市，其余地区按节点/省级查询。"""
         raise NotImplementedError
 
 

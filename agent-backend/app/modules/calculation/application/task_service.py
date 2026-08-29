@@ -46,6 +46,7 @@ def _param_hash(api_input: dict) -> str:
 def _min_input(basics: ProjectBasics) -> dict:
     return {
         "province": basics.province,
+        "cityName": basics.city,
         "capacityMwh": basics.capacity_mwh,
         "powerMw": basics.power_mw,
         "nodeName": basics.node_name,
@@ -68,6 +69,8 @@ def build_copy_name(basics: ProjectBasics, *, now: Optional[datetime] = None) ->
     """
     ts = (now or datetime.now()).strftime("%Y%m%d%H%M%S")
     parts = [basics.province]
+    if basics.city:
+        parts.append(basics.city)
     if basics.node_name:
         parts.append(basics.node_name)
     parts.append(f"{_fmt_num(basics.power_mw)}/{_fmt_num(basics.capacity_mwh)}")
@@ -305,7 +308,7 @@ class CalculationTaskService:
             k for k, v in (param_overrides or {}).items()
             if v is not None and (previous_input is None or previous_input.get(k) != v)
         ) | {
-            "power_mw", "capacity_mwh", "node_name", "voltage_kv",
+            "power_mw", "capacity_mwh", "city", "node_name", "voltage_kv",
         }
         changed = {
             key for key in set(previous_input) | set(api_input)

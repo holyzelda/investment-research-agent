@@ -80,8 +80,13 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" v-html="projectFieldIcon(spec.id)" />
               </span>
               <div class="ir-adjust__field-content">
+              <!-- 河南按城市定位项目，不展示节点搜索；其他省份保持节点搜索。 -->
+              <template v-if="spec.id === 'node_name' && isHenan">
+                <span class="ir-adjust__label">{{ spec.cn || spec.id }}</span>
+                <span class="ir-adjust__pending">河南项目按城市测算</span>
+              </template>
               <!-- 节点候选按需从 ir_spot_station 远程搜索，历史已选节点始终可见。 -->
-              <template v-if="spec.id === 'node_name'">
+              <template v-else-if="spec.id === 'node_name'">
                 <span class="ir-adjust__label">{{ spec.cn || spec.id }}</span>
                 <el-popover
                   v-model:visible="nodeEditorOpen"
@@ -143,7 +148,11 @@
                 </el-popover>
               </template>
 
-              <!-- 永久/本阶段锁定：只读展示 -->
+              <!-- 河南项目城市可编辑，作为城市定位提交；其他省份不显示该字段。 -->
+              <template v-else-if="spec.id === 'city' && isHenan">
+                <span class="ir-adjust__label">{{ spec.cn || '所在城市' }}</span>
+                <input v-model.trim="localValues.city" class="ir-adjust__text" :disabled="responding" placeholder="请输入所在城市" />
+              </template>
               <template v-else-if="isLocked(spec)">
                 <span class="ir-adjust__label">{{ spec.cn || spec.id }}</span>
                 <span class="ir-adjust__ro xc-num">
@@ -281,6 +290,7 @@ import { ElOption, ElPopover, ElSelect, ElTooltip } from 'element-plus'
 import { ChevronDown, CircleAlert } from '@lucide/vue'
 import {
   buildOverrides,
+  comparableValue,
   decimalsForStep,
   dynamicRange,
   frozenBaseline,
@@ -332,7 +342,8 @@ let sliderHintTimer = null
 let suppressedSliderFocus = null
 let nodeSearchTimer = null
 
-const PROJECT_ORDER = ['province', 'node_name', 'power_mw', 'capacity_mwh']
+const PROJECT_ORDER = ['province', 'city', 'node_name', 'power_mw', 'capacity_mwh']
+const isHenan = computed(() => String(localValues.province || props.seedInput.province || '').trim() === '河南')
 // 每个分区的行布局：一行一个 id = 该项独占半宽一行；一行多个 id = 并排共享一行。
 // operation_years 不在任何分区的行布局里出现——即便后端字典仍返回该字段，也不会被渲染（见 zoneGroups 的过滤）。
 const FINANCIAL_ROWS = [['epc_unit_price'], ['loan_rate', 'loan_years']]
@@ -386,6 +397,8 @@ function resetLocalValues() {
         : value ?? ''
     }
   }
+  const city = props.seedInput.city
+  if (city !== undefined) localValues.city = city
 }
 watch(() => props.seedInput, resetLocalValues, { immediate: true })
 watch(nodeEditorOpen, (open, wasOpen) => {
@@ -454,6 +467,14 @@ const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
   .map((group) => {
     let items = group.items.filter((spec) => !DROPPED_FIELDS.has(spec.id))
     if (group.zone === 'project_definition') {
+      if (isHenan.value) {
+        items = items.filter((spec) => spec.id !== 'node_name')
+        if (!items.some((spec) => spec.id === 'city')) {
+          items.push({ id: 'city', cn: '所在城市', control: 'text', zone: 'project_definition', default: '' })
+        }
+      } else {
+        items = items.filter((spec) => spec.id !== 'city')
+      }
       items = [...items].sort((a, b) => PROJECT_ORDER.indexOf(a.id) - PROJECT_ORDER.indexOf(b.id))
     }
     return { ...group, label: group.zone === 'project_definition' ? '项目信息' : group.label, items }
@@ -462,8 +483,9 @@ const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
 const localChangeCount = computed(() => zoneGroups.value.reduce((count, group) => count + group.items.reduce((groupCount, spec) => {
   if (isLocked(spec)) return groupCount
   const baseline = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
-  const current = normalizeValue(localValues[spec.id], spec.step)
-  return current !== normalizeValue(baseline, spec.step) ? groupCount + 1 : groupCount
+  return comparableValue(localValues[spec.id], spec.step) !== comparableValue(baseline, spec.step)
+    ? groupCount + 1
+    : groupCount
 }, 0), 0))
 const hasLocalChanges = computed(() => localChangeCount.value > 0)
 const hasPendingChanges = computed(() => hasLocalChanges.value || props.advancedOverrideCount > 0)
@@ -477,9 +499,6 @@ const pendingChangesText = computed(() => {
 })
 watch(hasLocalChanges, (dirty) => emit('dirty-change', dirty), { immediate: true })
 
-function normalizeValue(value, step) {
-  return typeof value === 'number' && step ? roundToStep(value, step) : value
-}
 function zoneIcon(zone) { return ZONE_ICONS[zone] || ZONE_ICONS.financial_boundary }
 function projectFieldIcon(id) { return PROJECT_FIELD_ICONS[id] || PROJECT_FIELD_ICONS.node_name }
 
@@ -615,7 +634,8 @@ function onSubmit() {
   emit('recalculate', {
     overrides: { ...buildOverrides(props.paramDict, localValues, props.seedInput), ...props.advancedOverrides },
     basics: {
-      node_name: localValues.node_name || null,
+      city: isHenan.value ? (localValues.city || null) : undefined,
+      node_name: isHenan.value ? null : (localValues.node_name || null),
       capacity_mwh: localValues.capacity_mwh,
       power_mw: localValues.power_mw,
     },

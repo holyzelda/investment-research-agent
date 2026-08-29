@@ -13,6 +13,14 @@ const PARAM_DICT = [
   { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
 ]
 
+const HENAN_PARAM_DICT = [
+  { id: 'province', cn: '所在省份', zone: 'project_definition', control: 'fixed', default: null },
+  { id: 'city', cn: '所在城市', zone: 'project_definition', control: 'text', default: null },
+  { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
+  { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
+  { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
+]
+
 const DELTA_PARAM_DICT = [
   ...PARAM_DICT,
   { id: 'daily_cycles', cn: '日均充放电次数', zone: 'revenue_boundary', control: 'slider', min: 1, max: 2, step: 0.1, default: 1, unit: '次/天' },
@@ -31,6 +39,25 @@ const DELTA_SEED = {
 }
 
 describe('ParamAdjustPanel', () => {
+  it('河南按城市展示项目定位并在提交基础参数中携带城市', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: HENAN_PARAM_DICT,
+        seedInput: { province: '河南', city: '郑州', capacity_mwh: 800, power_mw: 200 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.find('input.ir-adjust__text').element.value).toBe('郑州')
+    await wrapper.find('input.ir-adjust__text').setValue('洛阳')
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate')[0][0].basics).toEqual({
+      city: '洛阳', node_name: null, capacity_mwh: 800, power_mw: 200,
+    })
+  })
+
   it('shows chat-driven changes against the previous calculation version', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: {

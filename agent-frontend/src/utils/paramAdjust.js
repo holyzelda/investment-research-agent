@@ -51,8 +51,19 @@ export function dynamicRange(baseline, step) {
 // 轨道上的冻结值基准：优先取本次测算冻结输入，无冻结值时回退参数默认值。
 export function frozenBaseline(spec, seedInput = {}) {
   const seed = seedInput?.[spec.id]
-  if (typeof seed === 'number' && Number.isFinite(seed)) return seed
-  return typeof spec.default === 'number' && Number.isFinite(spec.default) ? spec.default : null
+  const seedNumber = Number(seed)
+  if (seed !== '' && seed !== null && seed !== undefined && Number.isFinite(seedNumber)) return seedNumber
+  const defaultNumber = Number(spec.default)
+  return spec.default !== '' && spec.default !== null && spec.default !== undefined && Number.isFinite(defaultNumber)
+    ? defaultNumber
+    : null
+}
+
+export function comparableValue(value, step) {
+  if (value === '' || value === null || value === undefined) return value
+  const number = Number(value)
+  if (Number.isFinite(number)) return step ? roundToStep(number, step) : number
+  return value
 }
 
 export function frozenMarkerPct(range, baseline) {
@@ -88,7 +99,7 @@ export function buildOverrides(paramDict, values, seedInput = {}) {
     if (!['slider', 'dynamic_slider', 'select'].includes(spec.control)) continue
     if (!(spec.id in values)) continue
     const baseline = spec.id in seedInput ? seedInput[spec.id] : spec.default
-    if (values[spec.id] !== baseline) {
+    if (comparableValue(values[spec.id], spec.step) !== comparableValue(baseline, spec.step)) {
       overrides[spec.id] = values[spec.id]
     }
   }

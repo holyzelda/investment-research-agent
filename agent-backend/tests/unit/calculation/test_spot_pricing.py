@@ -26,6 +26,7 @@ from app.modules.calculation.domain.spot_pricing import (
     day_optimal_by_k,
     k_from_inputs,
     optimize_day,
+    optimize_day_dual_prices,
     yearly_average_prices,
 )
 
@@ -111,6 +112,29 @@ def test_unique_optimum_charge_low_discharge_high():
     dp = optimize_day([Decimal(1), Decimal(1), Decimal(10), Decimal(10)],
                       _cfg(cap="100", power="100", cycles="2", min_action=15, gap=0))
     assert dp == [CHARGE, CHARGE, DISCHARGE, DISCHARGE]
+
+
+def test_dual_prices_use_charge_and_discharge_series_independently():
+    cfg = _cfg(cap="100", power="100", cycles="2", min_action=15, gap=0)
+    actions = optimize_day_dual_prices(
+        [Decimal(10), Decimal(1)], [Decimal(10), Decimal(20)], cfg
+    )
+    assert actions == [CHARGE, DISCHARGE]
+
+
+def test_dual_prices_require_equal_lengths():
+    with pytest.raises(ValueError, match="长度必须一致"):
+        optimize_day_dual_prices([Decimal(1)], [Decimal(1), Decimal(2)], _cfg())
+
+
+def test_day_optimal_by_k_supports_dual_prices():
+    prices = [Decimal(1), Decimal(10)] + [Decimal(0)] * 94
+    discharge_prices = [Decimal(10), Decimal(20)] + [Decimal(0)] * 94
+    result = day_optimal_by_k(
+        prices, k_values=[1], min_action_minutes=15, switch_gap_minutes=0,
+        discharge_prices=discharge_prices,
+    )
+    assert result[1] == (Decimal(1), Decimal(20), 1)
 
 
 def test_min_run_blocks_single_slot_arbitrage():

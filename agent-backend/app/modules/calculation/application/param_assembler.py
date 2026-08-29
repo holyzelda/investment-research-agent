@@ -109,6 +109,8 @@ class ParamAssembler:
         result.api_input["capacity_mwh"] = cap
         result.api_input["province"] = basics.province
         result.api_input["voltage_kv"] = basics.voltage_kv
+        if basics.city:
+            result.api_input["city"] = basics.city
         if basics.node_name:  # 用户没提节点则不写入、不展示
             result.api_input["node_name"] = basics.node_name
 
@@ -145,8 +147,12 @@ class ParamAssembler:
             spot_c = previous_input.get("spot_charge_avg")
             spot_d = previous_input.get("spot_discharge_avg")
         else:
-            spot_c, spot_d = self._spot.compute(
-                basics.province, basics.node_name, cap, pwr, daily_cycles)
+            # 保持旧注入算法的五参数契约；河南有城市时才传递可选 city。
+            spot_args = (basics.province, basics.node_name, cap, pwr, daily_cycles)
+            if basics.city:
+                spot_c, spot_d = self._spot.compute(*spot_args, city=basics.city)
+            else:
+                spot_c, spot_d = self._spot.compute(*spot_args)
         result.api_input["spot_charge_avg"] = spot_c
         result.api_input["spot_discharge_avg"] = spot_d
 
@@ -249,6 +255,7 @@ class ParamAssembler:
             return True
         return (
             previous_input.get("node_name") != basics.node_name
+            or previous_input.get("city") != basics.city
             or previous_input.get("capacity_mwh") != basics.capacity_mwh
             or previous_input.get("power_mw") != basics.power_mw
             or previous_input.get("daily_cycles") != daily_cycles

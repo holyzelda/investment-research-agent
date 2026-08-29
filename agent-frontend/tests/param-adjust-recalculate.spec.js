@@ -85,6 +85,24 @@ describe('param adjustment: recalculate + param meta', () => {
     expect(store.selectedVersion).toBe('V2')
   })
 
+  it('河南重新测算携带城市且节点置空', async () => {
+    const store = useCalculationStore()
+    store.conversationId = 1
+    store.versions = [{ input: { province: '河南' } }]
+    api.createCalculationTask.mockResolvedValue({
+      data: { conversationId: 1, taskId: 11, version: 'V2', status: 'completed', input: { province: '河南', city: '郑州' } },
+    })
+    api.getCalculationResult.mockResolvedValue({ data: resultOf('河南') })
+
+    await store.recalculate({
+      overrides: {}, basics: { city: '郑州', node_name: null, capacity_mwh: 400, power_mw: 100 },
+    })
+
+    expect(api.createCalculationTask).toHaveBeenCalledWith(expect.objectContaining({
+      province: '河南', city: '郑州', node_name: null,
+    }), 1)
+  })
+
   it('recalculate 拒绝其他会话的测算结果', async () => {
     const store = useCalculationStore()
     store.conversationId = 1

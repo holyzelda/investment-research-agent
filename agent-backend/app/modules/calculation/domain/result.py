@@ -19,6 +19,7 @@ class BasicInfo:
     province: str
     capacity_mwh: float
     power_mw: float
+    city: Optional[str] = None
     node_name: Optional[str] = None          # 用户没提则 None，前端不显示
     charge_cost: Optional[float] = None       # 地区表 W，元/kWh（经 API_OUTPUT 读回）
     discharge_return: Optional[float] = None  # 地区表 X（经 API_OUTPUT 读回）

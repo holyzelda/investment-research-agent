@@ -19,6 +19,7 @@ from sqlalchemy.engine import Engine
 
 from app.modules.calculation.domain.ports import SpotPriceAlgo
 from app.modules.calculation.domain.spot_pricing import k_from_inputs
+from app.modules.calculation.infrastructure.henan_spot_import import city_to_region
 
 _PROVINCE_SQL = (
     "SELECT SUM(charge_sum), SUM(discharge_sum), SUM(slot_count) "
@@ -29,6 +30,11 @@ _NODE_SQL = (
     "SELECT SUM(charge_sum), SUM(discharge_sum), SUM(slot_count) "
     "FROM ir_spot_daily_optimal_node "
     "WHERE province=:p AND station_name=:st AND k=:k AND business_date>=:s AND business_date<:e"
+)
+_DUAL_HENAN_SQL = (
+    "SELECT SUM(charge_sum), SUM(discharge_sum), SUM(slot_count) "
+    "FROM ir_spot_daily_optimal_henan "
+    "WHERE province=:p AND region=:r AND k=:k AND business_date>=:s AND business_date<:e"
 )
 
 
@@ -53,15 +59,34 @@ class PrecomputeSpotPriceAlgo(SpotPriceAlgo):
         self._engine = engine or create_engine(ir_dsn, pool_pre_ping=True)
         self._run_date = run_date_provider or date.today
 
-    def compute(self, province, node_name, capacity_mwh, power_mw, daily_cycles):
+    def compute(self, province, node_name, capacity_mwh, power_mw, daily_cycles, *, city=None):
         k = k_from_inputs(Decimal(str(capacity_mwh)), Decimal(str(power_mw)), Decimal(str(daily_cycles)))
         start, end = _rolling_year(self._run_date())
-        if node_name:
+        # 河南严格按城市路由：即使上游误带 node_name，也不得访问节点结果表。
+        fallback = None
+        if province == "河南":
+            if not city:
+                sql, params = _DUAL_HENAN_SQL, {
+                    "p": province, "r": "省级", "k": k, "s": start, "e": end,
+                }
+            else:
+                region = city_to_region(city, strict=True)
+                sql, params = _DUAL_HENAN_SQL, {
+                    "p": province, "r": region, "k": k, "s": start, "e": end,
+                }
+                # 区域没有完整滚动窗口时，回退同表的省级统一结算点价格。
+                fallback = (
+                    _DUAL_HENAN_SQL,
+                    {"p": province, "r": "省级", "k": k, "s": start, "e": end},
+                )
+        elif node_name:
             sql, params = _NODE_SQL, {"p": province, "st": node_name, "k": k, "s": start, "e": end}
         else:
             sql, params = _PROVINCE_SQL, {"p": province, "k": k, "s": start, "e": end}
         with self._engine.connect() as conn:
             sum_c, sum_d, sum_slots = conn.execute(text(sql), params).first()
+            if not sum_slots and fallback is not None:
+                sum_c, sum_d, sum_slots = conn.execute(text(fallback[0]), fallback[1]).first()
         if not sum_slots:
             return None, None
         avg_c = Decimal(sum_c) / sum_slots

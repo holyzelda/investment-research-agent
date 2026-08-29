@@ -16,6 +16,7 @@ def to_report_payload(r: CalculationResult) -> dict:
         "warnings": r.warnings,
         "basicInfo": {
             "province": b.province,
+            "cityName": b.city,
             "nodeName": b.node_name,
             "capacityMwh": b.capacity_mwh,
             "powerMw": b.power_mw,

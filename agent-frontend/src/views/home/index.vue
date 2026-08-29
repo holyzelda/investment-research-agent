@@ -714,6 +714,7 @@ function reportCardProps(message) {
   const basic = versionEntry?.result?.basicInfo || {}
   const input = versionEntry?.input || {}
   const province = basic.province ?? input.province ?? ''
+  const city = basic.city ?? input.city ?? basic.cityName ?? ''
   const nodeName = basic.nodeName ?? input.nodeName ?? input.node_name ?? ''
   const power = basic.powerMw ?? input.powerMw ?? input.power_mw
   const capacity = basic.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
@@ -726,9 +727,9 @@ function reportCardProps(message) {
     status: failed ? 'failed' : completed ? 'completed' : 'generating',
     reportId: reportId ?? report?.reportId ?? null,
     taskId: linkedTaskId,
-    title: report?.title || buildReportTitle(province, nodeName, power, capacity),
-    projectName: formatProjectLocation(province, nodeName)
-      ? buildReportProjectName(province, nodeName, power, capacity)
+    title: report?.title || buildReportTitle(province, nodeName, power, capacity, city),
+    projectName: formatProjectLocation(province, nodeName, city)
+      ? buildReportProjectName(province, nodeName, power, capacity, city)
       : '储能投资项目',
     version: report?.version || versionEntry?.version || '',
     powerText: power === null || power === undefined ? '—' : `${formatNumber(power)} MW`,
@@ -838,10 +839,11 @@ function versionSpec(v) {
   const b = v.result?.basicInfo || {}
   const input = v.input || {}
   const province = b.province ?? input.province ?? ''
+  const city = b.city ?? input.city ?? b.cityName ?? ''
   const nodeName = b.nodeName ?? input.nodeName ?? input.node_name ?? ''
   const power = b.powerMw ?? input.powerMw ?? input.power_mw
   const capacity = b.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
-  return buildVersionTitle(province, nodeName, power, capacity)
+  return buildVersionTitle(province, nodeName, power, capacity, city)
 }
 
 function previousVersionFor(v) {

@@ -179,6 +179,7 @@ class CalculationLedgerService:
             "version": task.version,
             "calculatedAt": task.created_at.isoformat(),
             "province": _province_of(input_payload, result_payload),
+            "cityName": basic.get("cityName") or min_input.get("cityName") or api_input.get("city"),
             "nodeName": basic.get("nodeName") or api_input.get("node_name") or min_input.get("nodeName"),
             "powerMw": basic.get("powerMw", api_input.get("power_mw")),
             "capacityMwh": basic.get("capacityMwh", api_input.get("capacity_mwh")),

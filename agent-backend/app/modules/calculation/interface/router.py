@@ -30,6 +30,7 @@ from app.modules.calculation.application.platform_stats_service import get_platf
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
+from app.modules.calculation.infrastructure.henan_spot_import import city_to_region
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
@@ -114,6 +115,7 @@ class AssembleReq(BaseModel):
     power_mw: float = Field(gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
+    city: Optional[str] = None
 
 
 @router.post("/assemble-preview")
@@ -122,7 +124,7 @@ async def assemble_preview(req: AssembleReq):
     asm = build_param_assembler()
     r = asm.assemble(ProjectBasics(
         province=req.province, capacity_mwh=req.capacity_mwh, power_mw=req.power_mw,
-        node_name=req.node_name, voltage_kv=req.voltage_kv,
+        node_name=req.node_name, voltage_kv=req.voltage_kv, city=req.city,
     ))
     return ok({
         "apiInput": r.api_input,
@@ -140,6 +142,7 @@ class TaskCreateReq(BaseModel):
     duration_hours: Optional[float] = Field(default=None, gt=0)
     node_name: Optional[str] = None
     voltage_kv: int = 220
+    city: Optional[str] = None
     param_overrides: Optional[dict] = None  # Batch5：调整面板提交的受控参数覆盖（仅 g=1 可写输入生效）
     trigger: Optional[str] = None  # 直接重算传 "recalculate"，历史据此写明确重算事件而非伪装用户原文
 
@@ -171,6 +174,12 @@ async def create_task(
         power_mw=req.power_mw,
         duration_hours=req.duration_hours,
     )
+    city = req.city.strip() if req.city and req.city.strip() else None
+    if req.province == "河南":
+        if req.node_name:
+            raise ValidationException("河南项目不支持节点名称，请填写城市")
+        if city and city_to_region(city) is None:
+            raise ValidationException("河南城市无法识别，请填写河南地级市")
     inherited_node = (
         previous_input is not None
         and previous_input.get("node_name") == req.node_name
@@ -195,6 +204,7 @@ async def create_task(
             duration_hours=dur,
             node_name=req.node_name,
             voltage_kv=req.voltage_kv,
+            city=city,
         ),
         conversation_id=conv_id,
         param_overrides=req.param_overrides,

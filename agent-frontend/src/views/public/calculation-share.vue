@@ -134,6 +134,7 @@ const basicMetrics = computed(() => {
 const bannerTitle = computed(() => buildResultTitle(
   share.value.basicInfo?.province,
   share.value.basicInfo?.nodeName,
+  share.value.basicInfo?.cityName,
 ))
 
 const calculatedAtText = computed(() => {

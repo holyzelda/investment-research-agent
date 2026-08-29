@@ -43,16 +43,17 @@ export function normalizeProjectRegion(region) {
   return REGION_DISPLAY_NAMES[value] || value
 }
 
-export function formatProjectLocation(region, nodeName) {
+export function formatProjectLocation(region, nodeName, cityName) {
   const rawRegion = String(region ?? '').trim()
   const displayRegion = normalizeProjectRegion(rawRegion)
+  const displayCity = String(cityName ?? '').trim()
   let displayNode = String(nodeName ?? '').trim()
-  const prefixes = [...new Set([displayRegion, rawRegion])]
+  const prefixes = [...new Set([displayRegion, rawRegion, displayCity])]
     .filter(Boolean)
     .sort((left, right) => right.length - left.length)
   const repeatedPrefix = prefixes.find((prefix) => displayNode.startsWith(prefix))
   if (repeatedPrefix) displayNode = displayNode.slice(repeatedPrefix.length).trimStart()
-  return `${displayRegion}${displayNode}`
+  return `${displayRegion}${displayCity}${displayNode}`
 }
 
 export function formatProjectScale(power, capacity) {
@@ -60,20 +61,20 @@ export function formatProjectScale(power, capacity) {
   return `${formatNumber(power)}MW/${formatNumber(capacity)}MWh`
 }
 
-export function buildResultTitle(region, nodeName) {
-  return `${formatProjectLocation(region, nodeName)}储能项目测算结果`
+export function buildResultTitle(region, nodeName, cityName) {
+  return `${formatProjectLocation(region, nodeName || '', cityName)}储能项目测算结果`
 }
 
-export function buildReportTitle(region, nodeName, power, capacity) {
-  return `${formatProjectLocation(region, nodeName)}${formatProjectScale(power, capacity)}储能项目报告`
+export function buildReportTitle(region, nodeName, power, capacity, cityName) {
+  return `${formatProjectLocation(region, nodeName, cityName)}${formatProjectScale(power, capacity)}储能项目报告`
 }
 
-export function buildReportProjectName(region, nodeName, power, capacity) {
-  return `${formatProjectLocation(region, nodeName)}${formatProjectScale(power, capacity)}独立储能项目`
+export function buildReportProjectName(region, nodeName, power, capacity, cityName) {
+  return `${formatProjectLocation(region, nodeName, cityName)}${formatProjectScale(power, capacity)}独立储能项目`
 }
 
-export function buildVersionTitle(region, nodeName, power, capacity) {
-  return [formatProjectLocation(region, nodeName), formatProjectScale(power, capacity), '测算']
+export function buildVersionTitle(region, nodeName, power, capacity, cityName) {
+  return [formatProjectLocation(region, nodeName, cityName), formatProjectScale(power, capacity), '测算']
     .filter(Boolean)
     .join(' ')
 }
