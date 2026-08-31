@@ -30,7 +30,7 @@ from app.modules.calculation.application.platform_stats_service import get_platf
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
-from app.modules.calculation.infrastructure.henan_spot_import import city_to_region
+from app.modules.calculation.infrastructure.henan_spot_import import CITY_TO_REGION, city_to_region
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
@@ -58,9 +58,10 @@ async def get_param_dict(
     """参数字典（数据契约）。display_only=true 仅返回页面展示项；province= 附带该省表2开关。"""
     d = JsonParamDictRepository().load()
     specs = d.displayable() if display_only else d.all()
+    parameters = [dict(s.__dict__) for s in specs]
     data = {
         "total": len(specs),
-        "parameters": [s.__dict__ for s in specs],
+        "parameters": parameters,
     }
     if province:
         profile = build_revenue_structure_reader().get_profile(province)
@@ -68,6 +69,14 @@ async def get_param_dict(
             data["switches"] = {
                 pid: getattr(profile, attr) for pid, attr in _SWITCH_ATTR_MAP.items()
             }
+        # 河南按地级市定位项目，城市候选取自现货区域映射这一权威来源。
+        if _is_henan(province):
+            for spec in parameters:
+                if spec["id"] == "city":
+                    spec["control"] = "select"
+                    spec["options"] = [
+                        {"value": city, "label": city} for city in CITY_TO_REGION
+                    ]
     return ok(data)
 
 
@@ -109,6 +118,23 @@ async def list_stations(
     })
 
 
+def _is_henan(province: object) -> bool:
+    """河南省份判定：容忍前后空白与“省”后缀，统一走城市区域路由。"""
+    return str(province or "").strip().removesuffix("省") == "河南"
+
+
+def _validate_henan_input(*, province: str, city: Optional[str], node_name: Optional[str]) -> None:
+    """河南现货按地级市区域计算，禁止节点路由并要求可识别城市。"""
+    if not _is_henan(province):
+        return
+    if node_name:
+        raise ValidationException("河南项目不支持节点名称，请填写城市")
+    if not city:
+        raise ValidationException("河南项目必须填写城市")
+    if city_to_region(city) is None:
+        raise ValidationException("河南城市无法识别，请填写河南地级市")
+
+
 class AssembleReq(BaseModel):
     province: str
     capacity_mwh: float = Field(gt=0)
@@ -121,10 +147,12 @@ class AssembleReq(BaseModel):
 @router.post("/assemble-preview")
 async def assemble_preview(req: AssembleReq):
     """试组装：给最小项目信息，预览四来源组装出的 API_INPUT / 开关。"""
+    city = req.city.strip() if req.city and req.city.strip() else None
+    _validate_henan_input(province=req.province, city=city, node_name=req.node_name)
     asm = build_param_assembler()
     r = asm.assemble(ProjectBasics(
         province=req.province, capacity_mwh=req.capacity_mwh, power_mw=req.power_mw,
-        node_name=req.node_name, voltage_kv=req.voltage_kv, city=req.city,
+        node_name=req.node_name, voltage_kv=req.voltage_kv, city=city,
     ))
     return ok({
         "apiInput": r.api_input,
@@ -175,11 +203,10 @@ async def create_task(
         duration_hours=req.duration_hours,
     )
     city = req.city.strip() if req.city and req.city.strip() else None
-    if req.province == "河南":
-        if req.node_name:
-            raise ValidationException("河南项目不支持节点名称，请填写城市")
-        if city and city_to_region(city) is None:
-            raise ValidationException("河南城市无法识别，请填写河南地级市")
+    if city is None and previous_input is not None:
+        # 同会话调整参数未重复提交城市时，沿用冻结快照中的应用侧城市元数据。
+        city = previous_input.get("city")
+    _validate_henan_input(province=req.province, city=city, node_name=req.node_name)
     inherited_node = (
         previous_input is not None
         and previous_input.get("node_name") == req.node_name

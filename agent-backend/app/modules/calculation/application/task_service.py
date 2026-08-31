@@ -46,7 +46,7 @@ def _param_hash(api_input: dict) -> str:
 def _min_input(basics: ProjectBasics) -> dict:
     return {
         "province": basics.province,
-        "cityName": basics.city,
+        "city": basics.city,
         "capacityMwh": basics.capacity_mwh,
         "powerMw": basics.power_mw,
         "nodeName": basics.node_name,

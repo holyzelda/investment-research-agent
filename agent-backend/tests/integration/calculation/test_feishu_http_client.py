@@ -254,7 +254,15 @@ async def test_write_input_skips_operation_years_even_when_mapping_exists():
 
 
 @pytest.mark.asyncio
-async def test_read_output_maps_cells_to_param_ids():
+async def test_write_input_skips_city_without_api_mapping():
+    fake = FakeFeishu()
+    gw = _gateway(fake)
+    await gw.write_input("doc1", {"power_mw": 100, "city": "郑州"})
+    assert fake.batch_updates == [[{"range": "shtI!B2:B2", "values": [[100]]}]]
+    await gw._client.aclose()
+
+
+
     # 标量取首格；区间（15 年序列同理）展平为列表
     fake = FakeFeishu(get_values=[[[8.5]], [[8600]], [[4500.5]], [[1.1, 0, None, 1.3]]])
     gw = _gateway(fake)
@@ -275,7 +283,7 @@ async def test_read_output_maps_cells_to_param_ids():
 async def test_read_meta_normalizes_status_and_reads_request_id():
     fake = FakeFeishu(get_values=[[["done"]], [["R-1"]]])
     gw = _gateway(fake)
-    assert await gw.read_meta("doc1") == {"status": "done", "request_id": "R-1"}
+    assert await gw.read_meta("doc1") == {"status": "done", "request_id": "R-1", "param_hash": "v2"}
     await gw._client.aclose()
 
     # status 非约定"算完"值 → 原样返回（引擎据此继续轮询）

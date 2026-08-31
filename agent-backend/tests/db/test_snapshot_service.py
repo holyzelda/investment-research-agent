@@ -26,7 +26,7 @@ from tests.db.conftest import PYTEST_TITLE_PREFIX, PYTEST_USERNAME
 
 
 async def _persist(session, svc, conv_id, version, trigger=None):
-    basics = ProjectBasics("甘肃", 800, 200, node_name="兰州东")
+    basics = ProjectBasics("河南", 800, 200, city="郑州")
     assembled = build_param_assembler().assemble(basics)
     result = map_output_to_result(
         basics,
@@ -46,7 +46,7 @@ async def _persist(session, svc, conv_id, version, trigger=None):
         api_output=SAMPLE_API_OUTPUT,
         api_meta={"status": "done", "request_id": f"req-{version}"},
         result=result,
-        min_input={"province": "甘肃", "capacityMwh": 800, "powerMw": 200, "nodeName": "兰州东"},
+        min_input={"province": "河南", "city": "郑州", "capacityMwh": 800, "powerMw": 200, "nodeName": None},
         trigger=trigger,
         assistant_message=f"{version} 完成",
     )
@@ -77,14 +77,22 @@ async def test_success_persists_seven_snapshots_without_overwrite(db_session, db
                 n = await s.scalar(select(func.count()).select_from(orm).where(orm.task_id == tid))
                 assert n == 1, f"{orm.__name__} 缺失 for task {tid}"
 
-        # 仅凭 calculation_result_snapshot 重建三模块
+            input_snapshot = (await s.execute(
+                select(InputSnapshotORM).where(InputSnapshotORM.task_id == tid)
+            )).scalar_one()
+            assert input_snapshot.payload["apiInput"]["city"] == "郑州"
+            assert input_snapshot.payload["minInput"]["city"] == "郑州"
+            assert "cityName" not in input_snapshot.payload["minInput"]
+
         calculation_result = (await s.execute(
             select(CalculationResultSnapshotORM).where(
                 CalculationResultSnapshotORM.task_id == task_v2
             )
         )).scalar_one()
         p = calculation_result.payload
-        assert p["basicInfo"]["province"] == "甘肃"
+        assert p["basicInfo"]["province"] == "河南"
+        assert p["basicInfo"]["city"] == "郑州"
+        assert "cityName" not in p["basicInfo"]
         assert set(p["financial"]) == {
             "projectIrr", "projectStaticPayback", "capitalIrr",
             "capitalStaticPayback", "averageProfit",

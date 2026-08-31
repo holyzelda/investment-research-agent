@@ -714,7 +714,7 @@ function reportCardProps(message) {
   const basic = versionEntry?.result?.basicInfo || {}
   const input = versionEntry?.input || {}
   const province = basic.province ?? input.province ?? ''
-  const city = basic.city ?? input.city ?? basic.cityName ?? ''
+  const city = basic.city ?? input.city ?? ''
   const nodeName = basic.nodeName ?? input.nodeName ?? input.node_name ?? ''
   const power = basic.powerMw ?? input.powerMw ?? input.power_mw
   const capacity = basic.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh
@@ -839,7 +839,7 @@ function versionSpec(v) {
   const b = v.result?.basicInfo || {}
   const input = v.input || {}
   const province = b.province ?? input.province ?? ''
-  const city = b.city ?? input.city ?? b.cityName ?? ''
+  const city = b.city ?? input.city ?? ''
   const nodeName = b.nodeName ?? input.nodeName ?? input.node_name ?? ''
   const power = b.powerMw ?? input.powerMw ?? input.power_mw
   const capacity = b.capacityMwh ?? input.capacityMwh ?? input.capacity_mwh

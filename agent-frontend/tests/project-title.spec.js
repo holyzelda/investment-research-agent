@@ -40,6 +40,7 @@ describe('project title formatting', () => {
 
   it('builds titles with the same location and scale rules', () => {
     expect(buildResultTitle('浙江', '浙江嘉兴站')).toBe('浙江省嘉兴站储能项目测算结果')
+    expect(buildResultTitle('河南', null, '郑州')).toBe('河南省郑州储能项目测算结果')
     expect(buildVersionTitle('浙江', '浙江嘉兴站', 200, 800)).toBe('浙江省嘉兴站 200MW/800MWh 测算')
     expect(buildReportTitle('浙江', '浙江嘉兴站', 200, 800)).toBe('浙江省嘉兴站200MW/800MWh储能项目报告')
     expect(buildReportProjectName('浙江', '浙江嘉兴站', 200, 800)).toBe('浙江省嘉兴站200MW/800MWh独立储能项目')

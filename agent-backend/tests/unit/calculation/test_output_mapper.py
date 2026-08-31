@@ -21,7 +21,15 @@ SAMPLE = {
 }
 
 
-def test_maps_financial():
+def test_serializes_canonical_city_without_legacy_alias():
+    basics = ProjectBasics(province="河南", city="郑州", capacity_mwh=800, power_mw=200)
+    payload = to_report_payload(map_output_to_result(basics, _assembled(), SAMPLE))
+
+    assert payload["basicInfo"]["city"] == "郑州"
+    assert "cityName" not in payload["basicInfo"]
+
+
+
     r = map_output_to_result(_basics(), _assembled(), SAMPLE)
     assert r.financial.project_irr == 8.5
     assert r.financial.capital_irr == 12.3

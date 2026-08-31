@@ -9,9 +9,15 @@ def _dict():
 
 def test_dictionary_loads():
     d = _dict()
-    assert len(d) == 67  # 5对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+4地区/基础输出+30输出
+    assert len(d) == 68  # 6对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+4地区/基础输出+30输出
 
-def test_f_column_only_controls_display_not_write():
+def test_city_is_app_side_metadata_without_api_mapping():
+    city = _dict().get("city")
+    assert city is not None
+    assert city.source == ParamSource.DIALOG.value
+    assert city.api_cell is None
+    assert city.writable is True and city.direction == Direction.INPUT.value
+
     """表2开关 F=0，但仍应写入 API_INPUT（F 列只管展示）。"""
     d = _dict()
     sw = d.get("switch_spot")

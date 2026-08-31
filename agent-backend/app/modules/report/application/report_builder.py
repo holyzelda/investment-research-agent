@@ -53,8 +53,8 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
     power = basic.get("powerMw") or minimum.get("powerMw") or MISSING_DATA_TEXT
     capacity = basic.get("capacityMwh") or minimum.get("capacityMwh") or MISSING_DATA_TEXT
     node_name = basic.get("nodeName") or minimum.get("nodeName") or api_input.get("node_name")
-    city_name = basic.get("cityName") or minimum.get("cityName") or api_input.get("city")
-    display_location = node_name or city_name
+    city = basic.get("city") or api_input.get("city") or minimum.get("city")
+    display_location = node_name or city
     duration = capacity / power if isinstance(capacity, (int, float)) and isinstance(power, (int, float)) and power else MISSING_DATA_TEXT
     title = build_report_title(province, display_location, power, capacity)
     project_name = build_report_project_name(province, display_location, power, capacity)
@@ -83,8 +83,8 @@ def build_report_payload(*, task, input_snapshot, data_snapshot, result_snapshot
         "project": {
             "name": project_name,
             "province": province,
-            "cityName": city_name,
-            "nodeName": basic.get("nodeName") or city_name or province,
+            "city": city,
+            "nodeName": basic.get("nodeName") or city or province,
             "powerMw": power,
             "capacityMwh": capacity,
             "durationHours": duration,

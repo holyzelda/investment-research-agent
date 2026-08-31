@@ -36,7 +36,7 @@ def city_to_region(city: object, *, strict: bool = False) -> str | None:
     value = re.sub(r"(市|地区)$", "", value)
     result = CITY_TO_REGION.get(value)
     if result is None and strict:
-        raise ValueError(f"未知河南城市：{city}")
+        raise ValueError(f"不在可测算的河南城市：{city}")
     return result
 
 

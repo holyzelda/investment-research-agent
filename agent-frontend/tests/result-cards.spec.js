@@ -71,6 +71,25 @@ describe('result card three modules', () => {
     expect(sub).toContain('测算版本 V1')
   })
 
+  it('renders the Henan city in the result title from result or frozen input', () => {
+    const fromResult = mount(ResultCard, {
+      props: {
+        result: { ...snapshot, basicInfo: { ...snapshot.basicInfo, province: '河南', city: '郑州' } },
+        version: 'V1',
+      },
+    })
+    expect(fromResult.find('.ir-result__banner-title').text()).toBe('河南省郑州储能项目测算结果')
+
+    const fromFrozenInput = mount(ResultCard, {
+      props: {
+        result: { ...snapshot, basicInfo: { ...snapshot.basicInfo, province: '河南' } },
+        seedInput: { province: '河南', city: '洛阳' },
+        version: 'V1',
+      },
+    })
+    expect(fromFrozenInput.find('.ir-result__banner-title').text()).toBe('河南省洛阳储能项目测算结果')
+  })
+
   it('shows a placeholder time when calculatedAt is missing', () => {
     const wrapper = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
     expect(wrapper.find('.ir-result__banner-sub').text()).toContain('测算时间 —')
@@ -204,6 +223,28 @@ describe('result card three modules', () => {
 
     const withoutDict = mount(ResultCard, { props: { result: snapshot, version: 'V1' } })
     expect(withoutDict.find('.ir-adjust__toggle').exists()).toBe(false)
+  })
+
+  it('does not promote result city into the editable common parameter', async () => {
+    const henanResult = {
+      ...snapshot,
+      basicInfo: { ...snapshot.basicInfo, province: '河南', city: '郑州' },
+    }
+    const wrapper = mount(ResultCard, {
+      props: {
+        result: henanResult,
+        version: 'V1',
+        paramDict: [
+          { id: 'province', cn: '所在省份', zone: 'project_definition', control: 'fixed', default: null },
+          { id: 'city', cn: '所在城市', zone: 'project_definition', control: 'select', default: null, options: [{ value: '郑州', label: '郑州' }] },
+          { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
+        ],
+        seedInput: { province: '河南' },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('选择城市')
   })
 
   it('generates a report only after the user clicks the clean result action', async () => {

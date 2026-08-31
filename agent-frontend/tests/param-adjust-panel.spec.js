@@ -13,9 +13,11 @@ const PARAM_DICT = [
   { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
 ]
 
+const HENAN_CITY_OPTIONS = ['郑州', '洛阳', '安阳', '南阳'].map((city) => ({ value: city, label: city }))
+
 const HENAN_PARAM_DICT = [
   { id: 'province', cn: '所在省份', zone: 'project_definition', control: 'fixed', default: null },
-  { id: 'city', cn: '所在城市', zone: 'project_definition', control: 'text', default: null },
+  { id: 'city', cn: '所在城市', zone: 'project_definition', control: 'select', default: null, options: HENAN_CITY_OPTIONS },
   { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
   { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
   { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
@@ -48,14 +50,56 @@ describe('ParamAdjustPanel', () => {
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
-    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
-    expect(wrapper.find('input.ir-adjust__text').element.value).toBe('郑州')
-    await wrapper.find('input.ir-adjust__text').setValue('洛阳')
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('郑州')
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('更改')
+    expect(wrapper.find('.ir-adjust__node-name').classes()).toContain('ir-adjust__node-name')
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
+
+    wrapper.findComponent({ name: 'ElPopover' }).vm.$emit('update:visible', true)
+    await wrapper.vm.$nextTick()
+    const citySelect = wrapper.findComponent({ name: 'ElSelect' })
+    expect(citySelect.props('modelValue')).toBe('郑州')
+    // 与节点编辑器使用同一选择器、搜索能力和下拉皮肤。
+    expect(citySelect.classes()).toContain('ir-adjust__node-select')
+    expect(citySelect.props('teleported')).toBe(false)
+    expect(citySelect.props('popperClass')).toContain('ir-adjust__node-popper')
+    expect(citySelect.findAllComponents({ name: 'ElOption' }).map((o) => o.props('value')))
+      .toEqual(['郑州', '洛阳', '安阳', '南阳'])
+    expect(citySelect.props('filterable')).toBe(true)
+
+    await citySelect.vm.$emit('update:modelValue', '洛阳')
+    await citySelect.vm.$emit('change', '洛阳')
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('洛阳')
     await wrapper.find('.ir-adjust__submit').trigger('click')
 
     expect(wrapper.emitted('recalculate')[0][0].basics).toEqual({
       city: '洛阳', node_name: null, capacity_mwh: 800, power_mw: 200,
     })
+  })
+
+  it('keeps the city unselected when frozen input has no city', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: HENAN_PARAM_DICT,
+        seedInput: { province: '河南', capacity_mwh: 800, power_mw: 200 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('选择城市')
+  })
+
+  it('does not synthesize city when the dictionary omits it', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: PARAM_DICT,
+        seedInput: { province: '河南', capacity_mwh: 800, power_mw: 200 },
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__city-select').exists()).toBe(false)
   })
 
   it('shows chat-driven changes against the previous calculation version', async () => {

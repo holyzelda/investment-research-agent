@@ -95,7 +95,7 @@
       v-if="adjustable && paramDict.length"
       :param-dict="paramDict"
       :switches="switches"
-      :seed-input="seedInput"
+      :seed-input="seedInputForAdjustment"
       :comparison-input="comparisonInput"
       :station-options="stationOptions"
       :station-loading="stationLoading"
@@ -249,10 +249,12 @@ function displayParam(value) {
   return String(value)
 }
 
+const seedInputForAdjustment = computed(() => ({ ...(props.seedInput || {}) }))
+
 const bannerTitle = computed(() => buildResultTitle(
-  props.result.basicInfo?.province,
-  props.result.basicInfo?.nodeName,
-  props.result.basicInfo?.city ?? props.result.basicInfo?.cityName,
+  props.result.basicInfo?.province ?? props.seedInput?.province,
+  props.result.basicInfo?.nodeName ?? props.seedInput?.node_name,
+  props.result.basicInfo?.city ?? props.seedInput?.city,
 ))
 // 直接从 ISO 串取分量拼成本地展示，避免 new Date 引入时区偏移；缺失时展示占位
 const calculatedAtText = computed(() => {

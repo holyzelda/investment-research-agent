@@ -3,6 +3,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.modules.calculation.infrastructure.henan_spot_import import CITY_TO_REGION
 
 
 @pytest.fixture
@@ -22,7 +23,7 @@ async def test_param_dict_endpoint(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["code"] == 200
-    assert body["data"]["total"] == 67
+    assert body["data"]["total"] == 68
 
 
 @pytest.mark.asyncio
@@ -30,7 +31,7 @@ async def test_param_dict_display_only(client):
     resp = await client.get("/ir/calc/param-dict", params={"display_only": True})
     body = resp.json()
     # F=1 展示项应少于全量
-    assert body["data"]["total"] == 58
+    assert body["data"]["total"] == 59
 
 
 @pytest.mark.asyncio
@@ -48,6 +49,31 @@ async def test_param_dict_with_province_returns_switches(client):
 async def test_param_dict_without_province_has_no_switches(client):
     resp = await client.get("/ir/calc/param-dict")
     assert "switches" not in resp.json()["data"]
+
+
+def _city_spec(body: dict) -> dict:
+    return next(p for p in body["data"]["parameters"] if p["id"] == "city")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("province", ["河南", "河南省", " 河南 "])
+async def test_param_dict_henan_city_is_selectable(client, province):
+    """河南按地级市定位项目，字典须给出可下拉可搜索的城市候选。"""
+    resp = await client.get("/ir/calc/param-dict", params={"province": province})
+    assert resp.status_code == 200
+    spec = _city_spec(resp.json())
+    assert spec["control"] == "select"
+    assert {o["value"] for o in spec["options"]} == set(CITY_TO_REGION)
+    assert all(o["label"] == o["value"] for o in spec["options"])
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("params", [{"province": "甘肃"}, {}])
+async def test_param_dict_city_options_only_for_henan(client, params):
+    resp = await client.get("/ir/calc/param-dict", params=params)
+    spec = _city_spec(resp.json())
+    assert spec["control"] != "select"
+    assert not spec.get("options")
 
 
 

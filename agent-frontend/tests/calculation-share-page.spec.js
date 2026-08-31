@@ -26,6 +26,7 @@ describe('CalculationSharePage', () => {
         calculatedAt: '2026-08-13T10:30:00',
         basicInfo: {
           province: '陕西省',
+          city: '西安',
           nodeName: '西安节点',
           powerMw: 100,
           capacityMwh: 200,

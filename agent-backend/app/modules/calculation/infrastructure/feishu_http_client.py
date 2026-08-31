@@ -258,8 +258,13 @@ class HttpFeishuGateway(FeishuGateway):
             if pid == "operation_years":
                 continue
             spec = self._dict.get(pid)
-            if spec is None or not spec.api_cell:
-                continue  # 非接口区参数（如仅展示）不写飞书
+            if (
+                spec is None
+                or not spec.api_cell
+                or not spec.writable
+                or spec.direction != "input"
+            ):
+                continue  # 非 API_INPUT 参数（如应用侧/输出项）不写飞书
             value_ranges.append({
                 "range": await self._range(doc_token, spec.api_cell, purpose="write_input"),
                 "values": [[val]],
@@ -291,6 +296,7 @@ class HttpFeishuGateway(FeishuGateway):
         ranges = [
             await self._range(doc_token, self._cfg.meta_status_cell, purpose="read_meta"),
             await self._range(doc_token, self._cfg.meta_request_id_cell, purpose="read_meta"),
+            await self._range(doc_token, self._cfg.meta_param_hash_cell, purpose="read_meta"),
         ]
         body = await self._authed(
             "GET", f"{self._ss(doc_token)}/values_batch_get",
@@ -298,10 +304,10 @@ class HttpFeishuGateway(FeishuGateway):
             params={"ranges": ",".join(ranges), "valueRenderOption": _VALUE_RENDER},
         )
         vals = [_first_cell(vr.get("values")) for vr in body["data"]["valueRanges"]]
-        raw_status, request_id = (vals + [None, None])[:2]
+        raw_status, request_id, param_hash = (vals + [None, None, None])[:3]
         # 归一化：与业务约定的"算完"取值一致才置 done，否则原样（引擎据 status==done 决定是否读 output）
         status = "done" if str(raw_status).strip() == self._cfg.meta_done_value else raw_status
-        return {"status": status, "request_id": request_id}
+        return {"status": status, "request_id": request_id, "param_hash": param_hash}
 
     async def read_output(self, doc_token: str) -> dict:
         specs = [s for s in self._dict.outputs() if s.api_cell]

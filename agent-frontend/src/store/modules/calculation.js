@@ -791,12 +791,13 @@ export const useCalculationStore = defineStore('calculation', {
       // 省份在会话内永久锁定：以任一已成功版本的冻结入参为准，不允许调整面板改动
       const province = this.versions.find((v) => v.input)?.input?.province
       if (!province) return
+      const isHenan = ['河南', '河南省'].includes(String(province).trim())
       await this._submitAndTrack({
         province,
         capacity_mwh: basics.capacity_mwh,
         power_mw: basics.power_mw,
-        ...(province === '河南' ? { city: basics.city || null } : {}),
-        node_name: province === '河南' ? null : (basics.node_name || null),
+        ...(isHenan ? { city: basics.city || null } : {}),
+        node_name: isHenan ? null : (basics.node_name || null),
         param_overrides: overrides,
         trigger: 'recalculate',
       }, this.conversationId)

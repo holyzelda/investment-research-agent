@@ -27,7 +27,22 @@ def _snapshots(*, report_sources=None, basic_info=None):
     }
 
 
-def test_builds_default_project_name_market_mapping_and_frozen_chart_data():
+def test_builds_henan_city_in_canonical_project_payload():
+    snapshots = _snapshots()
+    snapshots["input_snapshot"].payload["apiInput"]["city"] = "郑州"
+    snapshots["input_snapshot"].payload["minInput"]["city"] = "郑州"
+    snapshots["result_snapshot"].payload["basicInfo"].update({
+        "province": "河南", "city": "郑州", "nodeName": None,
+    })
+
+    payload = build_report_payload(**snapshots)
+
+    assert payload["project"]["city"] == "郑州"
+    assert "cityName" not in payload["project"]
+    assert payload["title"] == "河南省郑州200MW/800MWh储能项目报告"
+
+
+
     frozen_sources = {
         "operationYears": 20,
         "provinceSources": {

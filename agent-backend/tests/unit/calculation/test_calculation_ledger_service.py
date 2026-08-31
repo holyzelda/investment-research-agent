@@ -67,6 +67,26 @@ async def _completed_task(
 
 
 @pytest.mark.asyncio
+async def test_serializes_canonical_city_from_frozen_snapshots(session):
+    conversation = await _conversation(session, conversation_id="henan", title="河南 储能测算")
+    task_id = await _completed_task(
+        session, conversation_id=conversation, version="V1",
+        created_at=datetime(2026, 8, 10, 10, 0), province="河南", node_name=None,
+    )
+    snapshot = await session.get(InputSnapshotORM, task_id)
+    snapshot.payload["apiInput"]["city"] = "郑州"
+    snapshot.payload["minInput"]["city"] = "郑州"
+    result = await session.get(CalculationResultSnapshotORM, task_id)
+    result.payload["basicInfo"]["city"] = "郑州"
+    await session.commit()
+
+    item = (await CalculationLedgerService().list_records(session, user_id="1001"))["items"][0]
+
+    assert item["city"] == "郑州"
+    assert "cityName" not in item
+
+
+@pytest.mark.asyncio
 async def test_lists_only_completed_tasks_of_the_current_user(session):
     mine = await _conversation(session, conversation_id="c-1", title="甘肃 储能测算")
     others = await _conversation(session, conversation_id="c-2", title="别人的项目", user_id="2002")

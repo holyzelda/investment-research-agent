@@ -148,10 +148,63 @@
                 </el-popover>
               </template>
 
-              <!-- 河南项目城市可编辑，作为城市定位提交；其他省份不显示该字段。 -->
-              <template v-else-if="spec.id === 'city' && isHenan">
+              <!-- 河南城市与其他省份节点使用同一展示、搜索和选择交互。 -->
+              <template v-else-if="spec.id === 'city'">
                 <span class="ir-adjust__label">{{ spec.cn || '所在城市' }}</span>
-                <input v-model.trim="localValues.city" class="ir-adjust__text" :disabled="responding" placeholder="请输入所在城市" />
+                <el-popover
+                  v-model:visible="cityEditorOpen"
+                  placement="bottom-start"
+                  trigger="click"
+                  :show-arrow="false"
+                  popper-class="ir-adjust__node-editor"
+                >
+                  <template #reference>
+                    <button
+                      ref="cityTrigger"
+                      class="ir-adjust__node-trigger"
+                      type="button"
+                      :disabled="responding"
+                      :aria-expanded="cityEditorOpen"
+                      :aria-label="`更改所在城市，当前为 ${localValues.city || '未选择'}`"
+                    >
+                      <span class="ir-adjust__node-name-tooltip">
+                        <el-tooltip
+                          :content="localValues.city || ''"
+                          placement="top"
+                          :disabled="!localValues.city"
+                        >
+                          <span class="ir-adjust__node-name" :title="localValues.city || ''">
+                            {{ localValues.city || '选择城市' }}
+                          </span>
+                        </el-tooltip>
+                      </span>
+                      <span class="ir-adjust__node-action" aria-hidden="true">更改</span>
+                    </button>
+                  </template>
+                  <div class="ir-adjust__node-editor-body" @keydown.esc.stop.prevent="closeCityEditor(true)">
+                    <el-select
+                      v-if="cityEditorOpen"
+                      ref="citySelect"
+                      v-model="localValues.city"
+                      class="ir-adjust__node-select"
+                      filterable
+                      :suffix-icon="null"
+                      :teleported="false"
+                      placeholder="搜索或选择城市"
+                      no-data-text="暂无城市"
+                      no-match-text="未找到匹配城市"
+                      :popper-class="cityPopperClass"
+                      @change="selectCity"
+                    >
+                      <el-option
+                        v-for="option in spec.options || []"
+                        :key="option.value"
+                        :label="option.label"
+                        :value="option.value"
+                      />
+                    </el-select>
+                  </div>
+                </el-popover>
               </template>
               <template v-else-if="isLocked(spec)">
                 <span class="ir-adjust__label">{{ spec.cn || spec.id }}</span>
@@ -332,7 +385,11 @@ const activeTab = ref('common')
 const nodeEditorOpen = ref(false)
 const nodeTrigger = ref(null)
 const nodeSelect = ref(null)
+const cityEditorOpen = ref(false)
+const cityTrigger = ref(null)
+const citySelect = ref(null)
 const nodePopperClass = `ir-adjust__node-popper ir-adjust__node-popper--${getCurrentInstance().uid}`
+const cityPopperClass = `ir-adjust__node-popper ir-adjust__city-popper--${getCurrentInstance().uid}`
 const localValues = reactive({})
 const numberInputValues = reactive({})
 const sliderInputValues = reactive({})
@@ -343,7 +400,7 @@ let suppressedSliderFocus = null
 let nodeSearchTimer = null
 
 const PROJECT_ORDER = ['province', 'city', 'node_name', 'power_mw', 'capacity_mwh']
-const isHenan = computed(() => String(localValues.province || props.seedInput.province || '').trim() === '河南')
+const isHenan = computed(() => ['河南', '河南省'].includes(String(localValues.province || props.seedInput.province || '').trim()))
 // 每个分区的行布局：一行一个 id = 该项独占半宽一行；一行多个 id = 并排共享一行。
 // operation_years 不在任何分区的行布局里出现——即便后端字典仍返回该字段，也不会被渲染（见 zoneGroups 的过滤）。
 const FINANCIAL_ROWS = [['epc_unit_price'], ['loan_rate', 'loan_years']]
@@ -383,6 +440,7 @@ const DROPPED_FIELDS = new Set([
 
 function resetLocalValues() {
   nodeEditorOpen.value = false
+  cityEditorOpen.value = false
   Object.keys(localValues).forEach((k) => delete localValues[k])
   Object.keys(numberInputValues).forEach((k) => delete numberInputValues[k])
   Object.keys(sliderInputValues).forEach((k) => delete sliderInputValues[k])
@@ -397,16 +455,20 @@ function resetLocalValues() {
         : value ?? ''
     }
   }
-  const city = props.seedInput.city
-  if (city !== undefined) localValues.city = city
 }
 watch(() => props.seedInput, resetLocalValues, { immediate: true })
 watch(nodeEditorOpen, (open, wasOpen) => {
   if (open && !wasOpen) focusNodeEditor()
 })
+watch(cityEditorOpen, (open, wasOpen) => {
+  if (open && !wasOpen) {
+    nextTick(() => citySelect.value?.focus?.())
+  }
+})
 watch(() => props.responding, (responding) => {
   if (responding) {
     nodeEditorOpen.value = false
+    cityEditorOpen.value = false
     hideSliderHint()
   }
 })
@@ -463,15 +525,24 @@ function selectNode() {
   closeNodeEditor(true)
 }
 
+async function closeCityEditor(restoreFocus = false) {
+  cityEditorOpen.value = false
+  if (restoreFocus) {
+    await nextTick()
+    const trigger = cityTrigger.value?.$el || cityTrigger.value
+    if (typeof trigger?.focus === 'function') trigger.focus()
+  }
+}
+function selectCity() {
+  closeCityEditor(true)
+}
+
 const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
   .map((group) => {
     let items = group.items.filter((spec) => !DROPPED_FIELDS.has(spec.id))
     if (group.zone === 'project_definition') {
       if (isHenan.value) {
         items = items.filter((spec) => spec.id !== 'node_name')
-        if (!items.some((spec) => spec.id === 'city')) {
-          items.push({ id: 'city', cn: '所在城市', control: 'text', zone: 'project_definition', default: '' })
-        }
       } else {
         items = items.filter((spec) => spec.id !== 'city')
       }
