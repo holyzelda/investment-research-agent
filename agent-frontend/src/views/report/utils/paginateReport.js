@@ -184,6 +184,7 @@ export function collectPrintUnits(source) {
   for (const chapter of source.querySelectorAll(':scope > .ir-report-section')) {
     for (const element of chapter.children) append(element)
   }
+  source.querySelectorAll(':scope > .ir-disclaimer').forEach(append)
   units.forEach((unit, index) => {
     unit.beforeGap = measuredGap(units[index - 1]?.element, unit.element)
   })

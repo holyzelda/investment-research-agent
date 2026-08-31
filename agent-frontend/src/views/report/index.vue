@@ -24,7 +24,9 @@
     </nav>
 
     <article v-if="report" class="ir-report-document">
-      <ReportCover :project-name="projectName" :preparer="preparer" :generated-date="report.generatedDate" />
+      <ReportCover :project-name="projectName" :preparer="preparer" :generated-date="report.generatedDate">
+        <DisclaimerNotice variant="report" />
+      </ReportCover>
 
       <div ref="reportFlow" class="ir-report-body ir-report-flow">
       <ReportWatermark />
@@ -171,6 +173,7 @@
         <ReportSectionHeading title="7.3 风险提示与后续动作" />
         <ReportAiAnalysis :text="report.aiSections?.investment_conclusion?.text" :fallback="aiFallback" />
       </ReportChapter>
+      <DisclaimerNotice variant="report" />
       </div>
       <ReportPrintPages ref="printPages" />
     </article>
@@ -189,6 +192,7 @@ import ReportChapter from './components/ReportChapter.vue'
 import ReportChart from './components/ReportChart.vue'
 import ReportChartCard from './components/ReportChartCard.vue'
 import ReportCover from './components/ReportCover.vue'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
 import ReportPrintPages from './components/ReportPrintPages.vue'
 import ReportSectionHeading from './components/ReportSectionHeading.vue'
 import ReportWatermark from './components/ReportWatermark.vue'
@@ -323,6 +327,7 @@ function formatFixedNumber(value) {
 .ir-report-tool :deep(svg) { width: 20px; height: 20px; stroke-width: 1.8; }
 .ir-report-document { width: min(241.5mm, calc(100vw - 128px)); margin: 0 auto; background: var(--xc-report-page); box-shadow: var(--xc-shadow-lg); font-family: var(--xc-font-zh); line-height: var(--xc-lh-loose); }
 .ir-report-body { position: relative; padding: 22mm 24mm 28mm; }
+.ir-report-body > :deep(.ir-disclaimer--report) { margin-top: 28px; }
 .ir-report-intro { margin: 0 0 16px; color: var(--xc-text-soft); }
 .ir-report-table-wrap { width: 100%; overflow-x: auto; }
 .ir-report-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }

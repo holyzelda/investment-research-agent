@@ -44,6 +44,7 @@
               测算时间 {{ calculatedAtText }}
               <span v-if="share.version"> · 版本 {{ share.version }}</span>
             </p>
+            <DisclaimerNotice variant="compact" />
           </div>
         </div>
 
@@ -104,6 +105,7 @@ import FinancialBlock from '@/views/home/components/FinancialBlock.vue'
 import RevenueDonut from '@/views/home/components/RevenueDonut.vue'
 import DebtServiceCoverage from '@/views/home/components/DebtServiceCoverage.vue'
 import ReportWatermark from '@/views/report/components/ReportWatermark.vue'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
 import bannerBg from '@/assets/home-welcome-background.png'
 
 const route = useRoute()

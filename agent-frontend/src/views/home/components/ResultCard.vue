@@ -14,6 +14,7 @@
           <span v-if="version" class="ir-result__banner-dot">·</span>
           <span v-if="version">测算版本 {{ version }}</span>
         </p>
+        <DisclaimerNotice variant="compact" />
         <button
           v-if="availableVersions.length"
           type="button"
@@ -197,6 +198,7 @@ import DebtServiceCoverage from './DebtServiceCoverage.vue'
 import ParamAdjustPanel from './ParamAdjustPanel.vue'
 import AdvancedParamDialog from './AdvancedParamDialog.vue'
 import ShareDialog from './ShareDialog.vue'
+import DisclaimerNotice from '@/components/DisclaimerNotice.vue'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
 import { resolveVariant, roundToStep } from '@/utils/paramAdjust'
 import { buildResultTitle } from '@/utils/projectTitle'
