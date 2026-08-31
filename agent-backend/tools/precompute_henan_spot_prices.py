@@ -1,8 +1,8 @@
-"""河南现货双价格预计算脚本（可直接从 IDE 运行）。
+"""河南现货双价格预计算脚本（逐日分区实时价，可直接从 IDE 运行）。
 
-充电侧固定读取主库 ``河南/统一结算点``，放电侧读取配置区域；
-两侧同日均为完整 96 点时，使用同一条双价格 DP 路径写入
-``ir_spot_daily_optimal_henan``。修改本文件顶部配置后直接运行 ``main()``。
+新契约：充电侧固定读取主库 ``河南/统一结算点``（逐日分区文件的“用户侧综合出清价”列），
+放电侧读取各区域实时价曲线。两侧同日均为完整 96 点时，使用同一条双价格 DP 路径写入
+``ir_spot_daily_optimal_henan``（省级条目充、放电均为统一结算点）。修改本文件顶部配置后直接运行 ``main()``。
 """
 from __future__ import annotations
 
@@ -24,18 +24,16 @@ from app.modules.calculation.domain.spot_pricing import (  # noqa: E402
     PRECOMPUTE_K_VALUES,
     day_optimal_by_k,
 )
+from app.modules.calculation.infrastructure.henan_spot_import import (  # noqa: E402
+    _REGIONS,
+)
 from app.modules.calculation.infrastructure.spot_price_repo import (  # noqa: E402
     GRID_LABELS,
 )
 
 
 # ================= 河南预计算配置 =================
-REGIONS = [
-    "豫北",
-    "豫西",
-    "豫中东",
-    "豫南",
-]
+REGIONS = list(_REGIONS)
 PRICE_TYPE = 1
 WORKERS = 1
 FORCE_RECOMPUTE = False
@@ -254,9 +252,10 @@ def run_henan_precompute(
     scopes = ["省级", *regions]
     summaries = []
     for region in scopes:
-        if region != "省级" and region not in {"豫北", "豫西", "豫中东", "豫南"}:
+        if region != "省级" and region not in _REGIONS:
             raise ValueError(f"不支持的河南区域：{region}")
         try:
+            # 省级条目充、放电均为统一结算点（现有双价格 DP 的退化输入）。
             summary = _process_region(
                 engine,
                 region,

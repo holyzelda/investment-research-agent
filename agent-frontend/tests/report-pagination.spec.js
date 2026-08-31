@@ -161,4 +161,27 @@ describe('report pagination', () => {
     expect(result.pages[1].textContent).toContain('heading')
     expect(result.pages[1].textContent).toContain('paired')
   })
+
+  it('lets a splittable table fill the remaining space on the heading page instead of pushing it to the next page', () => {
+    const source = document.createElement('div')
+    source.innerHTML = `
+      <section class="ir-report-section">
+        <header class="ir-report-chapter-heading" data-height="15">chapter 4</header>
+        <div class="ir-report-heading" data-height="15">4.1 heading</div>
+        <p class="ir-report-intro" data-height="15">intro</p>
+        <div class="ir-report-table-wrap" data-height="100">
+          <table class="ir-report-boundary-table">
+            <thead data-height="10"><tr><th>head</th></tr></thead>
+            <tbody><tr data-height="20"><td>r1</td></tr><tr data-height="20"><td>r2</td></tr><tr data-height="20"><td>r3</td></tr></tbody>
+          </table>
+        </div>
+      </section>`
+    const host = hostWithMeasuredPages(100)
+    const result = paginateReportDom({ source, host, pageHeight: 100 })
+    // 大标题、小标题、引导语和表格的一部分应在同一页，而不是各自占一页
+    expect(result.pages[0].textContent).toContain('chapter 4')
+    expect(result.pages[0].textContent).toContain('4.1 heading')
+    expect(result.pages[0].textContent).toContain('intro')
+    expect(result.pages[0].textContent).toContain('r1')
+  })
 })

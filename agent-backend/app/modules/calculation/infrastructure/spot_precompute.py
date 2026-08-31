@@ -14,15 +14,10 @@ from app.core.config.settings import get_settings
 from app.modules.calculation.domain.spot_pricing import day_optimal_by_k
 
 
-DUAL_PROVINCE_PRECOMPUTE_SPECS = (
-    # 河南省级：充、放电均使用省级统一结算点。
-    ("河南", "日前", "日前", "河南", "省级"),
-    # 河南区域：充电使用省级统一结算点，放电使用城市所属区域。
-    ("河南", "日前", "日前", "河南", "豫北"),
-    ("河南", "日前", "日前", "河南", "豫西"),
-    ("河南", "日前", "日前", "河南", "豫中东"),
-    ("河南", "日前", "日前", "河南", "豫南"),
-)
+# 河南区域双价格数据改为按日分区的实时出清文件（tools/import_henan_spot_prices.py 导入），
+# 由 tools/precompute_henan_spot_prices.py 单独预计算；不再由省级源库日更覆盖，
+# 故从日更规格中移除（河南省级规格 23 项中不包含河南）。
+DUAL_PROVINCE_PRECOMPUTE_SPECS = ()
 from app.modules.calculation.infrastructure.spot_price_repo import (
     NodeSpotRepository,
     ProvinceSpotRepository,
@@ -250,7 +245,8 @@ def run_precompute(
                 executor, ir, province_repo, area, start, end,
                 "ir_spot_daily_optimal_province", {"province": province}, mode=mode)
 
-        # 河南区域表由增量 DDL 单独发布；旧库尚未建表时不影响其他省份回填。
+        # 河南区域表由增量 DDL 单独发布；河南省级/区域双价格由 tools 逐日实时数据预计算，
+        # 日更不再覆盖（DUAL_PROVINCE_PRECOMPUTE_SPECS 为空）。
         has_henan_table = inspect(ir).has_table("ir_spot_daily_optimal_henan")
         if has_henan_table:
             for area, charge_mode, discharge_mode, province, region in DUAL_PROVINCE_PRECOMPUTE_SPECS:
@@ -258,8 +254,6 @@ def run_precompute(
                     executor, ir, province_repo, area, charge_mode, discharge_mode, start, end,
                     "ir_spot_daily_optimal_henan", {"province": province, "region": region},
                     discharge_area=None if region == "省级" else region)
-        else:
-            log("河南结果表不存在，跳过河南省级/区域双价格预计算")
 
         stations = node_stations
         if stations == ["*"]:

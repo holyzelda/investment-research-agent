@@ -32,19 +32,36 @@ function keepWithNextProbe(unit) {
     return applyBeforeGap(unit.element.cloneNode(true), unit.beforeGap)
   }
   const fragment = cloneTableShell(unit.element)
-  const firstRow = unit.element.querySelector(':scope > tbody > tr')
-  if (firstRow) fragment.body.appendChild(firstRow.cloneNode(true))
+  // 对于可拆分的表格（boundary/policy/financial），探测前3行以更准确估算高度
+  const canSplit = unit.element.matches('.ir-report-boundary-table, .ir-report-policy-table, .ir-report-financial-table')
+  const rowLimit = canSplit ? 3 : 1
+  const rows = unit.element.querySelectorAll(':scope > tbody > tr')
+  for (let i = 0; i < Math.min(rows.length, rowLimit); i++) {
+    fragment.body.appendChild(rows[i].cloneNode(true))
+  }
   return applyBeforeGap(fragment.table, unit.beforeGap)
 }
 
 function keepWithNextProbes(units, startIndex) {
   const probes = []
+  let hasSplittableTable = false
   for (let index = startIndex; index < units.length; index += 1) {
     const unit = units[index]
     probes.push(keepWithNextProbe(unit))
-    if (!unit.keepWithNext) break
+    // 检查是否包含可拆分的表格
+    if (unit.element.matches('table.ir-report-boundary-table, table.ir-report-policy-table, table.ir-report-financial-table')) {
+      hasSplittableTable = true
+    }
+    if (!unit.keepWithNext) {
+      // 即使当前单元没有 keepWithNext，也要再看一眼下一个单元是否是可拆分表格
+      const nextUnit = units[index + 1]
+      if (nextUnit && nextUnit.element.matches('table.ir-report-boundary-table, table.ir-report-policy-table, table.ir-report-financial-table')) {
+        hasSplittableTable = true
+      }
+      break
+    }
   }
-  return probes
+  return { probes, hasSplittableTable }
 }
 
 function splitTextElement(element, createPage, limit, tolerance) {
@@ -175,9 +192,17 @@ export function collectPrintUnits(source) {
       for (const child of element.children) append(child)
       return
     }
+    // 展开独立的表格容器，直接收集内部的 table，让 splitTable 能正确处理跨页拆分
+    if (element.matches('.ir-report-table-wrap')) {
+      const table = element.querySelector(':scope > table')
+      if (table) {
+        units.push({ element: table, keepWithNext: false })
+        return
+      }
+    }
     units.push({
       element,
-      keepWithNext: element.matches('.ir-report-chapter-heading, .ir-report-heading, .ir-report-intro'),
+      keepWithNext: element.matches('.ir-report-chapter-heading, .ir-report-heading'),
     })
   }
 
@@ -227,11 +252,12 @@ export function paginateReportDom({ source, host, pageHeight, tolerance = DEFAUL
     current.content.appendChild(clone)
 
     if (unit.keepWithNext && units[index + 1]) {
-      const probes = keepWithNextProbes(units, index + 1)
+      const { probes, hasSplittableTable } = keepWithNextProbes(units, index + 1)
       current.content.append(...probes)
       const groupFits = fits(current.content, pageHeight, tolerance)
       for (const probe of probes) probe.remove()
-      if (!groupFits && current.content.children.length > 1) {
+      // 如果后续包含可拆分表格，即使探测放不下也不换页，让表格自然拆分
+      if (!groupFits && !hasSplittableTable && current.content.children.length > 1) {
         clone.remove()
         current = createPage()
         current.content.appendChild(clone)

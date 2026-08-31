@@ -2,7 +2,12 @@
 
 河南源文件常见为一日 24 个小时值（而非系统使用的 96 个 15 分钟值）。
 本模块将每个小时值原样复制到对应的四个 15 分钟槽位，绝不做除四等缩放。
-同时兼容宽表和 ``城市/日期/时点/价格`` 长表，供批量导入主库使用。
+
+现行河南区域数据为按日切分的实时出清文件（如 ``2026-01-01日（实际）实时出清电价.xlsx``），
+每个文件一个自然日、24 行：区域列（豫中东/豫南/豫西/豫北）+ 用户侧综合出清价列。
+区域电价取各自价格列；省级统一结算价由“用户侧综合出清价”列承担（``area=河南, station=统一结算点``）。
+
+另保留对旧式宽表（日/时点/列价格）与 ``城市/日期/时点/价格`` 长表的兼容解析，供历史数据与测试使用。
 """
 from __future__ import annotations
 
@@ -21,6 +26,7 @@ from app.modules.calculation.infrastructure.spot_price_repo import GRID_LABELS
 
 
 # 河南常用电网区域。接受带“市”“地区”的输入，返回稳定的区域名。
+_REGIONS = ("豫北", "豫西", "豫中东", "豫南")
 _CITY_REGIONS = {
     "豫北": ("安阳", "濮阳", "鹤壁", "新乡", "焦作"),
     "豫西": ("洛阳", "三门峡"),
@@ -152,16 +158,14 @@ def parse_henan_file(
     region: str | None = None,
     province: bool = False,
 ) -> dict[tuple[object, object], list[Decimal]]:
-    """Read a province workbook, an explicitly named region workbook, or a legacy city workbook."""
+    """Read a daily regional workbook, a legacy wide workbook, or a long workbook.
+
+    ``path`` 为逐日实时出清文件时自动识别。显式 ``region``/``province`` 仅用于
+    tools 里历史旧式文件的外部类型提示（逐日分区文件按表头自动路由）。
+    """
     report = report or HenanImportReport()
     if region is not None and province:
         raise HenanImportError("文件不能同时配置省级文件和区域文件")
-    if province:
-        return _parse_henan_province_file(path, report)
-    if region is not None:
-        if region not in _CITY_REGIONS:
-            raise HenanImportError(f"不支持的河南区域：{region}")
-        return _parse_henan_region_file(path, report, region)
     try:
         from openpyxl import load_workbook
         workbook = load_workbook(Path(path), read_only=True, data_only=True)
@@ -169,16 +173,158 @@ def parse_henan_file(
         raise HenanImportError(f"Excel 文件无法打开：{Path(path).name}") from exc
     try:
         headers = list(next(workbook.active.iter_rows(values_only=True), ()))
+        if _find_column(headers, "market") is not None and _find_column(headers, "city") is None:
+            if region is not None:
+                raise HenanImportError(
+                    "旧式省级长表文件与区域配置冲突，请改用逐日分区实时出清文件"
+                )
+            return _parse_henan_province_file(path, report)
+        if _is_daily_region_workbook(headers):
+            if province:
+                raise HenanImportError("省级来源不应使用逐日分区实时出清文件")
+            return parse_henan_daily_region_file(path, report)
+        # Keep the historical wide/long workbook parsers for legacy data and tests.
+        if province:
+            if region is not None:
+                raise HenanImportError("文件不能同时配置省级文件和区域文件")
+            return _parse_henan_province_file(path, report)
+        if region is not None:
+            if region not in _CITY_REGIONS:
+                raise HenanImportError(f"不支持的河南区域：{region}")
+            return _parse_henan_region_file(path, report, region)
+        return _parse_henan_city_file(path, report)
     finally:
         workbook.close()
-    if _find_column(headers, "market") is not None and _find_column(headers, "city") is None:
-        return _parse_henan_province_file(path, report)
-    # Keep the historical city-based parser for generic test/long workbooks.
-    return _parse_henan_city_file(path, report)
+
+
+_PROVINCE_ALIASES = _HEADER_ALIASES["market"] | _HEADER_ALIASES["date"] | _HEADER_ALIASES["hour"] | _HEADER_ALIASES["price"]
+
+
+def _is_daily_region_workbook(headers: list[object]) -> bool:
+    """逐日分区实时出清文件的特征：含,, 非日期的序号/时刻点 + 区域价列 + 用户侧综合出清价。"""
+    keys = [_header_key(header) for header in headers]
+    if "用户侧综合出清价" in keys and any(key.startswith("豫") for key in keys):
+        return True
+    return False
+
+
+def parse_henan_daily_region_file(
+    path: str | Path,
+    report: HenanImportReport | None = None,
+) -> dict[tuple[str, date], list[Decimal]]:
+    """Parse a single-day regional realtime clearing workbook.
+
+    结构：表头 ``序号, 时刻点, 豫中东, 豫南, 豫西, 豫北, 用户侧综合出清价``，共 24 个时刻点行。
+    返回 5 条曲线（4 区域 + 省级“用户侧综合出清价”），每个小时值展开为 4 个 15 分钟槽。
+    区域列取值稳定在列 2..5；省级列支持“用户侧综合出清价”别名。
+    """
+    from openpyxl import load_workbook
+
+    report = report or HenanImportReport()
+    workbook = load_workbook(Path(path), read_only=True, data_only=True)
+    try:
+        rows = workbook.active.iter_rows(values_only=True)
+        headers = list(next(rows, ()))
+        region_cols = [(i, str(value).strip()) for i, value in enumerate(headers)
+                       if str(value or "").strip() in _REGIONS]
+        province_col = next(
+            (i for i, value in enumerate(headers)
+             if _header_key(value) == "用户侧综合出清价"), None)
+        if len(region_cols) != 4 or province_col is None:
+            raise HenanImportError(
+                f"逐日分区文件需含 {', '.join(_REGIONS)} 与用户侧综合出清价列：{Path(path).name}"
+            )
+        day_match = re.search(r"(20\d{2}[-\/年月]\d{1,2}[-\/月]\d{1,2})", Path(path).name)
+        day_text = (
+            day_match.group(1).replace("月", "-").replace("日", "")
+            if day_match is not None else ""
+        )
+        can_parse = _parse_date(day_text) if day_text else None
+        # 文件名里的日期以“2026-01-01”形态出现（不替换成分隔），_parse_date 已支持；
+        # 若用月/日替换后仍是纯数字形态，则作兜底。
+        if can_parse is None and day_text:
+            can_parse = _parse_date("".join(day_text.split("-")))
+        can_day = None
+        materialized = list(rows)
+        hour_by_row: dict[int, int] = {}
+        for row_index, row in enumerate(materialized):
+            if not any(value not in (None, "") for value in row):
+                continue
+            report.rows_seen += 1
+            if can_parse is None:
+                for cell in row:
+                    parsed = _parse_date(cell)
+                    if parsed is not None and (can_day is None or parsed > can_day):
+                        can_day = parsed
+            # 时刻标签“1:00..24:00”表示第 1..24 个小时（非钟表时刻），
+            # 1:00 对应槽 0，24:00 对应槽 23。
+            slot = _daily_hour_slot(row[1])
+            if slot is not None:
+                hour_by_row[row_index] = slot
+
+        if can_day is None:
+            can_day = can_parse
+        if can_day is None:
+            raise HenanImportError(
+                f"逐日分区文件无法从文件名或工作表日期确定业务日期：{Path(path).name}"
+            )
+
+        result = {}
+        hour_values = sorted(hour_by_row.values())
+        if set(hour_values) != set(range(24)):
+            raise HenanImportError(
+                f"逐日分区文件未覆盖完整 24 个时刻点：文件={Path(path).name}，"
+                f"行数={len(hour_by_row)}，时刻={hour_values}"
+            )
+        for column_index, region_name in region_cols:
+            # 按小时索引组装 24 个小时值；逐行定位到时刻列，取区域列
+            ordered = [None] * 24
+            for row_index, hour in hour_by_row.items():
+                row_vals = materialized[row_index]
+                if column_index < len(row_vals):
+                    ordered[hour] = row_vals[column_index]
+            expanded = expand_hourly_prices(ordered)
+            if expanded is None:
+                report.invalid_city_days += 1
+                continue
+            result[(region_name, can_day)] = expanded
+            report.valid_city_days += 1
+        # 省级用户侧综合出清价列单独解析
+        if province_col is not None:
+            ordered = [None] * 24
+            for row_index, hour in hour_by_row.items():
+                row_vals = materialized[row_index]
+                if province_col < len(row_vals):
+                    ordered[hour] = row_vals[province_col]
+            expanded = expand_hourly_prices(ordered)
+            if expanded is not None:
+                result[("河南", can_day)] = expanded
+                report.valid_city_days += 1
+            else:
+                report.invalid_city_days += 1
+        return result
+    finally:
+        workbook.close()
+
+
+def _daily_hour_slot(value: object) -> int | None:
+    """逐日文件的时刻标签：1:00..24:00 为第 1..24 个小时 → 返回槽下标 0..23。
+
+    24:00 映射到槽 23。与旧区域文件（1 小时=4 个 15 分钟槽）语义一致。
+    """
+    if value is None:
+        return None
+    raw = str(value).strip()
+    if raw in ("24:00", "24：00"):
+        return 23
+    match = re.fullmatch(r"(?:[1-9]|1[0-9]|2[0-3]):00", raw)
+    if match:
+        return int(raw.split(":", 1)[0]) - 1
+    return None
 
 
 def _parse_henan_city_file(path: str | Path, report: HenanImportReport) -> dict[tuple[str, date], list[Decimal]]:
-    """Read a city/date workbook in wide 24-hour or long hourly form."""
+    """Read a legacy city/date workbook in wide 24-hour or long hourly form."""
     from openpyxl import load_workbook
     workbook = load_workbook(Path(path), read_only=True, data_only=True)
     try:
@@ -339,7 +485,16 @@ def import_henan_directory(
     province_file: str | Path | None = None,
     region_files: Iterable[tuple[str | Path, str]] | None = None,
 ) -> HenanImportReport:
-    """Import the province workbook and explicitly configured regional workbooks."""
+    """导入河南现货电价。
+
+    新会话入口：``files`` 指向逐日分区实时出清目录（默认 ``directory.rglob("*.xlsx")``），
+    每个逐日文件自动路由到 ``parse_henan_daily_region_file``，产出
+    4 个区域（豫中东/豫南/豫西/豫北）+ 省级用户侧综合出清价，共 5 条曲线。
+    文件名为 ``2026-01-01日（实际）实时出清电价.xlsx`` 形态。
+
+    旧式入口（``province_file``/``region_files``）仅保留给历史宽表：省级长表、
+    按月的区域文件；区域名仍是业务配置。
+    """
     report = HenanImportReport()
     base = Path(directory)
     if province_file is not None or region_files is not None:
@@ -363,7 +518,9 @@ def import_henan_directory(
             parsed = parse_henan_file(
                 path,
                 report,
-                region=region,
+                region=region if not (
+                    province_file is not None and path == Path(province_file)
+                ) else None,
                 province=province_file is not None and path == Path(province_file),
             )
             if not dry_run and parsed:

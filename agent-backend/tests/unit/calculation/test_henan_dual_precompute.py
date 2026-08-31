@@ -32,20 +32,18 @@ def _engine(*tables):
     return engine
 
 
-def test_henan_dual_prices_are_written_separately():
+def test_run_precompute_without_dual_specs_skips_henan_table():
+    """河南双价格规格已从日更移除：日更不再向河南区域表写数据。"""
     engine = _engine(_DDL_HENAN, _DDL_PROV, _DDL_NODE)
     stats = run_precompute(
         date(2026, 7, 13), [], workers=1, cleanup_old=False,
         province_repo=_Repo(), ir_engine=engine,
     )
-    assert stats["dual_province_days_written"] == 5
+    assert stats["dual_province_days_written"] == 0
     with engine.connect() as conn:
-        rows = conn.execute(text(
-            "SELECT region, COUNT(*) FROM ir_spot_daily_optimal_henan GROUP BY region"
-        )).all()
-    assert {region: count for region, count in rows} == {
-        "省级": 19, "豫北": 19, "豫西": 19, "豫中东": 19, "豫南": 19,
-    }
+        assert conn.execute(text(
+            "SELECT COUNT(*) FROM ir_spot_daily_optimal_henan"
+        )).scalar() == 0
 
 
 def test_henan_algo_reads_city_region_and_ignores_node_name():
@@ -72,6 +70,8 @@ def test_henan_cityless_does_not_use_regional_data():
     assert algo.compute("河南", None, 400, 200, 1) == (None, None)
 
 
+def test_henan_city_falls_back_to_prefecture_settlement_when_region_missing():
+    """区域无完整滚动窗口时，回退到同表省级“用户侧综合出清价”曲线。"""
     engine = _engine(_DDL_HENAN)
     with engine.begin() as conn:
         conn.execute(text(

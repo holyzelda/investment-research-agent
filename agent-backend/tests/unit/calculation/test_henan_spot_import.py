@@ -50,6 +50,46 @@ def test_expand_hourly_prices_copies_each_value_four_times():
     assert expand_hourly_prices([1] * 23 + ["bad"]) is None
 
 
+def _write_daily_workbook(path, headers, rows):
+    _book(path, headers, rows)
+
+
+def test_parse_daily_region_workbook_returns_five_curves(tmp_path):
+    """逐日分区实时文件：4 区域 + 省级用户侧综合出清价，各展开 96 点。"""
+    path = tmp_path / "2026-01-01日（实际）实时出清电价.xlsx"
+    headers = ["序号", "时刻点", "豫中东", "豫南", "豫西", "豫北", "用户侧综合出清价"]
+    rows = [[f"{h}", f"{h}:00", float(h) * 10, float(h) * 20, float(h) * 30, float(h) * 40, float(h) * 50]
+            for h in range(1, 25)]
+    _write_daily_workbook(path, headers, rows)
+
+    parsed = parse_henan_file(path)
+
+    assert set(parsed) == {
+        ("豫中东", date(2026, 1, 1)),
+        ("豫南", date(2026, 1, 1)),
+        ("豫西", date(2026, 1, 1)),
+        ("豫北", date(2026, 1, 1)),
+        ("河南", date(2026, 1, 1)),
+    }
+    jd = parsed[("豫中东", date(2026, 1, 1))]
+    assert len(jd) == 96
+    assert jd[:4] == [Decimal("10")] * 4  # 1 点→10
+    assert jd[4:8] == [Decimal("20")] * 4  # 2 点→20
+    province = parsed[("河南", date(2026, 1, 1))]
+    assert province[:4] == [Decimal("50")] * 4
+
+
+def test_parse_daily_region_workbook_handles_company_suffix(tmp_path):
+    """文件名带“（实际）实时出清电价”与多余空格也能解析日期。"""
+    path = tmp_path / "2026-03-10日（实际）实时出清电价  (1).xlsx"
+    headers = ["序号", "时刻点", "豫中东", "豫南", "豫西", "豫北", "用户侧综合出清价"]
+    rows = [[str(h), f"{h}:00", h, h, h, h, h] for h in range(1, 25)]
+    _write_daily_workbook(path, headers, rows)
+    parsed = parse_henan_file(path)
+    assert ("河南", date(2026, 3, 10)) in parsed
+    assert len(parsed) == 5
+
+
 def test_parse_henan_wide_24_hour_workbook_expands_without_scaling(tmp_path):
     path = tmp_path / "henan.xlsx"
     headers = ["城市", "日期", *[f"{hour}时" for hour in range(1, 25)]]
