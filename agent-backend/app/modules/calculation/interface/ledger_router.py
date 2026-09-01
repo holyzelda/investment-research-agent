@@ -29,18 +29,59 @@ def _parse_initiators(raw: Optional[str]) -> Optional[list[str]]:
     return [item.strip() for item in raw.split(",") if item.strip()] or None
 
 
+def _users_data(scope: UserScope) -> dict:
+    return {
+        "isAdmin": scope.is_admin,
+        "users": [
+            {"userId": user.user_id, "nickName": user.nick_name}
+            for user in scope.users
+        ],
+    }
+
+
 @router.get("/users")
 async def list_ledger_users(scope: UserScope = Depends(get_user_scope)):
     """台账可见的发起人选项与当前用户是否为管理员。
 
     普通用户 isAdmin=false、users 只含本人；前端据此决定是否展示发起人筛选与列。
     """
+    return ok(_users_data(scope))
+
+
+@router.get("/bootstrap")
+async def bootstrap_ledger(
+    scope: UserScope = Depends(get_user_scope),
+    session: AsyncSession = Depends(get_db_session),
+    keyword: Optional[str] = Query(None, max_length=255, description="按会话名称或发起人昵称模糊搜索"),
+    province: Optional[list[str]] = Query(None, description="省份多选，重复传参"),
+    initiator_user_ids: Optional[str] = Query(
+        None, max_length=1024, description="发起人多选，逗号分隔；仅管理员生效"),
+    start_date: Optional[date] = Query(None, description="测算时间起（含当天）"),
+    end_date: Optional[date] = Query(None, description="测算时间止（含当天）"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(10, ge=1, le=100),
+):
+    """首屏聚合：同一次实时可见范围解析下返回筛选项与记录。"""
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise ValidationException("测算时间范围无效：开始日期晚于结束日期")
+
+    # AsyncSession 不并发使用；聚合的目标是复用实时 UserScope，而非改变查询语义。
+    provinces = await _service.list_provinces(session, scope=scope)
+    records = await _service.list_records(
+        session,
+        scope=scope,
+        initiator_user_ids=_parse_initiators(initiator_user_ids),
+        keyword=keyword,
+        provinces=province,
+        start_date=start_date,
+        end_date=end_date,
+        page=page,
+        page_size=page_size,
+    )
     return ok({
-        "isAdmin": scope.is_admin,
-        "users": [
-            {"userId": user.user_id, "nickName": user.nick_name}
-            for user in scope.users
-        ],
+        "users": _users_data(scope),
+        "provinces": {"items": provinces},
+        "records": records,
     })
 
 

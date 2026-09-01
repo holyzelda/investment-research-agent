@@ -189,6 +189,50 @@ async def test_filters_by_title_keyword_provinces_and_inclusive_date_range(sessi
 
 
 @pytest.mark.asyncio
+async def test_province_filter_paginates_after_json_filtering(session):
+    conversation = await _conversation(session, conversation_id="c-1", title="甘肃 储能测算")
+    for index in range(1, 13):
+        await _completed_task(
+            session, conversation_id=conversation, version=f"V{index}",
+            created_at=datetime(2026, 8, 1, 10, index), province="甘肃",
+        )
+    await _completed_task(
+        session, conversation_id=conversation, version="V-other",
+        created_at=datetime(2026, 8, 2, 10, 0), province="宁夏",
+    )
+
+    service = CalculationLedgerService()
+    first = await service.list_records(session, scope=_scope(), provinces=["甘肃"])
+    second = await service.list_records(
+        session, scope=_scope(), provinces=["甘肃"], page=2,
+    )
+
+    assert first["total"] == 12
+    assert len(first["items"]) == 10
+    assert [item["version"] for item in second["items"]] == ["V2", "V1"]
+
+
+@pytest.mark.asyncio
+async def test_province_filter_excludes_records_without_matching_snapshot_province(session):
+    conversation = await _conversation(session, conversation_id="c-1", title="储能测算")
+    await _completed_task(
+        session, conversation_id=conversation, version="V1",
+        created_at=datetime(2026, 8, 1, 10, 0), province="甘肃",
+    )
+    await _completed_task(
+        session, conversation_id=conversation, version="V2",
+        created_at=datetime(2026, 8, 1, 11, 0), province="宁夏", with_result=False,
+    )
+
+    data = await CalculationLedgerService().list_records(
+        session, scope=_scope(), provinces=["宁夏"],
+    )
+
+    assert data["total"] == 1
+    assert [item["version"] for item in data["items"]] == ["V2"]
+
+
+@pytest.mark.asyncio
 async def test_report_status_prefers_generated_snapshot_over_generation_task(session):
     conversation = await _conversation(session, conversation_id="c-1", title="甘肃 储能测算")
     generated = await _completed_task(

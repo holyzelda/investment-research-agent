@@ -8,6 +8,15 @@ export function getLedgerProvinces() {
   return request({ url: '/ir/calc/ledger/provinces', method: 'get' })
 }
 
+export function getLedgerBootstrap(params) {
+  return request({
+    url: '/ir/calc/ledger/bootstrap',
+    method: 'get',
+    params,
+    paramsSerializer: { indexes: null },
+  })
+}
+
 export function getLedgerRecords(params) {
   return request({
     url: '/ir/calc/ledger',

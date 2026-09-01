@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime, time
 from typing import Optional
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.calculation.infrastructure.persistence.orm import (
@@ -136,24 +136,52 @@ class CalculationLedgerService:
         if end_date is not None:
             query = query.where(CalculationTaskORM.created_at <= _end_of_day(end_date))
 
-        rows = (await session.execute(
-            query.order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
-        )).all()
-        if not rows:
-            return {"items": [], "total": 0, "page": page, "pageSize": page_size}
+        selected = {province for province in (provinces or []) if province}
+        ordering = (CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
+        offset = (page - 1) * page_size
 
-        task_ids = [task.id for task, _ in rows]
-        snapshots = await self._snapshots_for(session, task_ids)
+        if not selected:
+            total = await session.scalar(
+                query.order_by(None).with_only_columns(
+                    func.count(CalculationTaskORM.id), maintain_column_froms=True,
+                )
+            ) or 0
+            rows = (await session.execute(
+                query.order_by(*ordering).offset(offset).limit(page_size)
+            )).all()
+            filtered_rows = rows
+        else:
+            # 省份只存在于 JSON 快照，跨 MySQL/sqlite 无法可靠下推为 SQL 条件，
+            # 先按原顺序筛选候选，再在过滤结果上分页，保持历史快照回退语义。
+            rows = (await session.execute(query.order_by(*ordering))).all()
+            if not rows:
+                return {"items": [], "total": 0, "page": page, "pageSize": page_size}
+            candidate_ids = [task.id for task, _ in rows]
+            candidate_snapshots = await self._snapshots_for(session, candidate_ids)
+            matching_rows = [
+                (task, conversation)
+                for task, conversation in rows
+                if _province_of(*candidate_snapshots.get(task.id, (None, None))) in selected
+            ]
+            total = len(matching_rows)
+            filtered_rows = matching_rows[offset:offset + page_size]
+            snapshots = {
+                task_id: candidate_snapshots[task_id]
+                for task, _ in filtered_rows
+                if (task_id := task.id) in candidate_snapshots
+            }
+
+        if not filtered_rows:
+            return {"items": [], "total": total, "page": page, "pageSize": page_size}
+
+        task_ids = [task.id for task, _ in filtered_rows]
+        if not selected:
+            snapshots = await self._snapshots_for(session, task_ids)
         reports = await self._report_status_by_task(session, task_ids)
 
-        # 省份只存在于 JSON 快照，跨 MySQL/sqlite 无法可靠下推为 SQL 条件，故在应用层过滤后分页。
-        selected = {province for province in (provinces or []) if province}
         records = []
-        for task, conversation in rows:
+        for task, conversation in filtered_rows:
             input_payload, result_payload = snapshots.get(task.id, (None, None))
-            province = _province_of(input_payload, result_payload)
-            if selected and province not in selected:
-                continue
             record = self._serialize(
                 task, conversation, input_payload, result_payload, reports.get(task.id),
             )
@@ -165,10 +193,9 @@ class CalculationLedgerService:
                 }
             records.append(record)
 
-        offset = (page - 1) * page_size
         return {
-            "items": records[offset:offset + page_size],
-            "total": len(records),
+            "items": records,
+            "total": total,
             "page": page,
             "pageSize": page_size,
         }

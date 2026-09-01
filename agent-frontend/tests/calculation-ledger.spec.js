@@ -12,12 +12,15 @@ const resolve = vi.fn((location) => {
 })
 
 const api = vi.hoisted(() => ({
+  getLedgerBootstrap: vi.fn(),
   getLedgerUsers: vi.fn(),
   getLedgerProvinces: vi.fn(),
   getLedgerRecords: vi.fn(),
 }))
+const message = vi.hoisted(() => ({ error: vi.fn() }))
 
 vi.mock('@/api/ledger', () => api)
+vi.mock('element-plus', () => ({ ElMessage: message }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push, resolve }) }))
 vi.mock('@/utils/auth', () => ({ getUserIdentity: () => ({ userId: '119', username: 'bjjzA' }) }))
 
@@ -40,11 +43,20 @@ function records(items) {
   return Promise.resolve({ data: { total: items.length, page: 1, pageSize: 10, items } })
 }
 
-beforeEach(() => {
-  api.getLedgerUsers.mockResolvedValue({
-    data: { isAdmin: false, users: [{ userId: '119', nickName: '北京金租管理员' }] },
+function bootstrap(items, { isAdmin = false, users = [] } = {}) {
+  return Promise.resolve({
+    data: {
+      users: { isAdmin, users },
+      provinces: { items: ['甘肃', '宁夏'] },
+      records: { total: items.length, page: 1, pageSize: 10, items },
+    },
   })
-  api.getLedgerProvinces.mockResolvedValue({ data: { items: ['甘肃', '宁夏'] } })
+}
+
+beforeEach(() => {
+  api.getLedgerBootstrap.mockImplementation(() => bootstrap([OWN_RECORD], {
+    users: [{ userId: '119', nickName: '北京金租管理员' }],
+  }))
   api.getLedgerRecords.mockImplementation(() => records([OWN_RECORD]))
 })
 
@@ -103,22 +115,20 @@ describe('CalculationLedger', () => {
 
     expect(wrapper.find('.ledger-field--initiator').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('发起人')
-    expect(api.getLedgerRecords.mock.calls[0][0]).not.toHaveProperty('initiator_user_ids')
+    expect(api.getLedgerBootstrap.mock.calls[0][0]).not.toHaveProperty('initiator_user_ids')
+    expect(api.getLedgerUsers).not.toHaveBeenCalled()
+    expect(api.getLedgerProvinces).not.toHaveBeenCalled()
+    expect(api.getLedgerRecords).not.toHaveBeenCalled()
   })
 })
 
 describe('CalculationLedger · administrator', () => {
   beforeEach(() => {
-    api.getLedgerUsers.mockResolvedValue({
-      data: {
-        isAdmin: true,
-        users: [
-          { userId: '119', nickName: '北京金租管理员' },
-          { userId: '120', nickName: '北京金租普通账号' },
-        ],
-      },
-    })
-    api.getLedgerRecords.mockImplementation(() => records([
+    const users = [
+      { userId: '119', nickName: '北京金租管理员' },
+      { userId: '120', nickName: '北京金租普通账号' },
+    ]
+    const items = [
       { ...OWN_RECORD, initiator: { userId: '119', nickName: '北京金租管理员' } },
       {
         ...OWN_RECORD,
@@ -128,18 +138,33 @@ describe('CalculationLedger · administrator', () => {
         report: { status: 'not_generated', reportId: null },
         initiator: { userId: '120', nickName: '北京金租普通账号' },
       },
-    ]))
+    ]
+    api.getLedgerBootstrap.mockImplementation(() => bootstrap(items, { isAdmin: true, users }))
+    api.getLedgerRecords.mockImplementation(() => records(items))
   })
 
-  it('shows the initiator filter and column, and reads users before records', async () => {
+  it('loads users, provinces and records with one bootstrap request', async () => {
     const wrapper = mount(CalculationLedger)
     await flushPromises()
 
     expect(wrapper.find('.ledger-field--initiator').exists()).toBe(true)
     expect(wrapper.text()).toContain('发起人')
     expect(wrapper.text()).toContain('北京金租普通账号')
-    expect(api.getLedgerUsers).toHaveBeenCalled()
-    expect(api.getLedgerRecords).toHaveBeenCalled()
+    expect(api.getLedgerBootstrap).toHaveBeenCalledTimes(1)
+    expect(api.getLedgerUsers).not.toHaveBeenCalled()
+    expect(api.getLedgerProvinces).not.toHaveBeenCalled()
+    expect(api.getLedgerRecords).not.toHaveBeenCalled()
+  })
+
+  it('clears the initial state and reports a bootstrap failure', async () => {
+    api.getLedgerBootstrap.mockRejectedValue(new Error('unavailable'))
+
+    const wrapper = mount(CalculationLedger)
+    await flushPromises()
+
+    expect(wrapper.find('.ledger-field--initiator').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('甘肃 储能测算')
+    expect(message.error).toHaveBeenCalledWith('测算台账加载失败，请稍后重试')
   })
 
   it('sends the selected initiators as one comma separated parameter', async () => {

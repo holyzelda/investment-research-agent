@@ -225,7 +225,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowUpRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, Search } from '@lucide/vue'
-import { getLedgerProvinces, getLedgerRecords, getLedgerUsers } from '@/api/ledger'
+import { getLedgerBootstrap, getLedgerRecords } from '@/api/ledger'
 import { getUserIdentity } from '@/utils/auth'
 
 const router = useRouter()
@@ -238,7 +238,7 @@ const isAdmin = ref(false)
 const users = ref([])
 const total = ref(0)
 const page = ref(1)
-const loading = ref(false)
+const loading = ref(true)
 const provinceOpen = ref(false)
 const provinceSearch = ref('')
 const provincePickerRef = ref(null)
@@ -460,23 +460,29 @@ function reportLabel(status) {
 
 onMounted(async () => {
   document.addEventListener('pointerdown', onProvinceOutsideClick)
-  // 先确认角色与可见发起人，再拉省份和列表：管理员的筛选项要覆盖整个组织。
+  loading.value = true
   try {
-    const response = await getLedgerUsers()
-    isAdmin.value = Boolean(response?.data?.isAdmin)
-    users.value = response?.data?.users || []
+    const response = await getLedgerBootstrap(queryParams(1))
+    const data = response?.data || {}
+    const userData = data.users || {}
+    const records = data.records || {}
+    isAdmin.value = Boolean(userData.isAdmin)
+    users.value = userData.users || []
+    provinces.value = data.provinces?.items || []
+    items.value = records.items || []
+    total.value = records.total || 0
+    page.value = records.page || 1
   } catch (error) {
-    // 取不到就按普通用户渲染，仍能看到自己的台账。
     isAdmin.value = false
     users.value = []
-  }
-  try {
-    const response = await getLedgerProvinces()
-    provinces.value = response?.data?.items || []
-  } catch (error) {
     provinces.value = []
+    items.value = []
+    total.value = 0
+    page.value = 1
+    ElMessage.error('测算台账加载失败，请稍后重试')
+  } finally {
+    loading.value = false
   }
-  fetchRecords(1)
 })
 
 onBeforeUnmount(() => document.removeEventListener('pointerdown', onProvinceOutsideClick))
