@@ -4,7 +4,7 @@
       <div>
         <span class="ledger-eyebrow">ZRA / PERSONAL WORKSPACE</span>
         <h1>测算台账</h1>
-        <p>查询由我发起的已完成测算</p>
+        <p>查询已完成测算</p>
       </div>
       <div class="ledger-count" aria-live="polite">
         <strong>{{ total }}</strong>
@@ -12,10 +12,10 @@
       </div>
     </header>
 
-    <form class="ledger-filters" @submit.prevent="submitSearch">
+    <form class="ledger-filters" :class="{ 'is-admin': isAdmin }" @submit.prevent="submitSearch">
       <label class="ledger-field ledger-field--keyword">
-        <span>会话名称</span>
-        <input v-model.trim="draft.keyword" type="search" placeholder="搜索会话名称" />
+        <span>{{ isAdmin ? '会话名称 / 发起人' : '会话名称' }}</span>
+        <input v-model.trim="draft.keyword" type="search" :placeholder="isAdmin ? '搜索会话名称或发起人' : '搜索会话名称'" />
       </label>
       <label class="ledger-field">
         <span>省份</span>
@@ -49,6 +49,42 @@
                 @change="toggleProvince(province)"
               />
               <span>{{ province }}</span>
+            </label>
+          </div>
+        </div>
+      </label>
+      <label v-if="isAdmin" class="ledger-field ledger-field--initiator">
+        <span>发起人</span>
+        <div ref="initiatorPickerRef" class="ledger-province-picker">
+          <button
+            class="ledger-province-trigger"
+            type="button"
+            :aria-expanded="initiatorOpen"
+            aria-haspopup="listbox"
+            aria-label="发起人多选"
+            @click="initiatorOpen = !initiatorOpen"
+          >
+            <span v-if="!draft.initiators.length" class="ledger-province-placeholder">全部发起人</span>
+            <span v-else class="ledger-province-summary">
+              <span v-for="userId in draft.initiators.slice(0, 2)" :key="userId" class="ledger-province-tag">{{ nickNameOf(userId) }}</span>
+              <span v-if="draft.initiators.length > 2" class="ledger-province-more">+{{ draft.initiators.length - 2 }}</span>
+            </span>
+            <ChevronDown :class="{ 'is-open': initiatorOpen }" aria-hidden="true" />
+          </button>
+          <div v-if="initiatorOpen" class="ledger-province-menu" role="listbox" aria-multiselectable="true">
+            <div class="ledger-province-menu__tools">
+              <Search aria-hidden="true" />
+              <input v-model.trim="initiatorSearch" type="search" placeholder="搜索发起人" aria-label="搜索发起人" />
+              <button v-if="draft.initiators.length" type="button" @click="draft.initiators = []">清空</button>
+            </div>
+            <div v-if="!filteredUsers.length" class="ledger-province-empty">没有匹配的发起人</div>
+            <label v-for="user in filteredUsers" :key="user.userId" class="ledger-province-option">
+              <input
+                type="checkbox"
+                :checked="draft.initiators.includes(user.userId)"
+                @change="toggleInitiator(user.userId)"
+              />
+              <span>{{ user.nickName || user.userId }}</span>
             </label>
           </div>
         </div>
@@ -116,6 +152,7 @@
           <tr>
             <th>测算时间</th>
             <th class="ledger-table__title">会话名称</th>
+            <th v-if="isAdmin">发起人</th>
             <th>版本</th>
             <th>省份</th>
             <th>项目规模</th>
@@ -132,6 +169,7 @@
             <td class="ledger-table__title" data-label="会话名称">
               <strong :title="item.title || '未命名会话'">{{ item.title || '未命名会话' }}</strong>
             </td>
+            <td v-if="isAdmin" data-label="发起人">{{ item.initiator?.nickName || '—' }}</td>
             <td data-label="版本"><span class="ledger-version">{{ item.version }}</span></td>
             <td data-label="省份">{{ item.province || '—' }}</td>
             <td class="xc-num" data-label="项目规模">{{ formatNumber(item.powerMw) }} MW / {{ formatNumber(item.capacityMwh) }} MWh</td>
@@ -187,18 +225,26 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { ArrowUpRight, Calendar, ChevronDown, ChevronLeft, ChevronRight, ClipboardList, FileText, Search } from '@lucide/vue'
-import { getLedgerProvinces, getLedgerRecords } from '@/api/ledger'
+import { getLedgerProvinces, getLedgerRecords, getLedgerUsers } from '@/api/ledger'
+import { getUserIdentity } from '@/utils/auth'
 
 const router = useRouter()
+// 只用于决定"这行是不是我自己的"从而选跳转目标，权限判定完全在后端。
+const currentUserId = computed(() => String(getUserIdentity()?.userId || ''))
 const pageSize = 10
 const items = ref([])
 const provinces = ref([])
+const isAdmin = ref(false)
+const users = ref([])
 const total = ref(0)
 const page = ref(1)
 const loading = ref(false)
 const provinceOpen = ref(false)
 const provinceSearch = ref('')
 const provincePickerRef = ref(null)
+const initiatorOpen = ref(false)
+const initiatorSearch = ref('')
+const initiatorPickerRef = ref(null)
 const dateOpen = ref(false)
 const datePickerRef = ref(null)
 const calendarMonth = ref(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
@@ -225,11 +271,16 @@ function defaultDates() {
   return { startDate: isoDate(start), endDate: isoDate(end) }
 }
 
-const draft = reactive({ keyword: '', provinces: [], preset: '30d', ...defaultDates() })
+const draft = reactive({ keyword: '', provinces: [], initiators: [], preset: '30d', ...defaultDates() })
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 const filteredProvinces = computed(() => {
   const keyword = provinceSearch.value.toLowerCase()
   return provinces.value.filter((province) => !keyword || province.toLowerCase().includes(keyword))
+})
+const filteredUsers = computed(() => {
+  const keyword = initiatorSearch.value.toLowerCase()
+  return users.value.filter((user) => !keyword
+    || String(user.nickName || '').toLowerCase().includes(keyword))
 })
 const calendarTitle = computed(() => `${calendarMonth.value.getFullYear()}年${calendarMonth.value.getMonth() + 1}月`)
 const calendarDays = computed(() => {
@@ -248,8 +299,19 @@ function toggleProvince(province) {
     : [...draft.provinces, province]
 }
 
+function toggleInitiator(userId) {
+  draft.initiators = draft.initiators.includes(userId)
+    ? draft.initiators.filter((item) => item !== userId)
+    : [...draft.initiators, userId]
+}
+
+function nickNameOf(userId) {
+  return users.value.find((user) => user.userId === userId)?.nickName || userId
+}
+
 function onProvinceOutsideClick(event) {
   if (provinceOpen.value && !provincePickerRef.value?.contains(event.target)) provinceOpen.value = false
+  if (initiatorOpen.value && !initiatorPickerRef.value?.contains(event.target)) initiatorOpen.value = false
   if (dateOpen.value && !datePickerRef.value?.contains(event.target)) dateOpen.value = false
 }
 
@@ -311,6 +373,8 @@ function queryParams(targetPage = page.value) {
   const params = { page: targetPage, page_size: pageSize, start_date: draft.startDate, end_date: draft.endDate }
   if (draft.keyword) params.keyword = draft.keyword
   if (draft.provinces.length) params.province = draft.provinces
+  // 未选=全部可见发起人，所以清空时不传该参数；后端仍会与实时可见范围求交。
+  if (isAdmin.value && draft.initiators.length) params.initiator_user_ids = draft.initiators.join(',')
   return params
 }
 
@@ -340,7 +404,7 @@ function submitSearch() {
 }
 
 function resetSearch() {
-  Object.assign(draft, { keyword: '', provinces: [], preset: '30d', ...defaultDates() })
+  Object.assign(draft, { keyword: '', provinces: [], initiators: [], preset: '30d', ...defaultDates() })
   fetchRecords(1)
 }
 
@@ -350,6 +414,13 @@ function changePage(targetPage) {
 
 function resultUrl(item) {
   if (!item?.conversationId || item?.taskId === null || item?.taskId === undefined) return '#'
+  // 管理员可能看到他人的测算，走独立只读页；本人记录仍回到可继续对话的首页。
+  if (isAdmin.value && item.initiator && item.initiator.userId !== currentUserId.value) {
+    return router.resolve({
+      name: 'CalculationResultReadonly',
+      params: { conversationId: item.conversationId, taskId: item.taskId },
+    }).href
+  }
   return router.resolve({
     path: '/home',
     query: { conversationId: item.conversationId, taskId: item.taskId },
@@ -389,6 +460,16 @@ function reportLabel(status) {
 
 onMounted(async () => {
   document.addEventListener('pointerdown', onProvinceOutsideClick)
+  // 先确认角色与可见发起人，再拉省份和列表：管理员的筛选项要覆盖整个组织。
+  try {
+    const response = await getLedgerUsers()
+    isAdmin.value = Boolean(response?.data?.isAdmin)
+    users.value = response?.data?.users || []
+  } catch (error) {
+    // 取不到就按普通用户渲染，仍能看到自己的台账。
+    isAdmin.value = false
+    users.value = []
+  }
   try {
     const response = await getLedgerProvinces()
     provinces.value = response?.data?.items || []
@@ -411,6 +492,8 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onProvinceOuts
 .ledger-count strong { color: var(--xc-text-strong); font-family: var(--xc-font-en); font-size: 28px; font-weight: var(--xc-fw-medium); }
 .ledger-count span { font-size: var(--xc-fs-xs); }
 .ledger-filters { display: grid; grid-template-columns: minmax(180px, 1fr) 190px minmax(420px, 2fr) auto; align-items: end; gap: 16px; max-width: 1500px; margin: 0 auto 20px; padding: 16px; border: 1px solid var(--xc-border-card); border-radius: var(--xc-radius-sm); background: var(--xc-surface-raised); box-shadow: var(--xc-shadow-sm); }
+/* 管理员多一列发起人筛选；普通用户不渲染该字段，列数保持不变。 */
+.ledger-filters.is-admin { grid-template-columns: minmax(180px, 1fr) 190px 190px minmax(380px, 2fr) auto; }
 .ledger-field { min-width: 0; display: flex; flex-direction: column; gap: 7px; }
 .ledger-field > span { display: block; height: 16px; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: 16px; }
 .ledger-field input { width: 100%; height: 36px; box-sizing: border-box; border: 1px solid var(--xc-border-soft); border-radius: var(--xc-radius-xs); outline: 0; background: var(--xc-surface-control); color: var(--xc-text-strong); font: inherit; font-size: var(--xc-fs-xs); }
@@ -497,7 +580,9 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', onProvinceOuts
 .ledger-page-button svg { width: 15px; height: 15px; }
 @media (max-width: 1280px) {
   .ledger-filters { grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto; }
+  .ledger-filters.is-admin { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
   .ledger-field--date { grid-column: 1 / -1; grid-row: 2; }
+  .ledger-filters.is-admin .ledger-field--date { grid-row: auto; }
   .ledger-filter-actions { justify-content: flex-end; }
 }
 @media (max-width: 900px) {

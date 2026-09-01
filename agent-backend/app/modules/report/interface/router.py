@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
 from app.infrastructure.database.session import get_db_session, get_sessionmaker
-from app.modules.platform_access.domain.models import CurrentUser
-from app.modules.platform_access.interface.deps import get_current_user
+from app.modules.platform_access.domain.models import CurrentUser, UserScope
+from app.modules.platform_access.interface.deps import get_current_user, get_user_scope
 from app.modules.report.application.factory import build_report_generation_service
 
 router = APIRouter(prefix="/ir", tags=["report"])
@@ -79,9 +79,12 @@ async def stream_report_events(
 async def get_report(
     report_id: str,
     user: CurrentUser = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope),
     session: AsyncSession = Depends(get_db_session),
 ):
+    """只读正式报告。管理员可读本组织在用成员的报告；生成类接口仍限本人。"""
     report = await build_report_generation_service().get_report(
-        session, report_id=report_id, user_id=user.user_id
+        session, report_id=report_id, user_id=user.user_id,
+        readable_user_ids=scope.user_ids,
     )
     return ok(report.payload)

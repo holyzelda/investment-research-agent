@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import uuid
 from datetime import datetime
+from typing import Sequence
 
 import httpx
 from loguru import logger
@@ -233,16 +234,23 @@ class ReportGenerationService:
         generation = await self._owned_generation(session, report_task_id, user_id)
         return self.serialize_task(generation)
 
-    async def get_report(self, session: AsyncSession, *, report_id: str, user_id: str) -> ReportSnapshotORM:
+    async def get_report(
+        self, session: AsyncSession, *, report_id: str, user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
+    ) -> ReportSnapshotORM:
+        """只读报告快照。readable_user_ids 仅供管理员查看组织成员报告，生成/重生成不放开。"""
         report = (await session.execute(
             select(ReportSnapshotORM).where(
                 ReportSnapshotORM.report_id == report_id,
-                ReportSnapshotORM.user_id == user_id,
+                ReportSnapshotORM.user_id.in_(list(readable_user_ids or [user_id])),
             )
         )).scalar_one_or_none()
         if report is None:
             raise NotFoundException("报告不存在")
-        await self._history.require_owned_task(session, task_id=report.task_id, user_id=user_id)
+        await self._history.require_owned_task(
+            session, task_id=report.task_id, user_id=user_id,
+            readable_user_ids=readable_user_ids,
+        )
         return report
 
     async def _owned_generation(self, session, report_task_id, user_id):

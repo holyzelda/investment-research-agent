@@ -17,6 +17,13 @@ const routes = [
     meta: { title: '正式报告' },
   },
   {
+    // 台账（管理员）查看他人测算：独立只读页，不进入对话首页的可交互链路。
+    path: '/calculation-results/:conversationId/:taskId',
+    name: 'CalculationResultReadonly',
+    component: () => import('@/views/calculation-result/index.vue'),
+    meta: { title: '测算结果' },
+  },
+  {
     path: '/public/calculation-shares/:shareCode',
     name: 'CalculationShare',
     component: () => import('@/views/public/calculation-share.vue'),

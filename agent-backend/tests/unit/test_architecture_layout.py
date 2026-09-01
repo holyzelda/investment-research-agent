@@ -11,6 +11,8 @@ EXPECTED_IMPORTS = [
     "app.infrastructure.database.base",
     "app.infrastructure.database.session",
     "app.modules.platform_access.domain.models",
+    "app.modules.platform_access.application.user_scope_service",
+    "app.modules.platform_access.infrastructure.user_center_client",
     "app.modules.platform_access.interface.deps",
     "app.modules.platform_access.interface.middleware",
     "app.modules.platform_access.interface.router",

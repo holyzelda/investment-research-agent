@@ -76,6 +76,13 @@ spot_price:
 calc:
    share_fernet_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
 
+user_center:
+  # 用户管理中心（测试环境）：按 userId 查组织成员与角色，供台账区分管理员可见范围。
+  # 生产上线只需在 Nacos 覆盖 base_url。
+  base_url: http://internal-3-60.example.invalid:9910
+  users_path: /api/v1/organization/users
+  timeout_seconds: 3
+
 policy_ask:
   # 政策与市场知识库问答的本地凭据；生产环境应通过 Nacos/环境注入覆盖。
   feishu:

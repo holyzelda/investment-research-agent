@@ -12,8 +12,8 @@ from app.modules.calculation.application.conversation_history_service import (
     ConversationHistoryService,
 )
 from app.modules.calculation.application.factory import build_feishu_gateway
-from app.modules.platform_access.domain.models import CurrentUser
-from app.modules.platform_access.interface.deps import get_current_user
+from app.modules.platform_access.domain.models import CurrentUser, UserScope
+from app.modules.platform_access.interface.deps import get_current_user, get_user_scope
 
 router = APIRouter(prefix="/ir/conversations", tags=["conversation-history"])
 _service = ConversationHistoryService()
@@ -87,12 +87,15 @@ async def list_conversations(
 async def get_conversation(
     conversation_id: UUID,
     user: CurrentUser = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope),
     session: AsyncSession = Depends(get_db_session),
 ):
+    """只读历史详情。管理员可读本组织在用成员的会话；写操作仍限本人。"""
     return ok(await _service.get_detail(
         session,
         conversation_id=str(conversation_id),
         user_id=user.user_id,
+        readable_user_ids=scope.user_ids,
     ))
 
 

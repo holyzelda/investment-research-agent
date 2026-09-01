@@ -7,3 +7,4 @@ def test_calculation_ledger_routes_are_registered_on_the_running_app():
 
     assert ("/ir/calc/ledger", "GET") in routes
     assert ("/ir/calc/ledger/provinces", "GET") in routes
+    assert ("/ir/calc/ledger/users", "GET") in routes

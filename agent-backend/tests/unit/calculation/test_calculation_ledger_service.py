@@ -17,6 +17,19 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     ReportGenerationTaskORM,
     ReportSnapshotORM,
 )
+from app.modules.platform_access.domain.models import OrganizationUser, UserScope
+
+
+def _scope(current="1001", *, is_admin=False, members=(("1001", "我自己"),)):
+    """构造可见范围：普通用户只有本人，管理员含组织在用成员。"""
+    return UserScope(
+        current_user_id=current,
+        is_admin=is_admin,
+        users=tuple(
+            OrganizationUser(user_id=user_id, nick_name=nick_name)
+            for user_id, nick_name in members
+        ),
+    )
 
 
 @pytest_asyncio.fixture
@@ -80,7 +93,7 @@ async def test_serializes_canonical_city_from_frozen_snapshots(session):
     result.payload["basicInfo"]["city"] = "郑州"
     await session.commit()
 
-    item = (await CalculationLedgerService().list_records(session, user_id="1001"))["items"][0]
+    item = (await CalculationLedgerService().list_records(session, scope=_scope()))["items"][0]
 
     assert item["city"] == "郑州"
     assert "cityName" not in item
@@ -110,7 +123,7 @@ async def test_lists_only_completed_tasks_of_the_current_user(session):
         created_at=datetime(2026, 8, 10, 12, 0), province="山西",
     )
 
-    data = await CalculationLedgerService().list_records(session, user_id="1001")
+    data = await CalculationLedgerService().list_records(session, scope=_scope())
 
     assert data["total"] == 1
     assert [item["taskId"] for item in data["items"]] == [ok_task]
@@ -133,8 +146,8 @@ async def test_orders_versions_by_calculated_at_desc_and_paginates_by_ten(sessio
             created_at=datetime(2026, 8, 1, 10, index), province="甘肃",
         )
 
-    first = await CalculationLedgerService().list_records(session, user_id="1001")
-    second = await CalculationLedgerService().list_records(session, user_id="1001", page=2)
+    first = await CalculationLedgerService().list_records(session, scope=_scope())
+    second = await CalculationLedgerService().list_records(session, scope=_scope(), page=2)
 
     assert first["total"] == 12
     assert first["pageSize"] == 10
@@ -162,11 +175,11 @@ async def test_filters_by_title_keyword_provinces_and_inclusive_date_range(sessi
     service = CalculationLedgerService()
 
     by_date = await service.list_records(
-        session, user_id="1001",
+        session, scope=_scope(),
         start_date=date(2026, 8, 12), end_date=date(2026, 8, 12),
     )
-    by_province = await service.list_records(session, user_id="1001", provinces=["宁夏"])
-    by_keyword = await service.list_records(session, user_id="1001", keyword="独立")
+    by_province = await service.list_records(session, scope=_scope(), provinces=["宁夏"])
+    by_keyword = await service.list_records(session, scope=_scope(), keyword="独立")
 
     assert {item["taskId"] for item in by_date["items"]} == {
         in_range, by_province["items"][0]["taskId"],
@@ -210,7 +223,7 @@ async def test_report_status_prefers_generated_snapshot_over_generation_task(ses
     ])
     await session.commit()
 
-    data = await CalculationLedgerService().list_records(session, user_id="1001")
+    data = await CalculationLedgerService().list_records(session, scope=_scope())
     by_task = {item["taskId"]: item["report"] for item in data["items"]}
 
     assert by_task[generated] == {"status": "completed", "reportId": "rpt-1"}
@@ -235,4 +248,103 @@ async def test_province_options_only_include_provinces_the_user_calculated(sessi
         created_at=datetime(2026, 8, 10, 11, 0), province="山西",
     )
 
-    assert await CalculationLedgerService().list_provinces(session, user_id="1001") == ["宁夏", "甘肃"]
+    assert await CalculationLedgerService().list_provinces(session, scope=_scope()) == ["宁夏", "甘肃"]
+
+
+_ORG = (("1001", "北京金租管理员"), ("2002", "金3号员工"))
+
+
+async def _org_fixture(session):
+    admin = await _conversation(session, conversation_id="c-1", title="甘肃 储能测算")
+    member = await _conversation(
+        session, conversation_id="c-2", title="宁夏 独立储能", user_id="2002",
+    )
+    outsider = await _conversation(
+        session, conversation_id="c-3", title="别组织的项目", user_id="9009",
+    )
+    for conversation_id, province in ((admin, "甘肃"), (member, "宁夏"), (outsider, "山西")):
+        await _completed_task(
+            session, conversation_id=conversation_id, version="V1",
+            created_at=datetime(2026, 8, 10, 10, 0), province=province,
+        )
+
+
+@pytest.mark.asyncio
+async def test_admin_sees_organization_members_with_initiator_nick_name(session):
+    await _org_fixture(session)
+
+    data = await CalculationLedgerService().list_records(
+        session, scope=_scope(is_admin=True, members=_ORG),
+    )
+
+    assert {item["title"] for item in data["items"]} == {"甘肃 储能测算", "宁夏 独立储能"}
+    initiators = {
+        item["initiator"]["userId"]: item["initiator"]["nickName"] for item in data["items"]
+    }
+    assert initiators == {"1001": "北京金租管理员", "2002": "金3号员工"}
+
+
+@pytest.mark.asyncio
+async def test_ordinary_user_sees_only_self_and_no_initiator_column(session):
+    await _org_fixture(session)
+
+    data = await CalculationLedgerService().list_records(session, scope=_scope())
+
+    assert [item["title"] for item in data["items"]] == ["甘肃 储能测算"]
+    assert "initiator" not in data["items"][0]
+
+
+@pytest.mark.asyncio
+async def test_initiator_filter_drops_ids_outside_the_visible_scope(session):
+    await _org_fixture(session)
+    service = CalculationLedgerService()
+    admin_scope = _scope(is_admin=True, members=_ORG)
+
+    selected = await service.list_records(
+        session, scope=admin_scope, initiator_user_ids=["2002"],
+    )
+    with_outsider = await service.list_records(
+        session, scope=admin_scope, initiator_user_ids=["2002", "9009"],
+    )
+    only_outsider = await service.list_records(
+        session, scope=admin_scope, initiator_user_ids=["9009"],
+    )
+
+    assert [item["title"] for item in selected["items"]] == ["宁夏 独立储能"]
+    assert [item["title"] for item in with_outsider["items"]] == ["宁夏 独立储能"]
+    assert only_outsider["items"] == []
+
+
+@pytest.mark.asyncio
+async def test_ordinary_user_cannot_widen_scope_with_initiator_filter(session):
+    await _org_fixture(session)
+
+    data = await CalculationLedgerService().list_records(
+        session, scope=_scope(), initiator_user_ids=["2002", "9009"],
+    )
+
+    assert [item["title"] for item in data["items"]] == ["甘肃 储能测算"]
+
+
+@pytest.mark.asyncio
+async def test_admin_keyword_matches_session_title_or_initiator_nick_name(session):
+    await _org_fixture(session)
+    service = CalculationLedgerService()
+    admin_scope = _scope(is_admin=True, members=_ORG)
+
+    by_title = await service.list_records(session, scope=admin_scope, keyword="独立")
+    by_nick_name = await service.list_records(session, scope=admin_scope, keyword="金3号")
+
+    assert [item["title"] for item in by_title["items"]] == ["宁夏 独立储能"]
+    assert [item["title"] for item in by_nick_name["items"]] == ["宁夏 独立储能"]
+
+
+@pytest.mark.asyncio
+async def test_province_options_cover_the_whole_admin_scope(session):
+    await _org_fixture(session)
+
+    provinces = await CalculationLedgerService().list_provinces(
+        session, scope=_scope(is_admin=True, members=_ORG),
+    )
+
+    assert provinces == ["宁夏", "甘肃"]

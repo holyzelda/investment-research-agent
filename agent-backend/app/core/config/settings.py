@@ -222,6 +222,18 @@ class SpotPriceConfig(BaseModel):
     daily_update_workers: int = Field(default=4, ge=1)
 
 
+class UserCenterConfig(BaseModel):
+    """用户管理中心：按 userId 查组织与角色，用于台账的管理员可见范围。
+
+    只读、无凭据：平台在可信内网暴露该接口，后端只带 userId 查询参数。
+    base_url 为空视为未接入，所有人按普通用户处理（只看自己）。
+    """
+
+    base_url: str = ""
+    users_path: str = "/api/v1/organization/users"
+    timeout_seconds: float = 3.0
+
+
 class PolicyAskFeishuConfig(BaseModel):
     """政策问答知识库的飞书凭据与文档标识。"""
 
@@ -271,6 +283,7 @@ class Settings(BaseModel):
     feishu: FeishuConfig = FeishuConfig()
     spot_price: SpotPriceConfig = SpotPriceConfig()
     policy_ask: PolicyAskConfig = Field(default_factory=PolicyAskConfig)
+    user_center: UserCenterConfig = Field(default_factory=UserCenterConfig)
 
 
 def _build_settings() -> Settings:
@@ -407,10 +420,20 @@ def _build_settings() -> Settings:
             table=_nested(y, ["policy_ask", "base", "table"], _pad.base.table),
         ),
     )
+    _ucd = UserCenterConfig()
+    user_center = UserCenterConfig(
+        base_url=_business_value(
+            "IR_USER_CENTER_BASE_URL", y, ["user_center", "base_url"], _ucd.base_url),
+        users_path=_business_value(
+            "IR_USER_CENTER_USERS_PATH", y, ["user_center", "users_path"], _ucd.users_path),
+        timeout_seconds=float(_business_value(
+            "IR_USER_CENTER_TIMEOUT_SECONDS", y,
+            ["user_center", "timeout_seconds"], _ucd.timeout_seconds)),
+    )
     return Settings(
         app=app, log=log, database=database, nacos=nacos, cors=cors,
         calc=calc, middle_platform=middle_platform, feishu=feishu,
-        spot_price=spot_price, policy_ask=policy_ask,
+        spot_price=spot_price, policy_ask=policy_ask, user_center=user_center,
     )
 
 

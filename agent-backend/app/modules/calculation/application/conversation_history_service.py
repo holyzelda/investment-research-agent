@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Sequence
 
 from loguru import logger
 from sqlalchemy import func, select
@@ -96,10 +97,12 @@ class ConversationHistoryService:
         return items, next_cursor
 
     async def get_detail(
-        self, session: AsyncSession, *, conversation_id: str, user_id: str
+        self, session: AsyncSession, *, conversation_id: str, user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
     ) -> dict:
         conversation = await self.require_active_conversation(
-            session, conversation_id=conversation_id, user_id=user_id
+            session, conversation_id=conversation_id, user_id=user_id,
+            readable_user_ids=readable_user_ids,
         )
         messages = (await session.execute(
             select(MessageSnapshotORM)
@@ -341,12 +344,17 @@ class ConversationHistoryService:
         return True
 
     async def require_active_conversation(
-        self, session: AsyncSession, *, conversation_id: str, user_id: str
+        self, session: AsyncSession, *, conversation_id: str, user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
     ) -> ConversationORM:
+        """默认只放行本人；readable_user_ids 仅供管理员只读查看组织成员的历史使用。
+
+        写操作（重命名、删除、追加测算）一律不传该参数，归属边界保持不变。
+        """
         conversation = (await session.execute(
             select(ConversationORM).where(
                 ConversationORM.id == conversation_id,
-                ConversationORM.user_id == user_id,
+                ConversationORM.user_id.in_(list(readable_user_ids or [user_id])),
                 ConversationORM.deleted_at.is_(None),
             )
         )).scalar_one_or_none()
@@ -355,7 +363,8 @@ class ConversationHistoryService:
         return conversation
 
     async def require_owned_task(
-        self, session: AsyncSession, *, task_id: int, user_id: str
+        self, session: AsyncSession, *, task_id: int, user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
     ) -> CalculationTaskORM:
         task = (await session.execute(
             select(CalculationTaskORM)
@@ -365,7 +374,7 @@ class ConversationHistoryService:
             )
             .where(
                 CalculationTaskORM.id == task_id,
-                ConversationORM.user_id == user_id,
+                ConversationORM.user_id.in_(list(readable_user_ids or [user_id])),
                 ConversationORM.deleted_at.is_(None),
             )
         )).scalar_one_or_none()
