@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const request = vi.hoisted(() => vi.fn())
 vi.mock('@/utils/request', () => ({ default: request }))
 
-import { createCalculationTask, getStations } from '@/api/calc'
+import { createCalculationTask, getStations, getCalculationInput, getCalculationInputs } from '@/api/calc'
 
 describe('calc api', () => {
   beforeEach(() => {
@@ -36,6 +36,25 @@ describe('calc api', () => {
       headers: undefined,
     })
   })
+
+  it('按 taskId 获取冻结测算输入', () => {
+    getCalculationInput(77)
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/calc/tasks/77/input',
+      method: 'get',
+    })
+  })
+  it('按 taskId 批量获取冻结测算输入', () => {
+    getCalculationInputs([12, 11])
+
+    expect(request).toHaveBeenCalledWith({
+      url: '/ir/calc/tasks/inputs',
+      method: 'post',
+      data: { taskIds: [12, 11] },
+    })
+  })
+
 
   it('按省份、关键字和游标分批查询节点并传递取消信号', () => {
     const signal = new AbortController().signal

@@ -139,6 +139,29 @@ describe('result card three modules', () => {
     expect(wrapper.findAll('.ir-fin__delta')).toHaveLength(0)
   })
 
+  it('keeps comparison expanded while the lazily loaded current input arrives', async () => {
+    const wrapper = mount(ResultCard, {
+      props: {
+        result: snapshot,
+        version: 'V2',
+        availableVersions: [{ version: 'V1', isPrevious: true }],
+        comparisonVersion: 'V1',
+      },
+    })
+
+    const toggle = wrapper.get('.ir-result__comparison-toggle')
+    await toggle.trigger('click')
+    expect(wrapper.get('.ir-version-diff').exists()).toBe(true)
+
+    await wrapper.setProps({
+      seedInput: { province: '甘肃', power_mw: 200 },
+      displayComparisonInput: { province: '甘肃', power_mw: 180 },
+    })
+
+    expect(wrapper.get('.ir-result__comparison-toggle').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('.ir-version-diff').exists()).toBe(true)
+  })
+
   it('counts only advanced values that differ from the frozen input', async () => {
     const paramDict = [
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
@@ -213,7 +236,7 @@ describe('result card three modules', () => {
       props: {
         result: snapshot, version: 'V1',
         paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01 }],
-        switches: {}, seedInput: {},
+        switches: {}, seedInput: { province: '甘肃' },
       },
     })
     expect(withDict.find('.ir-adjust__toggle').exists()).toBe(true)

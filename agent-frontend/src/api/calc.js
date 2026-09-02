@@ -23,6 +23,21 @@ export function getCalculationResult(taskId) {
   })
 }
 
+export function getCalculationInput(taskId) {
+  return request({
+    url: `/ir/calc/tasks/${taskId}/input`,
+    method: 'get',
+  })
+}
+
+export function getCalculationInputs(taskIds) {
+  return request({
+    url: '/ir/calc/tasks/inputs',
+    method: 'post',
+    data: { taskIds },
+  })
+}
+
 export function listConversations(cursor) {
   return request({
     url: '/ir/conversations',

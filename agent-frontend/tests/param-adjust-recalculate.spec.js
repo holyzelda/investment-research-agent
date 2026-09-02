@@ -6,6 +6,7 @@ const api = vi.hoisted(() => ({
   createCalculationTask: vi.fn(),
   getCalculationTask: vi.fn(),
   getCalculationResult: vi.fn(),
+  getCalculationInput: vi.fn(),
   listConversations: vi.fn(),
   getConversation: vi.fn(),
   deleteConversation: vi.fn(),

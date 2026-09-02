@@ -142,9 +142,23 @@ export function buildArchiveSummary(currentVersion, previousVersion, paramDict =
   if (!currentVersion || !previousVersion) {
     return { previousVersion: null, projectIrr: currentVersion?.result?.financial?.projectIrr ?? null, explicit: { count: 0, labels: [] }, derived: { count: 0, labels: [] }, initial: true }
   }
-  const diff = diffVersionInputs(currentVersion.input, previousVersion.input, currentVersion.changeMeta, paramDict)
-  const explicitItems = diff.groups.flatMap((group) => group.items.filter((item) => item.source === 'explicit'))
-  const derivedItems = diff.groups.flatMap((group) => group.items.filter((item) => item.source === 'derived'))
+  const changeMeta = currentVersion.changeMeta || {}
+  const hasInputs = currentVersion.input && previousVersion.input
+  const diff = hasInputs
+    ? diffVersionInputs(currentVersion.input, previousVersion.input, changeMeta, paramDict)
+    : null
+  const labelById = new Map((paramDict || []).map((spec) => [spec.id, spec.cn || spec.label || spec.name || spec.id]))
+  const metadataItems = (keys) => [...new Set(keys || [])].map((id) => ({
+    id,
+    label: labelById.get(id) || id,
+    source: keys === changeMeta.explicitOverrideKeys ? 'explicit' : 'derived',
+  }))
+  const explicitItems = diff
+    ? diff.groups.flatMap((group) => group.items.filter((item) => item.source === 'explicit'))
+    : metadataItems(changeMeta.explicitOverrideKeys)
+  const derivedItems = diff
+    ? diff.groups.flatMap((group) => group.items.filter((item) => item.source === 'derived'))
+    : metadataItems(changeMeta.derivedChangedKeys)
   return {
     previousVersion: previousVersion.version,
     projectIrr: currentVersion.result?.financial?.projectIrr ?? null,

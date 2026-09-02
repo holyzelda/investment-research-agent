@@ -21,7 +21,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     MessageSnapshotORM,
 )
 from app.modules.calculation.interface import conversation_router
-from app.modules.platform_access.domain.models import CurrentUser
+from app.modules.platform_access.domain.models import CurrentUser, OrganizationUser, UserScope
+from app.modules.platform_access.interface.deps import get_user_scope
 
 _USER_1 = {"userId": "history-user-1", "username": "User One"}
 _USER_2 = {"userId": "history-user-2", "username": "User Two"}
@@ -164,6 +165,10 @@ async def history_context():
                     "derivedChangedKeys": [],
                 },
             }),
+            InputSnapshotORM(task_id=foreign_task.id, payload={
+                "apiInput": {"spot_charge_avg": 0.31},
+                "changeMeta": {},
+            }),
         ])
         await session.commit()
 
@@ -174,6 +179,8 @@ async def history_context():
             "foreign": foreign.id,
             "empty_failed": empty_failed.id,
             "v2": v2.id,
+            "v1": v1.id,
+            "old_task": old_task.id,
             "foreign_task": foreign_task.id,
             "deleted_task": deleted_task.id,
         }
@@ -210,7 +217,7 @@ async def test_list_returns_current_users_active_conversations_by_latest_activit
             "conversationId": ids["empty_failed"],
             "title": "Failed only",
             "createdAt": "2026-07-15T09:40:00",
-            "lastActivityAt": "2026-07-15T09:40:00",
+            "lastActivityAt": "2026-07-15T09:41:00",
         },
         {
             "conversationId": ids["older"],
@@ -248,8 +255,41 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
         "taskId": ids["v2"],
         "version": "V2",
         "status": "completed",
-        "result": {"marker": "v2"},
-        "input": {"spot_charge_avg": 0.22},
+        "card": {
+            "version": "V2",
+            "warnings": [],
+            "basicInfo": {
+                "province": None,
+                "city": None,
+                "nodeName": None,
+                "capacityMwh": None,
+                "powerMw": None,
+                "chargeCost": None,
+                "dischargeReturn": None,
+                "lossCost": None,
+                "actualSpread": None,
+            },
+            "financial": {
+                "projectIrr": None,
+                "projectStaticPayback": None,
+                "capitalIrr": None,
+                "capitalStaticPayback": None,
+                "averageProfit": None,
+            },
+            "advanced": {
+                "donut": {
+                    "totalRevenue": None,
+                    "energyRevenue": None,
+                    "capacityRevenue": None,
+                    "frequencyRevenue": None,
+                    "leaseRevenue": None,
+                    "interventionRevenue": None,
+                    "subsidyRevenue": None,
+                },
+                "debtServiceCoverage": {"cashflowRatio": []},
+            },
+            "calculatedAt": "2026-07-15T09:07:00",
+        },
         "changeMeta": {
             "previousTaskId": None,
             "explicitOverrideKeys": [],
@@ -258,10 +298,210 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
         "calculatedAt": "2026-07-15T09:07:00",
     }
     assert "reports" not in data
+    assert "input" not in data["versions"][0]
+    assert "result" not in data["versions"][0]
 
 
 @pytest.mark.asyncio
-async def test_delete_soft_deletes_conversation_and_preserves_children(history_context):
+async def test_task_input_returns_owned_completed_frozen_params(history_context):
+    client, _, ids = history_context
+
+    response = await client.get(f"/ir/calc/tasks/{ids['v2']}/input")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "taskId": ids["v2"],
+        "conversationId": ids["newer"],
+        "version": "V2",
+        "input": {"spot_charge_avg": 0.22},
+        "changeMeta": {
+            "previousTaskId": None,
+            "explicitOverrideKeys": [],
+            "derivedChangedKeys": [],
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_batch_task_inputs_returns_items_in_first_seen_order_and_deduplicates(history_context):
+    client, maker, ids = history_context
+    async with maker() as session:
+        old_task = await session.get(CalculationTaskORM, ids["old_task"])
+        session.add(InputSnapshotORM(task_id=old_task.id, payload={
+            "apiInput": {"capacity_mwh": 800},
+            "changeMeta": {"explicitOverrideKeys": ["capacity_mwh"]},
+            "minInput": {"internal": True},
+        }))
+        await session.commit()
+
+    response = await client.post(
+        "/ir/calc/tasks/inputs",
+        json={"taskIds": [ids["old_task"], ids["v2"], ids["old_task"]]},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["items"] == [
+        {
+            "taskId": ids["old_task"],
+            "conversationId": ids["older"],
+            "version": "V1",
+            "input": {"capacity_mwh": 800},
+            "changeMeta": {"explicitOverrideKeys": ["capacity_mwh"]},
+        },
+        {
+            "taskId": ids["v2"],
+            "conversationId": ids["newer"],
+            "version": "V2",
+            "input": {"spot_charge_avg": 0.22},
+            "changeMeta": {
+                "previousTaskId": None,
+                "explicitOverrideKeys": [],
+                "derivedChangedKeys": [],
+            },
+        },
+    ]
+    assert "minInput" not in response.text
+
+
+@pytest.mark.asyncio
+async def test_batch_task_inputs_silently_skips_unavailable_tasks(history_context):
+    client, _, ids = history_context
+
+    response = await client.post(
+        "/ir/calc/tasks/inputs",
+        json={"taskIds": [
+            ids["v2"], ids["v1"], ids["deleted_task"], ids["foreign_task"], 999999,
+        ]},
+    )
+
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    assert [item["taskId"] for item in items] == [ids["v2"]]
+    assert items[0]["input"] == {"spot_charge_avg": 0.22}
+
+
+@pytest.mark.asyncio
+async def test_admin_can_read_organization_members_batch_task_inputs(history_context):
+    client, _, ids = history_context
+    app.dependency_overrides[get_user_scope] = lambda: UserScope(
+        current_user_id="history-admin",
+        is_admin=True,
+        users=(
+            OrganizationUser(user_id="history-admin", nick_name="Admin"),
+            OrganizationUser(user_id="history-user-2", nick_name="User Two"),
+        ),
+    )
+
+    response = await client.post(
+        "/ir/calc/tasks/inputs",
+        json={"taskIds": [ids["foreign_task"], ids["v2"]]},
+        headers={"userId": "history-admin", "username": "Admin"},
+    )
+
+    assert response.status_code == 200
+    assert [item["taskId"] for item in response.json()["data"]["items"]] == [
+        ids["foreign_task"],
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("payload", [
+    {"taskIds": []},
+    {"taskIds": [0]},
+    {"taskIds": [-1]},
+    {"taskIds": ["not-an-id"]},
+    {"taskIds": list(range(1, 52))},
+])
+async def test_batch_task_inputs_rejects_invalid_request_shape(history_context, payload):
+    client, _, _ = history_context
+
+    response = await client.post("/ir/calc/tasks/inputs", json=payload)
+
+    assert response.status_code == 400
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_batch_task_inputs_static_route_is_not_captured_as_task_id(history_context):
+    client, _, _ = history_context
+
+    response = await client.post("/ir/calc/tasks/inputs", json={"taskIds": [999999]})
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {"items": []}
+
+
+@pytest.mark.asyncio
+async def test_admin_can_read_organization_members_task_result(history_context):
+    client, _, ids = history_context
+    app.dependency_overrides[get_user_scope] = lambda: UserScope(
+        current_user_id="history-admin",
+        is_admin=True,
+        users=(
+            OrganizationUser(user_id="history-admin", nick_name="Admin"),
+            OrganizationUser(user_id="history-user-2", nick_name="User Two"),
+        ),
+    )
+
+    response = await client.get(
+        f"/ir/calc/tasks/{ids['foreign_task']}/result",
+        headers={"userId": "history-admin", "username": "Admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["marker"] == "foreign"
+
+
+@pytest.mark.asyncio
+async def test_admin_can_read_organization_members_task_input(history_context):
+    client, _, ids = history_context
+    app.dependency_overrides[get_user_scope] = lambda: UserScope(
+        current_user_id="history-admin",
+        is_admin=True,
+        users=(
+            OrganizationUser(user_id="history-admin", nick_name="Admin"),
+            OrganizationUser(user_id="history-user-2", nick_name="User Two"),
+        ),
+    )
+
+    response = await client.get(
+        f"/ir/calc/tasks/{ids['foreign_task']}/input",
+        headers={"userId": "history-admin", "username": "Admin"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"] == {
+        "taskId": ids["foreign_task"],
+        "conversationId": ids["foreign"],
+        "version": "V1",
+        "input": {"spot_charge_avg": 0.31},
+        "changeMeta": {},
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("task_key", ["v1", "old_task", "deleted_task"])
+async def test_task_input_returns_404_without_available_snapshot(history_context, task_key):
+    client, _, ids = history_context
+    app.dependency_overrides.pop(get_user_scope, None)
+
+    response = await client.get(f"/ir/calc/tasks/{ids[task_key]}/input")
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+@pytest.mark.asyncio
+async def test_task_input_returns_404_for_unknown_task(history_context):
+    client, _, _ = history_context
+
+    response = await client.get("/ir/calc/tasks/999999/input")
+
+    assert response.status_code == 404
+    assert response.json()["data"] is None
+
+
+
     client, maker, ids = history_context
     async with maker() as session:
         before = {
@@ -291,7 +531,7 @@ async def test_delete_soft_deletes_conversation_and_preserves_children(history_c
             "conversationId": ids["empty_failed"],
             "title": "Failed only",
             "createdAt": "2026-07-15T09:40:00",
-            "lastActivityAt": "2026-07-15T09:40:00",
+            "lastActivityAt": "2026-07-15T09:41:00",
         },
         {
             "conversationId": ids["older"],
@@ -392,6 +632,7 @@ async def test_delete_route_returns_before_feishu_cleanup_starts(history_context
     ("delete", "conversation"),
     ("get", "status"),
     ("get", "result"),
+    ("get", "input"),
     ("get", "latest_input"),
     ("post", "append"),
 ])
@@ -401,6 +642,7 @@ async def test_cross_user_resources_return_404(history_context, method, path_key
         "conversation": f"/ir/conversations/{ids['foreign']}",
         "status": f"/ir/calc/tasks/{ids['foreign_task']}",
         "result": f"/ir/calc/tasks/{ids['foreign_task']}/result",
+        "input": f"/ir/calc/tasks/{ids['foreign_task']}/input",
         "latest_input": "/ir/calc/tasks/latest-input",
         "append": "/ir/calc/tasks",
     }

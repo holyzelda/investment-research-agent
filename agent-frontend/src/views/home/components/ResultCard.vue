@@ -22,7 +22,7 @@
           :class="{ 'is-open': comparisonExpanded }"
           :aria-expanded="comparisonExpanded"
           :aria-controls="comparisonPanelId"
-          @click="comparisonExpanded = !comparisonExpanded"
+          @click="toggleComparison"
         >
           <span>{{ comparisonExpanded ? '收起版本对比' : '查看版本对比' }}</span>
           <ChevronDown :size="18" aria-hidden="true" />
@@ -52,6 +52,12 @@
           </div>
         </label>
       </header>
+      <div v-if="comparisonLoading" class="ir-version-diff__empty" role="status">正在加载版本参数…</div>
+      <div v-else-if="comparisonError || !comparisonInputsReady" class="ir-version-diff__empty" role="alert">
+        {{ comparisonError || '版本参数尚未加载' }}
+        <button type="button" class="ir-version-diff__retry" @click="$emit('comparison-open')">重新加载</button>
+      </div>
+      <template v-else>
       <div class="ir-version-diff__summary">{{ version }} 较 {{ comparisonVersion }} · {{ versionDiff.totalCount }} 项参数变化</div>
       <div v-if="versionDiff.totalCount" class="ir-version-diff__body">
         <div v-for="group in versionDiff.groups" :key="group.category" class="ir-version-diff__group">
@@ -68,6 +74,7 @@
         </div>
       </div>
       <div v-else class="ir-version-diff__empty">与 {{ comparisonVersion }} 相比，测算参数未发生变化</div>
+      </template>
     </section>
 
     <section class="ir-report-module">
@@ -104,10 +111,13 @@
       :station-error="stationError"
       :version="version"
       :responding="responding"
+      :loading="adjustmentLoading"
+      :load-error="adjustmentError"
       :advanced-overrides="advancedOverrides"
       :advanced-override-count="advancedOverrideCount"
       :advanced-validation-error="advancedValidationError"
       @recalculate="$emit('recalculate', $event)"
+      @open-request="emit('adjustment-open')"
       @dirty-change="regularParametersDirty = $event"
       @discard-all-changes="discardAllParameterChanges"
       @station-open="$emit('station-open', $event)"
@@ -209,7 +219,7 @@ const props = defineProps({
   result: { type: Object, required: true },
   version: { type: String, default: '' },
   calculatedAt: { type: String, default: '' },
-  seedInput: { type: Object, default: () => ({}) },
+  seedInput: { type: Object, default: null },
   comparisonInput: { type: Object, default: null },
   paramDict: { type: Array, default: () => [] },
   switches: { type: Object, default: () => ({}) },
@@ -222,23 +232,30 @@ const props = defineProps({
   comparisonVersion: { type: String, default: '' },
   displayComparisonInput: { type: Object, default: null },
   comparisonResult: { type: Object, default: null },
+  comparisonLoading: { type: Boolean, default: false },
+  comparisonError: { type: String, default: '' },
+  adjustmentLoading: { type: Boolean, default: false },
+  adjustmentError: { type: String, default: '' },
   availableVersions: { type: Array, default: () => [] },
   changeMeta: { type: Object, default: () => ({}) },
   adjustable: { type: Boolean, default: true },
   conversationId: { type: String, default: '' },
   taskId: { type: [Number, String], default: null },
 })
-defineEmits([
+const emit = defineEmits([
   'recalculate',
   'generate-report',
   'view-report',
   'compare-version-change',
+  'comparison-open',
+  'adjustment-open',
   'station-open',
   'station-search',
   'station-load-more',
 ])
 const advanced = computed(() => props.result.advanced || { donut: {}, debtServiceCoverage: {} })
 const warnings = computed(() => props.result.warnings || [])
+const comparisonInputsReady = computed(() => Boolean(props.seedInput && props.displayComparisonInput))
 const versionDiff = computed(() => diffVersionInputs(
   props.seedInput,
   props.displayComparisonInput || {},
@@ -251,7 +268,7 @@ function displayParam(value) {
   return String(value)
 }
 
-const seedInputForAdjustment = computed(() => ({ ...(props.seedInput || {}) }))
+const seedInputForAdjustment = computed(() => props.seedInput)
 
 const bannerTitle = computed(() => buildResultTitle(
   props.result.basicInfo?.province ?? props.seedInput?.province,
@@ -270,6 +287,10 @@ const advancedValidationError = ref(false)
 const regularParametersDirty = ref(false)
 const shareDialogVisible = ref(false)
 const comparisonExpanded = ref(false)
+function toggleComparison() {
+  comparisonExpanded.value = !comparisonExpanded.value
+  if (comparisonExpanded.value) emit('comparison-open')
+}
 const comparisonPanelId = computed(() => `ir-version-comparison-${String(props.taskId ?? (props.version || 'result')).replace(/[^a-zA-Z0-9_-]/g, '-')}`)
 const ADVANCED_IDS = new Set([
   'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
@@ -289,7 +310,7 @@ const advancedOverrideCount = computed(() => {
     const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], resolved.step)
     const baselineValue = spec.variants
       ? resolved.default
-      : spec.id in props.seedInput
+      : spec.id in (props.seedInput || {})
         ? props.seedInput[spec.id]
         : resolved.default
     const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
@@ -298,12 +319,18 @@ const advancedOverrideCount = computed(() => {
 })
 const hasPendingParameterChanges = computed(() => regularParametersDirty.value || advancedOverrideCount.value > 0 || advancedValidationError.value)
 
-// 高级参数仅是当前结果卡的未提交草稿：新版本/历史版本切换到其他入参时自动清空。
-watch(() => [props.version, props.seedInput], () => {
+// 高级参数仅是当前结果卡的未提交草稿：新版本切换到其他结果时自动清空。
+// 输入懒加载会让 seedInput 从 null 变为完整快照，但不应收起已经打开的版本对比面板。
+watch(() => props.version, () => {
   advancedOverrides.value = {}
   advancedValidationError.value = false
   regularParametersDirty.value = false
   comparisonExpanded.value = false
+})
+watch(() => props.seedInput, () => {
+  advancedOverrides.value = {}
+  advancedValidationError.value = false
+  regularParametersDirty.value = false
 }, { deep: true })
 watch(() => props.availableVersions.length, (count) => {
   if (!count) comparisonExpanded.value = false
@@ -533,6 +560,7 @@ function discardAllParameterChanges() {
 .ir-version-diff__source.is-explicit { color: var(--xc-accent-blue); background: var(--xc-status-info-soft); }
 .ir-version-diff__source.is-derived { color: var(--xc-status-warn); background: var(--xc-status-warn-soft); }
 .ir-version-diff__empty { padding: var(--xc-space-5); color: var(--xc-text-soft); font-size: var(--xc-fs-sm); line-height: var(--xc-lh-normal); }
+.ir-version-diff__retry { min-height:36px; margin-left:var(--xc-space-3); padding:0 var(--xc-space-3); border:1px solid var(--xc-border-soft); border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-accent-blue); cursor:pointer; }
 .ir-block { padding:var(--xc-space-7); }
 .ir-block__title { display:flex; align-items:center; gap:var(--xc-space-2); font-size:var(--xc-fs-md); color:var(--xc-text-strong); font-weight:var(--xc-fw-semi); margin:0 0 var(--xc-space-5); }
 .ir-block__title-icon { width:18px; height:18px; flex:0 0 auto; color:var(--xc-accent-blue); }

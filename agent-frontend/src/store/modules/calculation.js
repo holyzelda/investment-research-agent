@@ -3,6 +3,7 @@ import {
   createCalculationTask,
   deleteConversation,
   getCalculationResult,
+  getCalculationInputs,
   getCalculationTask,
   getConversation,
   getParamDict,
@@ -142,6 +143,11 @@ export const useCalculationStore = defineStore('calculation', {
     conversationDetailInflight: new Map(),
     conversationDetailGenerations: new Map(),
     conversationDetailCacheEpoch: 0,
+    taskInputCache: new Map(),
+    taskInputInflight: new Map(),
+    taskInputLoading: {},
+    taskInputErrors: {},
+    taskInputEpoch: 0,
     conversationLoading: false,
     conversationLoadingId: null,
     conversationLoadError: '',
@@ -159,6 +165,9 @@ export const useCalculationStore = defineStore('calculation', {
       this.disposeReportStreams()
       this.conversationEpoch += 1
       this.historyOpenEpoch += 1
+      this.taskInputEpoch += 1
+      this.taskInputLoading = {}
+      this.taskInputErrors = {}
       this.messages = []
       this.versions = []
       this.conversationId = null
@@ -217,6 +226,105 @@ export const useCalculationStore = defineStore('calculation', {
         }
       }).catch(() => {})
       return promise
+    },
+    _hydrateTaskInput(taskId, inputData) {
+      const key = String(taskId)
+      const entry = this.versions.find((item) => String(item.taskId) === key)
+      if (entry) {
+        entry.input = inputData.input || {}
+        entry.changeMeta = inputData.changeMeta || entry.changeMeta || {}
+      }
+      for (const message of this.messages) {
+        if (String(message.taskId) !== key) continue
+        message.input = inputData.input || {}
+        message.changeMeta = inputData.changeMeta || message.changeMeta || {}
+      }
+    },
+    async ensureTaskInput(taskId, { force = false } = {}) {
+      const results = await this.ensureTaskInputs([taskId], { force })
+      return results[String(taskId)] || null
+    },
+    async ensureTaskInputs(taskIds, { force = false } = {}) {
+      const keys = [...new Set((taskIds || [])
+        .map((taskId) => String(taskId))
+        .filter((key) => key && key !== 'undefined' && key !== 'null'))]
+      if (!keys.length) return {}
+
+      const results = {}
+      const pending = []
+      const requestKeys = []
+      const epoch = this.taskInputEpoch
+      for (const key of keys) {
+        // force 只用于失败/缺失项重试；已有成功缓存始终复用，避免重试时连带刷新其它版本。
+        if (this.taskInputCache.has(key) && (!force || !this.taskInputErrors[key])) {
+          const cached = this.taskInputCache.get(key)
+          this._hydrateTaskInput(key, cached)
+          delete this.taskInputErrors[key]
+          results[key] = cached
+          continue
+        }
+        const active = this.taskInputInflight.get(key)
+        if (active?.epoch === epoch) {
+          pending.push(active.promise.then((input) => {
+            if (input) results[key] = input
+            return input
+          }))
+          continue
+        }
+        this.taskInputLoading[key] = true
+        delete this.taskInputErrors[key]
+        requestKeys.push(key)
+      }
+
+      if (requestKeys.length) {
+        const batchPromise = getCalculationInputs(requestKeys.map((key) => Number(key)))
+          .then((response) => {
+            const items = response.data?.items || []
+            const byKey = new Map(items.map((item) => [String(item.taskId), item]))
+            const batchResults = {}
+            for (const key of requestKeys) {
+              const input = byKey.get(key)
+              if (!input) {
+                if (this.taskInputEpoch === epoch) this.taskInputErrors[key] = '参数加载失败'
+                continue
+              }
+              batchResults[key] = input
+              // 迟到响应不能把旧会话的输入写入缓存；当前会话成功后才允许缓存并回填。
+              if (this.taskInputEpoch === epoch) {
+                this.taskInputCache.set(key, input)
+                this._hydrateTaskInput(key, input)
+              }
+            }
+            return batchResults
+          })
+          .catch((error) => {
+            if (this.taskInputEpoch === epoch) {
+              for (const key of requestKeys) {
+                this.taskInputErrors[key] = error?.response?.data?.msg
+                  || error?.message || '参数加载失败'
+              }
+            }
+            throw error
+          })
+        for (const key of requestKeys) {
+          const taskPromise = batchPromise.then((batchResults) => {
+            const input = batchResults[key] || null
+            if (input) results[key] = input
+            return input
+          })
+          this.taskInputInflight.set(key, { epoch, promise: taskPromise })
+          pending.push(taskPromise)
+          taskPromise.finally(() => {
+            if (this.taskInputInflight.get(key)?.promise === taskPromise) {
+              this.taskInputInflight.delete(key)
+            }
+            if (this.taskInputEpoch === epoch) this.taskInputLoading[key] = false
+          }).catch(() => {})
+        }
+      }
+
+      await Promise.all(pending)
+      return results
     },
     selectVersion(version) {
       if (this.versions.some((item) => item.version === version)) this.selectedVersion = version
@@ -395,7 +503,7 @@ export const useCalculationStore = defineStore('calculation', {
     _applyConversationDetail(detail, conversationId, targetTaskId = null) {
       // 会话标识以服务端快照为准，缓存键才做字符串归一，避免历史回放改变后续请求体的 id 类型
       const resolvedId = detail.conversationId != null ? detail.conversationId : conversationId
-      const completed = (detail.versions || []).filter((version) => version.result)
+      const completed = (detail.versions || [])
       const completedByTaskId = new Map(
         completed.map((version) => [String(version.taskId), version]),
       )
@@ -408,14 +516,14 @@ export const useCalculationStore = defineStore('calculation', {
                 id: nextId(), role: 'assistant', kind: 'assistant-stream',
                 phase: 'completed', done: true,
                 answerText: message.payload.answer_text, taskId: version.taskId,
-                version: version.version, result: version.result, input: version.input,
+                version: version.version, result: version.card || version.result, input: version.input,
                 changeMeta: version.changeMeta || {}, report: version.report,
                 calculatedAt: version.calculatedAt,
               }
             }
             return {
               id: nextId(), role: 'assistant', kind: 'result', taskId: version.taskId,
-              version: version.version, result: version.result, input: version.input,
+              version: version.version, result: version.card || version.result, input: version.input,
               changeMeta: version.changeMeta || {}, report: version.report,
               calculatedAt: version.calculatedAt,
             }
@@ -431,7 +539,7 @@ export const useCalculationStore = defineStore('calculation', {
       })
       this.versions = completed.map((version) => ({
         conversationId: resolvedId, taskId: version.taskId, version: version.version,
-        status: version.status, result: version.result, input: version.input,
+        status: version.status, result: version.card || version.result, input: version.input,
         changeMeta: version.changeMeta || {}, report: version.report,
         calculatedAt: version.calculatedAt,
       }))
@@ -447,7 +555,10 @@ export const useCalculationStore = defineStore('calculation', {
         : this.versions.find((version) => String(version.taskId) === String(targetTaskId))
       this.selectedVersion = target?.version || (this.versions.length ? this.versions[this.versions.length - 1].version : null)
       this.responding = false
-      const province = completed.length ? completed[completed.length - 1].input?.province : null
+      const latestResult = completed.length
+        ? completed[completed.length - 1].card || completed[completed.length - 1].result
+        : null
+      const province = latestResult?.basicInfo?.province
       if (province) this.loadParamMeta(province).catch(() => {})
     },
     async openConversation(conversationId, targetTaskId = null) {
@@ -456,6 +567,10 @@ export const useCalculationStore = defineStore('calculation', {
       this.disposeReportStreams()
       const openEpoch = ++this.historyOpenEpoch
       const conversationEpoch = ++this.conversationEpoch
+      // 切换历史会话时隔离仍在途的参数请求，避免迟到响应回填新会话。
+      this.taskInputEpoch += 1
+      this.taskInputLoading = {}
+      this.taskInputErrors = {}
       this.conversationLoading = true
       this.conversationLoadingId = key
       this.conversationLoadError = ''
@@ -788,8 +903,11 @@ export const useCalculationStore = defineStore('calculation', {
     // 重新测算：保留直调 /ir/calc/tasks，但用与思考过程一致的进度态展示。
     async recalculate({ overrides, basics }) {
       if (this.responding || !this.conversationId) return
-      // 省份在会话内永久锁定：以任一已成功版本的冻结入参为准，不允许调整面板改动
-      const province = this.versions.find((v) => v.input)?.input?.province
+      const latest = this.latestVersion
+      if (!latest || (!latest.taskId && !latest.input)) return
+      if (latest.taskId && !latest.input) await this.ensureTaskInput(latest.taskId)
+      // 省份在会话内永久锁定：以最新成功版本的冻结入参为准，不允许调整面板改动
+      const province = latest.input?.province
       if (!province) return
       const isHenan = ['河南', '河南省'].includes(String(province).trim())
       await this._submitAndTrack({

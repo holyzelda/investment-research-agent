@@ -126,10 +126,7 @@ class ConversationHistoryService:
             )).scalars().all()
         } if tasks else {}
         input_by_task = {
-            snap.task_id: {
-                "input": snap.payload.get("apiInput"),
-                "changeMeta": snap.payload.get("changeMeta") or {},
-            }
+            snap.task_id: snap.payload.get("changeMeta") or {}
             for snap in (await session.execute(
                 select(InputSnapshotORM).where(
                     InputSnapshotORM.task_id.in_([task.id for task in tasks])
@@ -167,9 +164,8 @@ class ConversationHistoryService:
                     "taskId": task.id,
                     "version": task.version,
                     "status": task.status,
-                    "result": calculation_result_by_task.get(task.id),
-                    "input": input_by_task.get(task.id, {}).get("input"),
-                    "changeMeta": input_by_task.get(task.id, {}).get("changeMeta", {}),
+                    "card": self._result_card(calculation_result_by_task.get(task.id), task.version, task.created_at),
+                    "changeMeta": input_by_task.get(task.id, {}),
                     "calculatedAt": task.created_at.isoformat(),
                     **({"report": summary} if (summary := self._report_summary(
                         report_by_task.get(task.id), generations.get(task.id), task.version
@@ -186,6 +182,48 @@ class ConversationHistoryService:
                 for report in reports
             ]
         return detail
+
+    @staticmethod
+    def _result_card(payload: dict | None, version: str, calculated_at: datetime) -> dict:
+        """历史滚动展示所需的结果卡，不包含完整快照内部字段。"""
+        payload = payload or {}
+        basic = payload.get("basicInfo") or {}
+        financial = payload.get("financial") or {}
+        advanced = payload.get("advanced") or {}
+        donut = advanced.get("donut") or {}
+        coverage = advanced.get("debtServiceCoverage") or {}
+        return {
+            "version": payload.get("version") or version,
+            "warnings": payload.get("warnings") or [],
+            "basicInfo": {
+                key: basic.get(key)
+                for key in (
+                    "province", "city", "nodeName", "capacityMwh", "powerMw",
+                    "chargeCost", "dischargeReturn", "lossCost", "actualSpread",
+                )
+            },
+            "financial": {
+                key: financial.get(key)
+                for key in (
+                    "projectIrr", "projectStaticPayback", "capitalIrr",
+                    "capitalStaticPayback", "averageProfit",
+                )
+            },
+            "advanced": {
+                "donut": {
+                    key: donut.get(key)
+                    for key in (
+                        "totalRevenue", "energyRevenue", "capacityRevenue",
+                        "frequencyRevenue", "leaseRevenue", "interventionRevenue",
+                        "subsidyRevenue",
+                    )
+                },
+                "debtServiceCoverage": {
+                    "cashflowRatio": coverage.get("cashflowRatio") or [],
+                },
+            },
+            "calculatedAt": calculated_at.isoformat(),
+        }
 
     @staticmethod
     def _report_summary(report, generation, version):
@@ -208,6 +246,68 @@ class ConversationHistoryService:
                 "createdAt": generation.created_at.isoformat(),
             }
         return None
+
+    async def get_task_input(
+        self, session: AsyncSession, *, task_id: int, user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
+    ) -> dict:
+        """读取指定成功版本的冻结入参；只读快照，不访问飞书。"""
+        task = await self.require_owned_task(
+            session, task_id=task_id, user_id=user_id,
+            readable_user_ids=readable_user_ids,
+        )
+        if task.status != "completed":
+            raise NotFoundException("该任务暂无可用冻结入参")
+        snapshot = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id == task.id)
+        )).scalar_one_or_none()
+        if snapshot is None or not snapshot.payload:
+            raise NotFoundException("该任务暂无冻结入参")
+        return self._task_input_payload(task, snapshot)
+
+    async def get_task_inputs(
+        self, session: AsyncSession, *, task_ids: Sequence[int], user_id: str,
+        readable_user_ids: Sequence[str] | None = None,
+    ) -> list[dict]:
+        """批量读取可读成功任务的冻结入参；不可用任务静默跳过。"""
+        ids = list(dict.fromkeys(task_ids))
+        if not ids:
+            return []
+        tasks = (await session.execute(
+            select(CalculationTaskORM)
+            .join(ConversationORM, ConversationORM.id == CalculationTaskORM.conversation_id)
+            .where(
+                CalculationTaskORM.id.in_(ids),
+                CalculationTaskORM.status == "completed",
+                ConversationORM.user_id.in_(list(readable_user_ids or [user_id])),
+                ConversationORM.deleted_at.is_(None),
+            )
+        )).scalars().all()
+        task_by_id = {task.id: task for task in tasks}
+        snapshots = (await session.execute(
+            select(InputSnapshotORM).where(InputSnapshotORM.task_id.in_(list(task_by_id)))
+        )).scalars().all() if task_by_id else []
+        snapshot_by_task = {
+            snapshot.task_id: snapshot
+            for snapshot in snapshots
+            if snapshot.payload
+        }
+        return [
+            self._task_input_payload(task_by_id[task_id], snapshot_by_task[task_id])
+            for task_id in ids
+            if task_id in task_by_id and task_id in snapshot_by_task
+        ]
+
+    @staticmethod
+    def _task_input_payload(task: CalculationTaskORM, snapshot: InputSnapshotORM) -> dict:
+        payload = snapshot.payload
+        return {
+            "taskId": task.id,
+            "conversationId": task.conversation_id,
+            "version": task.version,
+            "input": payload.get("apiInput") or {},
+            "changeMeta": payload.get("changeMeta") or {},
+        }
 
     async def soft_delete(
         self, session: AsyncSession, *, conversation_id: str, user_id: str,

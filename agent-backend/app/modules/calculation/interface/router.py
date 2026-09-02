@@ -7,7 +7,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Header, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,8 +37,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
     InputSnapshotORM,
     SpotStationORM,
 )
-from app.modules.platform_access.interface.deps import get_current_user
-from app.modules.platform_access.domain.models import CurrentUser
+from app.modules.platform_access.interface.deps import get_current_user, get_user_scope
+from app.modules.platform_access.domain.models import CurrentUser, UserScope
 
 router = APIRouter(prefix="/ir/calc", tags=["calculation"])
 
@@ -162,6 +162,28 @@ async def assemble_preview(req: AssembleReq):
 
 
 # ---- Batch3：测算任务（发起 / 状态 / 结果）----
+
+class TaskInputsReq(BaseModel):
+    taskIds: list[StrictInt] = Field(min_length=1, max_length=50)
+
+
+@router.post("/tasks/inputs")
+async def get_task_inputs(
+    req: TaskInputsReq,
+    user: CurrentUser = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """批量读取成功版本冻结入参；不可用任务不泄露资源信息。"""
+    if any(task_id <= 0 for task_id in req.taskIds):
+        raise ValidationException("taskIds 必须为正整数")
+    return ok({"items": await ConversationHistoryService().get_task_inputs(
+        session,
+        task_ids=req.taskIds,
+        user_id=user.user_id,
+        readable_user_ids=scope.user_ids,
+    )})
+
 
 class TaskCreateReq(BaseModel):
     province: str
@@ -331,15 +353,35 @@ async def get_task_status(
     return ok(data)
 
 
+@router.get("/tasks/{task_id}/input")
+async def get_task_input(
+    task_id: int,
+    user: CurrentUser = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """读取指定成功版本的冻结入参（纯快照，不访问飞书）。"""
+    return ok(await ConversationHistoryService().get_task_input(
+        session,
+        task_id=task_id,
+        user_id=user.user_id,
+        readable_user_ids=scope.user_ids,
+    ))
+
+
 @router.get("/tasks/{task_id}/result")
 async def get_task_result(
     task_id: int,
     user: CurrentUser = Depends(get_current_user),
+    scope: UserScope = Depends(get_user_scope),
     session: AsyncSession = Depends(get_db_session),
 ):
     """结果三模块（数据源 report_snapshot，不依赖飞书副本）。"""
     task = await ConversationHistoryService().require_owned_task(
-        session, task_id=task_id, user_id=user.user_id
+        session,
+        task_id=task_id,
+        user_id=user.user_id,
+        readable_user_ids=scope.user_ids,
     )
     row = (await session.execute(
         select(CalculationResultSnapshotORM).where(CalculationResultSnapshotORM.task_id == task_id)

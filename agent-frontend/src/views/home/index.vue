@@ -143,10 +143,14 @@
                   :result="m.result"
                   :version="m.version"
                   :calculated-at="m.calculatedAt"
-                  :seed-input="m.input || {}"
+                  :seed-input="m.input || null"
                   :comparison-input="comparisonInputFor(m.taskId)"
                   :display-comparison-input="displayComparisonFor(m.version)?.input"
                   :comparison-result="displayComparisonFor(m.version)?.result"
+                  :comparison-loading="comparisonLoadingFor(m.version)"
+                  :comparison-error="comparisonErrorFor(m.version)"
+                  :adjustment-loading="taskInputLoadingFor(m.taskId)"
+                  :adjustment-error="taskInputErrorFor(m.taskId)"
                   :comparison-version="calc.comparisonVersionFor(m.version) || ''"
                   :available-versions="availableComparisonVersions(m.version)"
                   :change-meta="comparisonChangeMetaFor(m.version)"
@@ -167,7 +171,9 @@
                   @station-load-more="calc.loadMoreStations($event)"
                   @generate-report="generateReportAndReveal(m.taskId)"
                   @view-report="openReport"
-                  @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
+                  @compare-version-change="onComparisonVersionChange(m.version, $event)"
+                  @comparison-open="loadComparisonInputs(m.version)"
+                  @adjustment-open="loadAdjustmentInput(m.taskId)"
                 />
               </div>
               <ul v-if="m.recommendedQuestions && m.recommendedQuestions.length" class="ir-msg__recommend">
@@ -192,10 +198,14 @@
                 :result="m.result"
                 :version="m.version"
                 :calculated-at="m.calculatedAt"
-                :seed-input="m.input || {}"
+                :seed-input="m.input || null"
                 :comparison-input="comparisonInputFor(m.taskId)"
                 :display-comparison-input="displayComparisonFor(m.version)?.input"
                 :comparison-result="displayComparisonFor(m.version)?.result"
+                :comparison-loading="comparisonLoadingFor(m.version)"
+                :comparison-error="comparisonErrorFor(m.version)"
+                :adjustment-loading="taskInputLoadingFor(m.taskId)"
+                :adjustment-error="taskInputErrorFor(m.taskId)"
                 :comparison-version="calc.comparisonVersionFor(m.version) || ''"
                 :available-versions="availableComparisonVersions(m.version)"
                 :change-meta="comparisonChangeMetaFor(m.version)"
@@ -216,7 +226,9 @@
                 @station-load-more="calc.loadMoreStations($event)"
                 @generate-report="generateReportAndReveal(m.taskId)"
                 @view-report="openReport"
-                @compare-version-change="calc.selectComparisonVersion(m.version, $event)"
+                @compare-version-change="onComparisonVersionChange(m.version, $event)"
+                @comparison-open="loadComparisonInputs(m.version)"
+                @adjustment-open="loadAdjustmentInput(m.taskId)"
               />
             </div>
             <img
@@ -785,6 +797,53 @@ function recordTimeValue(value) {
   if (!value) return null
   const time = new Date(value).getTime()
   return Number.isNaN(time) ? null : time
+}
+
+function taskInputLoadingFor(taskId) {
+  return Boolean(calc.taskInputLoading[String(taskId)])
+}
+
+function taskInputErrorFor(taskId) {
+  return calc.taskInputErrors[String(taskId)] || ''
+}
+
+async function loadAdjustmentInput(taskId) {
+  try {
+    await calc.ensureTaskInput(taskId)
+  } catch {
+    // ResultCard reads the store error and provides retry without collapsing the card.
+  }
+}
+
+function comparisonEntriesFor(version) {
+  const current = versionEntryFor(version)
+  const compared = displayComparisonFor(version)
+  return current && compared ? [current, compared] : []
+}
+
+function comparisonLoadingFor(version) {
+  return comparisonEntriesFor(version).some((entry) => taskInputLoadingFor(entry.taskId))
+}
+
+function comparisonErrorFor(version) {
+  return comparisonEntriesFor(version)
+    .map((entry) => taskInputErrorFor(entry.taskId))
+    .find(Boolean) || ''
+}
+
+async function loadComparisonInputs(version) {
+  const entries = comparisonEntriesFor(version)
+  if (!entries.length) return
+  try {
+    await calc.ensureTaskInputs(entries.map((entry) => entry.taskId))
+  } catch {
+    // Both inputs stay absent until loaded; the comparison panel exposes the stored error.
+  }
+}
+
+function onComparisonVersionChange(version, compareVersion) {
+  calc.selectComparisonVersion(version, compareVersion)
+  loadComparisonInputs(version)
 }
 
 function comparisonInputFor(taskId) {

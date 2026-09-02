@@ -31,7 +31,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { getConversation } from '@/api/calc'
+import { getCalculationResult, getConversation } from '@/api/calc'
 import ReadonlyResultCard from '@/components/ReadonlyResultCard.vue'
 
 const route = useRoute()
@@ -50,20 +50,22 @@ async function loadResult() {
     return
   }
   try {
-    const response = await getConversation(conversationId)
-    const detail = response?.data || {}
+    const conversationResponse = await getConversation(conversationId)
+    const detail = conversationResponse?.data || {}
     // 一条台账记录对应一个版本，这里只认路由上的 taskId，不回退到最新版本。
     const target = (detail.versions || []).find(
       (item) => String(item.taskId) === String(taskId),
     )
-    if (!target?.result) {
+    if (!target) {
       error.value = '未找到该测算版本的结果'
       return
     }
+    const resultResponse = await getCalculationResult(taskId)
+    const payload = resultResponse?.data || {}
     title.value = detail.title || ''
-    version.value = target.version || ''
-    calculatedAt.value = target.calculatedAt || ''
-    result.value = target.result
+    version.value = target.version || payload.version || ''
+    calculatedAt.value = payload.calculatedAt || target.calculatedAt || ''
+    result.value = payload
   } catch (err) {
     error.value = err?.response?.status === 404
       ? '测算记录不存在或无权查看'

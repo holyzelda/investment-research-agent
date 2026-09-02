@@ -4,20 +4,25 @@
       <button
         class="ir-adjust__toggle"
         type="button"
-        :disabled="responding"
+        :disabled="responding || loading"
         :aria-expanded="expanded"
         aria-controls="ir-adjust-panel-body"
-        @click="expanded = !expanded"
+        @click="toggleExpanded"
       >
         <span class="ir-adjust__heading-copy">
           <strong>调整参数并重新测算</strong>
           <small>可修改项目、财务、收益及运营参数</small>
         </span>
         <span class="ir-adjust__toggle-action">
-          {{ expanded ? '收起' : '调整参数' }}
+          {{ loading ? '加载参数中…' : expanded ? '收起' : '调整参数' }}
           <ChevronDown class="ir-adjust__caret" :class="{ 'is-open': expanded }" aria-hidden="true" />
         </span>
       </button>
+    </div>
+
+    <div v-if="loadError && !expanded" class="ir-adjust__load-error" role="alert">
+      <span>{{ loadError }}</span>
+      <button type="button" :disabled="loading" @click="emit('open-request')">重新加载</button>
     </div>
 
     <div v-if="!expanded && hasPendingChanges" class="ir-adjust__pending-bar">
@@ -359,7 +364,7 @@ import { formatNumber } from '@/utils/formatNumber'
 const props = defineProps({
   paramDict: { type: Array, default: () => [] },
   switches: { type: Object, default: () => ({}) },
-  seedInput: { type: Object, default: () => ({}) },
+  seedInput: { type: Object, default: null },
   comparisonInput: { type: Object, default: null },
   stationOptions: { type: Array, default: () => [] },
   stationLoading: { type: Boolean, default: false },
@@ -370,9 +375,12 @@ const props = defineProps({
   advancedValidationError: { type: Boolean, default: false },
   version: { type: String, default: '' },
   responding: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+  loadError: { type: String, default: '' },
 })
 const emit = defineEmits([
   'recalculate',
+  'open-request',
   'dirty-change',
   'discard-all-changes',
   'station-open',
@@ -399,8 +407,24 @@ let sliderHintTimer = null
 let suppressedSliderFocus = null
 let nodeSearchTimer = null
 
+function toggleExpanded() {
+  if (expanded.value) {
+    expanded.value = false
+    return
+  }
+  if (Object.keys(props.seedInput || {}).length) {
+    expanded.value = true
+    return
+  }
+  emit('open-request')
+}
+
+watch(() => props.seedInput, (input) => {
+  if (!expanded.value && Object.keys(input || {}).length) expanded.value = true
+})
+
 const PROJECT_ORDER = ['province', 'city', 'node_name', 'power_mw', 'capacity_mwh']
-const isHenan = computed(() => ['河南', '河南省'].includes(String(localValues.province || props.seedInput.province || '').trim()))
+const isHenan = computed(() => ['河南', '河南省'].includes(String(localValues.province || props.seedInput?.province || '').trim()))
 // 每个分区的行布局：一行一个 id = 该项独占半宽一行；一行多个 id = 并排共享一行。
 // operation_years 不在任何分区的行布局里出现——即便后端字典仍返回该字段，也不会被渲染（见 zoneGroups 的过滤）。
 const FINANCIAL_ROWS = [['epc_unit_price'], ['loan_rate', 'loan_years']]
@@ -446,7 +470,8 @@ function resetLocalValues() {
   Object.keys(sliderInputValues).forEach((k) => delete sliderInputValues[k])
   Object.keys(validationErrors).forEach((k) => delete validationErrors[k])
   for (const spec of props.paramDict) {
-    const value = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+    const seedInput = props.seedInput || {}
+    const value = spec.id in seedInput ? seedInput[spec.id] : spec.default
     localValues[spec.id] = value
     if (spec.control === 'number') numberInputValues[spec.id] = value ?? ''
     if (spec.control === 'slider' || spec.control === 'dynamic_slider') {
@@ -484,7 +509,7 @@ const nodeOptions = computed(() => [...new Set([
 
 async function focusNodeEditor() {
   emit('station-open', {
-    province: localValues.province || props.seedInput.province,
+    province: localValues.province || props.seedInput?.province,
     selectedNode: localValues.node_name || null,
   })
   await nextTick()
@@ -494,7 +519,7 @@ function searchNodes(keyword) {
   clearTimeout(nodeSearchTimer)
   nodeSearchTimer = setTimeout(() => {
     emit('station-search', {
-      province: localValues.province || props.seedInput.province,
+      province: localValues.province || props.seedInput?.province,
       keyword,
       selectedNode: localValues.node_name || null,
     })
@@ -553,7 +578,8 @@ const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
   .filter((group) => group.items.length))
 const localChangeCount = computed(() => zoneGroups.value.reduce((count, group) => count + group.items.reduce((groupCount, spec) => {
   if (isLocked(spec)) return groupCount
-  const baseline = spec.id in props.seedInput ? props.seedInput[spec.id] : spec.default
+  const seedInput = props.seedInput || {}
+  const baseline = spec.id in seedInput ? seedInput[spec.id] : spec.default
   return comparableValue(localValues[spec.id], spec.step) !== comparableValue(baseline, spec.step)
     ? groupCount + 1
     : groupCount
@@ -586,7 +612,7 @@ function rowsFor(group) {
 }
 
 function isLocked(spec) { return isFieldLocked(spec) }
-function dynamicRangeOf(spec) { return dynamicRange(props.seedInput[spec.id], spec.step) }
+function dynamicRangeOf(spec) { return dynamicRange(props.seedInput?.[spec.id], spec.step) }
 function rangeOf(spec) {
   if (spec.control === 'slider') return { min: spec.min, max: spec.max }
   if (spec.control === 'dynamic_slider') return dynamicRangeOf(spec)
@@ -602,7 +628,7 @@ function deltaOf(spec) {
   const historicalBaseline = props.comparisonInput?.[spec.id]
   const baseline = typeof historicalBaseline === 'number'
     ? historicalBaseline
-    : spec.control === 'dynamic_slider' ? props.seedInput[spec.id] : spec.default
+    : spec.control === 'dynamic_slider' ? props.seedInput?.[spec.id] : spec.default
   const value = localValues[spec.id]
   if (typeof baseline !== 'number' || typeof value !== 'number') return null
   const delta = value - baseline
@@ -612,7 +638,7 @@ function deltaOf(spec) {
     text: `${delta > 0 ? '+' : ''}${delta.toFixed(decimalsForStep(spec.step))}${displayUnit(spec)}`,
   }
 }
-function frozenBaselineOf(spec) { return frozenBaseline(spec, props.seedInput) }
+function frozenBaselineOf(spec) { return frozenBaseline(spec, props.seedInput || {}) }
 function frozenMarkerPctOf(spec) { return frozenMarkerPct(rangeOf(spec), frozenBaselineOf(spec)) }
 function formatSpecValue(spec, value) { return formatNumber(value, decimalsForStep(spec.step)) }
 function displayUnit(spec) { return spec.unit && spec.unit !== '—' ? spec.unit : '' }
@@ -703,7 +729,7 @@ function resetCommonChanges() {
 function onSubmit() {
   if (props.responding || !hasPendingChanges.value || hasValidationErrors.value) return
   emit('recalculate', {
-    overrides: { ...buildOverrides(props.paramDict, localValues, props.seedInput), ...props.advancedOverrides },
+    overrides: { ...buildOverrides(props.paramDict, localValues, props.seedInput || {}), ...props.advancedOverrides },
     basics: {
       city: isHenan.value ? (localValues.city || null) : undefined,
       node_name: isHenan.value ? null : (localValues.node_name || null),
@@ -725,6 +751,8 @@ function onSubmit() {
 .ir-adjust__toggle-action { display:inline-flex; align-items:center; gap:var(--xc-space-2); min-height:44px; padding:0 var(--xc-space-4); border:1px solid var(--xc-border-accent); border-radius:var(--xc-radius-sm); background:var(--xc-accent-blue-soft); color:var(--xc-accent-blue); font-size:var(--xc-fs-sm); font-weight:var(--xc-fw-semi); white-space:nowrap; }
 .ir-adjust__toggle:focus-visible,.ir-adjust__reset:focus-visible,.ir-adjust__scope-reset:focus-visible,.ir-adjust__submit:focus-visible,.ir-adjust__tabs button:focus-visible { outline:2px solid var(--xc-accent-blue); outline-offset:2px; }
 .ir-adjust__toggle:disabled,.ir-adjust__reset:disabled,.ir-adjust__scope-reset:disabled,.ir-adjust__submit:disabled { cursor:not-allowed; opacity:.6; }
+.ir-adjust__load-error { display:flex; align-items:center; justify-content:space-between; gap:var(--xc-space-4); padding:var(--xc-space-3) var(--xc-space-5); border-top:1px solid var(--xc-border-soft); color:var(--xc-status-danger); font-size:var(--xc-fs-xs); }
+.ir-adjust__load-error button { min-height:36px; padding:0 var(--xc-space-3); border:1px solid var(--xc-border-soft); border-radius:var(--xc-radius-sm); background:transparent; color:var(--xc-text-soft); cursor:pointer; }
 .ir-adjust__pending-bar { display:flex; align-items:center; justify-content:space-between; gap:var(--xc-space-4); padding:var(--xc-space-4) var(--xc-space-5); border-top:1px solid var(--xc-border-soft); background:var(--xc-surface-tinted); }
 .ir-adjust__pending-copy { min-width:0; color:var(--xc-text-soft); font-size:var(--xc-fs-sm); line-height:var(--xc-lh-normal); }
 .ir-adjust__pending-actions { display:flex; align-items:center; gap:var(--xc-space-3); flex:0 0 auto; }

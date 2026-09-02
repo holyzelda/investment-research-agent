@@ -4,12 +4,14 @@ import { createPinia, setActivePinia } from 'pinia'
 const getUserInfo = vi.fn()
 const setUserIdentity = vi.fn()
 const removeUserIdentity = vi.fn()
+const removeToken = vi.fn()
 
 vi.mock('@/api/session', () => ({ getUserInfo }))
 vi.mock('@/api/auth', () => ({ login: vi.fn() }))
 vi.mock('@/utils/auth', () => ({
   getToken: () => 'platform-token',
   setToken: vi.fn(),
+  removeToken,
   setUserIdentity,
   removeUserIdentity,
 }))

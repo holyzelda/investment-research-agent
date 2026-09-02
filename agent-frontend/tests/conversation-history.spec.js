@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   createCalculationTask: vi.fn(),
   getCalculationTask: vi.fn(),
   getCalculationResult: vi.fn(),
+  getCalculationInput: vi.fn(),
+  getCalculationInputs: vi.fn(),
   listConversations: vi.fn(),
   getConversation: vi.fn(),
   deleteConversation: vi.fn(),
@@ -57,6 +59,7 @@ describe('conversation history sidebar and replay', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    api.getCalculationInputs.mockResolvedValue({ data: { items: [] } })
   })
 
   it('renders module navigation before conversation history in the unified shell', () => {
@@ -498,6 +501,28 @@ describe('conversation history sidebar and replay', () => {
     expect(store.conversationLoadError).toBe('')
     expect(store.selectedVersion).toBe('V2')
   })
+
+  it('does not hydrate task input after switching to another conversation', async () => {
+    const input = deferred()
+    api.getConversation.mockImplementation((id) => Promise.resolve({ data: String(id) === '7' ? detail : {
+      conversationId: 6,
+      messages: [],
+      versions: [{ taskId: 21, version: 'V1', status: 'completed', card: { basicInfo: { province: '宁夏' } } }],
+    } }))
+    api.getCalculationInputs.mockReturnValue(input.promise)
+    const store = useCalculationStore()
+
+    await store.openConversation(7)
+    const loading = store.ensureTaskInput(12)
+    await store.openConversation(6)
+    input.resolve({ data: { items: [{ taskId: 12, input: { province: '甘肃' }, changeMeta: {} }] } })
+    await loading
+
+    expect(store.conversationId).toBe(6)
+    expect(store.versions[0].input).toBeUndefined()
+    expect(store.taskInputCache.has('12')).toBe(false)
+  })
+
 
   it('ignores an out-of-order response from a superseded conversation open', async () => {
     const slow = {

@@ -1,7 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 
-const api = vi.hoisted(() => ({ getConversation: vi.fn() }))
+const api = vi.hoisted(() => ({
+  getConversation: vi.fn(),
+  getCalculationResult: vi.fn(),
+}))
 const route = vi.hoisted(() => ({ params: { conversationId: 'conversation-2', taskId: '77' } }))
 
 vi.mock('@/api/calc', () => api)
@@ -40,6 +43,7 @@ const DETAIL = {
 describe('CalculationResultReadonly', () => {
   it('renders exactly the version named by the route task id', async () => {
     api.getConversation.mockResolvedValue(DETAIL)
+    api.getCalculationResult.mockResolvedValue({ data: DETAIL.data.versions[1].result })
 
     const wrapper = mount(CalculationResultReadonly)
     await flushPromises()
@@ -54,6 +58,7 @@ describe('CalculationResultReadonly', () => {
 
   it('offers no write actions at all', async () => {
     api.getConversation.mockResolvedValue(DETAIL)
+    api.getCalculationResult.mockResolvedValue({ data: DETAIL.data.versions[1].result })
 
     const wrapper = mount(CalculationResultReadonly)
     await flushPromises()
