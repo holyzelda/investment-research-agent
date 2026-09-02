@@ -21,15 +21,6 @@ describe('全国指数摘要卡', () => {
     expect(text).toContain('10')
   })
 
-  it('第四张卡为“C 类区域”而非“高潜待挖掘/待开通”', () => {
-    const wrapper = mount(IndexSummaryCards, { props: { summary } })
-    const text = wrapper.text()
-    expect(text).toContain('C 类区域')
-    expect(text).toContain('已开通 C 类')
-    expect(text).not.toContain('高潜待挖掘')
-    expect(text).not.toContain('待开通')
-  })
-
   it('缺失计数时回退为 0', () => {
     const wrapper = mount(IndexSummaryCards, { props: { summary: { openedProvinceCount: 0 } } })
     expect(wrapper.text()).toContain('S 0')

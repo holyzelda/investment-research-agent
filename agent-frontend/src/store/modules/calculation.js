@@ -777,7 +777,10 @@ export const useCalculationStore = defineStore('calculation', {
               if (!this._isCurrentTurn(currentTurnId, epoch)) return
               if (conversationId) {
                 expectedConversationId = conversationId
-                if (!this.conversationId) this.conversationId = conversationId
+                if (!this.conversationId) {
+                  this.conversationId = conversationId
+                  this.loadHistory().catch(() => {})
+                }
               }
             },
             onEvent: (e) => {

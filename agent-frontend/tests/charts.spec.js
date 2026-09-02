@@ -31,7 +31,7 @@ describe('result chart series contract', () => {
         frequencyRevenue: 0, leaseRevenue: 10, interventionRevenue: 5, subsidyRevenue: 15,
       } },
     })
-    const option = captured.factories[0]()
+    const { baseOption: option, media } = captured.factories[0]()
 
     // 调频市场收益为 0，在环形图上是 0 度扇区（视觉上不存在），图例也不应保留该条目
     expect(option.series[0].data.map((item) => item.name)).toEqual([
@@ -42,18 +42,24 @@ describe('result chart series contract', () => {
     )
     expect(option.color).toEqual(['c1', 'c2', 'c3', 'c4', 'c5', 'c6'])
 
-    // tooltip 挂到 body 后不会被结果卡的 overflow:hidden 裁切；环心文案使用独立 DOM
-    // 覆盖层，不参与饼图扇区的 emphasis 标签布局。
+    // tooltip 挂到 body 后不会被结果卡的 overflow:hidden 裁切；环心文案由第二个
+    // 饼图系列的 rich label 居中渲染，不参与扇区的 emphasis 标签布局。
     expect(option.tooltip.appendToBody).toBe(true)
     expect(option.series[0].center).toEqual(['34%', '50%'])
     expect(option.series[0].label.show).toBe(false)
     expect(option.series[0].emphasis.label.show).toBe(false)
 
-    const center = mount(RevenueDonut, {
-      props: { donut: { totalRevenue: 100, energyRevenue: 100 } },
-    }).find('.ir-chart__center')
-    expect(center.text()).toContain('首年总收入')
-    expect(center.text()).toContain('100')
+    // 窄屏下图例转为横向置底，环心随之上移让位
+    expect(media[0].query).toEqual({ maxWidth: 420 })
+    expect(media[0].option.legend.orient).toBe('horizontal')
+    expect(media[0].option.series.map((s) => s.center)).toEqual([
+      ['50%', '42%'], ['50%', '42%'],
+    ])
+
+    mount(RevenueDonut, { props: { donut: { totalRevenue: 100, energyRevenue: 100 } } })
+    const { baseOption: centered } = captured.factories[1]()
+    expect(centered.series[1].label.formatter).toContain('首年总收入')
+    expect(centered.series[1].label.formatter).toContain('100')
   })
 
   it('builds a debt-service-coverage line with a threshold and a middle break', () => {

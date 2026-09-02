@@ -34,7 +34,7 @@
         :drawer-open="drawerOpen"
         :has-more="calc.historyHasMore"
         :loading="calc.historyLoading"
-        @update:collapsed="sidebarCollapsed = $event"
+        @update:collapsed="onSidebarCollapsedChange"
         @close-drawer="closeDrawer"
         @nav="onNav"
         @new-chat="onNewChat"
@@ -97,6 +97,8 @@ const isWelcome = computed(() => (
 const sidebarCollapsed = ref(Boolean(route.meta.collapseSidebar))
 const drawerOpen = ref(false)
 const menuTrigger = ref(null)
+// 用户手动展开/折叠后，路由跳转不再用 meta.collapseSidebar 覆盖该选择
+let sidebarCollapsedByUser = false
 let previousBodyOverflow = ''
 let homeSidebarMedia = null
 
@@ -105,9 +107,14 @@ function syncHomeSidebarFromViewport() {
   sidebarCollapsed.value = homeSidebarMedia.matches
 }
 
+function onSidebarCollapsedChange(collapsed) {
+  sidebarCollapsedByUser = true
+  sidebarCollapsed.value = collapsed
+}
+
 watch(() => route.fullPath, () => {
   closeDrawer(false)
-  sidebarCollapsed.value = Boolean(route.meta.collapseSidebar)
+  if (!sidebarCollapsedByUser) sidebarCollapsed.value = Boolean(route.meta.collapseSidebar)
   syncHomeSidebarFromViewport()
 })
 
