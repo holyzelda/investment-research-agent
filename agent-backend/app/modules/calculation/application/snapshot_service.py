@@ -90,6 +90,7 @@ class SnapshotService:
             payload={
                 "switches": assembled.switches,
                 "warnings": assembled.warnings,
+                "spotContext": assembled.spot_context,
                 "reportSources": report_sources or {},
             },
         ))

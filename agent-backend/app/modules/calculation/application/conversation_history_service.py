@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Sequence
 
 from loguru import logger
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import NotFoundException, ValidationException
@@ -15,6 +15,7 @@ from app.modules.calculation.application.calculation_share_service import (
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
+    ConversationSpotContextORM,
     ConversationORM,
     InputSnapshotORM,
     MessageSnapshotORM,
@@ -174,6 +175,30 @@ class ConversationHistoryService:
                 for task in tasks
             ],
         }
+        spot_context = (await session.execute(
+            select(ConversationSpotContextORM).where(
+                ConversationSpotContextORM.conversation_id == conversation.id,
+            )
+        )).scalar_one_or_none()
+        if spot_context is not None:
+            effective_status = (
+                "expired"
+                if spot_context.status != "ready" or spot_context.expires_at <= datetime.now()
+                else "ready"
+            )
+            detail["spotContext"] = {
+                "status": effective_status,
+                "fileName": spot_context.file_name,
+                "fileSha256": spot_context.file_sha256,
+                "priceUnit": spot_context.price_unit,
+                "validDays": spot_context.valid_day_count,
+                "skippedDays": spot_context.skipped_day_count,
+                "startDate": spot_context.start_date.isoformat(),
+                "endDate": spot_context.end_date.isoformat(),
+                "kCount": len(spot_context.k_results or {}) if effective_status == "ready" else 0,
+                "warnings": list(spot_context.warnings or []),
+                "expiresAt": spot_context.expires_at.isoformat(),
+            }
         if reports or generations:
             detail["reports"] = [
                 self._report_summary(report, generations.get(report.task_id), next(
@@ -333,6 +358,11 @@ class ConversationHistoryService:
             )
         )).all() if token]
         doc_tokens = list(dict.fromkeys(doc_tokens))
+        await session.execute(
+            delete(ConversationSpotContextORM).where(
+                ConversationSpotContextORM.conversation_id == conversation.id
+            )
+        )
         conversation.deleted_at = datetime.now()
         await session.commit()
         return {"conversationId": deleted_conversation_id, "deleted": True}, doc_tokens

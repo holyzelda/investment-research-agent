@@ -59,6 +59,21 @@ def test_accepts_all_three_when_consistent():
 
 
 @pytest.mark.parametrize(
+    ("capacity_mwh", "power_mw", "duration_hours"),
+    [(300, 100, None), (None, None, 3), (100, 100, 1)],
+)
+def test_rejects_system_durations_other_than_two_or_four_hours(
+    capacity_mwh, power_mw, duration_hours
+):
+    with pytest.raises(ValidationException, match="仅支持2小时或4小时"):
+        normalize(
+            capacity_mwh=capacity_mwh,
+            power_mw=power_mw,
+            duration_hours=duration_hours,
+        )
+
+
+@pytest.mark.parametrize(
     ("capacity_mwh", "power_mw", "duration_hours", "message"),
     [
         (150, 100, 2, "不一致"),

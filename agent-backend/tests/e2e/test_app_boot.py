@@ -81,6 +81,8 @@ async def test_lifespan_starts_and_stops_policy_ask_warmup(monkeypatch):
     monkeypatch.setattr(main, "mark_interrupted_generations_failed", fake_recovery)
     monkeypatch.setattr(main, "start_spot_daily_scheduler", lambda: calls.append("scheduler-start"))
     monkeypatch.setattr(main, "stop_spot_daily_scheduler", lambda: calls.append("scheduler-stop"))
+    monkeypatch.setattr(main, "start_spot_context_cleanup_scheduler", lambda: calls.append("context-cleanup-start"))
+    monkeypatch.setattr(main, "stop_spot_context_cleanup_scheduler", lambda: calls.append("context-cleanup-stop"))
     monkeypatch.setattr(main, "start_policy_ask_warmup", lambda: calls.append("policy-start"))
     monkeypatch.setattr(main, "stop_policy_ask_warmup", fake_stop_warmup)
     monkeypatch.setattr(main, "dispose_engine", fake_dispose_engine)
@@ -89,7 +91,9 @@ async def test_lifespan_starts_and_stops_policy_ask_warmup(monkeypatch):
     async with main.lifespan(app):
         assert calls[-1] == "policy-start"
 
-    assert calls[-4:] == ["scheduler-stop", "policy-stop", "db-stop", "nacos-stop"]
+    assert calls[-5:] == [
+        "scheduler-stop", "context-cleanup-stop", "policy-stop", "db-stop", "nacos-stop",
+    ]
 
 
 @pytest.mark.asyncio

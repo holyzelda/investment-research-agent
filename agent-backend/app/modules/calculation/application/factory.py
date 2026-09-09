@@ -34,7 +34,7 @@ def build_revenue_structure_reader():
     return JsonRevenueStructureReader()
 
 
-def build_param_assembler(spot=None) -> ParamAssembler:
+def build_param_assembler(spot=None, *, force_spot_compute: bool = False) -> ParamAssembler:
     """装配参数组装器。表2《各省收益结构》读取源按配置切换：
 
     feishu.enabled 且 revenue_structure_token 已填 → 飞书真读（FeishuRevenueStructureReader）；
@@ -55,6 +55,8 @@ def build_param_assembler(spot=None) -> ParamAssembler:
             )
         else:
             spot = NullSpotPriceAlgo()
+    if force_spot_compute:
+        spot.always_compute = True
     return ParamAssembler(
         param_dict=JsonParamDictRepository().load(),
         revenue_structure=revenue,
@@ -105,7 +107,7 @@ def build_feishu_gateway():
     return MockFeishuGateway(output=sample_output())
 
 
-def build_task_service():
+def build_task_service(spot=None, *, force_spot_compute: bool = False):
     """测算任务编排器（每请求新建：组装器/网关/引擎/重试/快照 全新装配）。
 
     网关按 feishu.enabled 选真实/Mock（build_feishu_gateway）；同一网关既供引擎读写、
@@ -117,7 +119,10 @@ def build_task_service():
 
     gateway = build_feishu_gateway()
     return CalculationTaskService(
-        assembler=build_param_assembler(),
+        assembler=build_param_assembler(
+            spot=spot,
+            force_spot_compute=force_spot_compute,
+        ),
         gateway=gateway,
         engine=build_calc_engine(gateway=gateway),
         retry=build_retry_policy(),

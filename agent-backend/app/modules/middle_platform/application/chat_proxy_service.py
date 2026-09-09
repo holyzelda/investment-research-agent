@@ -19,6 +19,7 @@ from app.core.config.settings import MiddlePlatformConfig
 from app.core.exceptions import ValidationException
 from app.infrastructure.database.session import get_sessionmaker
 from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
+from app.modules.calculation.application.spot_context_service import SpotContextService
 from app.modules.calculation.infrastructure.persistence.orm import ConversationORM
 from app.modules.middle_platform.application.error_normalizer import (
     error_message,
@@ -62,6 +63,7 @@ class ChatProxyService:
         user: CurrentUser,
         message: str,
         conversation_id: str | None,
+        spot_context_token: str | None = None,
     ) -> ChatStream:
         content = message.strip()
         if not content:
@@ -75,13 +77,20 @@ class ChatProxyService:
                 last_activity_at=datetime.now(),
             )
             session.add(conversation)
-            await session.commit()
-            await session.refresh(conversation)
+            await session.flush()
         else:
             conversation = await self._history.require_active_conversation(
                 session,
                 conversation_id=conversation_id,
                 user_id=user.user_id,
+            )
+
+        if spot_context_token:
+            await SpotContextService().bind_token(
+                session,
+                token=spot_context_token,
+                user_id=user.user_id,
+                conversation_id=conversation.id,
             )
 
         await self._history.append_message(

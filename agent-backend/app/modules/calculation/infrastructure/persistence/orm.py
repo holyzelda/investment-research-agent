@@ -23,6 +23,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -148,6 +149,43 @@ class SpotStationORM(Base):
     province: Mapped[str] = mapped_column(String(64), primary_key=True)
     station_name: Mapped[str] = mapped_column(String(128), primary_key=True)
     last_seen: Mapped[date] = mapped_column(Date, nullable=False)
+
+
+class ConversationSpotContextORM(Base):
+    """会话级上传现货电价：仅保存文件摘要与 19 个 K 的聚合结果。"""
+
+    __tablename__ = "ir_conversation_spot_context"
+    __table_args__ = (
+        UniqueConstraint("conversation_id", name="uq_ir_conv_spot_context_conversation"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    conversation_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("ir_conversation.id"), nullable=True
+    )
+    user_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="ready")
+    context_token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    file_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    price_unit: Mapped[str] = mapped_column(String(16), nullable=False, default="CNY/MWh")
+    start_date: Mapped[date] = mapped_column(Date, nullable=False)
+    end_date: Mapped[date] = mapped_column(Date, nullable=False)
+    valid_day_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    skipped_day_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    warnings: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    k_results: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
 
 
 class CalculationResultSnapshotORM(_PkTimestamp, Base):

@@ -141,4 +141,18 @@ describe('request authentication expiry', () => {
 
     expect(capturedConfig.baseURL).toBe('')
   })
+
+  it('lets the browser set the multipart boundary for FormData uploads', async () => {
+    let capturedConfig
+    request.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return { data: { code: 200 }, status: 200, statusText: 'OK', headers: {}, config, request: {} }
+    }
+    const data = new FormData()
+    data.append('file', new File(['xlsx'], 'spot.xlsx'))
+
+    await request({ url: '/ir/calc/spot-context/prepare', method: 'post', data })
+
+    expect(capturedConfig.headers['Content-Type']).toBe(false)
+  })
 })

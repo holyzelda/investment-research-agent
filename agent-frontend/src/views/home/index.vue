@@ -44,9 +44,16 @@
             ref="composerRef"
             class="ir-welcome__composer"
             :responding="calc.responding"
+            :spot-context="calc.spotContext"
+            :spot-uploading="calc.spotContextUploading"
+            :spot-error="calc.spotContextError"
             placeholder="例如：测算甘肃 200MW/800MWh 独立储能项目，运营期15年"
             @send="onSend"
             @stop="calc.stopStream"
+            @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
+            @spot-remove="calc.clearSpotContext().catch(() => {})"
+            @spot-error-dismiss="calc.clearSpotContextError"
+            @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
           />
 
           <div class="ir-welcome__chips">
@@ -241,7 +248,19 @@
           </div>
         </div>
 
-        <ChatComposer class="ir-home__composer" :responding="calc.responding" @send="onSend" @stop="calc.stopStream" />
+        <ChatComposer
+          class="ir-home__composer"
+          :responding="calc.responding"
+          :spot-context="calc.spotContext"
+          :spot-uploading="calc.spotContextUploading"
+          :spot-error="calc.spotContextError"
+          @send="onSend"
+          @stop="calc.stopStream"
+          @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
+          @spot-remove="calc.clearSpotContext().catch(() => {})"
+          @spot-error-dismiss="calc.clearSpotContextError"
+          @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
+        />
       </template>
       </template>
     </section>

@@ -57,6 +57,7 @@ class AssembledParams:
     api_input: dict = field(default_factory=dict)          # 写入 API_INPUT（param_id -> 值）
     switches: dict = field(default_factory=dict)           # 各省收益结构开关（用于收益类显隐）
     warnings: list = field(default_factory=list)           # 组装告警（省份缺失/未知等）
+    spot_context: dict = field(default_factory=dict)       # 自定义现货来源摘要（不写飞书）
 
 
 class ParamAssembler:
@@ -142,7 +143,8 @@ class ParamAssembler:
         daily_cycles = override_cycles if override_cycles is not None else result.api_input.get("daily_cycles", 1)
 
         # ③ 电价库二次计算（现货充/放均价）——依赖未变则继承上一版本，不查库
-        deps_changed = self._spot_dependency_changed(previous_input, basics, daily_cycles)
+        deps_changed = bool(getattr(self._spot, "always_compute", False)) or \
+            self._spot_dependency_changed(previous_input, basics, daily_cycles)
         if not deps_changed:
             spot_c = previous_input.get("spot_charge_avg")
             spot_d = previous_input.get("spot_discharge_avg")
@@ -155,6 +157,10 @@ class ParamAssembler:
                 spot_c, spot_d = self._spot.compute(*spot_args)
         result.api_input["spot_charge_avg"] = spot_c
         result.api_input["spot_discharge_avg"] = spot_d
+        result.spot_context = dict(getattr(self._spot, "source_metadata", {}) or {})
+        if result.spot_context:
+            result.spot_context["k"] = self._spot_k(cap, pwr, daily_cycles)
+            result.warnings.extend(getattr(self._spot, "source_warnings", []) or [])
 
         # ④ 各省收益结构按省
         profile = self._revenue.get_profile(basics.province)
@@ -199,6 +205,16 @@ class ParamAssembler:
         self._normalize_api_input(result.api_input, op_years)
 
         return result
+
+    @staticmethod
+    def _spot_k(capacity_mwh: float, power_mw: float, daily_cycles: float) -> int:
+        from app.modules.calculation.domain.spot_pricing import k_from_inputs
+
+        return k_from_inputs(
+            Decimal(str(capacity_mwh)),
+            Decimal(str(power_mw)),
+            Decimal(str(daily_cycles)),
+        )
 
     def _normalize_api_input(self, api_input: dict, op_years: int) -> None:
         """按字典 step 的小数位规范化最终冻结入参。"""

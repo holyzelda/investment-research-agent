@@ -9,6 +9,7 @@ aiomysql>=0.2.0          # MySQL 异步驱动（纯 Python，Windows 免编译�
 # 备选高性能驱动 asyncmy 需 C++ 编译环境（Windows 可能装不上），如需再单独装：pip install asyncmy
 httpx>=0.27
 python-multipart>=0.0.20  # FastAPI 解析联络线功率导入的 multipart 表单
+openpyxl>=3.1             # 运行时解析用户上传的现货电价 xlsx
 tenacity>=8.5
 APScheduler>=3.10
 PyYAML>=6.0
@@ -21,5 +22,4 @@ lark-oapi>=1.0.0
 # dev / test
 pytest>=8.2
 pytest-asyncio>=0.23
-openpyxl>=3.1          # 提参/构建工具：离线读取飞书导出的 xlsx（映射表/表2）生成 param_dict.json，应用运行时不依赖
 PyMySQL>=1.1,<2        # 政策材料 Excel 定时入库脚本使用

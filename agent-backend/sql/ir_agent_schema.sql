@@ -19,6 +19,34 @@ CREATE TABLE ir_conversation (
 CREATE INDEX ix_ir_conversation_user_id ON ir_conversation (user_id);
 CREATE INDEX ix_ir_conv_user_deleted_activity ON ir_conversation (user_id, deleted_at, last_activity_at);
 
+CREATE TABLE ir_conversation_spot_context (
+    id CHAR(36) NOT NULL,
+    conversation_id CHAR(36),
+    user_id VARCHAR(64) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'ready',
+    context_token_hash VARCHAR(64) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    file_sha256 VARCHAR(64) NOT NULL,
+    price_unit VARCHAR(16) NOT NULL DEFAULT 'CNY/MWh',
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    valid_day_count INT NOT NULL,
+    skipped_day_count INT NOT NULL DEFAULT 0,
+    warnings JSON NOT NULL,
+    k_results JSON NOT NULL,
+    algorithm_version VARCHAR(32) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now() ON UPDATE now(),
+    last_used_at DATETIME,
+    expires_at DATETIME NOT NULL,
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_ir_conv_spot_context_conversation (conversation_id),
+    UNIQUE KEY uq_ir_conv_spot_context_token (context_token_hash),
+    FOREIGN KEY (conversation_id) REFERENCES ir_conversation (id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+CREATE INDEX ix_ir_conv_spot_context_user ON ir_conversation_spot_context (user_id);
+CREATE INDEX ix_ir_conv_spot_context_expires ON ir_conversation_spot_context (expires_at);
+
 CREATE TABLE consultation_records (
     id BIGINT NOT NULL AUTO_INCREMENT,
     user_id VARCHAR(64) NOT NULL,

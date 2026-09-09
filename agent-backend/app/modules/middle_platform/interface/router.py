@@ -19,6 +19,7 @@ router = APIRouter(prefix="/ir/chat", tags=["middle-platform-chat"])
 class ChatDiagRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     conversation_id: Optional[UUID] = None
+    spot_context_token: Optional[str] = Field(default=None, min_length=20, max_length=128)
 
 
 @router.post("/diag")
@@ -32,6 +33,7 @@ async def chat_diag(
         user=user,
         message=req.message,
         conversation_id=str(req.conversation_id) if req.conversation_id else None,
+        spot_context_token=req.spot_context_token,
     )
     return StreamingResponse(
         stream.chunks,

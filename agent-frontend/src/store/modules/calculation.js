@@ -15,6 +15,11 @@ import { createReport, getReportTask } from '@/api/report'
 import { streamReportEvents } from '@/utils/reportSse'
 import { openChatStream } from '@/utils/chatSse'
 import {
+  downloadSpotContextTemplate,
+  prepareSpotContext,
+  removeSpotContext,
+} from '@/api/spotContext'
+import {
   createThinkingState,
   applyThinkingFrame,
   finalizeThinking,
@@ -151,6 +156,12 @@ export const useCalculationStore = defineStore('calculation', {
     conversationLoading: false,
     conversationLoadingId: null,
     conversationLoadError: '',
+    spotContext: null,
+    spotContextToken: null,
+    spotContextUploading: false,
+    spotContextError: '',
+    spotContextRequestSequence: 0,
+    spotContextController: null,
   }),
   getters: {
     latestVersion: (state) => state.versions[state.versions.length - 1] || null,
@@ -181,6 +192,15 @@ export const useCalculationStore = defineStore('calculation', {
       this.conversationLoading = false
       this.conversationLoadingId = null
       this.conversationLoadError = ''
+      const stagedToken = this.spotContextToken
+      this.spotContextController?.abort()
+      this.spotContextRequestSequence += 1
+      this.spotContextController = null
+      this.spotContext = null
+      this.spotContextToken = null
+      this.spotContextUploading = false
+      this.spotContextError = ''
+      if (stagedToken) removeSpotContext({ contextToken: stagedToken }).catch(() => {})
     },
     invalidateConversationDetail(conversationId) {
       if (conversationId == null) return
@@ -550,6 +570,9 @@ export const useCalculationStore = defineStore('calculation', {
           .map((report) => [report.reportTaskId, report]),
       )
       this.conversationId = resolvedId
+      this.spotContext = detail.spotContext || null
+      this.spotContextToken = null
+      this.spotContextError = ''
       const target = targetTaskId == null
         ? null
         : this.versions.find((version) => String(version.taskId) === String(targetTaskId))
@@ -563,6 +586,11 @@ export const useCalculationStore = defineStore('calculation', {
     },
     async openConversation(conversationId, targetTaskId = null) {
       const key = String(conversationId)
+      const stagedToken = this.spotContextToken
+      if (stagedToken) removeSpotContext({ contextToken: stagedToken }).catch(() => {})
+      this.spotContext = null
+      this.spotContextToken = null
+      this.spotContextError = ''
       this.disposeActiveTurn({ visible: false })
       this.disposeReportStreams()
       const openEpoch = ++this.historyOpenEpoch
@@ -597,6 +625,60 @@ export const useCalculationStore = defineStore('calculation', {
       this.invalidateConversationDetail(conversationId)
       if (String(this.conversationId) === key) this.resetConversation()
       await this.loadHistory()
+    },
+    async uploadSpotContext(file) {
+      if (!file || this.responding || this.spotContextUploading) return
+      const sequence = ++this.spotContextRequestSequence
+      this.spotContextController?.abort()
+      const controller = new AbortController()
+      this.spotContextController = controller
+      this.spotContextUploading = true
+      this.spotContextError = ''
+      try {
+        const response = await prepareSpotContext(file, this.conversationId, controller.signal)
+        if (sequence !== this.spotContextRequestSequence) return
+        this.spotContext = response.data || null
+        this.spotContextToken = this.conversationId
+          ? null
+          : response.data?.contextToken || null
+        if (this.conversationId) this.invalidateConversationDetail(this.conversationId)
+      } catch (error) {
+        if (sequence !== this.spotContextRequestSequence || isCancelledRequest(error)) return
+        this.spotContextError = error?.response?.data?.msg || error?.message || '电价文件校验失败'
+        throw error
+      } finally {
+        if (sequence === this.spotContextRequestSequence) {
+          this.spotContextUploading = false
+          if (this.spotContextController === controller) this.spotContextController = null
+        }
+      }
+    },
+    clearSpotContextError() {
+      this.spotContextError = ''
+    },
+    async clearSpotContext() {
+      this.spotContextController?.abort()
+      this.spotContextRequestSequence += 1
+      this.spotContextController = null
+      const conversationId = this.conversationId
+      const contextToken = this.spotContextToken
+      if (conversationId || contextToken) {
+        await removeSpotContext({ conversationId, contextToken })
+      }
+      this.spotContext = null
+      this.spotContextToken = null
+      this.spotContextUploading = false
+      this.spotContextError = ''
+      if (conversationId) this.invalidateConversationDetail(conversationId)
+    },
+    async downloadSpotContextTemplate() {
+      const blob = await downloadSpotContextTemplate()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'spot-price-template.xlsx'
+      anchor.click()
+      URL.revokeObjectURL(url)
     },
     async renameConversation(conversationId, title) {
       const cleaned = String(title || '').trim()
@@ -771,7 +853,11 @@ export const useCalculationStore = defineStore('calculation', {
 
         const handle = openChatStream(
           '/ir/chat/diag',
-          { message: content, conversation_id: this.conversationId || undefined },
+          {
+            message: content,
+            conversation_id: this.conversationId || undefined,
+            ...(this.spotContextToken ? { spot_context_token: this.spotContextToken } : {}),
+          },
           {
             onOpen: ({ conversationId }) => {
               if (!this._isCurrentTurn(currentTurnId, epoch)) return
@@ -779,6 +865,7 @@ export const useCalculationStore = defineStore('calculation', {
                 expectedConversationId = conversationId
                 if (!this.conversationId) {
                   this.conversationId = conversationId
+                  this.spotContextToken = null
                   this.loadHistory().catch(() => {})
                 }
               }

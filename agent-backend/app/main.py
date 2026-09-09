@@ -19,6 +19,10 @@ from app.modules.calculation.infrastructure.spot_daily_scheduler import (
     start_spot_daily_scheduler,
     stop_spot_daily_scheduler,
 )
+from app.modules.calculation.infrastructure.spot_context_cleanup_scheduler import (
+    start_spot_context_cleanup_scheduler,
+    stop_spot_context_cleanup_scheduler,
+)
 from app.modules.calculation.interface.conversation_router import router as conversation_router
 from app.modules.calculation.interface.ledger_router import router as calculation_ledger_router
 from app.modules.calculation.interface.share_router import router as calculation_share_router
@@ -66,10 +70,12 @@ async def lifespan(app: FastAPI):
     if interrupted:
         logger.info("已将 {} 个中断的报告生成任务标记为失败", interrupted)
     start_spot_daily_scheduler()
+    start_spot_context_cleanup_scheduler()
     start_policy_ask_warmup()
     logger.info(f"{settings.app.name} 启动完成")
     yield
     stop_spot_daily_scheduler()
+    stop_spot_context_cleanup_scheduler()
     await stop_source_prefetch()
     await stop_policy_ask_warmup()
     await dispose_engine()

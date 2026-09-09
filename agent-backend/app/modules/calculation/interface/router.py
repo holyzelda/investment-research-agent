@@ -3,10 +3,14 @@
 阶段职责：暴露参数字典与"试组装"，供前端联调与业务核对数据契约。
 真正的测算触发端点在 Batch3（执行引擎）落地。
 """
+import asyncio
+from io import BytesIO
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, File, Form, Header, Query, UploadFile
+from fastapi.responses import StreamingResponse
+from openpyxl import Workbook
 from pydantic import BaseModel, Field, StrictInt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -28,12 +32,22 @@ from app.modules.calculation.application.input_normalizer import (
 )
 from app.modules.calculation.application.platform_stats_service import get_platform_stats as load_platform_stats
 from app.modules.calculation.application.param_assembler import _SWITCH_MAP as _SWITCH_ATTR_MAP
+from app.modules.calculation.application.spot_context_service import SpotContextService
 from app.modules.calculation.domain.models import ProjectBasics
 from app.modules.calculation.infrastructure.param_dict_repo import JsonParamDictRepository
 from app.modules.calculation.infrastructure.henan_spot_import import CITY_TO_REGION, city_to_region
+from app.modules.calculation.infrastructure.conversation_spot_price_algo import (
+    ConversationSpotPriceAlgo,
+)
+from app.modules.calculation.infrastructure.uploaded_spot_context import (
+    EXPECTED_HEADERS,
+    MAX_UPLOAD_BYTES,
+    parse_uploaded_spot_file,
+)
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
+    DataSnapshotORM,
     InputSnapshotORM,
     SpotStationORM,
 )
@@ -41,6 +55,114 @@ from app.modules.platform_access.interface.deps import get_current_user, get_use
 from app.modules.platform_access.domain.models import CurrentUser, UserScope
 
 router = APIRouter(prefix="/ir/calc", tags=["calculation"])
+_SPOT_UPLOAD_SEMAPHORE = asyncio.Semaphore(2)
+
+
+def _conversation_uuid(value: Optional[str]) -> Optional[str]:
+    try:
+        return str(UUID(value)) if value is not None else None
+    except ValueError as exc:
+        raise ValidationException("conversation_id 格式无效") from exc
+
+
+def _xlsx_template() -> bytes:
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "现货电价"
+    sheet.append(list(EXPECTED_HEADERS))
+    for index in range(1, 97):
+        minutes = index * 15
+        label = f"{minutes // 60:02d}:{minutes % 60:02d}"
+        sheet.append(["", label, ""])
+    sheet.freeze_panes = "A2"
+    sheet.column_dimensions["A"].width = 16
+    sheet.column_dimensions["B"].width = 12
+    sheet.column_dimensions["C"].width = 20
+    output = BytesIO()
+    workbook.save(output)
+    workbook.close()
+    return output.getvalue()
+
+
+@router.get("/spot-context/template")
+async def download_spot_context_template():
+    """下载单日 96 点长表模板，供用户按固定格式填充。"""
+    return StreamingResponse(
+        BytesIO(_xlsx_template()),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": "attachment; filename=spot-price-template.xlsx",
+        },
+    )
+
+
+@router.post("/spot-context/prepare")
+async def prepare_spot_context(
+    file: UploadFile = File(...),
+    conversation_id: Optional[str] = Form(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    """上传后立即校验并聚合 19 个 K；成功后才返回 ready。"""
+    conv_id = _conversation_uuid(conversation_id)
+    content = await file.read(MAX_UPLOAD_BYTES + 1)
+    from app.core.config.settings import get_settings
+
+    spot = get_settings().spot_price
+    async with _SPOT_UPLOAD_SEMAPHORE:
+        parsed = await asyncio.to_thread(
+            parse_uploaded_spot_file,
+            content,
+            file.filename or "",
+            min_action_minutes=spot.min_action_minutes,
+            switch_gap_minutes=spot.switch_gap_minutes,
+            workers=spot.daily_update_workers,
+        )
+    token, context = await SpotContextService().save_prepared(
+        session,
+        user_id=user.user_id,
+        conversation_id=conv_id,
+        parsed=parsed,
+    )
+    return ok({**SpotContextService.summary(context), "contextToken": token})
+
+
+@router.get("/spot-context")
+async def get_spot_context(
+    conversation_id: str = Query(...),
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    conv_id = _conversation_uuid(conversation_id)
+    await ConversationHistoryService().require_active_conversation(
+        session, conversation_id=conv_id, user_id=user.user_id
+    )
+    context = await SpotContextService().get_for_conversation(
+        session, conversation_id=conv_id, user_id=user.user_id
+    )
+    return ok(SpotContextService.summary(context) if context else None)
+
+
+@router.delete("/spot-context")
+async def delete_spot_context(
+    conversation_id: Optional[str] = Query(default=None),
+    context_token: Optional[str] = Query(default=None),
+    user: CurrentUser = Depends(get_current_user),
+    session: AsyncSession = Depends(get_db_session),
+):
+    if conversation_id:
+        await SpotContextService().remove(
+            session,
+            conversation_id=_conversation_uuid(conversation_id),
+            user_id=user.user_id,
+        )
+    elif context_token:
+        await SpotContextService().remove_staged(
+            session, token=context_token, user_id=user.user_id
+        )
+    else:
+        raise ValidationException("请提供会话或上传凭证")
+    return ok({"deleted": True})
 
 @router.get("/stats")
 async def get_platform_stats(
@@ -150,10 +272,16 @@ async def assemble_preview(req: AssembleReq):
     city = req.city.strip() if req.city and req.city.strip() else None
     _validate_henan_input(province=req.province, city=city, node_name=req.node_name)
     asm = build_param_assembler()
-    r = asm.assemble(ProjectBasics(
-        province=req.province, capacity_mwh=req.capacity_mwh, power_mw=req.power_mw,
-        node_name=req.node_name, voltage_kv=req.voltage_kv, city=city,
-    ))
+    basics = normalize_project_basics(
+        province=req.province,
+        capacity_mwh=req.capacity_mwh,
+        power_mw=req.power_mw,
+        duration_hours=None,
+        node_name=req.node_name,
+        voltage_kv=req.voltage_kv,
+        city=city,
+    )
+    r = asm.assemble(basics)
     return ok({
         "apiInput": r.api_input,
         "switches": r.switches,
@@ -204,20 +332,45 @@ async def create_task(
     conversation_id: Optional[str] = Header(default=None, alias="X-IR-Conversation-Id"),
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
-    try:
-        conv_id = str(UUID(conversation_id)) if conversation_id is not None else None
-    except ValueError as exc:
-        raise ValidationException("conversation_id 格式无效") from exc
-    svc = build_task_service()
+    conv_id = _conversation_uuid(conversation_id)
     # 非本人/已删除/未知会话按归属边界直接 404（与 latest-input 等只读端点一致）。
     if conv_id is not None:
         await ConversationHistoryService().require_active_conversation(
             session, conversation_id=conv_id, user_id=user.user_id
         )
+    spot = None
+    if conv_id is not None:
+        context = await SpotContextService().get_for_conversation(
+            session, conversation_id=conv_id, user_id=user.user_id
+        )
+        if context is not None:
+            from app.core.config.settings import get_settings
+
+            previous_spot_context = await _latest_spot_context(session, conv_id)
+            spot = ConversationSpotPriceAlgo(
+                context,
+                get_settings().spot_price.province_price_coefficients,
+                force_compute=(
+                    previous_spot_context.get("contextId") != context.id
+                ),
+            )
     # 同会话修改参数：以最近一次成功版本的冻结入参为基线，补全缺失的规模锚点。
     # 例如用户只改功率，则容量沿用上一版（改功率=改时长，容量不变），避免 normalize 因
     # 缺少容量/时长组合而 400；首次测算（无会话或无成功版本）previous_input 为 None 不补全。
     previous_input = await _latest_frozen_input(session, conv_id) if conv_id is not None else None
+    used_uploaded_spot = (
+        await _latest_used_uploaded_spot(session, conv_id)
+        if conv_id is not None and spot is None and previous_input is not None
+        else False
+    )
+    if spot is not None:
+        svc = build_task_service(spot=spot)
+    elif used_uploaded_spot:
+        # 自定义文件被移除后，不能沿用上一版本的上传均价；
+        # 让组装器重新查询公共预计算来源。
+        svc = build_task_service(force_spot_compute=True)
+    else:
+        svc = build_task_service()
     cap, pwr, dur = complete_scale_anchors(
         previous_input=previous_input,
         capacity_mwh=req.capacity_mwh,
@@ -283,6 +436,31 @@ async def _latest_frozen_input(
     if snapshot is None or not snapshot.payload:
         return None
     return snapshot.payload.get("apiInput")
+
+
+async def _latest_used_uploaded_spot(
+    session: AsyncSession, conv_id: str
+) -> bool:
+    """判断最近成功版本是否使用过上传电价，避免来源切换时继承旧均价。"""
+    return (await _latest_spot_context(session, conv_id)).get("source") == "conversation_upload"
+
+
+async def _latest_spot_context(session: AsyncSession, conv_id: str) -> dict:
+    latest_task = (await session.execute(
+        select(CalculationTaskORM)
+        .where(
+            CalculationTaskORM.conversation_id == conv_id,
+            CalculationTaskORM.status == "completed",
+        )
+        .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
+        .limit(1)
+    )).scalar_one_or_none()
+    if latest_task is None:
+        return {}
+    snapshot = (await session.execute(
+        select(DataSnapshotORM).where(DataSnapshotORM.task_id == latest_task.id)
+    )).scalar_one_or_none()
+    return dict(snapshot.payload.get("spotContext") or {}) if snapshot else {}
 
 
 @router.get("/tasks/latest-input")

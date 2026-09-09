@@ -8,6 +8,17 @@ from app.core.exceptions import ValidationException
 from app.modules.calculation.domain.models import ProjectBasics
 
 _DEFAULT_POWER_MW = 100.0
+_SUPPORTED_DURATIONS = (2.0, 4.0)
+
+
+def validate_supported_duration(capacity_mwh: float, power_mw: float) -> float:
+    duration = capacity_mwh / power_mw
+    if not any(
+        math.isclose(duration, allowed, rel_tol=1e-9, abs_tol=1e-9)
+        for allowed in _SUPPORTED_DURATIONS
+    ):
+        raise ValidationException("系统时长仅支持2小时或4小时")
+    return duration
 
 
 def normalize_project_basics(
@@ -39,6 +50,7 @@ def normalize_project_basics(
     else:
         raise ValidationException("请同时提供项目容量和功率，或补充系统时长")
 
+    validate_supported_duration(capacity_mwh, power_mw)
     return ProjectBasics(
         province=province,
         capacity_mwh=capacity_mwh,

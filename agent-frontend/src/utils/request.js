@@ -57,7 +57,12 @@ service.interceptors.request.use(
   (config) => {
     if (usesRootGateway(config.url)) config.baseURL = ''
     config.__skipAuthRedirect = config.headers?.isToken === false
-    config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json;charset=utf-8'
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      config.headers.set?.('Content-Type', false)
+      if (!config.headers.set) config.headers['Content-Type'] = false
+    } else {
+      config.headers['Content-Type'] = config.headers['Content-Type'] || 'application/json;charset=utf-8'
+    }
     const token = getToken()
     if (token && config.headers.isToken !== false) {
       config.headers.Authorization = config.headers.Authorization || `Bearer ${token}`
