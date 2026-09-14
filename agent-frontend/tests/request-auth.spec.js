@@ -155,4 +155,30 @@ describe('request authentication expiry', () => {
 
     expect(capturedConfig.headers['Content-Type']).toBe(false)
   })
+
+  it('keeps streamed spot-context responses as raw text', async () => {
+    let capturedConfig
+    request.defaults.adapter = async (config) => {
+      capturedConfig = config
+      return {
+        data: '{"phase":"ready","data":{"status":"ready"}}\n',
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+        request: {},
+      }
+    }
+
+    const response = await request({
+      url: '/ir/calc/spot-context/prepare',
+      method: 'post',
+      responseType: 'text',
+      __rawResponse: true,
+      data: new FormData(),
+    })
+
+    expect(capturedConfig.responseType).toBe('text')
+    expect(response).toContain('"phase":"ready"')
+  })
 })

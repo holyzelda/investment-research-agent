@@ -10,7 +10,7 @@ from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, Callable
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
@@ -27,6 +27,8 @@ MAX_DATE_SPAN_DAYS = 366
 PRICE_UNIT = "CNY/MWh"
 ALGORITHM_VERSION = "spot-dp-v1"
 EXPECTED_HEADERS = ("日期", "时点", "电价（元/MWh）")
+DATA_SHEET_NAME = "现货电价"
+INSTRUCTION_SHEET_NAME = "填写说明"
 _GRID_LABELS = {
     f"{(index * 15) // 60:02d}:{(index * 15) % 60:02d}"
     for index in range(1, 97)
@@ -126,6 +128,7 @@ def _aggregate_days(
     min_action_minutes: int,
     switch_gap_minutes: int,
     workers: int | None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> dict[str, dict[str, Any]]:
     aggregate = {
         str(k): {"chargeSum": Decimal(0), "dischargeSum": Decimal(0), "slotCount": 0}
@@ -147,12 +150,17 @@ def _aggregate_days(
         )
         results = executor.map(_compute_day_from_tuple, inputs)
     try:
+        completed_days = 0
+        total_days = len(inputs)
         for by_k in results:
             for k, (charge_sum, discharge_sum, slot_count) in by_k.items():
                 item = aggregate[str(k)]
                 item["chargeSum"] += Decimal(charge_sum)
                 item["dischargeSum"] += Decimal(discharge_sum)
                 item["slotCount"] += slot_count
+            completed_days += 1
+            if progress_callback is not None:
+                progress_callback(completed_days, total_days)
     finally:
         if executor is not None:
             executor.shutdown(wait=True)
@@ -173,6 +181,7 @@ def parse_uploaded_spot_file(
     min_action_minutes: int = 30,
     switch_gap_minutes: int = 15,
     workers: int | None = None,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> ParsedSpotContext:
     """解析标准长表，并在返回前完成全部 19 个 K 的 DP 聚合。"""
     if not filename or not filename.lower().endswith(".xlsx"):
@@ -188,9 +197,22 @@ def parse_uploaded_spot_file(
         raise _error("Excel 文件无法打开") from exc
 
     try:
-        if len(workbook.sheetnames) != 1:
-            raise _error("文件只能包含一个工作表")
-        sheet = workbook.active
+        if progress_callback is not None:
+            progress_callback({"phase": "validating", "message": "正在读取并校验 Excel 数据"})
+        sheet_names = workbook.sheetnames
+        if DATA_SHEET_NAME in sheet_names:
+            unexpected_sheets = [
+                name for name in sheet_names
+                if name not in {DATA_SHEET_NAME, INSTRUCTION_SHEET_NAME}
+            ]
+            if unexpected_sheets:
+                raise _error("除现货电价和填写说明外，不能包含其他工作表")
+            sheet = workbook[DATA_SHEET_NAME]
+        elif len(sheet_names) == 1:
+            # 兼容本功能上线前生成的单工作表模板和用户已有文件。
+            sheet = workbook.active
+        else:
+            raise _error("包含多个工作表时，数据工作表必须命名为“现货电价”")
         rows = sheet.iter_rows(values_only=True)
         headers = tuple(str(value or "").strip() for value in (next(rows, None) or ()))
         if headers != EXPECTED_HEADERS:
@@ -248,11 +270,27 @@ def parse_uploaded_spot_file(
         if (last_day - first_day).days + 1 > MAX_DATE_SPAN_DAYS:
             raise _error(f"数据日期范围不能超过 {MAX_DATE_SPAN_DAYS} 天")
 
+        if progress_callback is not None:
+            progress_callback({
+                "phase": "computing",
+                "message": "正在计算不同充放电策略",
+                "completedDays": 0,
+                "totalDays": len(valid_days),
+            })
         k_results = _aggregate_days(
             valid_days,
             min_action_minutes=min_action_minutes,
             switch_gap_minutes=switch_gap_minutes,
             workers=workers,
+            progress_callback=(
+                lambda completed, total: progress_callback({
+                    "phase": "computing",
+                    "message": "正在计算不同充放电策略",
+                    "completedDays": completed,
+                    "totalDays": total,
+                })
+                if progress_callback is not None else None
+            ),
         )
         skipped_count = (last_day - first_day).days + 1 - len(valid_days)
         warnings = []

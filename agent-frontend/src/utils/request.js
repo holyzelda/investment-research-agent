@@ -81,6 +81,7 @@ service.interceptors.request.use(
 // 响应拦截器：按 {code,msg,data} 响应壳解析
 service.interceptors.response.use(
   (res) => {
+    if (res.config?.__rawResponse) return res.data
     // 二进制直接返回
     const responseType = res.request?.responseType
     if (responseType === 'blob' || responseType === 'arraybuffer') {

@@ -4,19 +4,23 @@
 真正的测算触发端点在 Batch3（执行引擎）落地。
 """
 import asyncio
+import json
 from io import BytesIO
 from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, Form, Header, Query, UploadFile
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from openpyxl import Workbook
+from openpyxl.comments import Comment
+from openpyxl.styles import Alignment, Font, PatternFill
 from pydantic import BaseModel, Field, StrictInt
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.response import ok
-from app.core.exceptions import NotFoundException, ValidationException
+from app.core.exceptions import BusinessException, NotFoundException, ValidationException
 from app.infrastructure.database.session import get_db_session
 from app.modules.calculation.application.factory import (
     build_param_assembler,
@@ -74,10 +78,53 @@ def _xlsx_template() -> bytes:
         minutes = index * 15
         label = f"{minutes // 60:02d}:{minutes % 60:02d}"
         sheet.append(["", label, ""])
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    for cell in sheet[1]:
+        cell.fill = header_fill
+        cell.font = Font(color="FFFFFF", bold=True)
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+    sheet["A1"].comment = Comment("填写自然日日期，例如 2025-01-01。", "朱雀投研")
+    sheet["B1"].comment = Comment(
+        "每个自然日必须包含 00:15 至 24:00 的 96 个时点，每 15 分钟一个时点。",
+        "朱雀投研",
+    )
+    sheet["C1"].comment = Comment("填写数值，单位固定为元/MWh。", "朱雀投研")
+    for row in range(2, 98):
+        sheet.cell(row=row, column=1).number_format = "yyyy-mm-dd"
+        sheet.cell(row=row, column=3).number_format = "0.00"
     sheet.freeze_panes = "A2"
     sheet.column_dimensions["A"].width = 16
     sheet.column_dimensions["B"].width = 12
     sheet.column_dimensions["C"].width = 20
+
+    instructions = workbook.create_sheet("填写说明")
+    instruction_rows = [
+        ("现货电价文件填写说明", ""),
+        ("核心要求", "表头必须为：日期、时点（00:15 至 24:00）、电价（元/MWh）"),
+        ("文件格式", "仅支持 .xlsx 文件，文件大小不超过 20MB。"),
+        ("数据范围", "一份文件只填写一条电价序列，日期跨度不能超过 366 天。"),
+        ("每日数据", "每个自然日填写 96 条数据，时点每 15 分钟一个，从 00:15 到 24:00。"),
+        ("有效日期", "时点完整、不重复且电价均为有效数值的自然日才会参与测算。"),
+        ("异常日期", "不完整、时点重复或价格无效的自然日会被跳过；文件至少包含一个有效自然日。"),
+        ("填写方式", "在“现货电价”工作表填写；多日数据按日期逐日追加，请勿修改表头或新增数据列。"),
+        ("单位", "电价统一填写元/MWh，请勿填写元/kWh。"),
+        ("示例", "2025-01-01 | 00:15 | 231.50"),
+    ]
+    for row in instruction_rows:
+        instructions.append(row)
+    instructions.merge_cells("A1:B1")
+    instructions["A1"].font = Font(size=16, bold=True, color="1F4E78")
+    instructions["A1"].alignment = Alignment(vertical="center")
+    instructions.row_dimensions[1].height = 28
+    for row in range(2, len(instruction_rows) + 1):
+        instructions.cell(row=row, column=1).font = Font(bold=True, color="1F4E78")
+        instructions.cell(row=row, column=1).alignment = Alignment(vertical="top")
+        instructions.cell(row=row, column=2).alignment = Alignment(vertical="top", wrap_text=True)
+        instructions.row_dimensions[row].height = 34
+    instructions.column_dimensions["A"].width = 14
+    instructions.column_dimensions["B"].width = 78
+    instructions.freeze_panes = "A2"
+    instructions.sheet_view.showGridLines = False
     output = BytesIO()
     workbook.save(output)
     workbook.close()
@@ -103,28 +150,89 @@ async def prepare_spot_context(
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """上传后立即校验并聚合 19 个 K；成功后才返回 ready。"""
+    """上传后流式返回校验、逐日计算和保存阶段；最终事件携带 ready 摘要。"""
     conv_id = _conversation_uuid(conversation_id)
+    # StreamingResponse starts iterating after this route returns. Read the
+    # upload while FastAPI still owns its temporary file; otherwise request
+    # cleanup can close UploadFile before event_stream reaches file.read().
     content = await file.read(MAX_UPLOAD_BYTES + 1)
-    from app.core.config.settings import get_settings
+    file_name = file.filename or ""
 
-    spot = get_settings().spot_price
-    async with _SPOT_UPLOAD_SEMAPHORE:
-        parsed = await asyncio.to_thread(
-            parse_uploaded_spot_file,
-            content,
-            file.filename or "",
-            min_action_minutes=spot.min_action_minutes,
-            switch_gap_minutes=spot.switch_gap_minutes,
-            workers=spot.daily_update_workers,
-        )
-    token, context = await SpotContextService().save_prepared(
-        session,
-        user_id=user.user_id,
-        conversation_id=conv_id,
-        parsed=parsed,
+    async def event_stream():
+        def encode(event: dict) -> str:
+            return json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n"
+
+        yield encode({"phase": "uploading", "message": "文件已接收，正在准备处理"})
+        from app.core.config.settings import get_settings
+
+        spot = get_settings().spot_price
+        progress_queue: asyncio.Queue[dict | None] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def report_progress(event: dict):
+            loop.call_soon_threadsafe(progress_queue.put_nowait, event)
+
+        def parse_in_worker():
+            try:
+                return parse_uploaded_spot_file(
+                    content,
+                    file_name,
+                    min_action_minutes=spot.min_action_minutes,
+                    switch_gap_minutes=spot.switch_gap_minutes,
+                    workers=spot.daily_update_workers,
+                    progress_callback=report_progress,
+                )
+            finally:
+                # Keep the sentinel behind every progress callback scheduled
+                # by this worker so the stream cannot skip the final day.
+                loop.call_soon_threadsafe(progress_queue.put_nowait, None)
+
+        async def run_parse():
+            return await asyncio.to_thread(parse_in_worker)
+
+        async with _SPOT_UPLOAD_SEMAPHORE:
+            parse_task = asyncio.create_task(run_parse())
+            while (event := await progress_queue.get()) is not None:
+                yield encode(event)
+            try:
+                parsed = await parse_task
+            except ValidationException as exc:
+                yield encode({"phase": "error", "message": str(exc)})
+                return
+            except Exception as exc:
+                logger.opt(exception=exc).error("上传电价文件解析失败")
+                yield encode({"phase": "error", "message": "电价文件处理失败，请稍后重试"})
+                return
+
+        yield encode({"phase": "saving", "message": "正在准备本会话电价"})
+        try:
+            token, context = await SpotContextService().save_prepared(
+                session,
+                user_id=user.user_id,
+                conversation_id=conv_id,
+                parsed=parsed,
+            )
+        except BusinessException as exc:
+            yield encode({"phase": "error", "message": str(exc)})
+            return
+        except Exception as exc:
+            logger.opt(exception=exc).error("保存会话电价上下文失败")
+            yield encode({"phase": "error", "message": "电价文件保存失败，请稍后重试"})
+            return
+        yield encode({
+            "phase": "ready",
+            "message": "电价文件已准备完成",
+            "data": {**SpotContextService.summary(context), "contextToken": token},
+        })
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="application/x-ndjson",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
-    return ok({**SpotContextService.summary(context), "contextToken": token})
 
 
 @router.get("/spot-context")

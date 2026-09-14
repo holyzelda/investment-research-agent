@@ -159,6 +159,7 @@ export const useCalculationStore = defineStore('calculation', {
     spotContext: null,
     spotContextToken: null,
     spotContextUploading: false,
+    spotContextProgress: null,
     spotContextError: '',
     spotContextRequestSequence: 0,
     spotContextController: null,
@@ -199,6 +200,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.spotContext = null
       this.spotContextToken = null
       this.spotContextUploading = false
+      this.spotContextProgress = null
       this.spotContextError = ''
       if (stagedToken) removeSpotContext({ contextToken: stagedToken }).catch(() => {})
     },
@@ -633,9 +635,36 @@ export const useCalculationStore = defineStore('calculation', {
       const controller = new AbortController()
       this.spotContextController = controller
       this.spotContextUploading = true
+      this.spotContextProgress = {
+        phase: 'uploading',
+        fileName: file.name,
+        uploadPercent: 0,
+        completedDays: 0,
+        totalDays: 0,
+        message: '正在上传电价文件',
+      }
       this.spotContextError = ''
       try {
-        const response = await prepareSpotContext(file, this.conversationId, controller.signal)
+        const response = await prepareSpotContext(file, this.conversationId, controller.signal, {
+          onUploadProgress: (event) => {
+            if (sequence !== this.spotContextRequestSequence) return
+            const total = event.total || file.size || 0
+            this.spotContextProgress = {
+              ...this.spotContextProgress,
+              phase: 'uploading',
+              uploadPercent: total ? Math.min(100, Math.round((event.loaded / total) * 100)) : 0,
+              message: '正在上传电价文件',
+            }
+          },
+          onProgress: (event) => {
+            if (sequence !== this.spotContextRequestSequence) return
+            this.spotContextProgress = {
+              ...this.spotContextProgress,
+              ...event,
+              fileName: file.name,
+            }
+          },
+        })
         if (sequence !== this.spotContextRequestSequence) return
         this.spotContext = response.data || null
         this.spotContextToken = this.conversationId
@@ -649,6 +678,7 @@ export const useCalculationStore = defineStore('calculation', {
       } finally {
         if (sequence === this.spotContextRequestSequence) {
           this.spotContextUploading = false
+          this.spotContextProgress = null
           if (this.spotContextController === controller) this.spotContextController = null
         }
       }
@@ -668,6 +698,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.spotContext = null
       this.spotContextToken = null
       this.spotContextUploading = false
+      this.spotContextProgress = null
       this.spotContextError = ''
       if (conversationId) this.invalidateConversationDetail(conversationId)
     },

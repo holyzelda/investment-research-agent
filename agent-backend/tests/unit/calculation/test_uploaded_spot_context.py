@@ -11,9 +11,13 @@ from app.modules.calculation.infrastructure.uploaded_spot_context import (
 )
 
 
-def _workbook_bytes(*, complete_days=1, bad_header=False, incomplete_day=False, gap_day=False):
+def _workbook_bytes(
+    *, complete_days=1, bad_header=False, incomplete_day=False, gap_day=False,
+    instruction_sheet=False, unexpected_sheet=False,
+):
     workbook = Workbook()
     sheet = workbook.active
+    sheet.title = "现货电价"
     sheet.append(["错误"] if bad_header else ["日期", "时点", "电价（元/MWh）"])
     for day_offset in range(complete_days):
         business_date = date(2026, 1, day_offset + 1)
@@ -25,6 +29,10 @@ def _workbook_bytes(*, complete_days=1, bad_header=False, incomplete_day=False, 
             label = f"{minutes // 60:02d}:{minutes % 60:02d}"
             price = 100 if index <= 48 else 500
             sheet.append([business_date, label, price])
+    if instruction_sheet:
+        workbook.create_sheet("填写说明").append(["填写说明"])
+    if unexpected_sheet:
+        workbook.create_sheet("其他数据").append(["其他数据"])
     stream = BytesIO()
     workbook.save(stream)
     workbook.close()
@@ -66,6 +74,39 @@ def test_uses_process_pool_for_multiple_complete_days():
     assert parsed.valid_day_count == 2
     assert len(parsed.k_results) == 19
     assert parsed.k_results["8"]["slotCount"] == 16
+
+
+def test_accepts_the_template_instruction_sheet_but_rejects_other_sheets():
+    parsed = parse_uploaded_spot_file(
+        _workbook_bytes(instruction_sheet=True), "spot.xlsx", workers=1
+    )
+
+    assert parsed.valid_day_count == 1
+    with pytest.raises(ValidationException, match="不能包含其他工作表"):
+        parse_uploaded_spot_file(
+            _workbook_bytes(instruction_sheet=True, unexpected_sheet=True),
+            "spot.xlsx",
+            workers=1,
+        )
+
+
+def test_reports_validation_and_each_completed_day():
+    progress = []
+    parse_uploaded_spot_file(
+        _workbook_bytes(complete_days=2),
+        "spot.xlsx",
+        workers=1,
+        progress_callback=progress.append,
+    )
+
+    assert progress[0] == {"phase": "validating", "message": "正在读取并校验 Excel 数据"}
+    assert progress[-1] == {
+        "phase": "computing",
+        "message": "正在计算不同充放电策略",
+        "completedDays": 2,
+        "totalDays": 2,
+    }
+    assert [event["completedDays"] for event in progress[2:]] == [1, 2]
 
 
 def test_counts_missing_calendar_days_in_skipped_days():

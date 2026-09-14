@@ -43,7 +43,7 @@ describe('conversation spot context store', () => {
     const sent = store.sendAndCalculate('测算山西 100MW/200MWh')
 
     expect(spotApi.prepareSpotContext).toHaveBeenCalledWith(
-      expect.any(File), null, expect.any(AbortSignal),
+      expect.any(File), null, expect.any(AbortSignal), expect.any(Object),
     )
     expect(chat.openChatStream).toHaveBeenCalledWith(
       '/ir/chat/diag',
@@ -59,6 +59,47 @@ describe('conversation spot context store', () => {
     await sent
     expect(store.conversationId).toBe('conversation-1')
     expect(store.spotContextToken).toBeNull()
+  })
+
+  it('keeps real upload and daily compute progress until the request finishes', async () => {
+    let options
+    let resolveUpload
+    spotApi.prepareSpotContext.mockImplementation((_file, _conversationId, _signal, callbacks) => {
+      options = callbacks
+      return new Promise((resolve) => { resolveUpload = resolve })
+    })
+    const store = useCalculationStore()
+    const upload = store.uploadSpotContext(new File(['xlsx'], '2025年度现货电价.xlsx'))
+
+    options.onUploadProgress({ loaded: 50, total: 100 })
+    expect(store.spotContextProgress).toMatchObject({
+      phase: 'uploading', fileName: '2025年度现货电价.xlsx', uploadPercent: 50,
+    })
+
+    options.onProgress({ phase: 'validating', message: '正在读取并校验 Excel 数据' })
+    options.onProgress({
+      phase: 'computing', message: '正在计算不同充放电策略',
+      completedDays: 186, totalDays: 365,
+    })
+    expect(store.spotContextProgress).toMatchObject({
+      phase: 'computing', fileName: '2025年度现货电价.xlsx', completedDays: 186, totalDays: 365,
+    })
+
+    resolveUpload({ data: { status: 'ready', contextToken: 'context-token-1234567890' } })
+    await upload
+    expect(store.spotContextUploading).toBe(false)
+    expect(store.spotContextProgress).toBeNull()
+  })
+
+  it('preserves an existing ready context when its replacement fails', async () => {
+    spotApi.prepareSpotContext.mockRejectedValue(new Error('表头不匹配'))
+    const store = useCalculationStore()
+    store.spotContext = { status: 'ready', fileName: '原电价.xlsx' }
+
+    await expect(store.uploadSpotContext(new File(['xlsx'], '错误文件.xlsx'))).rejects.toThrow('表头不匹配')
+
+    expect(store.spotContext.fileName).toBe('原电价.xlsx')
+    expect(store.spotContextError).toBe('表头不匹配')
   })
 
   it('restores a bound context from conversation detail', () => {
