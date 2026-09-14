@@ -1,6 +1,12 @@
 <template>
-  <div class="ir-composer">
-    <div class="ir-composer__frame">
+  <div
+    class="ir-composer"
+    @dragenter.prevent="onDragEnter"
+    @dragover.prevent
+    @dragleave.prevent="onDragLeave"
+    @drop.prevent="onDrop"
+  >
+    <div class="ir-composer__frame" :class="{ 'is-dragging': isDragging }">
       <div v-if="spotContext || spotUploading || spotError" class="ir-composer__attachment" aria-live="polite">
         <LoaderCircle v-if="spotUploading" class="is-spinning" aria-hidden="true" />
         <CircleAlert v-else-if="effectiveSpotError" class="is-error" aria-hidden="true" />
@@ -55,6 +61,12 @@
           </div>
         </div>
       </div>
+
+      <div v-if="isDragging" class="ir-composer__drop-overlay" aria-hidden="true">
+        <Upload class="ir-composer__drop-icon" />
+        <span>释放以充电价文件</span>
+      </div>
+
       <el-input
         ref="inputRef"
         v-model="text"
@@ -66,6 +78,7 @@
         :disabled="responding"
         @keydown.enter.exact.prevent="onSend"
       />
+
       <div class="ir-composer__bar">
         <div class="ir-composer__tools">
           <input
@@ -76,30 +89,62 @@
             :disabled="responding || spotUploading"
             @change="onFileChange"
           >
+
           <button
             type="button"
-            class="ir-composer__upload"
+            class="ir-composer__action-btn ir-composer__action-btn--upload"
             aria-label="上传现货电价文件"
-            title="上传现货电价文件"
             :disabled="responding || spotUploading"
             @click="fileInputRef?.click()"
           >
             <Upload aria-hidden="true" />
+            <span>上传电价文件</span>
           </button>
+
           <button
             type="button"
-            class="ir-composer__template"
+            class="ir-composer__action-btn ir-composer__action-btn--template"
             aria-label="下载电价文件模板"
-            title="下载电价文件模板"
             :disabled="responding || spotUploading"
             @click="$emit('spot-template')"
           >
             <Download aria-hidden="true" />
+            <span>下载模板</span>
           </button>
-          <span class="ir-composer__hint">
-            上传现货电价 Excel 文件，用于按文件中的电价数据测算储能收益。表头必须为：日期、时点（00:15 至 24:00）、电价（元/MWh）
-          </span>
+
+          <el-popover
+            :visible="hintPopoverVisible"
+            placement="top-start"
+            :width="360"
+            trigger="click"
+            popper-class="ir-composer__hint-popover"
+            @update:visible="hintPopoverVisible = $event"
+          >
+            <template #reference>
+              <button
+                type="button"
+                class="ir-composer__hint-trigger"
+                aria-label="查看电价文件格式要求"
+                :class="{ 'is-active': hintPopoverVisible }"
+              >
+                <CircleHelp aria-hidden="true" />
+              </button>
+            </template>
+            <div class="ir-composer__hint-body">
+              <strong>现货电价文件格式要求</strong>
+              <p>上传 Excel 文件（.xlsx），用于按文件中的电价数据测算储能收益。</p>
+              <ul>
+                <li><strong>日期</strong> — 格式如 2024-01-01</li>
+                <li><strong>时点</strong> — 00:15 至 24:00，15 分钟间隔</li>
+                <li><strong>电价</strong> — 单位：元/MWh</li>
+              </ul>
+              <p class="ir-composer__hint-tip">
+                可点击「下载模板」获取标准格式文件。
+              </p>
+            </div>
+          </el-popover>
         </div>
+
         <button
           class="ir-composer__send"
           :class="{ 'is-idle': !responding && !text.trim(), 'is-stop': responding }"
@@ -117,7 +162,7 @@
 
 <script setup>
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { Check, CircleAlert, Download, FileSpreadsheet, LoaderCircle, Send, Square, Upload, X } from '@lucide/vue'
+import { Check, CircleAlert, CircleHelp, Download, FileSpreadsheet, LoaderCircle, Send, Square, Upload, X } from '@lucide/vue'
 
 const props = defineProps({
   responding: { type: Boolean, default: false },
@@ -132,7 +177,11 @@ const text = ref('')
 const inputRef = ref(null)
 const fileInputRef = ref(null)
 const elapsedSeconds = ref(0)
+const hintPopoverVisible = ref(false)
+const isDragging = ref(false)
 let elapsedTimer = null
+let dragCounter = 0
+
 const progressSteps = [
   { index: 1, phase: 'uploading', label: '文件上传' },
   { index: 2, phase: 'validating', label: '格式校验' },
@@ -203,7 +252,6 @@ function stepState(phase) {
   return ''
 }
 
-// 供外部（如欢迎态示例胶囊）把示例文案填入输入框并聚焦，不自动发送。
 async function fill(value) {
   text.value = String(value || '')
   await nextTick()
@@ -233,6 +281,32 @@ function onSend() {
   text.value = ''
   emit('send', value)
 }
+
+function onDragEnter(event) {
+  if (props.responding || props.spotUploading) return
+  const types = event.dataTransfer?.types
+  if (!types || !Array.from(types).includes('Files')) return
+  dragCounter++
+  isDragging.value = true
+}
+
+function onDragLeave() {
+  dragCounter--
+  if (dragCounter <= 0) {
+    dragCounter = 0
+    isDragging.value = false
+  }
+}
+
+function onDrop(event) {
+  dragCounter = 0
+  isDragging.value = false
+  if (props.responding || props.spotUploading) return
+  const file = event.dataTransfer?.files?.[0]
+  if (!file) return
+  if (!file.name.endsWith('.xlsx') && file.type !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return
+  emit('spot-upload', file)
+}
 </script>
 
 <style scoped>
@@ -253,7 +327,14 @@ function onSend() {
   transition: border-color var(--xc-dur-base), box-shadow var(--xc-dur-base);
 }
 .ir-composer__frame:focus-within { border-color: var(--xc-border-accent); }
+.ir-composer__frame.is-dragging {
+  border-color: var(--xc-accent-blue);
+  border-style: dashed;
+  background: color-mix(in srgb, var(--xc-accent-blue-soft) 30%, var(--xc-surface-raised));
+}
+
 .ir-composer__input { flex: 0 0 auto; }
+
 .ir-composer__attachment {
   min-width: 0;
   display: flex;
@@ -332,9 +413,8 @@ function onSend() {
   border-radius: inherit;
   background: var(--xc-accent-blue);
 }
-.ir-composer__attachment-remove,
-.ir-composer__upload,
-.ir-composer__template {
+
+.ir-composer__attachment-remove {
   width: 34px;
   height: 34px;
   display: grid;
@@ -345,19 +425,31 @@ function onSend() {
   color: var(--xc-text-soft);
   cursor: pointer;
 }
-.ir-composer__attachment-remove:hover:not(:disabled),
-.ir-composer__upload:hover:not(:disabled),
-.ir-composer__template:hover:not(:disabled) { background: var(--xc-surface-control); color: var(--xc-text-strong); }
-.ir-composer__attachment-remove:focus-visible,
-.ir-composer__upload:focus-visible,
-.ir-composer__template:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
-.ir-composer__attachment-remove:disabled,
-.ir-composer__upload:disabled,
-.ir-composer__template:disabled { cursor: default; opacity: 0.45; }
-.ir-composer__attachment-remove svg,
-.ir-composer__upload svg,
-.ir-composer__template svg { width: 18px; height: 18px; }
-.ir-composer__file-input { display: none; }
+.ir-composer__attachment-remove:hover:not(:disabled) { background: var(--xc-surface-control); color: var(--xc-text-strong); }
+.ir-composer__attachment-remove:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+.ir-composer__attachment-remove:disabled { cursor: default; opacity: 0.45; }
+.ir-composer__attachment-remove svg { width: 18px; height: 18px; }
+
+.ir-composer__drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--xc-space-3);
+  background: color-mix(in srgb, var(--xc-accent-blue-soft) 60%, transparent);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: var(--xc-accent-blue);
+  font-size: var(--xc-fs-md);
+  font-weight: var(--xc-fw-medium);
+  border-radius: inherit;
+  pointer-events: none;
+}
+.ir-composer__drop-icon { width: 32px; height: 32px; }
+
 .ir-composer__input :deep(.el-textarea__inner) {
   background: transparent;
   border: 0;
@@ -368,6 +460,7 @@ function onSend() {
   padding: 0;
 }
 .ir-composer__input :deep(.el-textarea__inner::placeholder) { color: var(--xc-text-faint); }
+
 .ir-composer__bar {
   display: flex;
   align-items: center;
@@ -375,13 +468,76 @@ function onSend() {
   margin-top: auto;
   padding-top: var(--xc-space-4);
 }
-.ir-composer__tools { min-width: 0; display: flex; align-items: center; gap: var(--xc-space-2); }
-.ir-composer__hint {
-  max-width: 460px;
-  color: var(--xc-text-mute);
-  font-size: var(--xc-fs-xs);
-  line-height: var(--xc-lh-normal);
+.ir-composer__tools {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--xc-space-2);
 }
+.ir-composer__file-input { display: none; }
+
+.ir-composer__action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: transparent;
+  color: var(--xc-text-soft);
+  font-size: var(--xc-fs-xs);
+  font-weight: var(--xc-fw-medium);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--xc-dur-fast), color var(--xc-dur-fast), border-color var(--xc-dur-fast);
+}
+.ir-composer__action-btn svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.ir-composer__action-btn:hover:not(:disabled) {
+  background: var(--xc-surface-control);
+  color: var(--xc-text-strong);
+  border-color: var(--xc-border-strong);
+}
+.ir-composer__action-btn:focus-visible {
+  outline: 2px solid var(--xc-accent-blue);
+  outline-offset: 2px;
+}
+.ir-composer__action-btn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.ir-composer__action-btn--upload {
+  color: var(--xc-accent-blue);
+  border-color: color-mix(in srgb, var(--xc-accent-blue) 30%, var(--xc-border-card));
+}
+.ir-composer__action-btn--upload:hover:not(:disabled) {
+  background: var(--xc-accent-blue-soft);
+  color: var(--xc-accent-blue);
+  border-color: color-mix(in srgb, var(--xc-accent-blue) 50%, var(--xc-border-card));
+}
+
+.ir-composer__action-btn--template {
+  color: var(--xc-text-mute);
+}
+
+.ir-composer__hint-trigger {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--xc-text-faint);
+  cursor: pointer;
+  transition: background var(--xc-dur-fast), color var(--xc-dur-fast);
+}
+.ir-composer__hint-trigger svg { width: 16px; height: 16px; }
+.ir-composer__hint-trigger:hover { background: var(--xc-surface-control); color: var(--xc-text-soft); }
+.ir-composer__hint-trigger.is-active { background: var(--xc-accent-blue-soft); color: var(--xc-accent-blue); }
+.ir-composer__hint-trigger:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: 2px; }
+
 .ir-composer__send {
   width: 44px;
   height: 44px;
@@ -401,6 +557,7 @@ function onSend() {
 .ir-composer__send.is-stop { background: var(--xc-status-danger); box-shadow: none; }
 .ir-composer__send:disabled { cursor: default; }
 .ir-composer__send svg { width: 20px; height: 20px; }
+
 .is-spinning { animation: ir-composer-spin 0.8s linear infinite; }
 @keyframes ir-composer-spin { to { transform: rotate(360deg); } }
 @keyframes ir-composer-step-pulse {
@@ -410,7 +567,8 @@ function onSend() {
 
 @media (prefers-reduced-motion: reduce) {
   .ir-composer__frame,
-  .ir-composer__send { transition: none; }
+  .ir-composer__send,
+  .ir-composer__action-btn { transition: none; }
   .ir-composer__step.is-active .ir-composer__step-dot { animation: none; }
 }
 
@@ -420,7 +578,58 @@ function onSend() {
   .ir-composer__step { flex-direction: column; align-items: flex-start; gap: 3px; white-space: normal; }
   .ir-composer__meter { margin-left: 0; }
   .ir-composer__bar { align-items: flex-end; gap: var(--xc-space-3); }
-  .ir-composer__tools { align-items: flex-start; }
-  .ir-composer__hint { font-size: var(--xc-fs-2xs); }
+  .ir-composer__tools { align-items: flex-start; flex-wrap: wrap; gap: var(--xc-space-1); }
+  .ir-composer__action-btn { height: 30px; padding: 0 8px; font-size: var(--xc-fs-2xs); }
+  .ir-composer__action-btn span { display: none; }
+  .ir-composer__hint-trigger { width: 24px; height: 24px; }
+}
+</style>
+
+
+<style>
+.ir-composer__hint-popover.el-popover {
+  padding: 0 !important;
+  background: var(--xc-surface-2) !important;
+  border: 1px solid var(--xc-border-strong) !important;
+  color: var(--xc-text-default) !important;
+}
+.ir-composer__hint-popover.el-popover > .el-popper__arrow {
+  display: none !important;
+}
+.ir-composer__hint-body {
+  padding: 16px;
+}
+.ir-composer__hint-body strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 14px;
+  color: var(--xc-text-strong);
+}
+.ir-composer__hint-body p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--xc-text-soft);
+}
+.ir-composer__hint-body ul {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  list-style: none;
+  border-radius: 6px;
+  background: var(--xc-surface-control);
+}
+.ir-composer__hint-body li {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--xc-text-default);
+}
+.ir-composer__hint-body li strong {
+  display: inline;
+  margin-bottom: 0;
+  font-size: 13px;
+}
+.ir-composer__hint-tip {
+  font-size: 12px !important;
+  color: var(--xc-text-mute) !important;
 }
 </style>
