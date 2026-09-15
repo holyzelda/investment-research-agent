@@ -13,6 +13,12 @@ from app.infrastructure.database.session import get_db_session, get_sessionmaker
 from app.modules.platform_access.domain.models import CurrentUser, UserScope
 from app.modules.platform_access.interface.deps import get_current_user, get_user_scope
 from app.modules.report.application.factory import build_report_generation_service
+from app.modules.trial_quota.application.trial_quota_service import TrialQuotaService
+from app.modules.trial_quota.application.trial_role_service import TrialRoleService
+from app.modules.trial_quota.interface.deps import (
+    get_trial_quota_service,
+    get_trial_role_service,
+)
 
 router = APIRouter(prefix="/ir", tags=["report"])
 
@@ -28,10 +34,18 @@ async def create_report(
     task_id: int,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    trial_role: TrialRoleService = Depends(get_trial_role_service),
+    trial_quota: TrialQuotaService = Depends(get_trial_quota_service),
 ):
     service = build_report_generation_service()
+    is_trial = await trial_role.is_trial(user.user_id)
     data = await service.start(
-        session, task_id=task_id, user_id=user.user_id, username=user.username
+        session,
+        task_id=task_id,
+        user_id=user.user_id,
+        username=user.username,
+        is_trial=is_trial,
+        trial_quota=trial_quota,
     )
     if data.pop("shouldRun", False):
         asyncio.create_task(_run_in_background(data["reportTaskId"]))

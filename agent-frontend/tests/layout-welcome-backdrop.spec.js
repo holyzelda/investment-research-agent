@@ -22,7 +22,7 @@ const calc = {
 }
 
 vi.mock('@/store/modules/session', () => ({
-  useSessionStore: () => ({ username: 'admin', loadUserInfo: vi.fn() }),
+  useSessionStore: () => ({ username: 'admin', loadUserInfo: vi.fn().mockResolvedValue(undefined) }),
 }))
 
 vi.mock('@/store/modules/calculation', () => ({
@@ -31,6 +31,10 @@ vi.mock('@/store/modules/calculation', () => ({
 
 vi.mock('@/store/modules/permission', () => ({
   usePermissionStore: () => ({ railRoutes: [] }),
+}))
+
+vi.mock('@/store/modules/trialQuota', () => ({
+  useTrialQuotaStore: () => ({ isTrial: false, quota: null, load: vi.fn(), refresh: vi.fn() }),
 }))
 
 vi.mock('vue-router', () => ({

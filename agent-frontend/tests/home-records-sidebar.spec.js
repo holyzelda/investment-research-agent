@@ -62,6 +62,10 @@ vi.mock('@/store/modules/session', () => ({
 vi.mock('@/store/modules/calculation', () => ({
   useCalculationStore: () => calc,
 }))
+vi.mock('@/store/modules/trialQuota', () => ({
+  useTrialQuotaStore: () => ({ isTrial: false, quota: null, load: vi.fn(), refresh: vi.fn() }),
+}))
+
 vi.mock('vue-router', () => ({
   useRouter: () => router,
   useRoute: () => ({ params: {} }),

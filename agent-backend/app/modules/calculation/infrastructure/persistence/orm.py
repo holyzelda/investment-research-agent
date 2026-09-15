@@ -15,6 +15,7 @@ from uuid import uuid4
 from sqlalchemy import (
     JSON,
     BigInteger,
+    Boolean,
     Date,
     DateTime,
     ForeignKey,
@@ -226,6 +227,10 @@ class ReportGenerationTaskORM(_PkTimestamp, Base):
     error_message: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     report_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    trial_quota_reserved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
+    trial_quota_usage_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
 
 
 class ReportSnapshotORM(_PkTimestamp, Base):

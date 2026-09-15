@@ -14,6 +14,7 @@ import {
 import { createReport, getReportTask } from '@/api/report'
 import { streamReportEvents } from '@/utils/reportSse'
 import { openChatStream } from '@/utils/chatSse'
+import { useTrialQuotaStore } from '@/store/modules/trialQuota'
 import {
   downloadSpotContextTemplate,
   prepareSpotContext,
@@ -997,6 +998,7 @@ export const useCalculationStore = defineStore('calculation', {
         },
       }
       this._showPendingResult(streamMsg, epoch)
+      useTrialQuotaStore().refresh()
     },
     async _waitForTerminal(task) {
       if (task.status === 'completed' || task.status === 'failed') return task
@@ -1110,6 +1112,7 @@ export const useCalculationStore = defineStore('calculation', {
         streamMsg.finishedAt = Date.now()
         this.loadHistory().catch(() => {})
         if (result.basicInfo?.province) this.loadParamMeta(result.basicInfo.province).catch(() => {})
+        useTrialQuotaStore().refresh()
       } catch (error) {
         if (!this._isCurrentTurn(currentTurnId, epoch)) return
         applyThinkingFrame(streamMsg.thinkingState, '3', {
@@ -1216,7 +1219,10 @@ export const useCalculationStore = defineStore('calculation', {
                 this._applyReport(data)
                 progressMessage.steps = data.steps || progressMessage.steps
                 finish(data, type === 'failed')
-                if (type === 'complete' && data.reportId) this.syncReportsFromConversation().catch(() => {})
+                if (type === 'complete' && data.reportId) {
+                  this.syncReportsFromConversation().catch(() => {})
+                  useTrialQuotaStore().refresh()
+                }
                 return
               }
               const steps = [...(this.reportTasks[created.reportTaskId]?.steps || []), data]

@@ -33,6 +33,12 @@ from app.modules.policy_market.interface.serializers import (
     serialize_messages,
     serialize_overview,
 )
+from app.modules.trial_quota.application.trial_quota_service import TrialQuotaService
+from app.modules.trial_quota.application.trial_role_service import TrialRoleService
+from app.modules.trial_quota.interface.deps import (
+    get_trial_quota_service,
+    get_trial_role_service,
+)
 
 router = APIRouter(prefix="/ir/policy-market", tags=["policy-market"])
 _service = ScrollingMessageService()
@@ -56,19 +62,37 @@ async def create_consultation(
     payload: ConsultationCreateRequest,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    trial_role: TrialRoleService = Depends(get_trial_role_service),
+    trial_quota: TrialQuotaService = Depends(get_trial_quota_service),
 ):
     question = payload.question.strip()
     if not question:
         raise ValidationException("请输入政策或市场问题")
 
+    reservation = None
+    if await trial_role.is_trial(user.user_id):
+        reservation = await trial_quota.reserve(session, user.user_id, "consultation")
     service = _consultation_service(session)
     try:
         record = await service.create(user_id=user.user_id, question=question)
     except ConsultationExecutionError as exc:
         await session.commit()
+        if reservation is not None:
+            await trial_quota.refund(session, reservation)
         raise ValidationException(str(exc)) from exc
+    except Exception:
+        await session.rollback()
+        if reservation is not None:
+            await trial_quota.refund(session, reservation)
+        raise
 
-    await session.commit()
+    try:
+        await session.commit()
+    except Exception:
+        await session.rollback()
+        if reservation is not None:
+            await trial_quota.refund(session, reservation)
+        raise
     return ok(serialize_consultation_detail(record))
 
 

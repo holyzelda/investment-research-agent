@@ -9,6 +9,7 @@ from app.modules.calculation.interface.share_router import router as calculation
 from app.modules.platform_access.interface.router import router as platform_access_router
 from app.modules.index_map.interface.router import router as index_map_router
 from app.modules.tie_line_map.interface.router import router as tie_line_router
+from app.modules.trial_quota.interface.router import router as trial_quota_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -21,3 +22,4 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(calculation_share_router)
     app.include_router(tie_line_router)
     app.include_router(index_map_router)
+    app.include_router(trial_quota_router)

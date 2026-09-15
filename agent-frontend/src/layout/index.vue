@@ -29,6 +29,7 @@
         :history="calc.history"
         :current="calc.conversationId"
         :username="session.nickname || session.username || '访客'"
+        :trial-quota="trialQuota.quota"
         :user-avatar="userAvatar"
         :collapsed="sidebarCollapsed"
         :drawer-open="drawerOpen"
@@ -63,12 +64,14 @@ import { useSessionStore } from '@/store/modules/session'
 import { useCalculationStore } from '@/store/modules/calculation'
 import { usePermissionStore } from '@/store/modules/permission'
 import AppSidebar from './components/AppSidebar.vue'
+import { useTrialQuotaStore } from '@/store/modules/trialQuota'
 import userAvatar from '@/assets/user.png'
 import welcomeBackgroundSrc from '@/assets/home-welcome-background.png'
 
 const session = useSessionStore()
 const calc = useCalculationStore()
 const permission = usePermissionStore()
+const trialQuota = useTrialQuotaStore()
 const route = useRoute()
 const router = useRouter()
 
@@ -269,7 +272,7 @@ onMounted(() => {
     homeSidebarMedia.addEventListener?.('change', syncHomeSidebarFromViewport)
   }
   window.addEventListener('keydown', onDocumentKeydown)
-  session.loadUserInfo()
+  session.loadUserInfo().then(() => trialQuota.load()).catch(() => {})
   calc.loadHistory().catch(() => {})
 })
 

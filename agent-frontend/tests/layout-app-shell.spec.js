@@ -9,7 +9,7 @@ const state = vi.hoisted(() => {
       push: vi.fn().mockResolvedValue(undefined),
       currentRoute: { value: route },
     },
-    session: { username: 'researcher', nickname: '研究员昵称', loadUserInfo: vi.fn() },
+    session: { username: 'researcher', nickname: '研究员昵称', loadUserInfo: vi.fn().mockResolvedValue(undefined) },
     calc: {
       messages: [],
       history: [{ conversationId: 7, title: '甘肃储能测算' }],
@@ -54,6 +54,10 @@ vi.mock('@/store/modules/permission', () => ({
   usePermissionStore: () => state.permission,
 }))
 
+vi.mock('@/store/modules/trialQuota', () => ({
+  useTrialQuotaStore: () => ({ isTrial: false, quota: null, load: vi.fn(), refresh: vi.fn() }),
+}))
+
 import Layout from '@/layout/index.vue'
 
 const mountLayout = () => mount(Layout, { global: { stubs: { 'router-view': true } } })
@@ -94,6 +98,7 @@ describe('left AppShell layout', () => {
     expect(wrapper.find('.ir-rail').exists()).toBe(false)
     expect(wrapper.find('[data-testid="app-shell"]').exists()).toBe(true)
     expect(wrapper.find('.ir-layout__content').exists()).toBe(true)
+    expect(wrapper.find('.ir-trial-quota-bar').exists()).toBe(false)
     expect(wrapper.find('.ir-shell__user').text()).toContain('研究员昵称')
     expect(wrapper.find('.ir-shell__user').text()).not.toContain('researcher')
   })

@@ -60,6 +60,12 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 )
 from app.modules.platform_access.interface.deps import get_current_user, get_user_scope
 from app.modules.platform_access.domain.models import CurrentUser, UserScope
+from app.modules.trial_quota.application.trial_quota_service import TrialQuotaService
+from app.modules.trial_quota.application.trial_role_service import TrialRoleService
+from app.modules.trial_quota.interface.deps import (
+    get_trial_quota_service,
+    get_trial_role_service,
+)
 
 router = APIRouter(prefix="/ir/calc", tags=["calculation"])
 _SPOT_UPLOAD_SEMAPHORE = asyncio.Semaphore(2)
@@ -442,6 +448,8 @@ async def create_task(
     req: TaskCreateReq,
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
+    trial_role: TrialRoleService = Depends(get_trial_role_service),
+    trial_quota: TrialQuotaService = Depends(get_trial_quota_service),
     conversation_id: Optional[str] = Header(default=None, alias="X-IR-Conversation-Id"),
 ):
     """发起一次测算：组装→引擎(重试)→7类快照，返回 {taskId, version, conversationId, status}。"""
@@ -499,23 +507,35 @@ async def create_task(
         )).scalar_one_or_none()
         if station is None:
             raise ValidationException(f"节点“{req.node_name}”不属于省份“{req.province}”")
-    out = await svc.create_and_run(
-        session,
-        user_id=user.user_id,
-        username=user.username,
-        basics=normalize_project_basics(
-            province=req.province,
-            capacity_mwh=cap,
-            power_mw=pwr,
-            duration_hours=dur,
-            node_name=req.node_name,
-            voltage_kv=req.voltage_kv,
-            city=city,
-        ),
-        conversation_id=conv_id,
-        param_overrides=req.param_overrides,
-        trigger=req.trigger,
+    basics = normalize_project_basics(
+        province=req.province,
+        capacity_mwh=cap,
+        power_mw=pwr,
+        duration_hours=dur,
+        node_name=req.node_name,
+        voltage_kv=req.voltage_kv,
+        city=city,
     )
+    reservation = None
+    if await trial_role.is_trial(user.user_id):
+        reservation = await trial_quota.reserve(session, user.user_id, "calculation")
+    try:
+        out = await svc.create_and_run(
+            session,
+            user_id=user.user_id,
+            username=user.username,
+            basics=basics,
+            conversation_id=conv_id,
+            param_overrides=req.param_overrides,
+            trigger=req.trigger,
+        )
+    except Exception:
+        if reservation is not None:
+            await session.rollback()
+            await trial_quota.refund(session, reservation)
+        raise
+    if reservation is not None and out.get("status") != "completed":
+        await trial_quota.refund(session, reservation)
     return ok(out)
 
 

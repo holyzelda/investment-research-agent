@@ -8,6 +8,8 @@ from httpx import ASGITransport, AsyncClient
 from app.core.exceptions import register_exception_handlers
 from app.infrastructure.database.session import get_db_session
 from app.main import app
+from app.modules.trial_quota.interface.deps import get_trial_role_service
+from tests.conftest import FakeTrialRole
 from app.modules.calculation.interface import router as task_router
 from app.modules.platform_access.interface.middleware import PlatformIdentityMiddleware
 
@@ -94,6 +96,7 @@ async def client(monkeypatch):
     # 归属校验用的本用户会话占位（仅需 id 属性，service 收到的是完整 conversation_id）。
     conversation_id = str(uuid4())
     app.dependency_overrides[get_db_session] = _session_override(conversation_id)
+    app.dependency_overrides[get_trial_role_service] = lambda: FakeTrialRole(result=False)
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

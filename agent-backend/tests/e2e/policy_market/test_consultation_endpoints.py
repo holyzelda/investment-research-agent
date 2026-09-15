@@ -9,6 +9,8 @@ from sqlalchemy.pool import StaticPool
 from app.infrastructure.database.base import Base
 from app.infrastructure.database.session import get_db_session
 from app.main import app
+from app.modules.trial_quota.interface.deps import get_trial_role_service
+from tests.conftest import FakeTrialRole
 from app.modules.policy_market.infrastructure.persistence.orm import ConsultationRecordORM
 
 
@@ -62,6 +64,7 @@ async def consultation_client(monkeypatch):
             yield session
 
     app.dependency_overrides[get_db_session] = _override
+    app.dependency_overrides[get_trial_role_service] = lambda: FakeTrialRole(result=False)
     async with AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://test",
@@ -69,6 +72,7 @@ async def consultation_client(monkeypatch):
     ) as client:
         yield client
     app.dependency_overrides.pop(get_db_session, None)
+    app.dependency_overrides.pop(get_trial_role_service, None)
     await engine.dispose()
 
 

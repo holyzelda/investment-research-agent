@@ -12,6 +12,10 @@ const state = vi.hoisted(() => {
   }
 })
 
+vi.mock('@/store/modules/trialQuota', () => ({
+  useTrialQuotaStore: () => ({ isTrial: false, quota: null, load: vi.fn(), refresh: vi.fn() }),
+}))
+
 vi.mock('vue-router', async () => {
   const { reactive } = await import('vue')
   state.route = reactive(state.route)

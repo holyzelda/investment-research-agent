@@ -18,3 +18,18 @@ os.environ.setdefault("IR_SPOT_ENABLED", "false")
 from app.core.config.settings import reload_settings  # noqa: E402
 
 reload_settings()
+
+class FakeTrialRole:
+    """试用角色判定桩：is_trial 可固定为 True/False，或抛出 TrialRoleUnavailable。
+
+    业务写接口的 POST 端点都会注入 get_trial_role_service（生产实现会调统一平台），
+    存量测试不关心试用额度，统一用 (result=False) 走"正常账号完全绕过额度"路径。
+    """
+
+    def __init__(self, result: bool = False):
+        self._result = result
+
+    async def is_trial(self, user_id: str) -> bool:
+        if isinstance(self._result, Exception):
+            raise self._result
+        return self._result

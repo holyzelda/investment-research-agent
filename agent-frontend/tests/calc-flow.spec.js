@@ -154,8 +154,8 @@ describe('calculation chat stream flow', () => {
       name: 'a persisted CalcError task',
       data: {
         conversationId: 'c1', taskId: 153, status: 'failed', taskCreated: true,
-        requestId: 'req-feishu',
-        error: { code: 'feishu_not_found', message: '飞书资源/模板不存在', requestId: 'req-feishu' },
+        requestId: 'req-failed',
+        error: { code: 'calculation_unavailable', message: '测算服务暂时不可用，请稍后重试', requestId: 'req-failed' },
       },
     },
   ])('shows $name returned by the calculation tool', async ({ data }) => {

@@ -40,6 +40,7 @@ from app.modules.policy_market.interface.router import router as policy_market_r
 from app.modules.report.application.startup_recovery import mark_interrupted_generations_failed
 from app.modules.report.interface.router import router as report_router
 from app.modules.tie_line_map.interface.router import router as tie_line_router
+from app.modules.trial_quota.interface.router import router as trial_quota_router
 
 
 def register_routers(app: FastAPI) -> None:
@@ -55,6 +56,7 @@ def register_routers(app: FastAPI) -> None:
     app.include_router(tie_line_router)
     app.include_router(index_map_router)
     app.include_router(policy_market_router)
+    app.include_router(trial_quota_router)
 
 
 @asynccontextmanager

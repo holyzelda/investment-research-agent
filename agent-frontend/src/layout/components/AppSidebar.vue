@@ -130,6 +130,7 @@
         </ul>
       </section>
 
+      <TrialQuotaBadge v-if="trialQuota?.isTrial === true" :quota="trialQuota" :collapsed="collapsed && !drawerOpen" />
       <footer class="ir-shell__user-wrap" ref="userMenuRef">
         <button
           class="ir-shell__user"
@@ -165,6 +166,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Calculator, ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, Pencil, Plus, Trash2, X } from '@lucide/vue'
 import zqLogoUrl from '@/assets/zq_logo.png'
+import TrialQuotaBadge from '@/components/TrialQuotaBadge.vue'
 
 const ICON = {
   home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>',
@@ -196,6 +198,7 @@ const props = defineProps({
   username: { type: String, default: '访客' },
   userAvatar: { type: String, default: '' },
   collapsed: { type: Boolean, default: false },
+  trialQuota: { type: Object, default: null },
   drawerOpen: { type: Boolean, default: false },
   hasMore: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
@@ -863,3 +866,4 @@ watch(() => props.drawerOpen, (open) => { if (!open) userMenuOpen.value = false 
   .ir-shell-wrap .ir-shell { transition: none; }
 }
 </style>
+

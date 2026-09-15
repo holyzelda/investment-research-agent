@@ -358,6 +358,8 @@ CREATE TABLE ir_report_generation_task (
     error_message VARCHAR(512),
     report_id VARCHAR(64),
     completed_at DATETIME,
+    trial_quota_reserved TINYINT NOT NULL DEFAULT 0 COMMENT '是否已占用试用报告额度（后台失败回退用）',
+    trial_quota_usage_date DATE NULL COMMENT '试用报告额度占用所属自然日',
     id BIGINT NOT NULL AUTO_INCREMENT,
     created_at DATETIME NOT NULL DEFAULT now(),
     PRIMARY KEY (id),
@@ -368,6 +370,17 @@ CREATE TABLE ir_report_generation_task (
 CREATE INDEX ix_ir_report_generation_task_conversation_id ON ir_report_generation_task (conversation_id);
 CREATE INDEX ix_ir_report_generation_task_user_id ON ir_report_generation_task (user_id);
 CREATE INDEX ix_ir_report_generation_task_report_id ON ir_report_generation_task (report_id);
+
+CREATE TABLE ir_trial_daily_usage (
+    user_id VARCHAR(64) NOT NULL COMMENT '用户ID（统一平台 userId）',
+    usage_date DATE NOT NULL COMMENT '计数所属自然日（Asia/Shanghai）',
+    calculation_used INT NOT NULL DEFAULT 0 COMMENT '当日成功测算次数',
+    report_used INT NOT NULL DEFAULT 0 COMMENT '当日成功报告份数',
+    consultation_used INT NOT NULL DEFAULT 0 COMMENT '当日成功政策咨询次数',
+    created_at DATETIME NOT NULL DEFAULT now(),
+    updated_at DATETIME NOT NULL DEFAULT now() ON UPDATE now(),
+    PRIMARY KEY (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 CREATE TABLE policy_market_scrolling_messages (
     id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '主键ID',

@@ -18,6 +18,12 @@
           <p>连接政策文件、市场动态与行业经验，快速厘清影响范围、关键变化和行动方向。</p>
         </header>
         <ConsultationComposer v-if="!isReading" ref="composerRef" @submit-question="handleSubmit" />
+        <TrialQuotaNotice
+          v-if="!isReading"
+          class="policy-market-page__trial"
+          :quota="trialQuota.quota"
+          feature="consultation"
+        />
         <header v-else class="policy-market-page__reader-bar">
           <div>
             <span>研究结论</span>
@@ -47,9 +53,12 @@ import { usePolicyMarketStore } from '@/store/modules/policyMarket'
 import ConsultationHistory from './components/ConsultationHistory.vue'
 import ConsultationComposer from './components/ConsultationComposer.vue'
 import ConsultationResult from './components/ConsultationResult.vue'
+import TrialQuotaNotice from '@/components/TrialQuotaNotice.vue'
+import { useTrialQuotaStore } from '@/store/modules/trialQuota'
 import MarketPulse from './components/MarketPulse.vue'
 
 const store = usePolicyMarketStore()
+const trialQuota = useTrialQuotaStore()
 const composerRef = ref(null)
 const consultRef = ref(null)
 const resultAnchorRef = ref(null)
@@ -191,6 +200,10 @@ function formatReaderDate(value) {
 }
 
 .policy-market-page__notice { margin: 0; font-size: var(--xc-fs-xs); }
+.policy-market-page__trial {
+  margin-top: -8px;
+  padding: 0 2px 0 26px;
+}
 .policy-market-page__notice--error { color: var(--xc-status-danger); }
 .policy-market-page__source-note { margin: 0; padding: 12px 0 0 26px; border-top: 1px solid var(--xc-border-soft); color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); line-height: var(--xc-lh-normal); }
 

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import AppSidebar from '@/layout/components/AppSidebar.vue'
+import TrialQuotaBadge from '@/components/TrialQuotaBadge.vue'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -73,6 +74,28 @@ describe('AppShell conversation history', () => {
     await wrapper.find('[role="menuitem"]').trigger('click')
     expect(wrapper.emitted('user-menu')).toEqual([['ledger']])
     expect(wrapper.find('.ir-shell__user-menu').exists()).toBe(false)
+  })
+
+  it('toggles the trial quota badge into compact mode when the sidebar collapses', async () => {
+    const wrapper = mount(AppSidebar, {
+      props: {
+        collapsed: false,
+        trialQuota: { isTrial: true, calculation: { used: 2, limit: 5, remaining: 3 } },
+      },
+    })
+
+    let badge = wrapper.findComponent(TrialQuotaBadge)
+    expect(badge.exists()).toBe(true)
+    expect(badge.props('collapsed')).toBe(false)
+
+    await wrapper.setProps({ collapsed: true })
+    badge = wrapper.findComponent(TrialQuotaBadge)
+    expect(wrapper.find('.ir-shell-wrap').classes()).toContain('is-collapsed')
+    expect(badge.props('collapsed')).toBe(true)
+
+    await wrapper.setProps({ drawerOpen: true })
+    badge = wrapper.findComponent(TrialQuotaBadge)
+    expect(badge.props('collapsed')).toBe(false)
   })
 
   it('observes the load-more sentinel after asynchronous history pagination appears', async () => {

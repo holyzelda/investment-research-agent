@@ -9,7 +9,9 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.infrastructure.database.session import get_db_session
+from app.modules.trial_quota.interface.deps import get_trial_role_service
 from app.main import app
+from tests.conftest import FakeTrialRole
 
 _HEADERS = {"userId": "1001", "username": "__pytest__"}
 
@@ -35,6 +37,7 @@ async def client(db_engine):
             yield s
 
     app.dependency_overrides[get_db_session] = _override
+    app.dependency_overrides[get_trial_role_service] = lambda: FakeTrialRole(result=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test", headers=_HEADERS) as c:
         yield c
@@ -255,8 +258,8 @@ async def test_task_failure_is_persisted_and_readable(client, monkeypatch):
     assert d["taskCreated"] is True
     assert d["requestId"] == d["error"]["requestId"]
     assert d["error"] == {
-        "code": "feishu_auth_401",
-        "message": "模拟飞书鉴权失败",
+        "code": "calculation_configuration",
+        "message": "测算服务配置异常，请稍后重试或联系管理员",
         "requestId": d["error"]["requestId"],
         "retryCount": 0,
     }
@@ -316,8 +319,8 @@ async def test_retryable_task_failure_keeps_root_cause_and_retry_count(client, m
     assert r.status_code == 200
     created = r.json()["data"]
     expected_error = {
-        "code": "feishu_601124041",
-        "message": "飞书副本仍在处理中",
+        "code": "calculation_unavailable",
+        "message": "测算服务暂时不可用，请稍后重试",
         "requestId": created["error"]["requestId"],
         "retryCount": 1,
     }
@@ -332,7 +335,7 @@ async def test_retryable_task_failure_keeps_root_cause_and_retry_count(client, m
             select(CalculationTaskORM).where(CalculationTaskORM.id == created["taskId"])
         )).scalar_one()
     assert (task.error_code, task.error_message, task.retry_count) == (
-        "feishu_601124041", "飞书副本仍在处理中", 1,
+        "calculation_unavailable", "测算服务暂时不可用，请稍后重试", 1,
     )
 
     status = (await client.get(f"/ir/calc/tasks/{created['taskId']}")).json()["data"]
@@ -423,3 +426,4 @@ async def test_task_rejects_inconsistent_capacity_power_and_duration(client):
     assert response.status_code == 400
     assert response.json()["code"] == 400
     assert "不一致" in response.json()["msg"]
+

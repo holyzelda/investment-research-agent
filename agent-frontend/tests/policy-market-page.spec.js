@@ -38,6 +38,14 @@ describe('政策与市场页面集成', () => {
     expect(pageSource).toContain("matchMedia('(max-width: 1100px)')")
   })
 
+  it('试用账号在政策咨询页显示就近额度提示，仅新建提问时出现', () => {
+    expect(pageSource).toContain('<TrialQuotaNotice')
+    expect(pageSource).toContain('feature="consultation"')
+    expect(pageSource).toContain('useTrialQuotaStore()')
+    expect(pageSource).toContain('v-if="!isReading"')
+    expect(pageSource).toContain('policy-market-page__trial')
+  })
+
   it('删除历史研究需要确认后才委托 Store 执行', () => {
     expect(pageSource).toContain('@delete="handleDeleteConsultation"')
     expect(pageSource).toContain('ElMessageBox.confirm')

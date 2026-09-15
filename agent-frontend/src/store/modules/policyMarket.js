@@ -7,6 +7,7 @@ import {
   getMarketOverview,
   submitConsultation,
 } from '@/api/policyMarket'
+import { useTrialQuotaStore } from '@/store/modules/trialQuota'
 
 const DEFAULT_FILTERS = { province: 'all', startDate: null, endDate: null, topic: 'all' }
 const DEFAULT_STATS = { total: 0, trendPercent: null, rangeLabel: '全部省份 · 全部时间' }
@@ -159,6 +160,7 @@ export const usePolicyMarketStore = defineStore('policyMarket', {
         } catch {
           // 已有完整结果可展示；历史列表刷新失败不覆盖成功咨询。
         }
+        useTrialQuotaStore().refresh()
         return completedRecord
       } catch (error) {
         const index = this.consultations.findIndex((item) => item.id === pendingId)

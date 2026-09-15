@@ -44,8 +44,8 @@
             ref="composerRef"
             class="ir-welcome__composer"
             :responding="calc.responding"
-            :spot-context="calc.spotContext"
             :spot-uploading="calc.spotContextUploading"
+            :spot-context="calc.spotContext"
             :spot-progress="calc.spotContextProgress"
             :spot-error="calc.spotContextError"
             placeholder="例如：测算甘肃 200MW/800MWh 独立储能项目，运营期15年"
@@ -54,6 +54,12 @@
             @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
             @spot-error-dismiss="calc.clearSpotContextError"
             @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
+          />
+
+          <TrialQuotaNotice
+            class="ir-welcome__trial"
+            :quota="trialQuota.quota"
+            feature="calculation"
           />
 
           <div class="ir-welcome__chips">
@@ -248,6 +254,12 @@
           </div>
         </div>
 
+        <TrialQuotaNotice
+          class="ir-home__trial"
+          :quota="trialQuota.quota"
+          feature="calculation"
+        />
+
         <ChatComposer
           class="ir-home__composer"
           :responding="calc.responding"
@@ -411,6 +423,8 @@ import ChatComposer from './components/ChatComposer.vue'
 import ThinkingChain from './components/ThinkingChain.vue'
 import AiAnswerContent from './components/AiAnswerContent.vue'
 import ReportGenerationCard from './components/ReportGenerationCard.vue'
+import TrialQuotaNotice from '@/components/TrialQuotaNotice.vue'
+import { useTrialQuotaStore } from '@/store/modules/trialQuota'
 import ShareDialog from './components/ShareDialog.vue'
 import { thinkingNodes, hasActiveNode } from '@/utils/thinkingChain'
 import orbSrc from '@/assets/ai-sphere.png'
@@ -429,6 +443,7 @@ const session = useSessionStore()
 const route = useRoute()
 const router = useRouter()
 const calc = useCalculationStore()
+const trialQuota = useTrialQuotaStore()
 const scrollEl = ref(null)
 const reportListEl = ref(null)
 const ledgerCloseButton = ref(null)
@@ -656,7 +671,7 @@ const metrics = computed(() => [
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h9M17 6h3M4 12h3M11 12h9M4 18h7M15 18h5" stroke-linecap="round"/><circle cx="15" cy="6" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="13" cy="18" r="2"/></svg>',
   },
   {
-    label: '覆盖省份', value: '28', unit: '个',
+    label: '覆盖省份', value: '22', unit: '个',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg>',
   },
 ])
@@ -1065,6 +1080,10 @@ function archiveSummaryFields(v) {
   margin-bottom: var(--xc-space-4);
   padding: 0;
 }
+/* 试用额度行内提示：位于输入框与快捷示例之间，平时一行小字、额度用完才变横幅 */
+.ir-welcome__trial {
+  margin-bottom: var(--xc-space-4);
+}
 .ir-welcome__chips {
   display: flex;
   flex-wrap: wrap;
@@ -1218,6 +1237,13 @@ function archiveSummaryFields(v) {
 /* 版本选择只用于定位记录，不再给结果卡叠加一圈高亮框。 */
 .ir-msg--selected-result .ir-msg__result {
   border-radius: var(--xc-radius-sm);
+}
+/* 对话态底部输入框上方的试用额度行内提示：与输入框共用消息流的安全区。 */
+.ir-home__trial {
+  width: calc(100% - 2 * var(--ir-message-inset));
+  max-width: var(--xc-content-fluid);
+  margin: 0 auto;
+  padding: 0 0 var(--xc-space-2);
 }
 /* 对话态底部输入框：复用消息流的水平安全区，与 AI 回复和思考框同宽。 */
 .ir-home__composer {

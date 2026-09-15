@@ -25,6 +25,8 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 from app.modules.report.application.frozen_section_context import build_section_context
 from app.modules.report.application.report_builder import build_report_payload
 from app.modules.report.application.report_rules import AI_FALLBACK_TEXT, AI_SECTION_RULES
+from app.modules.trial_quota.application.trial_quota_service import TrialQuotaService
+from app.modules.trial_quota.infrastructure.persistence.orm import TrialQuotaReservation
 
 
 class ReportGenerationService:
@@ -35,7 +37,16 @@ class ReportGenerationService:
         self._ai_concurrency = ai_concurrency
         self._history = ConversationHistoryService()
 
-    async def start(self, session: AsyncSession, *, task_id: int, user_id: str, username: str | None = None) -> dict:
+    async def start(
+        self,
+        session: AsyncSession,
+        *,
+        task_id: int,
+        user_id: str,
+        username: str | None = None,
+        is_trial: bool = False,
+        trial_quota: TrialQuotaService | None = None,
+    ) -> dict:
         task = await self._history.require_owned_task(session, task_id=task_id, user_id=user_id)
         if task.status != "completed":
             raise NotFoundException("测算任务不存在")
@@ -45,11 +56,18 @@ class ReportGenerationService:
         if report is not None:
             return {"status": "completed", "reportId": report.report_id, "taskId": task.id}
         generation = (await session.execute(
-            select(ReportGenerationTaskORM).where(ReportGenerationTaskORM.task_id == task.id)
+            select(ReportGenerationTaskORM)
+            .where(ReportGenerationTaskORM.task_id == task.id)
+            .with_for_update()
         )).scalar_one_or_none()
         should_run = False
         if generation is None:
             should_run = True
+            reservation = None
+            if is_trial:
+                reservation = await (trial_quota or TrialQuotaService()).reserve(
+                    session, user_id, "report", commit=False
+                )
             generation = ReportGenerationTaskORM(
                 task_id=task.id,
                 conversation_id=task.conversation_id,
@@ -57,10 +75,17 @@ class ReportGenerationService:
                 username=username,
                 steps=[self._step(1, "prepare", "读取冻结测算快照", "active")],
                 current_step="prepare",
+                trial_quota_reserved=reservation is not None,
+                trial_quota_usage_date=(reservation.usage_date if reservation else None),
             )
             session.add(generation)
         elif generation.status == "failed":
             should_run = True
+            reservation = None
+            if is_trial and not generation.trial_quota_reserved:
+                reservation = await (trial_quota or TrialQuotaService()).reserve(
+                    session, user_id, "report", commit=False
+                )
             generation.status = "generating"
             generation.steps = [self._step(1, "prepare", "读取冻结测算快照", "active")]
             generation.current_step = "prepare"
@@ -68,6 +93,9 @@ class ReportGenerationService:
             generation.error_message = None
             generation.report_id = None
             generation.completed_at = None
+            if reservation is not None:
+                generation.trial_quota_reserved = True
+                generation.trial_quota_usage_date = reservation.usage_date
         await session.commit()
         data = self.serialize_task(generation)
         data["shouldRun"] = should_run
@@ -126,6 +154,8 @@ class ReportGenerationService:
             generation.report_id = report_id
             generation.current_step = None
             generation.completed_at = datetime.now()
+            generation.trial_quota_reserved = False
+            generation.trial_quota_usage_date = None
             generation.steps = [*generation.steps, self._step(
                 len(generation.steps) + 1, "complete", "报告已生成", "completed"
             )]
@@ -141,6 +171,18 @@ class ReportGenerationService:
             await session.rollback()
             generation = await session.get(ReportGenerationTaskORM, report_task_id)
             if generation is not None:
+                if generation.trial_quota_reserved and generation.trial_quota_usage_date:
+                    await TrialQuotaService().refund(
+                        session,
+                        TrialQuotaReservation(
+                            user_id=generation.user_id,
+                            feature="report",
+                            usage_date=generation.trial_quota_usage_date,
+                        ),
+                        commit=False,
+                    )
+                    generation.trial_quota_reserved = False
+                    generation.trial_quota_usage_date = None
                 generation.status = "failed"
                 generation.current_step = None
                 generation.error_code = "report_generation_failed"
