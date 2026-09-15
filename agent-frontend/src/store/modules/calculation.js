@@ -100,7 +100,11 @@ function createStreamMessage(id = nextTurnId()) {
 }
 
 function failureText(message) {
-  return `测算失败：${message || '未知错误'}`
+  const text = String(message || '').trim()
+  if (/飞书|feishu|server\s*error|95201/i.test(text)) {
+    return '测算失败：测算服务暂时不可用，请稍后重试'
+  }
+  return `测算失败：${text || '未知错误'}`
 }
 
 function chatErrorMessage(data, inner) {

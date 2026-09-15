@@ -12,6 +12,10 @@ from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.calculation_share_service import (
     CalculationShareService,
 )
+from app.modules.calculation.application.error_presenter import (
+    public_calc_error_code,
+    public_calc_error_message,
+)
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
@@ -153,9 +157,26 @@ class ConversationHistoryService:
             "messages": [
                 {
                     "role": message.role,
-                    "content": message.content,
+                    "content": (
+                        f"测算失败：{public_calc_error_message(
+                            message.content,
+                            (message.payload or {}).get("error_code"),
+                        )}"
+                        if message.message_type == "calculation_error"
+                        else message.content
+                    ),
                     "messageType": message.message_type,
-                    "payload": message.payload,
+                    "payload": (
+                        {
+                            **(message.payload or {}),
+                            "error_code": public_calc_error_code(
+                                (message.payload or {}).get("error_code"),
+                                message.content,
+                            ),
+                        }
+                        if message.message_type == "calculation_error"
+                        else message.payload
+                    ),
                     "createdAt": message.created_at.isoformat(),
                 }
                 for message in messages
@@ -432,12 +453,13 @@ class ConversationHistoryService:
         cleaned = (error_message or "").strip()
         if not cleaned:
             cleaned = "未知错误"
-        content = cleaned if cleaned.startswith("测算失败：") else f"测算失败：{cleaned}"
+        safe_message = public_calc_error_message(cleaned, error_code)
+        content = safe_message if safe_message.startswith("测算失败：") else f"测算失败：{safe_message}"
         payload = {"event_type": "calculation_error"}
         if task_id is not None:
             payload["task_id"] = task_id
         if error_code is not None:
-            payload["error_code"] = error_code
+            payload["error_code"] = public_calc_error_code(error_code, cleaned)
         return await self.append_message(
             session,
             conversation_id=conversation_id,

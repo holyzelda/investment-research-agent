@@ -18,11 +18,16 @@ from typing import Optional
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
 from app.core.config.settings import FeishuConfig
 from app.core.exceptions import NotFoundException, ValidationException
 from app.modules.calculation.application.feishu_calc_engine import FeishuCalcEngine
 from app.modules.calculation.application.conversation_history_service import ConversationHistoryService
+from app.modules.calculation.application.error_presenter import (
+    public_calc_error_code,
+    public_calc_error_message,
+)
 from app.modules.calculation.application.output_mapper import map_output_to_result
 from app.modules.calculation.application.param_assembler import ParamAssembler
 from app.modules.calculation.application.retry_policy import RetryPolicy
@@ -174,14 +179,23 @@ class CalculationTaskService:
             )
         except CalcError as e:
             error_message = str(e)[:500]
+            public_message = public_calc_error_message(error_message, e.code)
+            public_code = public_calc_error_code(e.code, error_message)
+            logger.error(
+                "测算执行失败 request_id={} code={} retry_count={} detail={}",
+                request_id,
+                e.code,
+                e.retry_count,
+                error_message,
+            )
             task = CalculationTaskORM(
                 conversation_id=conversation_id,
                 version=version,
                 status="failed",
                 request_id=request_id,
                 param_hash=param_hash,
-                error_code=e.code,
-                error_message=error_message,
+                error_code=public_code,
+                error_message=public_message,
                 retry_count=e.retry_count,
             )
             session.add(task)
@@ -189,9 +203,9 @@ class CalculationTaskService:
             await ConversationHistoryService().append_calculation_error(
                 session,
                 conversation_id=conversation_id,
-                error_message=error_message,
+                error_message=public_message,
                 task_id=task.id,
-                error_code=e.code,
+                error_code=public_code,
             )
             return {
                 "conversationId": conversation_id,
@@ -201,8 +215,8 @@ class CalculationTaskService:
                 "taskCreated": True,
                 "requestId": request_id,
                 "error": {
-                    "code": e.code,
-                    "message": error_message,
+                    "code": public_code,
+                    "message": public_message,
                     "requestId": request_id,
                     "retryCount": e.retry_count,
                 },

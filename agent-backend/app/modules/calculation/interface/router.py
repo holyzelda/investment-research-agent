@@ -30,6 +30,10 @@ from app.modules.calculation.application.factory import (
 from app.modules.calculation.application.conversation_history_service import (
     ConversationHistoryService,
 )
+from app.modules.calculation.application.error_presenter import (
+    public_calc_error_code,
+    public_calc_error_message,
+)
 from app.modules.calculation.application.input_normalizer import (
     complete_scale_anchors,
     normalize_project_basics,
@@ -598,8 +602,8 @@ async def get_task_status(
     }
     if task.status == "failed":
         data["error"] = {
-            "code": task.error_code,
-            "message": task.error_message,
+            "code": public_calc_error_code(task.error_code, task.error_message),
+            "message": public_calc_error_message(task.error_message, task.error_code),
             "requestId": task.request_id,
             "retryCount": task.retry_count,
         }
