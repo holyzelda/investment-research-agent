@@ -1,25 +1,18 @@
-"""上传现货电价的解析、校验与 19 个业务 K 聚合。"""
+"""上传现货电价的解析与校验。"""
 from __future__ import annotations
 
 import hashlib
 import io
-import multiprocessing
-import os
 from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable
+from typing import Any
 from zipfile import BadZipFile
 
 from openpyxl import load_workbook
 
 from app.core.exceptions import ValidationException
-from app.modules.calculation.domain.spot_pricing import (
-    PRECOMPUTE_K_VALUES,
-    day_optimal_by_k,
-)
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_ROWS = 1_000_000
@@ -45,6 +38,8 @@ class ParsedSpotContext:
     skipped_day_count: int
     warnings: list[str]
     k_results: dict[str, dict[str, Any]]
+    raw_prices: dict[str, list[str]]
+    price_mode: str = "both"
 
 
 def _parse_date(value: object) -> date | None:
@@ -105,75 +100,6 @@ def _error(message: str) -> ValidationException:
     return ValidationException(f"电价文件校验失败：{message}")
 
 
-def _compute_day(prices: list[str], min_action_minutes: int, switch_gap_minutes: int):
-    result = day_optimal_by_k(
-        [Decimal(value) for value in prices],
-        k_values=PRECOMPUTE_K_VALUES,
-        min_action_minutes=min_action_minutes,
-        switch_gap_minutes=switch_gap_minutes,
-    )
-    return {
-        k: (str(charge_sum), str(discharge_sum), slot_count)
-        for k, (charge_sum, discharge_sum, slot_count) in result.items()
-    }
-
-
-def _compute_day_from_tuple(args):
-    return _compute_day(*args)
-
-
-def _aggregate_days(
-    valid_days: dict[date, list[Decimal]],
-    *,
-    min_action_minutes: int,
-    switch_gap_minutes: int,
-    workers: int | None,
-    progress_callback: Callable[[int, int], None] | None = None,
-) -> dict[str, dict[str, Any]]:
-    aggregate = {
-        str(k): {"chargeSum": Decimal(0), "dischargeSum": Decimal(0), "slotCount": 0}
-        for k in PRECOMPUTE_K_VALUES
-    }
-    inputs = [
-        ([str(price) for price in prices], min_action_minutes, switch_gap_minutes)
-        for prices in valid_days.values()
-    ]
-    worker_count = workers if workers is not None else min(8, os.cpu_count() or 1)
-    worker_count = max(1, min(worker_count, len(inputs)))
-    executor = None
-    if worker_count == 1:
-        results = (_compute_day(*item) for item in inputs)
-    else:
-        executor = ProcessPoolExecutor(
-            max_workers=worker_count,
-            mp_context=multiprocessing.get_context("spawn"),
-        )
-        results = executor.map(_compute_day_from_tuple, inputs)
-    try:
-        completed_days = 0
-        total_days = len(inputs)
-        for by_k in results:
-            for k, (charge_sum, discharge_sum, slot_count) in by_k.items():
-                item = aggregate[str(k)]
-                item["chargeSum"] += Decimal(charge_sum)
-                item["dischargeSum"] += Decimal(discharge_sum)
-                item["slotCount"] += slot_count
-            completed_days += 1
-            if progress_callback is not None:
-                progress_callback(completed_days, total_days)
-    finally:
-        if executor is not None:
-            executor.shutdown(wait=True)
-    return {
-        key: {
-            "chargeSum": str(value["chargeSum"]),
-            "dischargeSum": str(value["dischargeSum"]),
-            "slotCount": value["slotCount"],
-        }
-        for key, value in aggregate.items()
-    }
-
-
 def parse_uploaded_spot_file(
     content: bytes,
     filename: str,
@@ -181,9 +107,12 @@ def parse_uploaded_spot_file(
     min_action_minutes: int = 30,
     switch_gap_minutes: int = 15,
     workers: int | None = None,
+    price_mode: str = "both",
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> ParsedSpotContext:
-    """解析标准长表，并在返回前完成全部 19 个 K 的 DP 聚合。"""
+    """解析标准长表并保存完整日的原始 96 点曲线；DP 延迟到实际测算时执行。"""
+    if price_mode not in {"both", "charge_only", "discharge_only"}:
+        raise _error("电价用途无效，必须为 both、charge_only 或 discharge_only")
     if not filename or not filename.lower().endswith(".xlsx"):
         raise _error("仅支持 .xlsx 文件")
     if not content:
@@ -270,28 +199,6 @@ def parse_uploaded_spot_file(
         if (last_day - first_day).days + 1 > MAX_DATE_SPAN_DAYS:
             raise _error(f"数据日期范围不能超过 {MAX_DATE_SPAN_DAYS} 天")
 
-        if progress_callback is not None:
-            progress_callback({
-                "phase": "computing",
-                "message": "正在计算不同充放电策略",
-                "completedDays": 0,
-                "totalDays": len(valid_days),
-            })
-        k_results = _aggregate_days(
-            valid_days,
-            min_action_minutes=min_action_minutes,
-            switch_gap_minutes=switch_gap_minutes,
-            workers=workers,
-            progress_callback=(
-                lambda completed, total: progress_callback({
-                    "phase": "computing",
-                    "message": "正在计算不同充放电策略",
-                    "completedDays": completed,
-                    "totalDays": total,
-                })
-                if progress_callback is not None else None
-            ),
-        )
         skipped_count = (last_day - first_day).days + 1 - len(valid_days)
         warnings = []
         if skipped_count:
@@ -304,7 +211,13 @@ def parse_uploaded_spot_file(
             valid_day_count=len(valid_days),
             skipped_day_count=skipped_count,
             warnings=warnings,
-            k_results=k_results,
+            raw_prices={
+                business_date.isoformat(): [str(price) for price in prices]
+                for business_date, prices in valid_days.items()
+            },
+            # 保留旧字段以兼容历史 context；新上传不在此阶段计算 DP。
+            k_results={},
+            price_mode=price_mode,
         )
     finally:
         workbook.close()

@@ -52,7 +52,6 @@
             @send="onSend"
             @stop="calc.stopStream"
             @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
-            @spot-remove="calc.clearSpotContext().catch(() => {})"
             @spot-error-dismiss="calc.clearSpotContextError"
             @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
           />
@@ -259,7 +258,6 @@
           @send="onSend"
           @stop="calc.stopStream"
           @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
-          @spot-remove="calc.clearSpotContext().catch(() => {})"
           @spot-error-dismiss="calc.clearSpotContextError"
           @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
         />

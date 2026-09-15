@@ -17,7 +17,6 @@ from app.modules.calculation.infrastructure.persistence.orm import (
 from app.modules.calculation.infrastructure.uploaded_spot_context import ALGORITHM_VERSION
 
 STAGED_TTL = timedelta(minutes=30)
-BOUND_TTL = timedelta(days=7)
 
 
 def _hash_token(token: str) -> str:
@@ -43,14 +42,24 @@ class SpotContextService:
             )).scalar_one_or_none()
             if conversation is None:
                 raise NotFoundException("会话不存在")
-            await session.execute(delete(ConversationSpotContextORM).where(
-                ConversationSpotContextORM.conversation_id == conversation_id
-            ))
+            existing = (await session.execute(
+                select(ConversationSpotContextORM.id).where(
+                    ConversationSpotContextORM.conversation_id == conversation_id
+                )
+            )).scalar_one_or_none()
+            if existing is not None:
+                raise ValidationException("本会话已上传电价文件，不允许删除或重新上传")
         else:
-            await session.execute(delete(ConversationSpotContextORM).where(
-                ConversationSpotContextORM.user_id == user_id,
-                ConversationSpotContextORM.conversation_id.is_(None),
-            ))
+            existing = (await session.execute(
+                select(ConversationSpotContextORM.id).where(
+                    ConversationSpotContextORM.user_id == user_id,
+                    ConversationSpotContextORM.conversation_id.is_(None),
+                    ConversationSpotContextORM.status == "ready",
+                    ConversationSpotContextORM.expires_at > datetime.now(),
+                )
+            )).scalar_one_or_none()
+            if existing is not None:
+                raise ValidationException("当前会话已上传电价文件，不允许删除或重新上传")
 
         token = secrets.token_urlsafe(32)
         context = ConversationSpotContextORM(
@@ -61,14 +70,16 @@ class SpotContextService:
             file_name=parsed.file_name,
             file_sha256=parsed.file_sha256,
             price_unit="CNY/MWh",
+            price_mode=getattr(parsed, "price_mode", None) or "both",
             start_date=parsed.start_date,
             end_date=parsed.end_date,
             valid_day_count=parsed.valid_day_count,
             skipped_day_count=parsed.skipped_day_count,
             warnings=parsed.warnings,
             k_results=parsed.k_results,
+            raw_prices=getattr(parsed, "raw_prices", None),
             algorithm_version=ALGORITHM_VERSION,
-            expires_at=datetime.now() + (BOUND_TTL if conversation_id else STAGED_TTL),
+            expires_at=None if conversation_id else datetime.now() + STAGED_TTL,
         )
         session.add(context)
         await session.commit()
@@ -90,17 +101,25 @@ class SpotContextService:
                 ConversationSpotContextORM.status == "ready",
             )
         )).scalar_one_or_none()
-        if context is None or context.expires_at <= datetime.now():
+        if context is None or (
+            context.conversation_id is None
+            and context.expires_at is not None
+            and context.expires_at <= datetime.now()
+        ):
             raise ValidationException("自定义电价文件已失效，请重新上传")
         if context.conversation_id not in (None, conversation_id):
             raise ValidationException("自定义电价文件不属于当前会话")
         if context.conversation_id == conversation_id:
             return context
-        await session.execute(delete(ConversationSpotContextORM).where(
-            ConversationSpotContextORM.conversation_id == conversation_id
-        ))
+        existing = (await session.execute(
+            select(ConversationSpotContextORM.id).where(
+                ConversationSpotContextORM.conversation_id == conversation_id
+            )
+        )).scalar_one_or_none()
+        if existing is not None:
+            raise ValidationException("本会话已上传电价文件，不允许删除或重新上传")
         context.conversation_id = conversation_id
-        context.expires_at = datetime.now() + BOUND_TTL
+        context.expires_at = None
         await session.commit()
         return context
 
@@ -115,14 +134,9 @@ class SpotContextService:
         )).scalar_one_or_none()
         if context is None:
             return None
-        if context.status != "ready" or context.expires_at <= datetime.now():
-            if context.status == "ready":
-                context.status = "expired"
-                context.k_results = {}
-                await session.commit()
-            raise ValidationException("本会话的自定义电价文件已失效，请重新上传")
+        if context.status != "ready":
+            raise ValidationException("本会话的自定义电价文件不可用")
         context.last_used_at = datetime.now()
-        context.expires_at = datetime.now() + BOUND_TTL
         await session.commit()
         return context
 
@@ -130,16 +144,9 @@ class SpotContextService:
         now = datetime.now()
         await session.execute(delete(ConversationSpotContextORM).where(
             ConversationSpotContextORM.conversation_id.is_(None),
+            ConversationSpotContextORM.expires_at.is_not(None),
             ConversationSpotContextORM.expires_at <= now,
         ))
-        expired = (await session.execute(select(ConversationSpotContextORM).where(
-            ConversationSpotContextORM.conversation_id.is_not(None),
-            ConversationSpotContextORM.status == "ready",
-            ConversationSpotContextORM.expires_at <= now,
-        ))).scalars().all()
-        for context in expired:
-            context.status = "expired"
-            context.k_results = {}
         await session.commit()
 
     async def remove(
@@ -154,10 +161,7 @@ class SpotContextService:
         )).scalar_one_or_none()
         if conversation is None:
             raise NotFoundException("会话不存在")
-        await session.execute(delete(ConversationSpotContextORM).where(
-            ConversationSpotContextORM.conversation_id == conversation_id
-        ))
-        await session.commit()
+        raise ValidationException("本会话的电价文件已锁定，不允许删除")
 
     async def remove_staged(
         self, session: AsyncSession, *, token: str, user_id: str
@@ -177,11 +181,12 @@ class SpotContextService:
             "fileName": context.file_name,
             "fileSha256": context.file_sha256,
             "priceUnit": context.price_unit,
+            "priceMode": getattr(context, "price_mode", None) or "both",
             "validDays": context.valid_day_count,
             "skippedDays": context.skipped_day_count,
             "startDate": context.start_date.isoformat(),
             "endDate": context.end_date.isoformat(),
             "kCount": len(context.k_results or {}),
             "warnings": list(context.warnings or []),
-            "expiresAt": context.expires_at.isoformat(),
+            "expiresAt": context.expires_at.isoformat() if context.expires_at else None,
         }

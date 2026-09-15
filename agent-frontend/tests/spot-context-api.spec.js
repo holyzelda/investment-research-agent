@@ -25,7 +25,7 @@ describe('spot context progress API', () => {
   it('uses the terminal ready frame as the response', async () => {
     const frames = [
       '{"phase":"validating"}\n',
-      '{"phase":"computing","completedDays":1,"totalDays":1}\n',
+      '{"phase":"saving","message":"正在准备本会话电价"}\n',
       '{"phase":"ready","data":{"status":"ready","validDays":1}}\n',
     ]
     request.mockImplementation(async (config) => {
@@ -42,11 +42,13 @@ describe('spot context progress API', () => {
       new File(['xlsx'], 'spot.xlsx'),
       null,
       new AbortController().signal,
-      { onProgress: (event) => progress.push(event) },
+      { priceMode: 'charge_only', onProgress: (event) => progress.push(event) },
     )
 
-    expect(progress.map((event) => event.phase)).toEqual(['validating', 'computing', 'ready'])
+    expect(progress.map((event) => event.phase)).toEqual(['validating', 'saving', 'ready'])
     expect(response.data).toEqual({ status: 'ready', validDays: 1 })
+    const form = request.mock.calls[0][0].data
+    expect(form.get('price_mode')).toBe('charge_only')
   })
 
   it('surfaces a terminal streamed validation error', async () => {

@@ -26,16 +26,6 @@ async def test_prepare_stream_preserves_progress_order(monkeypatch):
 
     def fake_parse(*args, progress_callback=None, **kwargs):
         progress_callback({"phase": "validating", "message": "校验中"})
-        progress_callback({
-            "phase": "computing",
-            "completedDays": 1,
-            "totalDays": 2,
-        })
-        progress_callback({
-            "phase": "computing",
-            "completedDays": 2,
-            "totalDays": 2,
-        })
         return parsed
 
     async def fake_save(self, session, **kwargs):
@@ -60,7 +50,7 @@ async def test_prepare_stream_preserves_progress_order(monkeypatch):
     events = await _events(response)
 
     assert [event["phase"] for event in events] == [
-        "uploading", "validating", "computing", "computing", "saving", "ready",
+        "uploading", "validating", "saving", "ready",
     ]
     assert events[-1]["data"] == {
         "status": "ready", "validDays": 2, "contextToken": "context-token",

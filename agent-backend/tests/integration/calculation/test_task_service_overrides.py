@@ -93,6 +93,25 @@ async def test_v1_selects_15_year_template_by_default(session_maker):
 
 
 @pytest.mark.asyncio
+async def test_transaction_is_released_before_sync_assembly(session_maker):
+    """同步现货计算开始前，AsyncSession 不应继续持有主库事务。"""
+    service = _service(_CountingSpot())
+    assembler = service._assembler
+    transaction_states = []
+
+    class _ObservingAssembler:
+        def assemble(self, *args, **kwargs):
+            transaction_states.append(session.in_transaction())
+            return assembler.assemble(*args, **kwargs)
+
+    service._assembler = _ObservingAssembler()
+    async with session_maker() as session:
+        await service.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
+
+    assert transaction_states == [False]
+
+
+@pytest.mark.asyncio
 async def test_same_conversation_can_switch_to_20_year_template(session_maker):
     service, gateway = _service_with_templates(_CountingSpot())
     async with session_maker() as session:

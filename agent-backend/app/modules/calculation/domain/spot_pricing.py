@@ -17,6 +17,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from decimal import Decimal
+from functools import lru_cache
 from typing import Optional
 
 # 槽动作
@@ -77,6 +78,7 @@ def _switch_gap_slots(cfg: SpotConfig) -> int:
 _NONE = ("NONE", 0)
 
 
+@lru_cache(maxsize=262_144)
 def _transition(state, action, K, min_run, gap):
     """返回 (ncc, ndc, nfsm, seg_delta) 或 None（非法）。seg_delta：新起一段充/放记 1。"""
     cc, dc, (kind, length) = state
@@ -303,6 +305,29 @@ def day_optimal_by_k(
         return {}
     min_run = min_action_minutes // SLOT_MINUTES
     gap = switch_gap_minutes // SLOT_MINUTES
+
+    # 上传文件的在线测算每次只请求一个 K。避免为单个 K 构造并回溯
+    # 最大 K 的整棵状态树，直接复用同一 DP 核心，结果规则完全一致。
+    if len(requested) == 1:
+        target_k = requested[0]
+        actions = _optimize_day_core(
+            prices, target_k, min_run, gap, discharge_prices=discharge_prices
+        )
+        charge_sum = Decimal(0)
+        discharge_sum = Decimal(0)
+        slots = 0
+        for price_index, action in enumerate(actions):
+            if action == CHARGE:
+                charge_sum += prices[price_index]
+                slots += 1
+            elif action == DISCHARGE:
+                discharge_sum += (
+                    prices[price_index]
+                    if discharge_prices is None
+                    else discharge_prices[price_index]
+                )
+        return {target_k: (charge_sum, discharge_sum, slots)}
+
     max_k = max(requested)
 
     # 所有较小 K 的可行路径都包含在 max_k 的状态树中；保留完整父指针，

@@ -24,17 +24,20 @@
               <span aria-hidden="true">·</span> 跳过 {{ readySkippedDays }} 天
             </span>
             <span aria-hidden="true">·</span>
+            <span>{{ readyPriceModeLabel }}</span>
+            <span aria-hidden="true">·</span>
             <span>本会话使用</span>
           </span>
         </span>
         <span v-if="spotUploading" class="ir-composer__elapsed">已用时 {{ elapsedSeconds }} 秒</span>
         <button
+          v-if="effectiveSpotError"
           type="button"
           class="ir-composer__attachment-remove"
-          :aria-label="spotError ? '关闭电价文件错误' : '移除自定义电价文件'"
-          :title="spotError ? '关闭错误' : '移除文件'"
-          :disabled="spotUploading || responding"
-          @click="spotError ? $emit('spot-error-dismiss') : $emit('spot-remove')"
+          aria-label="关闭电价文件错误"
+          title="关闭错误"
+          :disabled="responding"
+          @click="$emit('spot-error-dismiss')"
         >
           <X aria-hidden="true" />
         </button>
@@ -56,15 +59,12 @@
           <div v-if="progressPhase === 'uploading'" class="ir-composer__meter" aria-hidden="true">
             <span :style="{ width: `${uploadPercent}%` }" />
           </div>
-          <div v-else-if="progressPhase === 'computing' && totalDays" class="ir-composer__meter" aria-hidden="true">
-            <span :style="{ width: `${computePercent}%` }" />
-          </div>
         </div>
       </div>
 
       <div v-if="isDragging" class="ir-composer__drop-overlay" aria-hidden="true">
         <Upload class="ir-composer__drop-icon" />
-        <span>释放以充电价文件</span>
+        <span>释放以上传电价文件</span>
       </div>
 
       <el-input
@@ -86,7 +86,7 @@
             class="ir-composer__file-input"
             type="file"
             accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            :disabled="responding || spotUploading"
+            :disabled="uploadDisabled"
             @change="onFileChange"
           >
 
@@ -94,12 +94,27 @@
             type="button"
             class="ir-composer__action-btn ir-composer__action-btn--upload"
             aria-label="上传现货电价文件"
-            :disabled="responding || spotUploading"
+            :disabled="uploadDisabled"
             @click="fileInputRef?.click()"
           >
             <Upload aria-hidden="true" />
             <span>上传电价文件</span>
           </button>
+
+          <div class="ir-composer__price-mode" role="radiogroup" aria-label="上传电价用途">
+            <button
+              v-for="option in priceModeOptions"
+              :key="option.value"
+              type="button"
+              role="radio"
+              :aria-checked="priceMode === option.value"
+              :class="{ 'is-active': priceMode === option.value }"
+              :disabled="uploadDisabled"
+              @click="priceMode = option.value"
+            >
+              {{ option.label }}
+            </button>
+          </div>
 
           <button
             type="button"
@@ -172,40 +187,43 @@ const props = defineProps({
   spotProgress: { type: Object, default: null },
   spotError: { type: String, default: '' },
 })
-const emit = defineEmits(['send', 'stop', 'spot-upload', 'spot-remove', 'spot-error-dismiss', 'spot-template'])
+const emit = defineEmits(['send', 'stop', 'spot-upload', 'spot-error-dismiss', 'spot-template'])
 const text = ref('')
 const inputRef = ref(null)
 const fileInputRef = ref(null)
 const elapsedSeconds = ref(0)
 const hintPopoverVisible = ref(false)
 const isDragging = ref(false)
+const priceMode = ref('both')
 let elapsedTimer = null
 let dragCounter = 0
 
 const progressSteps = [
   { index: 1, phase: 'uploading', label: '文件上传' },
   { index: 2, phase: 'validating', label: '格式校验' },
-  { index: 3, phase: 'computing', label: '数据计算' },
-  { index: 4, phase: 'saving', label: '准备完成' },
+  { index: 3, phase: 'saving', label: '准备完成' },
 ]
+const priceModeOptions = [
+  { value: 'both', label: '充放电通用' },
+  { value: 'charge_only', label: '仅充电' },
+  { value: 'discharge_only', label: '仅放电' },
+]
+const priceModeLabels = Object.fromEntries(priceModeOptions.map((option) => [option.value, option.label]))
 const progressOrder = progressSteps.map((step) => step.phase)
 const progressPhase = computed(() => props.spotProgress?.phase || 'uploading')
 const uploadPercent = computed(() => Math.max(0, Math.min(100, Number(props.spotProgress?.uploadPercent) || 0)))
-const completedDays = computed(() => Number(props.spotProgress?.completedDays) || 0)
-const totalDays = computed(() => Number(props.spotProgress?.totalDays) || 0)
-const computePercent = computed(() => (
-  totalDays.value ? Math.max(0, Math.min(100, Math.round((completedDays.value / totalDays.value) * 100))) : 0
-))
+const uploadDisabled = computed(() => props.responding || props.spotUploading || props.spotContext?.status === 'ready')
 const readyDateRange = computed(() => {
   const context = props.spotContext || {}
   return `${context.startDate || '-'} 至 ${context.endDate || '-'}`
 })
 const readyValidDays = computed(() => Number(props.spotContext?.validDays) || 0)
 const readySkippedDays = computed(() => Number(props.spotContext?.skippedDays) || 0)
+const readyPriceModeLabel = computed(() => priceModeLabels[props.spotContext?.priceMode] || priceModeLabels.both)
 const effectiveSpotError = computed(() => {
   if (props.spotError) return props.spotError
   if (props.spotContext?.status && props.spotContext.status !== 'ready') {
-    return '本会话的自定义电价已失效，请移除后重新上传'
+    return '本会话的自定义电价已失效，请重新开始会话'
   }
   return ''
 })
@@ -217,9 +235,6 @@ const attachmentTitle = computed(() => {
 const attachmentDetail = computed(() => {
   if (props.spotUploading) {
     if (progressPhase.value === 'uploading') return `正在上传电价文件${uploadPercent.value ? ` · ${uploadPercent.value}%` : ''}`
-    if (progressPhase.value === 'computing' && totalDays.value) {
-      return `${props.spotProgress?.message || '正在计算不同充放电策略'} · 已完成 ${completedDays.value}/${totalDays.value} 个有效日`
-    }
     return props.spotProgress?.message || '正在处理电价文件'
   }
   if (effectiveSpotError.value) return effectiveSpotError.value
@@ -271,7 +286,7 @@ function onAction() {
 function onFileChange(event) {
   const file = event.target.files?.[0]
   event.target.value = ''
-  if (file) emit('spot-upload', file)
+  if (file) emit('spot-upload', { file, priceMode: priceMode.value })
 }
 
 function onSend() {
@@ -283,7 +298,7 @@ function onSend() {
 }
 
 function onDragEnter(event) {
-  if (props.responding || props.spotUploading) return
+  if (uploadDisabled.value) return
   const types = event.dataTransfer?.types
   if (!types || !Array.from(types).includes('Files')) return
   dragCounter++
@@ -301,11 +316,11 @@ function onDragLeave() {
 function onDrop(event) {
   dragCounter = 0
   isDragging.value = false
-  if (props.responding || props.spotUploading) return
+  if (uploadDisabled.value) return
   const file = event.dataTransfer?.files?.[0]
   if (!file) return
   if (!file.name.endsWith('.xlsx') && file.type !== 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') return
-  emit('spot-upload', file)
+  emit('spot-upload', { file, priceMode: priceMode.value })
 }
 </script>
 
@@ -363,7 +378,7 @@ function onDrop(event) {
 }
 .ir-composer__steps {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--xc-space-2);
 }
 .ir-composer__step {
@@ -521,6 +536,32 @@ function onDrop(event) {
   color: var(--xc-text-mute);
 }
 
+.ir-composer__price-mode {
+  display: inline-flex;
+  height: 34px;
+  padding: 2px;
+  border: 1px solid var(--xc-border-card);
+  border-radius: var(--xc-radius-sm);
+  background: var(--xc-surface-control);
+}
+.ir-composer__price-mode button {
+  padding: 0 9px;
+  border: 0;
+  border-radius: calc(var(--xc-radius-sm) - 2px);
+  background: transparent;
+  color: var(--xc-text-mute);
+  font-size: var(--xc-fs-2xs);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ir-composer__price-mode button.is-active {
+  background: var(--xc-surface-raised);
+  color: var(--xc-text-strong);
+  box-shadow: 0 0 0 1px var(--xc-border-strong);
+}
+.ir-composer__price-mode button:focus-visible { outline: 2px solid var(--xc-accent-blue); outline-offset: -1px; }
+.ir-composer__price-mode button:disabled { cursor: default; opacity: 0.45; }
+
 .ir-composer__hint-trigger {
   width: 28px;
   height: 28px;
@@ -581,6 +622,8 @@ function onDrop(event) {
   .ir-composer__tools { align-items: flex-start; flex-wrap: wrap; gap: var(--xc-space-1); }
   .ir-composer__action-btn { height: 30px; padding: 0 8px; font-size: var(--xc-fs-2xs); }
   .ir-composer__action-btn span { display: none; }
+  .ir-composer__price-mode { order: 3; width: 100%; }
+  .ir-composer__price-mode button { flex: 1; padding: 0 4px; }
   .ir-composer__hint-trigger { width: 24px; height: 24px; }
 }
 </style>

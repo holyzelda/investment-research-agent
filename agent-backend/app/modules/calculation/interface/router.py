@@ -51,7 +51,6 @@ from app.modules.calculation.infrastructure.uploaded_spot_context import (
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
-    DataSnapshotORM,
     InputSnapshotORM,
     SpotStationORM,
 )
@@ -147,10 +146,11 @@ async def download_spot_context_template():
 async def prepare_spot_context(
     file: UploadFile = File(...),
     conversation_id: Optional[str] = Form(default=None),
+    price_mode: str = Form(default="both"),
     user: CurrentUser = Depends(get_current_user),
     session: AsyncSession = Depends(get_db_session),
 ):
-    """上传后流式返回校验、逐日计算和保存阶段；最终事件携带 ready 摘要。"""
+    """上传后流式返回校验和保存阶段；实际联合 DP 延迟到测算时执行。"""
     conv_id = _conversation_uuid(conversation_id)
     # StreamingResponse starts iterating after this route returns. Read the
     # upload while FastAPI still owns its temporary file; otherwise request
@@ -180,6 +180,7 @@ async def prepare_spot_context(
                     min_action_minutes=spot.min_action_minutes,
                     switch_gap_minutes=spot.switch_gap_minutes,
                     workers=spot.daily_update_workers,
+                    price_mode=price_mode,
                     progress_callback=report_progress,
                 )
             finally:
@@ -454,29 +455,20 @@ async def create_task(
         if context is not None:
             from app.core.config.settings import get_settings
 
-            previous_spot_context = await _latest_spot_context(session, conv_id)
+            spot_settings = get_settings().spot_price
             spot = ConversationSpotPriceAlgo(
                 context,
-                get_settings().spot_price.province_price_coefficients,
-                force_compute=(
-                    previous_spot_context.get("contextId") != context.id
-                ),
+                spot_settings.province_price_coefficients,
+                min_action_minutes=spot_settings.min_action_minutes,
+                switch_gap_minutes=spot_settings.switch_gap_minutes,
+                workers=spot_settings.daily_update_workers,
             )
     # 同会话修改参数：以最近一次成功版本的冻结入参为基线，补全缺失的规模锚点。
     # 例如用户只改功率，则容量沿用上一版（改功率=改时长，容量不变），避免 normalize 因
     # 缺少容量/时长组合而 400；首次测算（无会话或无成功版本）previous_input 为 None 不补全。
     previous_input = await _latest_frozen_input(session, conv_id) if conv_id is not None else None
-    used_uploaded_spot = (
-        await _latest_used_uploaded_spot(session, conv_id)
-        if conv_id is not None and spot is None and previous_input is not None
-        else False
-    )
     if spot is not None:
         svc = build_task_service(spot=spot)
-    elif used_uploaded_spot:
-        # 自定义文件被移除后，不能沿用上一版本的上传均价；
-        # 让组装器重新查询公共预计算来源。
-        svc = build_task_service(force_spot_compute=True)
     else:
         svc = build_task_service()
     cap, pwr, dur = complete_scale_anchors(
@@ -544,31 +536,6 @@ async def _latest_frozen_input(
     if snapshot is None or not snapshot.payload:
         return None
     return snapshot.payload.get("apiInput")
-
-
-async def _latest_used_uploaded_spot(
-    session: AsyncSession, conv_id: str
-) -> bool:
-    """判断最近成功版本是否使用过上传电价，避免来源切换时继承旧均价。"""
-    return (await _latest_spot_context(session, conv_id)).get("source") == "conversation_upload"
-
-
-async def _latest_spot_context(session: AsyncSession, conv_id: str) -> dict:
-    latest_task = (await session.execute(
-        select(CalculationTaskORM)
-        .where(
-            CalculationTaskORM.conversation_id == conv_id,
-            CalculationTaskORM.status == "completed",
-        )
-        .order_by(CalculationTaskORM.created_at.desc(), CalculationTaskORM.id.desc())
-        .limit(1)
-    )).scalar_one_or_none()
-    if latest_task is None:
-        return {}
-    snapshot = (await session.execute(
-        select(DataSnapshotORM).where(DataSnapshotORM.task_id == latest_task.id)
-    )).scalar_one_or_none()
-    return dict(snapshot.payload.get("spotContext") or {}) if snapshot else {}
 
 
 @router.get("/tasks/latest-input")

@@ -5,7 +5,6 @@ import pytest
 from openpyxl import Workbook
 
 from app.core.exceptions import ValidationException
-from app.modules.calculation.domain.spot_pricing import PRECOMPUTE_K_VALUES
 from app.modules.calculation.infrastructure.uploaded_spot_context import (
     parse_uploaded_spot_file,
 )
@@ -39,7 +38,7 @@ def _workbook_bytes(
     return stream.getvalue()
 
 
-def test_parses_complete_days_and_aggregates_exact_business_k_set():
+def test_parses_complete_days_and_preserves_raw_curve():
     parsed = parse_uploaded_spot_file(
         _workbook_bytes(complete_days=1), "spot.xlsx", workers=1
     )
@@ -47,11 +46,11 @@ def test_parses_complete_days_and_aggregates_exact_business_k_set():
     assert parsed.valid_day_count == 1
     assert parsed.skipped_day_count == 0
     assert parsed.start_date == parsed.end_date == date(2026, 1, 1)
-    assert set(map(int, parsed.k_results)) == set(PRECOMPUTE_K_VALUES)
-    assert len(parsed.k_results) == 19
-    assert parsed.k_results["8"]["slotCount"] == 8
-    assert parsed.k_results["8"]["chargeSum"] == "800"
-    assert parsed.k_results["8"]["dischargeSum"] == "4000"
+    assert parsed.k_results == {}
+    assert parsed.price_mode == "both"
+    assert len(parsed.raw_prices["2026-01-01"]) == 96
+    assert parsed.raw_prices["2026-01-01"][:48] == ["100"] * 48
+    assert parsed.raw_prices["2026-01-01"][48:] == ["500"] * 48
 
 
 def test_skips_incomplete_day_but_reports_warning():
@@ -72,8 +71,8 @@ def test_uses_process_pool_for_multiple_complete_days():
     )
 
     assert parsed.valid_day_count == 2
-    assert len(parsed.k_results) == 19
-    assert parsed.k_results["8"]["slotCount"] == 16
+    assert len(parsed.raw_prices) == 2
+    assert all(len(values) == 96 for values in parsed.raw_prices.values())
 
 
 def test_accepts_the_template_instruction_sheet_but_rejects_other_sheets():
@@ -90,7 +89,7 @@ def test_accepts_the_template_instruction_sheet_but_rejects_other_sheets():
         )
 
 
-def test_reports_validation_and_each_completed_day():
+def test_reports_validation_without_upload_time_dp_stage():
     progress = []
     parse_uploaded_spot_file(
         _workbook_bytes(complete_days=2),
@@ -100,13 +99,16 @@ def test_reports_validation_and_each_completed_day():
     )
 
     assert progress[0] == {"phase": "validating", "message": "正在读取并校验 Excel 数据"}
-    assert progress[-1] == {
-        "phase": "computing",
-        "message": "正在计算不同充放电策略",
-        "completedDays": 2,
-        "totalDays": 2,
-    }
-    assert [event["completedDays"] for event in progress[2:]] == [1, 2]
+    assert progress == [
+        {"phase": "validating", "message": "正在读取并校验 Excel 数据"},
+    ]
+
+
+def test_rejects_unknown_price_mode():
+    with pytest.raises(ValidationException, match="电价用途无效"):
+        parse_uploaded_spot_file(
+            _workbook_bytes(complete_days=1), "spot.xlsx", price_mode="invalid"
+        )
 
 
 def test_counts_missing_calendar_days_in_skipped_days():

@@ -143,8 +143,7 @@ class ParamAssembler:
         daily_cycles = override_cycles if override_cycles is not None else result.api_input.get("daily_cycles", 1)
 
         # ③ 电价库二次计算（现货充/放均价）——依赖未变则继承上一版本，不查库
-        deps_changed = bool(getattr(self._spot, "always_compute", False)) or \
-            self._spot_dependency_changed(previous_input, basics, daily_cycles)
+        deps_changed = self._spot_dependency_changed(previous_input, basics, daily_cycles)
         if not deps_changed:
             spot_c = previous_input.get("spot_charge_avg")
             spot_d = previous_input.get("spot_discharge_avg")

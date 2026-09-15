@@ -183,7 +183,11 @@ class ConversationHistoryService:
         if spot_context is not None:
             effective_status = (
                 "expired"
-                if spot_context.status != "ready" or spot_context.expires_at <= datetime.now()
+                if spot_context.status != "ready"
+                or (
+                    spot_context.expires_at is not None
+                    and spot_context.expires_at <= datetime.now()
+                )
                 else "ready"
             )
             detail["spotContext"] = {
@@ -191,13 +195,16 @@ class ConversationHistoryService:
                 "fileName": spot_context.file_name,
                 "fileSha256": spot_context.file_sha256,
                 "priceUnit": spot_context.price_unit,
+                "priceMode": getattr(spot_context, "price_mode", None) or "both",
                 "validDays": spot_context.valid_day_count,
                 "skippedDays": spot_context.skipped_day_count,
                 "startDate": spot_context.start_date.isoformat(),
                 "endDate": spot_context.end_date.isoformat(),
                 "kCount": len(spot_context.k_results or {}) if effective_status == "ready" else 0,
                 "warnings": list(spot_context.warnings or []),
-                "expiresAt": spot_context.expires_at.isoformat(),
+                "expiresAt": spot_context.expires_at.isoformat()
+                if spot_context.expires_at
+                else None,
             }
         if reports or generations:
             detail["reports"] = [

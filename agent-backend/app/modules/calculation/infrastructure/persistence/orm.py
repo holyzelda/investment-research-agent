@@ -152,7 +152,7 @@ class SpotStationORM(Base):
 
 
 class ConversationSpotContextORM(Base):
-    """会话级上传现货电价：仅保存文件摘要与 19 个 K 的聚合结果。"""
+    """会话级上传现货电价：保存原始曲线，实际 K 在测算时按用途联合计算。"""
 
     __tablename__ = "ir_conversation_spot_context"
     __table_args__ = (
@@ -171,12 +171,16 @@ class ConversationSpotContextORM(Base):
     file_name: Mapped[str] = mapped_column(String(255), nullable=False)
     file_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     price_unit: Mapped[str] = mapped_column(String(16), nullable=False, default="CNY/MWh")
+    price_mode: Mapped[str] = mapped_column(
+        String(24), nullable=False, default="both", server_default="both"
+    )
     start_date: Mapped[date] = mapped_column(Date, nullable=False)
     end_date: Mapped[date] = mapped_column(Date, nullable=False)
     valid_day_count: Mapped[int] = mapped_column(Integer, nullable=False)
     skipped_day_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     warnings: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     k_results: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    raw_prices: Mapped[Optional[dict[str, list[str]]]] = mapped_column(JSON, nullable=True)
     algorithm_version: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
@@ -185,7 +189,8 @@ class ConversationSpotContextORM(Base):
         DateTime, server_default=func.now(), onupdate=func.now(), nullable=False
     )
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
-    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    # staged context 过期；绑定会话后的文件属于会话全生命周期，不再过期。
+    expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True, index=True)
 
 
 class CalculationResultSnapshotORM(_PkTimestamp, Base):

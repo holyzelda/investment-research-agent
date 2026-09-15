@@ -30,9 +30,10 @@ export function createNdjsonParser(onEvent) {
   }
 }
 
-export async function prepareSpotContext(file, conversationId, signal, { onUploadProgress, onProgress } = {}) {
+export async function prepareSpotContext(file, conversationId, signal, { priceMode = 'both', onUploadProgress, onProgress } = {}) {
   const data = new FormData()
   data.append('file', file)
+  data.append('price_mode', priceMode)
   if (conversationId) data.append('conversation_id', conversationId)
   let responseText = ''
   const parser = createNdjsonParser(onProgress)

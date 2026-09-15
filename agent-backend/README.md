@@ -45,7 +45,7 @@ app/
 │       │   └── data/               # param_dict、revenue_structure 等静态数据
 │       └── interface/router.py     # /ir/calc/* 端点
 configs/application.yml             # 本地配置
-migrations/                         # Alembic（异步）
+migrations/                         # 历史迁移归档；新增结构变更以 sql/ 增量脚本交付
 tests/                              # unit / integration / e2e（端点测试用 ASGITransport）
 ```
 
@@ -75,8 +75,8 @@ set ENV_FILE=.env.prod && .venv\Scripts\python.exe run.py
 #   方式二：传统 uvicorn 命令（等价）
 .venv\Scripts\python.exe -m uvicorn app.main:app --reload --port 8080
 
-# ⑤ 数据库迁移（Batch 3 有模型后）
-.venv\Scripts\alembic.exe upgrade head
+# ⑤ 数据库结构变更
+# 按版本顺序手动执行 sql/ 目录下对应的增量 SQL 脚本。
 ```
 
 > **依赖管理约定**：所有人统一从 `requirements.txt` 安装（命令 ②），**不要手动 `pip install <包名>`**。

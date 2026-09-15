@@ -143,6 +143,11 @@ class CalculationTaskService:
                 },
             }
 
+        # 现货组装和飞书执行都可能持续较久。前面的版本查询（以及 V1
+        # 创建会话的 flush）不能让主库连接跨越这段同步/远程调用时间。
+        # 提交后，快照服务会在执行完成后为结果写入开启新的事务。
+        await session.commit()
+
         assembled = self._assembler.assemble(
             basics, overrides=param_overrides, previous_input=previous_input)
         change_meta = self._build_change_meta(

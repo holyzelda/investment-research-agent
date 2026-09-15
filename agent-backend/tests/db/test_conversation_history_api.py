@@ -4,6 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
+import pytest_asyncio
 from fastapi import BackgroundTasks
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import func, select
@@ -16,6 +17,7 @@ from app.main import app
 from app.modules.calculation.infrastructure.persistence.orm import (
     CalculationResultSnapshotORM,
     CalculationTaskORM,
+    ConversationSpotContextORM,
     ConversationORM,
     InputSnapshotORM,
     MessageSnapshotORM,
@@ -33,7 +35,7 @@ def test_conversation_deleted_at_is_nullable():
     assert column.nullable is True
 
 
-@pytest.fixture
+@pytest_asyncio.fixture
 async def history_context():
     engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
@@ -300,6 +302,50 @@ async def test_detail_replays_messages_and_versions_in_fixed_order(history_conte
     assert "reports" not in data
     assert "input" not in data["versions"][0]
     assert "result" not in data["versions"][0]
+
+
+@pytest.mark.asyncio
+async def test_detail_returns_permanent_uploaded_spot_context(history_context):
+    client, maker, ids = history_context
+    async with maker() as session:
+        session.add(ConversationSpotContextORM(
+            conversation_id=ids["newer"],
+            user_id="history-user-1",
+            status="ready",
+            context_token_hash="history-context-token",
+            file_name="single-side.xlsx",
+            file_sha256="history-file-hash",
+            price_unit="CNY/MWh",
+            price_mode="charge_only",
+            start_date=datetime(2025, 1, 1).date(),
+            end_date=datetime(2025, 12, 31).date(),
+            valid_day_count=365,
+            skipped_day_count=0,
+            warnings=["测试提示"],
+            k_results={},
+            raw_prices={"2025-01-01": ["100"] * 96},
+            algorithm_version="spot-dp-v1",
+            expires_at=None,
+        ))
+        await session.commit()
+
+    response = await client.get(f"/ir/conversations/{ids['newer']}")
+
+    assert response.status_code == 200
+    assert response.json()["data"]["spotContext"] == {
+        "status": "ready",
+        "fileName": "single-side.xlsx",
+        "fileSha256": "history-file-hash",
+        "priceUnit": "CNY/MWh",
+        "priceMode": "charge_only",
+        "validDays": 365,
+        "skippedDays": 0,
+        "startDate": "2025-01-01",
+        "endDate": "2025-12-31",
+        "kCount": 0,
+        "warnings": ["测试提示"],
+        "expiresAt": None,
+    }
 
 
 @pytest.mark.asyncio

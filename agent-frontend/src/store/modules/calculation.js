@@ -628,8 +628,10 @@ export const useCalculationStore = defineStore('calculation', {
       if (String(this.conversationId) === key) this.resetConversation()
       await this.loadHistory()
     },
-    async uploadSpotContext(file) {
-      if (!file || this.responding || this.spotContextUploading) return
+    async uploadSpotContext(upload = {}) {
+      const file = upload instanceof File ? upload : upload?.file
+      const priceMode = upload instanceof File ? 'both' : (upload?.priceMode || 'both')
+      if (!file || this.responding || this.spotContextUploading || this.spotContext?.status === 'ready') return
       const sequence = ++this.spotContextRequestSequence
       this.spotContextController?.abort()
       const controller = new AbortController()
@@ -646,6 +648,7 @@ export const useCalculationStore = defineStore('calculation', {
       this.spotContextError = ''
       try {
         const response = await prepareSpotContext(file, this.conversationId, controller.signal, {
+          priceMode,
           onUploadProgress: (event) => {
             if (sequence !== this.spotContextRequestSequence) return
             const total = event.total || file.size || 0
@@ -685,22 +688,6 @@ export const useCalculationStore = defineStore('calculation', {
     },
     clearSpotContextError() {
       this.spotContextError = ''
-    },
-    async clearSpotContext() {
-      this.spotContextController?.abort()
-      this.spotContextRequestSequence += 1
-      this.spotContextController = null
-      const conversationId = this.conversationId
-      const contextToken = this.spotContextToken
-      if (conversationId || contextToken) {
-        await removeSpotContext({ conversationId, contextToken })
-      }
-      this.spotContext = null
-      this.spotContextToken = null
-      this.spotContextUploading = false
-      this.spotContextProgress = null
-      this.spotContextError = ''
-      if (conversationId) this.invalidateConversationDetail(conversationId)
     },
     async downloadSpotContextTemplate() {
       const blob = await downloadSpotContextTemplate()
