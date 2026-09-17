@@ -263,6 +263,7 @@ describe('result card three modules', () => {
           { id: 'node_name', cn: '节点名称', zone: 'project_definition', control: 'text', default: null },
         ],
         seedInput: { province: '河南' },
+        stationOptions: ['郑州'],
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')

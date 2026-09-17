@@ -70,10 +70,17 @@ describe('ParamAdjustPanel approved layout', () => {
     expect(project.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
   })
 
-  it('keeps 节点名称 available before remote options are loaded', async () => {
+  it('hides 节点名称 until remote options arrive and auto-requests them on expand', async () => {
     const wrapper = await expandedPanel([])
     const project = wrapper.find('.ir-adjust__zone--project_definition')
 
+    expect(project.text()).not.toContain('节点名称')
+    expect(project.findAll('.ir-adjust__project-item')).toHaveLength(3)
+    expect(wrapper.emitted('station-open')?.[0][0]).toEqual({
+      province: '蒙西', selectedNode: '祥泰站',
+    })
+
+    await wrapper.setProps({ stationOptions: ['祥泰站', '乌达站'] })
     expect(project.text()).toContain('节点名称')
     expect(project.findAll('.ir-adjust__project-item')).toHaveLength(4)
     expect(project.find('.ir-adjust__node-trigger').text()).toContain('祥泰站')
