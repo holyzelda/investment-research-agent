@@ -90,6 +90,12 @@ export function isFieldLocked(spec) {
   return spec.control === 'fixed'
 }
 
+// 当前省份/地区是否具备节点数据：stationOptions 为非空数组才算有数据。
+// 空数组、null、undefined 或接口未返回均视为无节点信息，节点/城市区域整体隐藏。
+export function hasStationData(stationOptions) {
+  return Array.isArray(stationOptions) && stationOptions.length > 0
+}
+
 // 提交当前面板改动值：仅收集 slider/dynamic_slider/select 控件中与 seedInput 基线不同的值，
 // 实现"用户改了哪些就提交哪些"的增量语义。
 // seedInput 默认为空字典，未提供时所有值均视为非基线而提交（兼容无基线场景）。

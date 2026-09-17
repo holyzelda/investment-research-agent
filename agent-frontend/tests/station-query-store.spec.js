@@ -105,4 +105,30 @@ describe('calculation station remote query', () => {
     expect(store.stationOptions).toEqual([])
     expect(store.stationLoading).toBe(false)
   })
+
+  it('keeps options empty when the province has no station rows', async () => {
+    api.getStations.mockResolvedValueOnce({ data: { items: [], hasMore: false, nextCursor: null } })
+    const store = useCalculationStore()
+
+    await store.searchStations({ province: '无节点省' })
+
+    expect(store.stationProvince).toBe('无节点省')
+    expect(store.stationOptions).toEqual([])
+    expect(store.stationHasMore).toBe(false)
+    expect(store.stationError).toBe('')
+  })
+
+  it('switching province replaces previous options without stale residue', async () => {
+    api.getStations
+      .mockResolvedValueOnce({ data: { items: ['节点01'], hasMore: false, nextCursor: null } })
+      .mockResolvedValueOnce({ data: { items: ['郑州'], hasMore: false, nextCursor: null } })
+    const store = useCalculationStore()
+
+    await store.searchStations({ province: '甘肃' })
+    expect(store.stationOptions).toEqual(['节点01'])
+
+    await store.searchStations({ province: '河南' })
+    expect(store.stationProvince).toBe('河南')
+    expect(store.stationOptions).toEqual(['郑州'])
+  })
 })

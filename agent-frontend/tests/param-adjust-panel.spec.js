@@ -46,6 +46,7 @@ describe('ParamAdjustPanel', () => {
       props: {
         paramDict: HENAN_PARAM_DICT,
         seedInput: { province: '河南', city: '郑州', capacity_mwh: 800, power_mw: 200 },
+        stationOptions: ['郑州', '洛阳'],
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
@@ -83,6 +84,7 @@ describe('ParamAdjustPanel', () => {
       props: {
         paramDict: HENAN_PARAM_DICT,
         seedInput: { province: '河南', capacity_mwh: 800, power_mw: 200 },
+        stationOptions: ['郑州', '洛阳'],
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
@@ -95,6 +97,7 @@ describe('ParamAdjustPanel', () => {
       props: {
         paramDict: PARAM_DICT,
         seedInput: { province: '河南', capacity_mwh: 800, power_mw: 200 },
+        stationOptions: ['郑州'],
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
@@ -152,7 +155,7 @@ describe('ParamAdjustPanel', () => {
   })
   it('default collapsed; expanding renders zones', async () => {
     const wrapper = mount(ParamAdjustPanel, {
-      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, stationOptions: ['祥泰站'], version: 'V2' },
     })
     expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
     expect(wrapper.find('.ir-adjust__pending-bar').exists()).toBe(false)
@@ -289,13 +292,21 @@ describe('ParamAdjustPanel', () => {
       },
     })
     await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    // 无节点数据且请求在途：节点区域整体隐藏，不渲染空占位，也不重复发起请求。
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
+    expect(wrapper.emitted('station-open')).toBeUndefined()
+
+    // 接口返回节点数据后，节点区域出现。
+    await wrapper.setProps({ stationOptions: ['祥泰站'], stationLoading: false })
     const nodePopover = wrapper.findComponent({ name: 'ElPopover' })
     nodePopover.vm.$emit('update:visible', true)
     await wrapper.vm.$nextTick()
 
     const nodeSelect = wrapper.findComponent({ name: 'ElSelect' })
     expect(nodeSelect.props('remote')).toBe(true)
-    expect(nodeSelect.props('loading')).toBe(true)
+    expect(nodeSelect.props('loading')).toBe(false)
     expect(nodeSelect.props('noDataText')).toBe('节点目录暂不可用')
     expect(wrapper.emitted('station-open')?.[0][0]).toEqual({
       province: '甘肃', selectedNode: '祥泰站',
@@ -370,6 +381,112 @@ describe('ParamAdjustPanel', () => {
     nodeSelect.vm.$emit('popup-scroll', { scrollTop: 1620, scrollLeft: 0 })
     await wrapper.vm.$nextTick()
     expect(wrapper.emitted('station-load-more')).toHaveLength(2)
+  })
+
+  it('无节点数据时整个节点信息区域隐藏，不显示空选项或占位', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('选择节点')
+    expect(wrapper.text()).not.toContain('暂无节点')
+    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(3)
+    expect(wrapper.findAll('.ir-adjust__project-item').some((field) => field.text().includes('所在省份'))).toBe(true)
+  })
+
+  it('有节点数据时显示节点信息，内容正确', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, stationOptions: ['祥泰站', '新节点'], version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const nodeTrigger = wrapper.find('.ir-adjust__node-trigger')
+    expect(nodeTrigger.exists()).toBe(true)
+    expect(nodeTrigger.text()).toContain('祥泰站')
+    expect(nodeTrigger.text()).toContain('更改')
+    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(4)
+  })
+
+  it('节点数据由空变非空时节点区域出现，清空后再次隐藏且无残留', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+
+    await wrapper.setProps({ stationOptions: ['新节点'] })
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(true)
+    expect(wrapper.find('.ir-adjust__node-trigger').text()).toContain('祥泰站')
+
+    await wrapper.setProps({ stationOptions: [] })
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('新节点')
+  })
+
+  it('展开面板且无节点数据时自动请求当前省份节点', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.emitted('station-open')?.[0][0]).toEqual({
+      province: '甘肃', selectedNode: '祥泰站',
+    })
+  })
+
+  it('节点请求在途或已有节点数据时，展开面板不重复发起请求', async () => {
+    const loadingWrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, stationLoading: true, version: 'V2' },
+    })
+    await loadingWrapper.find('.ir-adjust__toggle').trigger('click')
+    expect(loadingWrapper.emitted('station-open')).toBeUndefined()
+
+    const loadedWrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, stationOptions: ['祥泰站'], version: 'V2' },
+    })
+    await loadedWrapper.find('.ir-adjust__toggle').trigger('click')
+    expect(loadedWrapper.emitted('station-open')).toBeUndefined()
+  })
+
+  it('河南无城市级节点数据时隐藏城市信息区域', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: HENAN_PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: { province: '河南', capacity_mwh: 800, power_mw: 200 },
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('选择城市')
+    expect(wrapper.text()).not.toContain('暂无城市')
+    expect(wrapper.findAll('.ir-adjust__project-item')).toHaveLength(3)
+  })
+
+  it('河南有城市级节点数据时显示城市选择', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: HENAN_PARAM_DICT,
+        switches: { switch_spot: 1 },
+        seedInput: { province: '河南', city: '郑州', capacity_mwh: 800, power_mw: 200 },
+        stationOptions: ['郑州', '洛阳'],
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    const cityTrigger = wrapper.find('.ir-adjust__node-trigger')
+    expect(cityTrigger.exists()).toBe(true)
+    expect(cityTrigger.text()).toContain('郑州')
+    expect(cityTrigger.text()).toContain('更改')
+
+    await wrapper.setProps({ stationOptions: [] })
+    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('郑州')
   })
 
   it('V2 中省份仍只读，节点/容量/功率仍可编辑', async () => {

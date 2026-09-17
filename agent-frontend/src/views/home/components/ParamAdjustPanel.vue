@@ -354,6 +354,7 @@ import {
   frozenBaseline,
   frozenMarkerPct,
   groupByZone,
+  hasStationData,
   isFieldLocked,
   numericInputError,
   roundToStep,
@@ -421,6 +422,17 @@ function toggleExpanded() {
 
 watch(() => props.seedInput, (input) => {
   if (!expanded.value && Object.keys(input || {}).length) expanded.value = true
+})
+
+// 展开面板时若当前省份尚无节点数据且没有在途请求，自动发起一次节点查询：
+// 节点/城市信息仅在接口返回数据后展示，避免先出现空占位再等待加载。
+watch(expanded, (isExpanded) => {
+  if (!isExpanded) return
+  if (hasStationData(props.stationOptions) || props.stationLoading) return
+  emit('station-open', {
+    province: localValues.province || props.seedInput?.province,
+    selectedNode: localValues.node_name || null,
+  })
 })
 
 const PROJECT_ORDER = ['province', 'city', 'node_name', 'power_mw', 'capacity_mwh']
@@ -566,10 +578,17 @@ const zoneGroups = computed(() => groupByZone(props.paramDict, props.switches)
   .map((group) => {
     let items = group.items.filter((spec) => !DROPPED_FIELDS.has(spec.id))
     if (group.zone === 'project_definition') {
+      // 节点信息按有无数据显隐：接口未返回节点（河南为城市级节点）时整个节点/城市区域隐藏，不渲染空占位。
       if (isHenan.value) {
         items = items.filter((spec) => spec.id !== 'node_name')
+        if (!hasStationData(props.stationOptions)) {
+          items = items.filter((spec) => spec.id !== 'city')
+        }
       } else {
         items = items.filter((spec) => spec.id !== 'city')
+        if (!hasStationData(props.stationOptions)) {
+          items = items.filter((spec) => spec.id !== 'node_name')
+        }
       }
       items = [...items].sort((a, b) => PROJECT_ORDER.indexOf(a.id) - PROJECT_ORDER.indexOf(b.id))
     }

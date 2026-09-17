@@ -6,6 +6,7 @@ import {
   frozenBaseline,
   frozenMarkerPct,
   groupByZone,
+  hasStationData,
   isFieldLocked,
   isVisible,
   numericInputError,
@@ -195,6 +196,20 @@ describe('paramAdjust: 提交增量改动值', () => {
     expect(overrides).toEqual({
       daily_cycles: 1.5, epc_unit_price: 0.8, operation_years: 20, maint_cost: 0.006,
     })
+  })
+})
+
+describe('paramAdjust: 节点数据判定', () => {
+  it('非空数组视为有节点数据', () => {
+    expect(hasStationData(['祥泰站'])).toBe(true)
+    expect(hasStationData(['郑州', '洛阳'])).toBe(true)
+  })
+
+  it('空数组、null、undefined 或非数组视为无节点数据', () => {
+    expect(hasStationData([])).toBe(false)
+    expect(hasStationData(null)).toBe(false)
+    expect(hasStationData(undefined)).toBe(false)
+    expect(hasStationData('祥泰站')).toBe(false)
   })
 })
 
