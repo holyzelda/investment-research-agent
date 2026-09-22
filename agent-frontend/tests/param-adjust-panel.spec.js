@@ -450,6 +450,15 @@ describe('ParamAdjustPanel', () => {
     expect(loadedWrapper.emitted('station-open')).toBeUndefined()
   })
 
+  it('展开面板且省份为空时不触发 station-open 事件', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: { capacity_mwh: 800, power_mw: 200 }, version: 'V2' },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.emitted('station-open')).toBeUndefined()
+  })
+
   it('河南无城市级节点数据时隐藏城市信息区域', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: {

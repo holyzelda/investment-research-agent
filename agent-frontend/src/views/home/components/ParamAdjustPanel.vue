@@ -429,8 +429,10 @@ watch(() => props.seedInput, (input) => {
 watch(expanded, (isExpanded) => {
   if (!isExpanded) return
   if (hasStationData(props.stationOptions) || props.stationLoading) return
+  const province = localValues.province || props.seedInput?.province
+  if (!province) return
   emit('station-open', {
-    province: localValues.province || props.seedInput?.province,
+    province,
     selectedNode: localValues.node_name || null,
   })
 })
