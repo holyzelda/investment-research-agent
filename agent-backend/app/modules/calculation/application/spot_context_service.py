@@ -49,39 +49,48 @@ class SpotContextService:
             )).scalar_one_or_none()
             if existing is not None:
                 raise ValidationException("本会话已上传电价文件，不允许删除或重新上传")
-        else:
-            existing = (await session.execute(
-                select(ConversationSpotContextORM.id).where(
-                    ConversationSpotContextORM.user_id == user_id,
-                    ConversationSpotContextORM.conversation_id.is_(None),
-                    ConversationSpotContextORM.status == "ready",
-                    ConversationSpotContextORM.expires_at > datetime.now(),
-                )
-            )).scalar_one_or_none()
-            if existing is not None:
-                raise ValidationException("当前会话已上传电价文件，不允许删除或重新上传")
 
         token = secrets.token_urlsafe(32)
-        context = ConversationSpotContextORM(
-            conversation_id=conversation_id,
-            user_id=user_id,
-            status="ready",
-            context_token_hash=_hash_token(token),
-            file_name=parsed.file_name,
-            file_sha256=parsed.file_sha256,
-            price_unit="CNY/MWh",
-            price_mode=getattr(parsed, "price_mode", None) or "both",
-            start_date=parsed.start_date,
-            end_date=parsed.end_date,
-            valid_day_count=parsed.valid_day_count,
-            skipped_day_count=parsed.skipped_day_count,
-            warnings=parsed.warnings,
-            k_results=parsed.k_results,
-            raw_prices=getattr(parsed, "raw_prices", None),
-            algorithm_version=ALGORITHM_VERSION,
-            expires_at=None if conversation_id else datetime.now() + STAGED_TTL,
-        )
-        session.add(context)
+        context = None
+        if conversation_id is None:
+            staged_contexts = (await session.execute(
+                select(ConversationSpotContextORM).where(
+                    ConversationSpotContextORM.user_id == user_id,
+                    ConversationSpotContextORM.conversation_id.is_(None),
+                ).order_by(ConversationSpotContextORM.created_at.desc())
+            )).scalars().all()
+            if staged_contexts:
+                # A staged upload belongs only to the current in-memory page.
+                # Replacing it invalidates the previous token without letting
+                # an abandoned upload block the next one.
+                context = staged_contexts[0]
+                for stale_context in staged_contexts[1:]:
+                    await session.delete(stale_context)
+
+        if context is None:
+            context = ConversationSpotContextORM(
+                conversation_id=conversation_id,
+                user_id=user_id,
+            )
+            session.add(context)
+
+        context.conversation_id = conversation_id
+        context.user_id = user_id
+        context.status = "ready"
+        context.context_token_hash = _hash_token(token)
+        context.file_name = parsed.file_name
+        context.file_sha256 = parsed.file_sha256
+        context.price_unit = "CNY/MWh"
+        context.price_mode = getattr(parsed, "price_mode", None) or "both"
+        context.start_date = parsed.start_date
+        context.end_date = parsed.end_date
+        context.valid_day_count = parsed.valid_day_count
+        context.skipped_day_count = parsed.skipped_day_count
+        context.warnings = parsed.warnings
+        context.k_results = parsed.k_results
+        context.raw_prices = getattr(parsed, "raw_prices", None)
+        context.algorithm_version = ALGORITHM_VERSION
+        context.expires_at = None if conversation_id else datetime.now() + STAGED_TTL
         await session.commit()
         await session.refresh(context)
         return token, context

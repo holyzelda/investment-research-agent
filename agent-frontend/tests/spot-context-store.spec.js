@@ -107,4 +107,42 @@ describe('conversation spot context store', () => {
     expect(store.spotContext).toEqual(context)
     expect(store.spotContextToken).toBeNull()
   })
+
+  it('does not carry a staged token into a new page session', async () => {
+    let handlers
+    chat.openChatStream.mockImplementation((_path, _body, options) => {
+      handlers = options
+      return { close: vi.fn() }
+    })
+    const firstPage = useCalculationStore()
+    firstPage.spotContextToken = 'old-page-token'
+
+    setActivePinia(createPinia())
+    const refreshedPage = useCalculationStore()
+    const sent = refreshedPage.sendAndCalculate('开始新的测算')
+
+    expect(chat.openChatStream).toHaveBeenCalledWith(
+      '/ir/chat/diag',
+      { message: '开始新的测算', conversation_id: undefined },
+      expect.any(Object),
+    )
+    handlers.onOpen({ conversationId: 'conversation-2' })
+    handlers.onEvent({ type: 'done', id: '2', data: { data: {} } })
+    await sent
+    expect(refreshedPage.spotContextToken).toBeNull()
+    expect(refreshedPage.spotContext).toBeNull()
+  })
+
+  it('cancels a staged file and removes its backend token', async () => {
+    spotApi.removeSpotContext.mockResolvedValue({ data: { deleted: true } })
+    const store = useCalculationStore()
+    store.spotContext = { status: 'ready', fileName: 'spot.xlsx' }
+    store.spotContextToken = 'staged-token'
+
+    await store.cancelStagedSpotContext()
+
+    expect(spotApi.removeSpotContext).toHaveBeenCalledWith({ contextToken: 'staged-token' })
+    expect(store.spotContext).toBeNull()
+    expect(store.spotContextToken).toBeNull()
+  })
 })

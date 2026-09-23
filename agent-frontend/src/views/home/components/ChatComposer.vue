@@ -26,18 +26,18 @@
             <span aria-hidden="true">·</span>
             <span>{{ readyPriceModeLabel }}</span>
             <span aria-hidden="true">·</span>
-            <span>本会话使用</span>
+            <span>{{ props.conversationId ? '本会话使用' : '当前页面暂存' }}</span>
           </span>
         </span>
         <span v-if="spotUploading" class="ir-composer__elapsed">已用时 {{ elapsedSeconds }} 秒</span>
         <button
-          v-if="effectiveSpotError"
+          v-if="effectiveSpotError || canRemoveAttachment"
           type="button"
           class="ir-composer__attachment-remove"
-          aria-label="关闭电价文件错误"
-          title="关闭错误"
+          :aria-label="effectiveSpotError ? '关闭电价文件错误' : '取消上传电价文件'"
+          :title="effectiveSpotError ? '关闭错误' : '取消上传'"
           :disabled="responding"
-          @click="$emit('spot-error-dismiss')"
+          @click="effectiveSpotError ? $emit('spot-error-dismiss') : $emit('spot-remove')"
         >
           <X aria-hidden="true" />
         </button>
@@ -181,13 +181,14 @@ import { Check, CircleAlert, CircleHelp, Download, FileSpreadsheet, LoaderCircle
 
 const props = defineProps({
   responding: { type: Boolean, default: false },
+  conversationId: { type: [String, Number], default: '' },
   placeholder: { type: String, default: '继续对话……' },
   spotContext: { type: Object, default: null },
   spotUploading: { type: Boolean, default: false },
   spotProgress: { type: Object, default: null },
   spotError: { type: String, default: '' },
 })
-const emit = defineEmits(['send', 'stop', 'spot-upload', 'spot-error-dismiss', 'spot-template'])
+const emit = defineEmits(['send', 'stop', 'spot-upload', 'spot-error-dismiss', 'spot-remove', 'spot-template'])
 const text = ref('')
 const inputRef = ref(null)
 const fileInputRef = ref(null)
@@ -212,7 +213,11 @@ const priceModeLabels = Object.fromEntries(priceModeOptions.map((option) => [opt
 const progressOrder = progressSteps.map((step) => step.phase)
 const progressPhase = computed(() => props.spotProgress?.phase || 'uploading')
 const uploadPercent = computed(() => Math.max(0, Math.min(100, Number(props.spotProgress?.uploadPercent) || 0)))
-const uploadDisabled = computed(() => props.responding || props.spotUploading || props.spotContext?.status === 'ready')
+const uploadDisabled = computed(() => (
+  props.responding
+  || props.spotUploading
+  || Boolean(props.conversationId && props.spotContext?.status === 'ready')
+))
 const readyDateRange = computed(() => {
   const context = props.spotContext || {}
   return `${context.startDate || '-'} 至 ${context.endDate || '-'}`
@@ -227,6 +232,12 @@ const effectiveSpotError = computed(() => {
   }
   return ''
 })
+const canRemoveAttachment = computed(() => (
+  !props.conversationId
+  && props.spotContext?.status === 'ready'
+  && !props.spotUploading
+  && !effectiveSpotError.value
+))
 const attachmentTitle = computed(() => {
   if (props.spotUploading) return props.spotProgress?.fileName || '正在处理电价文件'
   if (effectiveSpotError.value) return '电价文件不可用'
