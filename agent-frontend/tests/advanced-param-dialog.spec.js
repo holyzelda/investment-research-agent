@@ -34,6 +34,24 @@ describe('AdvancedParamDialog', () => {
     expect(maintenance?.find('.ir-advanced__delta').text()).toBe('+0.0020元/Wh')
   })
 
+  it('首个版本以当前冻结值为基准，不因地区值不同于默认值显示胶囊', async () => {
+    const wrapper = mount(AdvancedParamDialog, {
+      props: {
+        modelValue: true,
+        paramDict: PARAM_DICT,
+        seedInput: { ...SEED, strategy_achievement_rate: 0.85, maint_cost: 0.007 },
+      },
+    })
+
+    expect(wrapper.findAll('.ir-advanced__delta')).toHaveLength(0)
+
+    const fields = wrapper.findAll('.ir-advanced__field')
+    const strategy = fields.find((field) => field.text().includes('现货策略达成率'))
+    await strategy.find('.ir-advanced__number').setValue(0.86)
+
+    expect(strategy.find('.ir-advanced__delta').text()).toBe('+0.01')
+  })
+
   it('renders the approved sections and all parameter fields in the required order', () => {
     const wrapper = mount(AdvancedParamDialog, { props: { modelValue: true, paramDict: PARAM_DICT, seedInput: SEED } })
     const sections = wrapper.findAll('.ir-advanced__section')

@@ -647,9 +647,12 @@ function pctOf(spec) {
 }
 function deltaOf(spec) {
   const historicalBaseline = props.comparisonInput?.[spec.id]
+  const currentBaseline = spec.id in (props.seedInput || {})
+    ? props.seedInput[spec.id]
+    : spec.default
   const baseline = typeof historicalBaseline === 'number'
     ? historicalBaseline
-    : spec.control === 'dynamic_slider' ? props.seedInput?.[spec.id] : spec.default
+    : currentBaseline
   const value = localValues[spec.id]
   if (typeof baseline !== 'number' || typeof value !== 'number') return null
   const delta = value - baseline

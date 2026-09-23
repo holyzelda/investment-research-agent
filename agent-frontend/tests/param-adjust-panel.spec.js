@@ -125,6 +125,26 @@ describe('ParamAdjustPanel', () => {
     expect(frequency?.find('.ps-delta').text()).toBe('+1000.00万元')
   })
 
+  it('首个版本以当前冻结值为基准，不因地区值不同于默认值显示胶囊', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: DELTA_PARAM_DICT,
+        switches: { switch_frequency: 1, switch_spot: 1 },
+        seedInput: { ...DELTA_SEED, epc_unit_price: 0.82, daily_cycles: 1.4, frequency_first_year_revenue: 2600 },
+        version: 'V1',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.findAll('.ps-delta')).toHaveLength(0)
+
+    const fields = wrapper.findAll('.ir-adjust__field')
+    const epc = fields.find((field) => field.text().includes('EPC单价'))
+    await epc.find('.ps-val-input').setValue(0.83)
+
+    expect(epc.find('.ps-delta').text()).toBe('+0.01')
+  })
+
   it('只修改EPC和首年调频收益时不提交未触碰的高精度现货基线', async () => {
     const paramDict = [
       ...PARAM_DICT,
