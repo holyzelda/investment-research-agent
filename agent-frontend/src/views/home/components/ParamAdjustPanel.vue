@@ -472,6 +472,7 @@ const DROPPED_FIELDS = new Set([
   'opex_cost',
   'strategy_achievement_rate',
   'capacity_achievement_rate',
+  'income_tax_rate_input',
   'mid_long_charge_avg',
   'mid_long_discharge_avg',
 ])

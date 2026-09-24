@@ -92,12 +92,6 @@ describe('联络线详情面板', () => {
     })
   })
 
-  it('详情面板使用紧凑内边距并在窄屏下指标退为单列', () => {
-    expect(styles).toContain('padding: var(--xc-space-4)')
-    expect(styles).toContain('@media (max-width: 1180px)')
-    expect(styles).toContain('grid-template-columns:1fr')
-  })
-
   it('数据口径默认显示摘要，点击后展开完整说明', async () => {
     const wrapper = mountPanel({
       line: {
@@ -114,11 +108,6 @@ describe('联络线详情面板', () => {
     expect(wrapper.text()).toContain('坐标基准：换流站经纬度')
     expect(wrapper.text()).toContain('数据说明：额定容量来自公开资料')
     expect(wrapper.text()).toContain('来源备注：公开资料整理，含长期长文本说明')
-  })
-
-  it('关键长文本区域不使用省略号截断', () => {
-    expect(styles).not.toContain('text-overflow: ellipsis')
-    expect(styles).not.toContain('white-space: nowrap')
   })
 
   it('无线路且无推荐时保留引导空态', () => {

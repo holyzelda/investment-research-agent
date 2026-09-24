@@ -14,11 +14,12 @@ def _assemble(province, cap, pwr, node=None):
 class TestGansu:
     """PRD US-1.3 场景3：甘肃 中长期0/现货1/调频1/容量1，仅取现货+调频明细。"""
 
-    def test_switches(self):
+    def test_switches_are_exposed_in_result_and_api_input(self):
         r = _assemble("甘肃", 800, 200)
         assert r.switches["switch_spot"] == 1
         assert r.switches["switch_frequency"] == 1
         assert r.switches["switch_mid_long"] == 0
+        assert r.api_input["switch_spot"] == 1
 
     def test_mid_long_not_taken_when_switch_off(self):
         r = _assemble("甘肃", 800, 200)
@@ -30,12 +31,6 @@ class TestGansu:
         r = _assemble("甘肃", 800, 200)
         assert "frequency_first_year_revenue" in r.api_input
         assert r.api_input["frequency_first_year_revenue"] is None
-
-    def test_switches_written_to_api_input(self):
-        """F=0 开关仍写入 API_INPUT。"""
-        r = _assemble("甘肃", 800, 200)
-        assert r.api_input["switch_spot"] == 1
-
 
 class TestNingxia:
     """宁夏：全市场参与 + 两档齐全，明细应算出数值。"""
@@ -125,11 +120,29 @@ class TestCommon:
         assert r.api_input["province"] == "甘肃"
         assert r.api_input["node_name"] == "兰州东"
         assert r.api_input["voltage_kv"] == 220
-        assert r.api_input["epc_unit_price"] == 0.75  # 默认
+        assert r.api_input["epc_unit_price"] == 0.78  # 默认
 
     def test_node_omitted_when_absent(self):
         r = _assemble("甘肃", 800, 200)  # 无节点
         assert "node_name" not in r.api_input
+
+    def test_income_tax_input_is_omitted_to_preserve_template_formula_on_first_calc(self):
+        r = _assemble("甘肃", 800, 200)
+        assert "income_tax_rate_input" not in r.api_input
+
+    def test_income_tax_input_override_is_written_and_inherited(self):
+        asm = build_param_assembler()
+        first = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            overrides={"income_tax_rate_input": 0.15},
+        )
+        assert first.api_input["income_tax_rate_input"] == 0.15
+
+        second = asm.assemble(
+            ProjectBasics(province="甘肃", capacity_mwh=800, power_mw=200),
+            previous_input=first.api_input,
+        )
+        assert second.api_input["income_tax_rate_input"] == 0.15
 
     def test_spot_flows_from_injected_algo(self):
         # 组装器把注入的 spot 算法结果透传进 api_input；默认(未开启)为 None
@@ -395,7 +408,7 @@ class TestParamOverrides:
         spot = _CountingSpot()
         asm = build_param_assembler(spot=spot)
         r = asm.assemble(self._basics(), overrides={"epc_unit_price": None})
-        assert r.api_input["epc_unit_price"] == 0.75  # 默认值未被 null 覆盖
+        assert r.api_input["epc_unit_price"] == 0.78  # 默认值未被 null 覆盖
 
     def test_lease_override_applies_after_revenue_structure_computation(self):
         """宁夏租赁开关=1，正常算出 20；override 应覆盖计算结果，而非被计算结果覆盖回去。"""
@@ -504,7 +517,7 @@ class TestModifyParameterSeeding:
         spot = _CountingSpot()
         asm = build_param_assembler(spot=spot)
         r = asm.assemble(self._basics())
-        assert r.api_input["epc_unit_price"] == 0.75  # 字典默认
+        assert r.api_input["epc_unit_price"] == 0.78  # 字典默认
         assert r.api_input["loan_rate"] == 0.04
         assert r.api_input["loan_years"] == 10
 
@@ -527,15 +540,16 @@ class TestParamOverrideRanges:
 
     _RANGED_PARAMS = [
         ("daily_cycles", "日均充放电次数", 1.0, 2.0, "甘肃", {}),
-        ("epc_unit_price", "EPC单价", 0.70, 1.10, "甘肃", {}),
-        ("strategy_achievement_rate", "现货策略达成率", 0.70, 0.95, "甘肃", {}),
-        ("capacity_achievement_rate", "容量市场达成率", 0.70, 0.95, "甘肃", {}),
+        ("epc_unit_price", "EPC单价", 0.60, 2.50, "甘肃", {}),
+        ("strategy_achievement_rate", "现货策略达成率", 0.60, 1.00, "甘肃", {}),
+        ("capacity_achievement_rate", "容量市场达成率", 0.70, 1.00, "甘肃", {}),
         ("battery_replace_cost", "换电成本", 0, 1, "甘肃", {"operation_years": 20}),
         ("loan_rate", "贷款利率", 0.035, 0.045, "甘肃", {}),
         ("loan_years", "贷款年限", 1, 20, "甘肃", {}),
         ("maint_cost", "维保成本", 0, 0.02, "甘肃", {}),
         ("opex_cost", "运营成本", 0, 0.02, "甘肃", {}),
-        ("lease_achievement_rate", "租赁达成率", 0.70, 0.95, "宁夏", {}),
+        ("lease_achievement_rate", "租赁达成率", 0.00, 1.20, "宁夏", {}),
+        ("income_tax_rate_input", "所得税", 0, 0.35, "甘肃", {}),
     ]
 
     @pytest.mark.parametrize(
@@ -578,7 +592,7 @@ class TestParamOverrideRanges:
                 overrides={"epc_unit_price": value},
             )
         assert "EPC单价必须为有限数值" in str(exc_info.value)
-        assert "正确范围为[0.7, 1.1]" in str(exc_info.value)
+        assert "正确范围为[0.6, 2.5]" in str(exc_info.value)
 
     def test_invalid_daily_cycles_is_rejected_before_spot_query(self):
         spot = _CountingSpot()

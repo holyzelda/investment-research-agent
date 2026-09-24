@@ -150,6 +150,7 @@ import {
   numericInputError,
   resolveVariant,
   roundToStep,
+  isVisible,
   validateNumericInput,
 } from '@/utils/paramAdjust'
 import { formatNumber } from '@/utils/formatNumber'
@@ -158,6 +159,7 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   paramDict: { type: Array, default: () => [] },
   seedInput: { type: Object, default: () => ({}) },
+  switches: { type: Object, default: () => ({}) },
   comparisonInput: { type: Object, default: null },
   draftInput: { type: Object, default: () => ({}) },
   embedded: { type: Boolean, default: false },
@@ -167,11 +169,11 @@ const emit = defineEmits(['update:modelValue', 'save', 'validation-change'])
 
 const ADVANCED_SECTION_IDS = [
   {
-    key: 'financial', title: '金融边界', ids: ['operation_years'],
+    key: 'financial', title: '金融边界', ids: ['operation_years', 'income_tax_rate_input'],
     icon: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/>',
   },
   {
-    key: 'revenue', title: '收益边界', ids: ['mid_long_charge_avg', 'mid_long_discharge_avg', 'strategy_achievement_rate', 'capacity_achievement_rate'],
+    key: 'revenue', title: '收益边界', ids: ['strategy_achievement_rate', 'capacity_achievement_rate'],
     icon: '<path d="M4 18 9 13l4 3 7-9" stroke-linecap="round" stroke-linejoin="round"/><path d="M15 7h5v5" stroke-linecap="round" stroke-linejoin="round"/>',
   },
   {
@@ -181,8 +183,7 @@ const ADVANCED_SECTION_IDS = [
 ]
 const FIELD_ICONS = {
   operation_years: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" stroke-linecap="round" stroke-linejoin="round"/>',
-  mid_long_charge_avg: '<path d="M12 3v6m0 0 3-3m-3 3L9 6" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="11" width="14" height="10" rx="2"/>',
-  mid_long_discharge_avg: '<path d="M12 21v-6m0 0 3 3m-3-3-3 3" stroke-linecap="round" stroke-linejoin="round"/><rect x="5" y="3" width="14" height="10" rx="2"/>',
+  income_tax_rate_input: '<path d="M12 3v18M7 7h7.5a3.5 3.5 0 0 1 0 7H7h7.5a3.5 3.5 0 0 1 0 7H7" stroke-linecap="round" stroke-linejoin="round"/>',
   strategy_achievement_rate: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   capacity_achievement_rate: '<rect x="3" y="7" width="16" height="10" rx="2"/><path d="M21 10v4M7 10v4M11 10v4M15 10v4" stroke-linecap="round"/>',
   battery_replace_cost: '<path d="M13 2 4 14h7l-1 8 9-12h-7z" stroke-linejoin="round" stroke-linecap="round"/>',
@@ -231,7 +232,9 @@ const sections = computed(() => {
   return ADVANCED_SECTION_IDS
     .map(({ key, title, ids, icon }) => ({
       key, title, icon,
-      items: ids.map((id) => byId.get(id)).filter(Boolean).map((spec) => resolveVariant(spec, opYears)),
+      items: ids.map((id) => byId.get(id)).filter(Boolean)
+        .filter((spec) => isVisible(spec, props.switches))
+        .map((spec) => resolveVariant(spec, opYears)),
     }))
     .filter((section) => section.items.length)
 })

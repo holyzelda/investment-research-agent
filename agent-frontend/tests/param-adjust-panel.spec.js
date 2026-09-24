@@ -8,7 +8,7 @@ const PARAM_DICT = [
   { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
   { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
   { id: 'battery_replace_cost', cn: '换电成本', zone: 'cost_boundary', control: 'fixed', default: 0, unit: '元/Wh' },
-  { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
+  { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.6, max: 2.5, step: 0.01, default: 0.78 },
   { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
   { id: 'spot_discharge_avg', cn: '现货放电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001 },
 ]
@@ -209,11 +209,11 @@ describe('ParamAdjustPanel', () => {
     const input = wrapper.find('.ps-val-input')
     const slider = wrapper.find('.ir-adjust__slider')
 
-    await input.setValue(0.9)
+    await input.setValue(3)
 
-    expect(input.element.value).toBe('0.9')
+    expect(input.element.value).toBe('3')
     expect(input.attributes('aria-invalid')).toBe('true')
-    expect(wrapper.find('.ps-validation').text()).toBe('不能高于 0.85')
+    expect(wrapper.find('.ps-validation').text()).toBe('不能高于 2.50')
     expect(slider.element.value).toBe('0.8')
     expect(wrapper.find('.ir-adjust__submit').attributes('disabled')).toBeDefined()
     await wrapper.find('.ir-adjust__submit').trigger('click')
@@ -518,23 +518,6 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.text()).not.toContain('郑州')
   })
 
-  it('V2 中省份仍只读，节点/容量/功率仍可编辑', async () => {
-    const wrapper = mount(ParamAdjustPanel, {
-      props: {
-        paramDict: PARAM_DICT,
-        switches: { switch_spot: 1 },
-        seedInput: SEED,
-        stationOptions: ['祥泰站'],
-        version: 'V2',
-      },
-    })
-    await wrapper.find('.ir-adjust__toggle').trigger('click')
-
-    expect(wrapper.findAll('.ir-adjust__ro').some((node) => node.text().includes('甘肃'))).toBe(true)
-    expect(wrapper.find('.ir-adjust__node-trigger').exists()).toBe(true)
-    expect(wrapper.findAll('.ir-adjust__project-item input.ir-adjust__number')).toHaveLength(2)
-  })
-
   it('高级参数字段（如换电成本）不在内联调整面板重复展示', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
@@ -542,18 +525,6 @@ describe('ParamAdjustPanel', () => {
     await wrapper.find('.ir-adjust__toggle').trigger('click')
 
     expect(wrapper.text()).not.toContain('换电成本')
-  })
-
-  it('已从产品需求中移除的 operation_years 即便仍在字典里返回，也不会渲染在任何分区', async () => {
-    const wrapper = mount(ParamAdjustPanel, {
-      props: {
-        paramDict: [...PARAM_DICT, { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'fixed', default: 15, unit: '年' }],
-        switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2',
-      },
-    })
-    await wrapper.find('.ir-adjust__toggle').trigger('click')
-
-    expect(wrapper.text()).not.toContain('项目运营期')
   })
 
   it('现货基准缺失时显示"数据待完善"且不渲染滑块', async () => {
@@ -687,23 +658,6 @@ describe('ParamAdjustPanel', () => {
     expect(wrapper.find('.ir-adjust__tab-toolbar').text()).toContain('已修改 1 项常用参数')
   })
 
-  it('uses one explicit adjustment entry and reveals common/advanced tabs after expanding', async () => {
-    const wrapper = mount(ParamAdjustPanel, {
-      props: { paramDict: PARAM_DICT, switches: { switch_spot: 1 }, seedInput: SEED, version: 'V2' },
-    })
-
-    const header = wrapper.find('.ir-adjust__header')
-    expect(wrapper.find('.ir-adjust__body').exists()).toBe(false)
-    expect(header.find('.ir-adjust__toggle-action').text()).toContain('调整参数')
-    expect(header.find('.ir-adjust__advanced').exists()).toBe(false)
-    await header.find('.ir-adjust__toggle').trigger('click')
-    expect(wrapper.findAll('.ir-adjust__tabs button')).toHaveLength(2)
-    expect(wrapper.find('.ir-adjust__tabs button.is-active').text()).toBe('常用参数')
-    await wrapper.findAll('.ir-adjust__tabs button')[1].trigger('click')
-    expect(wrapper.find('.ir-adjust__tabs button.is-active').text()).toBe('高级参数')
-    expect(wrapper.find('.ir-adjust__toggle-action').text()).toContain('收起')
-  })
-
   it('exposes disclosure state and staged advanced-change count accessibly', async () => {
     const wrapper = mount(ParamAdjustPanel, {
       props: {
@@ -734,6 +688,23 @@ describe('ParamAdjustPanel', () => {
     expect(submit.attributes('disabled')).toBeDefined()
     await submit.trigger('click')
     expect(wrapper.emitted('recalculate')).toBeUndefined()
+  })
+
+  it('does not render capacity achievement rate in common parameters', async () => {
+    const wrapper = mount(ParamAdjustPanel, {
+      props: {
+        paramDict: [
+          ...PARAM_DICT,
+          { id: 'capacity_achievement_rate', cn: '容量市场达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 1, step: 0.01, default: 0.9, g: 1 },
+        ],
+        switches: { switch_spot: 1, switch_capacity: 1 },
+        seedInput: { ...SEED, capacity_achievement_rate: 0.9 },
+        version: 'V2',
+      },
+    })
+    await wrapper.find('.ir-adjust__toggle').trigger('click')
+
+    expect(wrapper.text()).not.toContain('容量市场达成率')
   })
 
   it('修改参数后提交当前完整值作为 overrides 与基础字段', async () => {

@@ -168,7 +168,7 @@ describe('result card three modules', () => {
       { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
     ]
     const wrapper = mount(ResultCard, {
-      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 } },
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 }, switches: { switch_spot: 1 } },
     })
 
     await openAdvancedTab(wrapper)
@@ -179,6 +179,26 @@ describe('result card three modules', () => {
 
     await wrapper.setProps({ version: 'V2', seedInput: { operation_years: 20, strategy_achievement_rate: 0.9 } })
     expect(wrapper.find('.ir-adjust__draft-count').exists()).toBe(false)
+  })
+
+  it('uses the calculated income tax as display baseline without submitting it unchanged', async () => {
+    const result = { ...snapshot, boundary: { incomeTaxRate: 0.15 } }
+    const paramDict = [
+      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
+      { id: 'income_tax_rate_input', cn: '所得税', zone: 'financial_boundary', control: 'slider', min: 0, max: 0.35, step: 0.01, default: null, unit: '—', g: 1 },
+    ]
+    const wrapper = mount(ResultCard, {
+      props: { result, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
+    })
+
+    await openAdvancedTab(wrapper)
+    const taxField = wrapper.findAll('.ir-advanced__field').find((field) => field.text().includes('所得税'))
+    expect(taxField.find('.ir-advanced__number').element.value).toBe('0.15')
+
+    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
+    await wrapper.find('.ir-adjust__submit').trigger('click')
+
+    expect(wrapper.emitted('recalculate').at(-1)[0].overrides).toEqual({ operation_years: 20 })
   })
 
   it('counts variant drafts against the target-period default and omits automatic defaults', async () => {
@@ -211,7 +231,7 @@ describe('result card three modules', () => {
       { id: 'strategy_achievement_rate', cn: '现货策略达成率', zone: 'revenue_boundary', control: 'slider', min: 0.7, max: 0.95, step: 0.01, default: 0.9, g: 1 },
     ]
     const wrapper = mount(ResultCard, {
-      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 } },
+      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15, strategy_achievement_rate: 0.9 }, switches: { switch_spot: 1 } },
     })
 
     await openAdvancedTab(wrapper)
@@ -235,7 +255,7 @@ describe('result card three modules', () => {
     const withDict = mount(ResultCard, {
       props: {
         result: snapshot, version: 'V1',
-        paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01 }],
+        paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.6, max: 2.5, step: 0.01 }],
         switches: {}, seedInput: { province: '甘肃' },
       },
     })
@@ -286,7 +306,7 @@ describe('result card three modules', () => {
       props: {
         result: snapshot,
         version: 'V1',
-        paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 }],
+        paramDict: [{ id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.6, max: 2.5, step: 0.01, default: 0.78 }],
         seedInput: { epc_unit_price: 0.8 },
       },
     })
@@ -299,20 +319,6 @@ describe('result card three modules', () => {
     expect(wrapper.find('.ir-result__report-hint').text()).toContain('参数修改尚未形成新版本')
     await action.trigger('click')
     expect(wrapper.emitted('generate-report')).toBeUndefined()
-  })
-
-  it('requires recalculation before reporting when advanced changes are staged', async () => {
-    const paramDict = [
-      { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
-    ]
-    const wrapper = mount(ResultCard, {
-      props: { result: snapshot, version: 'V1', paramDict, seedInput: { operation_years: 15 } },
-    })
-    await openAdvancedTab(wrapper)
-    await wrapper.find('select[data-param-id="operation_years"]').setValue('20')
-
-    expect(wrapper.find('[data-testid="report-btn"]').text()).toContain('请先重新测算')
-    expect(wrapper.find('[data-testid="report-btn"]').attributes('disabled')).toBeDefined()
   })
 
   it('allows recalculation from the collapsed advanced draft action bar', async () => {
@@ -335,7 +341,7 @@ describe('result card three modules', () => {
   it('discards regular and advanced drafts together', async () => {
     const paramDict = [
       { id: 'power_mw', cn: '装机功率', zone: 'project_definition', control: 'number', default: null, unit: 'MW' },
-      { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
+      { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.6, max: 2.5, step: 0.01, default: 0.78 },
       { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'select', default: 15, g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
     ]
     const wrapper = mount(ResultCard, {

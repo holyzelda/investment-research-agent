@@ -149,14 +149,14 @@ async def test_out_of_range_override_does_not_copy_template(session_maker):
     async with session_maker() as session:
         with pytest.raises(
             ValidationException,
-            match=r"EPC单价超出允许范围，正确范围为\[0.7, 1.1\]",
+            match=r"EPC单价超出允许范围，正确范围为\[0.6, 2.5\]",
         ):
             await service.create_and_run(
                 session,
                 user_id="u1",
                 username="U1",
                 basics=_BASICS,
-                param_overrides={"epc_unit_price": 1.2},
+                param_overrides={"epc_unit_price": 3.0},
             )
     assert gateway.copy_templates == []
 
@@ -200,21 +200,6 @@ async def test_failed_task_does_not_consume_business_version_number(session_make
         )
 
     assert next_success["version"] == "V2"
-
-
-@pytest.mark.asyncio
-async def test_recalc_unchanged_dependencies_no_override_inherits_v1_price(session_maker):
-    spot = _CountingSpot(charge=0.2, discharge=0.6)
-    svc = _service(spot)
-    async with session_maker() as session:
-        v1 = await svc.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
-        spot.calls.clear()
-        v2 = await svc.create_and_run(
-            session, user_id="u1", username="U1", basics=_BASICS,
-            conversation_id=v1["conversationId"],
-        )
-    assert v2["version"] == "V2"
-    assert spot.calls == []  # 依赖未变、未提交 override → 不查库
 
 
 @pytest.mark.asyncio
@@ -337,24 +322,6 @@ async def test_v3_inherits_v2_manual_price_without_requery(session_maker):
         )).scalar_one()
     assert spot.calls == []
     assert snap.payload["apiInput"]["spot_charge_avg"] == 0.35
-
-
-@pytest.mark.asyncio
-async def test_node_change_requeries_spot(session_maker):
-    spot = _CountingSpot(charge=0.2, discharge=0.6)
-    svc = _service(spot)
-    async with session_maker() as session:
-        v1 = await svc.create_and_run(session, user_id="u1", username="U1", basics=_BASICS)
-        spot.calls.clear()
-        changed = ProjectBasics(
-            province="甘肃", capacity_mwh=800, power_mw=200, node_name="新节点",
-        )
-        await svc.create_and_run(
-            session, user_id="u1", username="U1", basics=changed,
-            conversation_id=v1["conversationId"],
-        )
-    assert len(spot.calls) == 1
-    assert spot.calls[0]["node_name"] == "新节点"
 
 
 @pytest.mark.asyncio

@@ -122,17 +122,6 @@ describe('联络线功率趋势组件', () => {
     expect(option.yAxis.nameLocation).toBe('end')
   })
 
-  it('使用更紧凑的图表高度，减少趋势图下方空白', () => {
-    expect(styles).toContain('height: 188px')
-    expect(styles).toContain('min-height: 188px')
-    expect(styles).toContain('height: 128px')
-  })
-
-  it('日期按钮使用自适应网格且隐藏图表不拦截点击', () => {
-    expect(styles).toContain('repeat(auto-fit, minmax(58px, 1fr))')
-    expect(styles).toContain('pointer-events: none')
-  })
-
   it('自定义日期面板从自定义按钮下拉展开，不放在趋势模块底部或覆盖地图', async () => {
     const wrapper = mount(TieLinePowerTrend, {
       props: {

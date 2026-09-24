@@ -8,7 +8,7 @@ from app.modules.middle_platform.application.error_normalizer import (
 )
 
 
-BUSINESS_MESSAGE = "EPC单价超出允许范围，正确范围为[0.7, 1.1]"
+BUSINESS_MESSAGE = "EPC单价超出允许范围，正确范围为[0.6, 2.5]"
 
 
 def _wrapped_exception(body: str) -> str:

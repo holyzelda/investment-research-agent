@@ -14,11 +14,13 @@ export const ZONE_LABEL = {
 const MARKET_SWITCH_OF = {
   spot_charge_avg: 'switch_spot',
   spot_discharge_avg: 'switch_spot',
+  strategy_achievement_rate: 'switch_spot',
   mid_long_energy_revenue_first_year_tax: 'switch_mid_long',
   frequency_first_year_revenue: 'switch_frequency',
   intervention_first_year_revenue: 'switch_intervention',
   lease_unit_price: 'switch_lease',
   lease_achievement_rate: 'switch_lease',
+  capacity_achievement_rate: 'switch_capacity',
 }
 
 export function isVisible(spec, switches) {
