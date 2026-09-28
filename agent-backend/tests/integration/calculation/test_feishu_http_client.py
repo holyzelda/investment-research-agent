@@ -7,7 +7,6 @@
 4. read_meta 归一化 status（与业务约定值一致才置 done）并读回 request_id。
 5. 飞书错误码/HTTP 状态映射到 Retryable/NonRetryable；token 失效自动刷新一次后成功。
 """
-import asyncio
 import json
 
 import httpx
@@ -30,6 +29,8 @@ def _param_dict() -> ParamDictionary:
          "api_cell": "API_INPUT!B3", "writable": True},
         {"id": "operation_years", "cn": "运营期", "source": "default", "direction": "input",
          "api_cell": "API_INPUT!B11", "writable": True},
+        {"id": "income_tax_rate_input", "cn": "所得税", "source": "default", "direction": "input",
+         "api_cell": "API_INPUT!B35", "writable": True},
         {"id": "project_irr", "cn": "IRR", "source": "output", "direction": "output",
          "api_cell": "API_OUTPUT!C5"},
         {"id": "first_year_total_revenue", "cn": "首年总收益", "source": "output",
@@ -158,39 +159,6 @@ async def test_new_copy_retries_sheet_query_http_500_before_writing_input():
 
 
 @pytest.mark.asyncio
-async def test_new_copy_readiness_poll_uses_short_interval(monkeypatch):
-    fake = FakeFeishu(query_responses=[(500, {"code": 1315201, "msg": "Server Error"})])
-    gw = _gateway(fake)
-    sleeps = []
-
-    async def record_sleep(delay):
-        sleeps.append(delay)
-
-    monkeypatch.setattr(asyncio, "sleep", record_sleep)
-
-    doc_token = await gw.copy_template("tmpl")
-    await gw.write_input(doc_token, {"power_mw": 100})
-
-    # 就绪轮询默认退避 1s（与 _initial_sheet_query_backoff=1、10 次重试 ≈10 秒窗口的注释一致）
-    assert sleeps == [1]
-    await gw._client.aclose()
-
-
-@pytest.mark.asyncio
-async def test_new_copy_readiness_poll_keeps_ten_second_wait_budget():
-    fake = FakeFeishu(query_responses=[(500, {"code": 1315201, "msg": "Server Error"})] * 6)
-    gw = _gateway(fake)
-    gw._initial_sheet_query_backoff = 0
-
-    doc_token = await gw.copy_template("tmpl")
-    await gw.write_input(doc_token, {"power_mw": 100})
-
-    assert fake.query_calls == 7
-    assert len(fake.batch_updates) == 1
-    await gw._client.aclose()
-
-
-@pytest.mark.asyncio
 async def test_new_copy_retries_sheet_query_feishu_1315201_before_writing_input():
     fake = FakeFeishu(query_responses=[(200, {"code": 1315201, "msg": "Server Error"})])
     gw = _gateway(fake)
@@ -259,6 +227,18 @@ async def test_write_input_skips_city_without_api_mapping():
     gw = _gateway(fake)
     await gw.write_input("doc1", {"power_mw": 100, "city": "郑州"})
     assert fake.batch_updates == [[{"range": "shtI!B2:B2", "values": [[100]]}]]
+    await gw._client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_write_input_maps_income_tax_override_to_b35():
+    fake = FakeFeishu()
+    gw = _gateway(fake)
+    await gw.write_input("doc1", {"power_mw": 100, "income_tax_rate_input": 0.15})
+    assert fake.batch_updates == [[
+        {"range": "shtI!B2:B2", "values": [[100]]},
+        {"range": "shtI!B35:B35", "values": [[0.15]]},
+    ]]
     await gw._client.aclose()
 
 

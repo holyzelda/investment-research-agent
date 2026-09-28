@@ -50,6 +50,10 @@ _SWITCH_GATED = {
     "intervention_first_year_revenue": "switch_intervention",
 }
 
+# B35 已由底稿公式提供默认所得税。只有用户覆盖过，或上一版本已经冻结了覆盖值，
+# 才把该输入加入 API_INPUT，避免首次测算用 None 覆盖底稿公式。
+_TEMPLATE_FORMULA_INPUTS = {"income_tax_rate_input"}
+
 
 @dataclass
 class AssembledParams:
@@ -130,6 +134,10 @@ class ParamAssembler:
         #    现货价格与两档收益由③④按依赖是否变化单独处理，不在此种子。
         for pid, dv in self._dict.defaults().items():
             if pid in result.api_input:
+                continue
+            if pid in _TEMPLATE_FORMULA_INPUTS and not (
+                previous_input is not None and previous_input.get(pid) is not None
+            ):
                 continue
             result.api_input[pid] = previous_input.get(pid) if previous_input else None
             if result.api_input[pid] is None:

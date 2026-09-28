@@ -13,7 +13,7 @@ const CATEGORY_LABELS = {
 }
 
 const ADVANCED_IDS = new Set([
-  'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
+  'operation_years', 'income_tax_rate_input',
   'strategy_achievement_rate', 'capacity_achievement_rate',
   'battery_replace_cost', 'maint_cost', 'opex_cost',
 ])

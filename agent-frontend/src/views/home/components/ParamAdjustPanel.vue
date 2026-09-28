@@ -472,6 +472,7 @@ const DROPPED_FIELDS = new Set([
   'opex_cost',
   'strategy_achievement_rate',
   'capacity_achievement_rate',
+  'income_tax_rate_input',
   'mid_long_charge_avg',
   'mid_long_discharge_avg',
 ])
@@ -647,9 +648,12 @@ function pctOf(spec) {
 }
 function deltaOf(spec) {
   const historicalBaseline = props.comparisonInput?.[spec.id]
+  const currentBaseline = spec.id in (props.seedInput || {})
+    ? props.seedInput[spec.id]
+    : spec.default
   const baseline = typeof historicalBaseline === 'number'
     ? historicalBaseline
-    : spec.control === 'dynamic_slider' ? props.seedInput?.[spec.id] : spec.default
+    : currentBaseline
   const value = localValues[spec.id]
   if (typeof baseline !== 'number' || typeof value !== 'number') return null
   const delta = value - baseline

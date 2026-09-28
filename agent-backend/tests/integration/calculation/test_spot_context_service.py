@@ -96,6 +96,39 @@ async def test_upload_to_existing_conversation_cannot_replace_file(session):
 
 
 @pytest.mark.asyncio
+async def test_staged_context_is_replaced_by_next_upload(session):
+    service = SpotContextService()
+    old_token, old_context = await service.save_prepared(
+        session, user_id="u1", conversation_id=None, parsed=_parsed()
+    )
+
+    new_token, new_context = await service.save_prepared(
+        session,
+        user_id="u1",
+        conversation_id=None,
+        parsed=_parsed(name="new.xlsx", file_hash="hash-2"),
+    )
+
+    assert new_token != old_token
+    assert new_context.id == old_context.id
+    assert new_context.file_name == "new.xlsx"
+    assert new_context.file_sha256 == "hash-2"
+    rows = (await session.execute(select(ConversationSpotContextORM))).scalars().all()
+    assert len(rows) == 1
+
+    conversation = ConversationORM(user_id="u1", username="User")
+    session.add(conversation)
+    await session.commit()
+    with pytest.raises(ValidationException, match="已失效"):
+        await service.bind_token(
+            session,
+            token=old_token,
+            user_id="u1",
+            conversation_id=conversation.id,
+        )
+
+
+@pytest.mark.asyncio
 async def test_bound_context_is_permanent_and_cannot_be_removed(session):
     service = SpotContextService()
     conversation = ConversationORM(user_id="u1", username="User")

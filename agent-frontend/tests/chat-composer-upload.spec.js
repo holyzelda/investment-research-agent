@@ -56,7 +56,7 @@ describe('ChatComposer spot price attachment', () => {
     expect(uploading.get('.ir-composer__step.is-active').text()).toContain('格式校验')
   })
 
-  it('emits the selected price purpose and locks a ready file', async () => {
+  it('emits the selected price purpose and locks a ready file in a conversation', async () => {
     const wrapper = mountComposer()
     await wrapper.get('.ir-composer__price-mode button:nth-child(2)').trigger('click')
     const file = new File(['xlsx'], 'charge.xlsx')
@@ -65,9 +65,25 @@ describe('ChatComposer spot price attachment', () => {
     await input.trigger('change')
     expect(wrapper.emitted('spot-upload')?.[0]?.[0]).toEqual({ file, priceMode: 'charge_only' })
 
-    const ready = mountComposer({ spotContext: { status: 'ready', fileName: 'charge.xlsx', priceMode: 'charge_only' } })
+    const ready = mountComposer({
+      conversationId: 'conversation-1',
+      spotContext: { status: 'ready', fileName: 'charge.xlsx', priceMode: 'charge_only' },
+    })
     expect(ready.find('.ir-composer__attachment-remove').exists()).toBe(false)
     expect(ready.get('.ir-composer__price-mode button:nth-child(1)').attributes('disabled')).toBeDefined()
+  })
+
+  it('allows a staged file to be uploaded again before the first question', async () => {
+    const ready = mountComposer({
+      spotContext: { status: 'ready', fileName: 'old.xlsx', priceMode: 'both' },
+    })
+
+    expect(ready.get('input[type="file"]').attributes('disabled')).toBeUndefined()
+    expect(ready.get('.ir-composer__price-mode button:nth-child(1)').attributes('disabled')).toBeUndefined()
+    expect(ready.text()).toContain('当前页面暂存')
+    expect(ready.get('.ir-composer__attachment-remove').attributes('aria-label')).toBe('取消上传电价文件')
+    await ready.get('.ir-composer__attachment-remove').trigger('click')
+    expect(ready.emitted('spot-remove')).toHaveLength(1)
   })
 
   it('shows skipped days as a non-blocking warning in the ready summary', async () => {
@@ -81,7 +97,7 @@ describe('ChatComposer spot price attachment', () => {
     expect(ready.text()).toContain('山西电价.xlsx')
     expect(ready.text()).toContain('有效 362 天')
     expect(ready.get('.is-warning').text()).toContain('跳过 3 天')
-    expect(ready.text()).toContain('本会话使用')
+    expect(ready.text()).toContain('当前页面暂存')
     await ready.get('textarea').setValue('继续测算')
     expect(ready.find('.ir-composer__send').attributes('disabled')).toBeUndefined()
   })

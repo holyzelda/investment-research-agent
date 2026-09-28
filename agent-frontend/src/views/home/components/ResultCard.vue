@@ -128,8 +128,9 @@
         <AdvancedParamDialog
           embedded
           :param-dict="paramDict"
-          :seed-input="seedInput"
-          :comparison-input="comparisonInput"
+          :seed-input="advancedSeedInput"
+          :switches="switches"
+          :comparison-input="advancedComparisonInput"
           :draft-input="advancedOverrides"
           :disabled="responding"
           @save="saveAdvancedDraft"
@@ -269,6 +270,18 @@ function displayParam(value) {
 }
 
 const seedInputForAdjustment = computed(() => props.seedInput)
+function withIncomeTaxDisplayBaseline(input, result) {
+  const baseline = { ...(input || {}) }
+  if (!("income_tax_rate_input" in baseline)) {
+    const outputValue = result?.boundary?.incomeTaxRate
+    if (typeof outputValue === 'number' && Number.isFinite(outputValue)) {
+      baseline.income_tax_rate_input = outputValue
+    }
+  }
+  return baseline
+}
+const advancedSeedInput = computed(() => withIncomeTaxDisplayBaseline(props.seedInput, props.result))
+const advancedComparisonInput = computed(() => withIncomeTaxDisplayBaseline(props.comparisonInput, props.comparisonResult))
 
 const bannerTitle = computed(() => buildResultTitle(
   props.result.basicInfo?.province ?? props.seedInput?.province,
@@ -293,7 +306,7 @@ function toggleComparison() {
 }
 const comparisonPanelId = computed(() => `ir-version-comparison-${String(props.taskId ?? (props.version || 'result')).replace(/[^a-zA-Z0-9_-]/g, '-')}`)
 const ADVANCED_IDS = new Set([
-  'operation_years', 'mid_long_charge_avg', 'mid_long_discharge_avg',
+  'operation_years', 'income_tax_rate_input',
   'strategy_achievement_rate', 'capacity_achievement_rate',
   'battery_replace_cost', 'maint_cost', 'opex_cost',
 ])
@@ -310,8 +323,8 @@ const advancedOverrideCount = computed(() => {
     const draft = normalizeAdvancedValue(advancedOverrides.value[spec.id], resolved.step)
     const baselineValue = spec.variants
       ? resolved.default
-      : spec.id in (props.seedInput || {})
-        ? props.seedInput[spec.id]
+      : spec.id in advancedSeedInput.value
+        ? advancedSeedInput.value[spec.id]
         : resolved.default
     const baseline = normalizeAdvancedValue(baselineValue, resolved.step)
     return draft === baseline ? count : count + 1

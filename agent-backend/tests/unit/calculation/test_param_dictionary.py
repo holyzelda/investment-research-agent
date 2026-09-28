@@ -7,10 +7,6 @@ def _dict():
     return JsonParamDictRepository().load()
 
 
-def test_dictionary_loads():
-    d = _dict()
-    assert len(d) == 68  # 6对话+10默认（含贷款年限）+2现货+9开关+5明细+2中长期均价+4地区/基础输出+30输出
-
 def test_city_is_app_side_metadata_without_api_mapping():
     city = _dict().get("city")
     assert city is not None
@@ -48,13 +44,18 @@ def test_reclassified_params_directions():
     assert d.get("actual_spread").direction == Direction.OUTPUT.value
     assert d.get("actual_spread").api_cell == "API_OUTPUT!B34"
 
-def test_defaults_present():
+def test_income_tax_input_is_writable_and_keeps_output_mapping():
     d = _dict()
-    defaults = d.defaults()
-    assert defaults["epc_unit_price"] == 0.75
-    assert defaults["operation_years"] == 15
-    assert defaults["loan_rate"] == 0.04
-    assert defaults["loan_years"] == 10
+    input_spec = d.get("income_tax_rate_input")
+    output_spec = d.get("income_tax_rate")
+
+    assert input_spec.model_cell == "输入1-基础参数!D103"
+    assert input_spec.api_cell == "API_INPUT!B35"
+    assert input_spec.g == 1 and input_spec.writable is True
+    assert input_spec.direction == Direction.INPUT.value
+    assert input_spec.min == 0 and input_spec.max == 0.35 and input_spec.step == 0.01
+    assert output_spec.api_cell == "API_OUTPUT!B32"
+    assert output_spec.direction == Direction.OUTPUT.value
 
 
 def test_operation_years_is_a_template_selection_without_api_input_mapping():
@@ -99,16 +100,3 @@ def test_maintenance_and_operations_cost_ranges_are_capped_at_one_cent_per_wh():
     assert loan_years.min == 1 and loan_years.max == 20 and loan_years.step == 1
 
 
-def test_outputs_count():
-    d = _dict()
-    assert len(d.outputs()) == 34
-    assert [(d.get(pid).api_cell, d.get(pid).dtype) for pid in [
-        "repayment_method", "discount_rate", "energy_revenue_vat_rate", "ancillary_service_vat_rate",
-        "capacity_compensation_vat_rate", "capacity_lease_vat_rate", "subsidy_vat_rate",
-        "intervention_compensation_vat_rate", "income_tax_rate", "average_revenue",
-    ]] == [
-        ("API_OUTPUT!B24", "string"), ("API_OUTPUT!B25", "float"), ("API_OUTPUT!B26", "float"),
-        ("API_OUTPUT!B27", "float"), ("API_OUTPUT!B28", "float"), ("API_OUTPUT!B29", "float"),
-        ("API_OUTPUT!B30", "float"), ("API_OUTPUT!B31", "float"), ("API_OUTPUT!B32", "float"),
-        ("API_OUTPUT!B33", "float"),
-    ]

@@ -44,6 +44,7 @@
             ref="composerRef"
             class="ir-welcome__composer"
             :responding="calc.responding"
+            :conversation-id="calc.conversationId || ''"
             :spot-uploading="calc.spotContextUploading"
             :spot-context="calc.spotContext"
             :spot-progress="calc.spotContextProgress"
@@ -53,6 +54,7 @@
             @stop="calc.stopStream"
             @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
             @spot-error-dismiss="calc.clearSpotContextError"
+            @spot-remove="calc.cancelStagedSpotContext().catch(() => {})"
             @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
           />
 
@@ -263,6 +265,7 @@
         <ChatComposer
           class="ir-home__composer"
           :responding="calc.responding"
+          :conversation-id="calc.conversationId || ''"
           :spot-context="calc.spotContext"
           :spot-uploading="calc.spotContextUploading"
           :spot-progress="calc.spotContextProgress"
@@ -271,6 +274,7 @@
           @stop="calc.stopStream"
           @spot-upload="calc.uploadSpotContext($event).catch(() => {})"
           @spot-error-dismiss="calc.clearSpotContextError"
+          @spot-remove="calc.cancelStagedSpotContext().catch(() => {})"
           @spot-template="calc.downloadSpotContextTemplate().catch(() => {})"
         />
       </template>

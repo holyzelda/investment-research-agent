@@ -9,7 +9,7 @@ const PARAM_DICT = [
   { id: 'capacity_mwh', cn: '装机容量', zone: 'project_definition', control: 'number', default: null, unit: 'MWh' },
   // operation_years 仍可能出现在后端字典里（历史遗留字段），面板必须始终把它剔除，不展示在任何分区。
   { id: 'operation_years', cn: '项目运营期', zone: 'financial_boundary', control: 'fixed', default: 15, unit: '年' },
-  { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.7, max: 0.85, step: 0.01, default: 0.75 },
+  { id: 'epc_unit_price', cn: 'EPC单价', zone: 'financial_boundary', control: 'slider', min: 0.6, max: 2.5, step: 0.01, default: 0.78 },
   { id: 'loan_rate', cn: '贷款利率', zone: 'financial_boundary', control: 'slider', min: 0.035, max: 0.045, step: 0.001, default: 0.04 },
   { id: 'loan_years', cn: '贷款年限', zone: 'financial_boundary', control: 'slider', min: 1, max: 20, step: 1, default: 10, unit: '年' },
   { id: 'spot_charge_avg', cn: '现货充电均价', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.0001, unit: '元/kWh' },

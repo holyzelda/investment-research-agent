@@ -114,7 +114,9 @@ describe('联络线筛选栏', () => {
 
     expect(wrapper.find('.tl-filter-control.is-active').exists()).toBe(true)
     expect(styles).toContain('--tl-filter-bg: rgba(255, 255, 255, 0.035)')
-    expect(styles).toContain('--tl-filter-bg-hover: rgba(255, 255, 255, 0.065)')
+    expect(styles).toContain('--tl-filter-border-hover: var(--xc-border-accent)')
+    expect(styles).toContain('background: var(--xc-accent-blue-soft)')
+    expect(styles).toContain('border-color: var(--xc-border-accent)')
     expect(styles).toContain('color: var(--xc-text-default)')
     expect(styles).not.toContain('background: rgba(255, 255, 255, 0.94)')
   })

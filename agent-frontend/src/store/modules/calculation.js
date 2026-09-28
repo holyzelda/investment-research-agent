@@ -636,7 +636,9 @@ export const useCalculationStore = defineStore('calculation', {
     async uploadSpotContext(upload = {}) {
       const file = upload instanceof File ? upload : upload?.file
       const priceMode = upload instanceof File ? 'both' : (upload?.priceMode || 'both')
-      if (!file || this.responding || this.spotContextUploading || this.spotContext?.status === 'ready') return
+      if (!file || this.responding || this.spotContextUploading || (
+        this.conversationId && this.spotContext?.status === 'ready'
+      )) return
       const sequence = ++this.spotContextRequestSequence
       this.spotContextController?.abort()
       const controller = new AbortController()
@@ -693,6 +695,22 @@ export const useCalculationStore = defineStore('calculation', {
     },
     clearSpotContextError() {
       this.spotContextError = ''
+    },
+    async cancelStagedSpotContext() {
+      if (this.conversationId || !this.spotContextToken || this.spotContextUploading) return
+      const token = this.spotContextToken
+      try {
+        await removeSpotContext({ contextToken: token })
+        if (this.spotContextToken !== token) return
+        this.spotContext = null
+        this.spotContextToken = null
+        this.spotContextError = ''
+      } catch (error) {
+        if (this.spotContextToken === token) {
+          this.spotContextError = error?.response?.data?.msg || error?.message || '取消电价文件失败，请稍后重试'
+        }
+        throw error
+      }
     },
     async downloadSpotContextTemplate() {
       const blob = await downloadSpotContextTemplate()

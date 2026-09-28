@@ -198,7 +198,7 @@ describe('calculation chat stream flow', () => {
         data: {
           tool_name: 'create_calculation_task',
           exception: null,
-          response: { code: 400, msg: 'EPC单价超出允许范围，正确范围为[0.7, 1.1]', data: null },
+          response: { code: 400, msg: 'EPC单价超出允许范围，正确范围为[0.6, 2.5]', data: null },
         },
       },
     })
@@ -208,8 +208,8 @@ describe('calculation chat stream flow', () => {
     expect(message).toMatchObject({
       phase: 'error',
       done: true,
-      error: 'EPC单价超出允许范围，正确范围为[0.7, 1.1]',
-      answerText: '测算失败：EPC单价超出允许范围，正确范围为[0.7, 1.1]',
+      error: 'EPC单价超出允许范围，正确范围为[0.6, 2.5]',
+      answerText: '测算失败：EPC单价超出允许范围，正确范围为[0.6, 2.5]',
     })
   })
 

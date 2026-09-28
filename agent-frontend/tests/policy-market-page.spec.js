@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import router from '@/router'
 import layoutSource from '@/layout/index.vue?raw'
 import pageSource from '@/views/policy-market/index.vue?raw'
+import composerSource from '@/views/policy-market/components/ConsultationComposer.vue?raw'
+import pulseSource from '@/views/policy-market/components/MarketPulse.vue?raw'
 
 describe('政策与市场页面集成', () => {
   it('注册独立政策与市场路由，并隐藏通用测算会话侧栏', () => {
@@ -51,5 +53,15 @@ describe('政策与市场页面集成', () => {
     expect(pageSource).toContain('ElMessageBox.confirm')
     expect(pageSource).toContain("store.removeConsultation(id)")
     expect(pageSource).toContain("ElMessage.success('已删除')")
+  })
+
+  it('将页面青色强调色改为蓝色，并统一指定卡片背景为侧栏背景', () => {
+    expect(pageSource).toContain('--pm-accent: var(--xc-accent-blue)')
+    expect(pageSource).toContain('--pm-surface: var(--xc-surface-raised)')
+    expect(composerSource).toContain('background: var(--pm-surface, var(--xc-surface-raised))')
+    expect(pulseSource).toContain('background: var(--pm-surface, var(--xc-surface-card))')
+    expect(pulseSource).toContain('color-mix(in srgb, var(--xc-accent-blue) 14%, transparent)')
+    expect(pageSource).not.toContain('--pm-accent: #54c6d6')
+    expect(pulseSource).not.toContain('rgba(84, 198, 214, .14)')
   })
 })

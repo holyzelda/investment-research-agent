@@ -409,7 +409,7 @@ async def test_wrapped_http_error_relays_and_persists_business_message(session):
     """中台包装的 HTTP 400 只向前端和历史暴露业务响应文案。"""
     from sqlalchemy.ext.asyncio import async_sessionmaker
     maker = async_sessionmaker(session.bind, expire_on_commit=False)
-    business_message = "EPC单价超出允许范围，正确范围为[0.7, 1.1]"
+    business_message = "EPC单价超出允许范围，正确范围为[0.6, 2.5]"
     response_body = json.dumps(
         {"code": 400, "msg": business_message, "data": None},
         ensure_ascii=False,

@@ -134,13 +134,13 @@ const buildOption = () => {
         align: 'center',
       },
     }] : [],
-    grid: { left: 8, right: 12, top: 38, bottom: 12, containLabel: true },
+    grid: { left: 8, right: 12, top: 38, bottom: 30, containLabel: true },
     xAxis: {
       type: 'category',
       boundaryGap: false,
       data: points.map((point) => point.time),
-      axisLabel: { color: xcVar('--xc-text-mute'), fontSize: 10, interval: 11 },
-      axisTick: { show: false },
+      axisLabel: { show: true, color: xcVar('--xc-text-mute'), fontSize: 10, interval: 'auto', hideOverlap: true },
+      axisTick: { show: true, lineStyle: { color: xcVar('--xc-border-soft') } },
       axisLine: { lineStyle: { color: xcVar('--xc-border-soft') } },
     },
     yAxis: {
@@ -179,17 +179,18 @@ const { el } = useEcharts(buildOption)
 </script>
 
 <style scoped>
-.tl-power-trend { margin-top: var(--xc-space-4); padding-top: var(--xc-space-3); border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.tl-power-trend { display:flex; flex:0 0 auto; flex-direction:column; min-height:0; margin-top:0; padding-top:var(--xc-space-2); border-top:1px solid rgba(255, 255, 255, 0.08); }
 .tl-power-trend__head { display: flex; align-items: start; justify-content: space-between; gap: var(--xc-space-3); }
 .tl-power-trend__eyebrow { display: block; color: var(--xc-text-mute); font-size: var(--xc-fs-2xs); }
 .tl-power-trend__caption { display: block; margin-top: var(--xc-space-1); color: var(--xc-text-strong); font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-semi); }
 .tl-power-trend__ranges { display: grid; grid-template-columns: repeat(auto-fit, minmax(58px, 1fr)); gap: var(--xc-space-1); margin-top: var(--xc-space-2); }
-.tl-power-trend__range { min-width: 0; padding: var(--xc-space-1); color: var(--xc-text-mute); background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--xc-radius-xs); font-size: var(--xc-fs-2xs); cursor: pointer; }
-.tl-power-trend__range--active { color: var(--xc-text-strong); border-color: rgba(232, 206, 139, 0.38); background: rgba(232, 206, 139, 0.09); }
-.tl-power-trend__canvas { width: 100%; height: 188px; margin-top: var(--xc-space-2); }
+.tl-power-trend__range { min-width: 0; padding: var(--xc-space-1); color: var(--xc-text-mute); background: rgba(255, 255, 255, 0.035); border: 1px solid rgba(255, 255, 255, 0.08); border-radius: var(--xc-radius-xs); font-size: var(--xc-fs-2xs); cursor: pointer; transition: border-color var(--xc-dur-fast), background-color var(--xc-dur-fast), color var(--xc-dur-fast); }
+.tl-power-trend__range:hover { border-color: var(--xc-border-accent); color: var(--xc-text-strong); }
+.tl-power-trend__range--active { color: var(--xc-text-strong); border-color: var(--xc-border-accent); background: var(--xc-accent-blue-soft); }
+.tl-power-trend__canvas { flex:0 0 auto; width:100%; height:280px; margin-top:var(--xc-space-3); }
 .tl-power-trend__canvas--hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; opacity: 0; pointer-events: none; }
-.tl-power-trend__skeleton, .tl-power-trend__state { display: grid; place-content: center; min-height: 188px; gap: var(--xc-space-3); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); text-align: center; }
-.tl-power-trend__skeleton .xc-skeleton { width: 100%; height: 128px; }
+.tl-power-trend__skeleton, .tl-power-trend__state { display: grid; place-content: center; min-height:280px; gap: var(--xc-space-3); color: var(--xc-text-mute); font-size: var(--xc-fs-xs); text-align: center; }
+.tl-power-trend__skeleton .xc-skeleton { width:100%; height:280px; }
 .tl-power-trend__custom-wrap { position: relative; min-width: 0; }
 .tl-power-trend__custom-panel { position: absolute; top: calc(100% + 6px); right: 0; z-index: var(--xc-z-raised); display: grid; gap: 12px; width: min(300px, 78vw); margin-top: 0; padding: var(--xc-space-4); color: var(--xc-text-strong); background: var(--xc-surface-raised); border: 1px solid var(--xc-border-soft); border-radius: 6px; box-shadow: var(--xc-shadow-md); }
 .tl-power-trend__custom-panel > strong { font-size: var(--xc-fs-xs); font-weight: var(--xc-fw-semi); }

@@ -241,7 +241,7 @@ function handleSwap() {
 <style scoped>
 .tl-filterbar {
   --tl-filter-border: var(--xc-border-soft);
-  --tl-filter-border-hover: var(--xc-border-strong);
+  --tl-filter-border-hover: var(--xc-border-accent);
   --tl-filter-bg: rgba(255, 255, 255, 0.035);
   --tl-filter-bg-hover: rgba(255, 255, 255, 0.065);
   display: flex;
@@ -294,6 +294,8 @@ function handleSwap() {
 
 .tl-filter-control.is-active {
   border-color: var(--xc-border-accent);
+  background: var(--xc-accent-blue-soft);
+  color: var(--xc-text-strong);
 }
 
 .tl-filter-control:focus-within,

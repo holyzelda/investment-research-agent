@@ -21,12 +21,14 @@ const PARAM_DICT = [
   { id: 'capacity_mwh', zone: 'project_definition', control: 'number' },
   { id: 'power_mw', zone: 'project_definition', control: 'number' },
   { id: 'daily_cycles', zone: 'revenue_boundary', control: 'slider', g: 1, min: 1, max: 2, step: 0.1 },
-  { id: 'epc_unit_price', zone: 'financial_boundary', control: 'slider', g: 1, min: 0.7, max: 0.85, step: 0.01 },
+  { id: 'epc_unit_price', zone: 'financial_boundary', control: 'slider', g: 1, min: 0.6, max: 2.5, step: 0.01 },
   { id: 'operation_years', zone: 'financial_boundary', control: 'select', g: 1, options: [{ value: 15, label: '15年' }, { value: 20, label: '20年' }] },
   { id: 'battery_replace_cost', zone: 'cost_boundary', control: 'fixed' },
   { id: 'maint_cost', zone: 'cost_boundary', control: 'slider', g: 1, min: 0, max: 0.1, step: 0.0001 },
   { id: 'spot_charge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
   { id: 'spot_discharge_avg', zone: 'revenue_boundary', control: 'dynamic_slider', g: 1, step: 0.0001 },
+  { id: 'strategy_achievement_rate', zone: 'revenue_boundary', control: 'slider', g: 1, min: 0.6, max: 1, step: 0.01 },
+  { id: 'capacity_achievement_rate', zone: 'revenue_boundary', control: 'slider', g: 1, min: 0.7, max: 1, step: 0.01 },
   { id: 'frequency_first_year_revenue', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
   { id: 'lease_unit_price', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
   { id: 'mid_long_energy_revenue_first_year_tax', zone: 'revenue_boundary', control: 'dynamic_slider', step: 0.01 },
@@ -38,6 +40,7 @@ describe('paramAdjust: 现货同样受开关约束的统一显隐', () => {
     const spec = PARAM_DICT.find((p) => p.id === 'spot_charge_avg')
     expect(isVisible(spec, { switch_spot: 0 })).toBe(false)
     expect(isVisible(spec, { switch_spot: 1 })).toBe(true)
+    expect(isVisible(PARAM_DICT.find((p) => p.id === 'strategy_achievement_rate'), { switch_spot: 0 })).toBe(false)
   })
 
   it('调频/租赁/中长期按各自开关显隐', () => {

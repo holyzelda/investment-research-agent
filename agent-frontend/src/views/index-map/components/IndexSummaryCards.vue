@@ -11,12 +11,12 @@ import { formatNumber } from '@/utils/formatNumber'
 defineProps({ summary: { type: Object, default: null } })
 </script>
 <style scoped>
-.index-summary-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); min-height: 64px; border: 1px solid var(--xc-border-soft); border-radius: 8px; background: rgba(40, 48, 52, 0.72); overflow: hidden; }
-article { display: grid; grid-template-columns: auto 1fr auto; align-content: center; align-items: baseline; gap: 6px; min-width: 0; padding: 10px 12px; }
-article + article { border-left: 1px solid var(--xc-border-soft); }
-span, em { overflow: hidden; color: var(--xc-text-mute); font-size: 11px; font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-strong { overflow: hidden; color: var(--xc-text-strong); font-size: 18px; font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.index-summary-cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; min-height: 0; }
+article { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-content: center; align-items: baseline; gap: 3px 8px; min-width: 0; min-height: 60px; padding: 7px 14px; box-sizing: border-box; border: 1px solid var(--xc-border-soft); border-radius: 12px; background: var(--xc-surface-raised); overflow: hidden; }
+article > span { grid-column: 1 / -1; }
+span, em { overflow: hidden; color: var(--xc-text-mute); font-size: 12px; font-style: normal; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+strong { overflow: hidden; color: var(--xc-text-strong); font-size: 19px; font-weight: 700; line-height: 1.15; text-overflow: ellipsis; white-space: nowrap; }
 em { justify-self: end; }
-@media (max-width: 1180px) { article { grid-template-columns: 1fr auto; } article span { grid-column: 1 / -1; } }
-@media (max-width: 639px) { .index-summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } article:nth-child(3) { border-left: 0; } article:nth-child(n + 3) { border-top: 1px solid var(--xc-border-soft); } }
+@media (max-width: 1180px) { article { padding-inline: 16px 12px; } }
+@media (max-width: 639px) { .index-summary-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>
