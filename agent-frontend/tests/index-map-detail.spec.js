@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import ProvinceIndexDetail from '@/views/index-map/components/ProvinceIndexDetail.vue'
+
+const detailSource = readFileSync(
+  resolve(process.cwd(), 'src/views/index-map/components/ProvinceIndexDetail.vue'),
+  'utf8',
+)
 
 const detail = {
   provinceName: '蒙西', grade: 'S', indexScore: 95, investmentAdvice: '强烈推荐·立即布局', annualizedReturn: 8.9,
@@ -27,6 +34,9 @@ describe('省份指数详情', () => {
     expect(wrapper.text()).toContain('风电 26.26% · 光伏 73.74%')
     expect(wrapper.text()).toContain('↑31%')
     expect(wrapper.findAll('.province-detail__capacity')).toHaveLength(3)
+    expect(wrapper.findAll('.province-detail__capacity-total > i')).toHaveLength(3)
+    expect(wrapper.get('.province-detail__capacity-total > i').attributes('style')).toContain('width: 59%')
+    expect(wrapper.get('.province-detail__installed h3 b strong').text()).toBe('208')
     expect(wrapper.find('.province-detail__capacity--renewable').exists()).toBe(true)
     expect(wrapper.find('.province-detail__capacity--thermal .is-down').text()).toBe('↓0.34%')
     expect(wrapper.find('.province-detail__capacity--storage .province-detail__capacity-value > span').exists()).toBe(false)
@@ -69,5 +79,16 @@ describe('省份指数详情', () => {
     const wrapper = mount(ProvinceIndexDetail, { props: { detail: null, loading: false, error: '加载失败' } })
     await wrapper.get('button').trigger('click')
     expect(wrapper.emitted('retry')).toEqual([[]])
+  })
+
+  it('uses the ZRA-3 detail card typography and spacing', () => {
+    expect(detailSource).toContain('border-radius: 16px; background: var(--xc-surface-raised);')
+    expect(detailSource).toContain('border-radius: 10px; background: rgba(255, 255, 255, 0.018);')
+    expect(detailSource).toContain('grid-template-columns: 70px 1fr 42px; align-items: center; gap: 11px;')
+    expect(detailSource).toContain('height: 8px; border-radius: 4px; background: rgba(255, 255, 255, 0.07);')
+    expect(detailSource).toContain('.province-detail__maturity > p { padding-left: 11px; color: var(--xc-text-strong);')
+    expect(detailSource).toContain('.province-detail__bar > span { color: var(--xc-text-strong); }')
+    expect(detailSource).toContain('h3 b strong { color: var(--xc-text-strong); font-size: 16px;')
+    expect(detailSource).toContain('.province-detail__capacity-value > strong { color: var(--xc-text-strong); font-size: 16px;')
   })
 })

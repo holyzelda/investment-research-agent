@@ -122,6 +122,25 @@ describe('联络线功率趋势组件', () => {
     expect(option.yAxis.nameLocation).toBe('end')
   })
 
+  it('趋势图卡片填充右侧下方可用空间', () => {
+    expect(styles).toContain('height:280px')
+    expect(styles).toContain('flex:0 0 auto')
+    const option = chart.optionFactory()
+    expect(option.grid.bottom).toBe(30)
+    expect(option.xAxis.axisLabel.show).toBe(true)
+    expect(option.xAxis.axisLabel.hideOverlap).toBe(true)
+  })
+
+  it('日期按钮使用自适应网格且隐藏图表不拦截点击', () => {
+    expect(styles).toContain('repeat(auto-fit, minmax(58px, 1fr))')
+    expect(styles).toContain('pointer-events: none')
+  })
+
+  it('日期按钮悬停显示蓝色边框，选中显示蓝色底色', () => {
+    expect(styles).toContain('.tl-power-trend__range:hover { border-color: var(--xc-border-accent)')
+    expect(styles).toContain('.tl-power-trend__range--active { color: var(--xc-text-strong); border-color: var(--xc-border-accent); background: var(--xc-accent-blue-soft); }')
+  })
+
   it('自定义日期面板从自定义按钮下拉展开，不放在趋势模块底部或覆盖地图', async () => {
     const wrapper = mount(TieLinePowerTrend, {
       props: {
