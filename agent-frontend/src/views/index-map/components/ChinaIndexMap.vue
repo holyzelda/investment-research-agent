@@ -87,7 +87,7 @@ watch(() => [props.provinces, props.selectedProvinceCode], () => chart?.setOptio
 .china-index-map:fullscreen { width: 100%; height: 100%; border: 0; border-radius: 0; }
 .china-index-map__canvas { position: relative; z-index: 1; width: 100%; height: 100%; }
 .china-index-map__tools { position: absolute; z-index: 3; top: 12px; right: 12px; }
-.china-index-map__legend { position: absolute; z-index: 3; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 7px 12px; max-width: calc(100% - 24px); padding: 8px 10px; box-sizing: border-box; border: 1px solid var(--xc-border-soft); border-radius: 4px; background: #283034; color: var(--xc-text-soft); font-size: 11px; }
+.china-index-map__legend { position: absolute; z-index: 3; left: 12px; bottom: 12px; display: flex; flex-wrap: wrap; gap: 7px 12px; max-width: calc(100% - 24px); padding: 8px 10px; box-sizing: border-box; border: 1px solid var(--xc-border-soft); border-radius: 4px; background: rgba(255, 255, 255, 0.018); color: var(--xc-text-soft); font-size: 11px; }
 .china-index-map__legend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .china-index-map__legend i { width: 9px; height: 9px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 2px; }
 .china-index-map__uncovered { background: var(--xc-surface-control); }

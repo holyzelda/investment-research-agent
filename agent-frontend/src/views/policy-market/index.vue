@@ -116,8 +116,8 @@ function formatReaderDate(value) {
 
 <style scoped>
 .policy-market-page {
-  --pm-accent: #54c6d6;
-  --pm-surface: #283034;
+  --pm-accent: var(--xc-accent-blue);
+  --pm-surface: var(--xc-surface-raised);
   --pm-elevated: #323b3f;
   --pm-border: #485458;
   min-height: 100%;

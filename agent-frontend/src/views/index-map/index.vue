@@ -53,11 +53,11 @@ onMounted(() => store.initialize())
 .index-map-page__header h1 { margin: 0; color: var(--xc-text-strong); font-size: 20px; font-weight: 600; line-height: 1.2; letter-spacing: 0; }
 .index-map-page__title span { color: var(--xc-text-mute); font-size: 12px; line-height: 1.35; }
 .index-map-page__body { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 25vw, 380px); gap: 12px; min-height: 0; overflow: hidden; }
-.index-map-page__main { display: grid; grid-template-rows: minmax(300px, 1fr) auto auto; gap: 8px; min-width: 0; min-height: 0; }
-.index-map-page__map { position: relative; min-height: 0; overflow: hidden; border: 1px solid var(--xc-border-soft); border-radius: 8px; background: rgba(20, 27, 31, 0.96); }
+.index-map-page__main { display: grid; grid-template-rows: minmax(340px, 1fr) auto auto; gap: 8px; min-width: 0; min-height: 0; }
+.index-map-page__map { position: relative; min-height: 0; overflow: hidden; border: 1px solid var(--xc-border-soft); border-radius: 8px; background: var(--xc-surface-raised); }
 .index-map-page__state, .index-map-page__empty { display: grid; place-content: center; justify-items: center; gap: 12px; min-height: 320px; border: 1px solid var(--xc-border-soft); border-radius: 8px; background: var(--xc-surface-workspace); color: var(--xc-text-mute); font-size: 13px; }
 .index-map-page__state { height: 100%; min-height: 0; border: 0; }
-.index-map-page__rankings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--xc-border-soft); border-radius: 8px; background: rgba(40, 48, 52, 0.72); overflow: hidden; }
+.index-map-page__rankings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border: 1px solid var(--xc-border-soft); border-radius: 8px; background: var(--xc-surface-raised); overflow: hidden; }
 .index-map-page__rankings :deep(.index-ranking + .index-ranking) { border-left: 1px solid var(--xc-border-soft); }
 .index-map-page__map :deep(.china-index-map) { min-height: 0; }
 @media (max-width: 1279px) { .index-map-page__body { grid-template-columns: minmax(0, 1fr) 330px; } }

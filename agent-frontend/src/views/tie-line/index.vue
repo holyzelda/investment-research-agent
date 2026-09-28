@@ -126,7 +126,7 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.tie-line-page { position: relative; isolation: isolate; height: 100%; min-height: 640px; box-sizing: border-box; overflow: hidden; background: transparent; }
+.tie-line-page { --tl-detail-width: clamp(360px, 29vw, 420px); position: relative; isolation: isolate; height: 100%; min-height: 640px; box-sizing: border-box; overflow: hidden; background: var(--xc-surface-raised); }
 .tie-line-page__header { position: absolute; top: var(--xc-gutter-y); left: var(--xc-gutter-x); right: var(--xc-gutter-x); z-index: 30; display: grid; grid-template-columns: minmax(210px, 0.48fr) minmax(520px, 1.62fr) auto; align-items: center; gap: clamp(12px, 1.2vw, 22px); pointer-events: none; }
 .tie-line-page__header > * { pointer-events: auto; }
 .tie-line-page__heading { min-width: 0; }
@@ -136,12 +136,12 @@ onBeforeUnmount(() => {
 .tie-line-page__filters { min-width: 0; justify-self: stretch; }
 .tie-line-page__notice-row { position: absolute; top: 78px; left: var(--xc-gutter-x); z-index: 31; display: flex; align-items: center; pointer-events: none; }
 .tie-line-page__body { position: absolute; inset: 0; min-width: 0; min-height: 0; }
-.tie-line-page__body::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; z-index: 8; width: min(520px, 38vw); pointer-events: none; background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--xc-surface-workspace) 72%, transparent) 22%, var(--xc-surface-workspace) 100%); }
+.tie-line-page__body::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; z-index: 8; width: min(520px, 38vw); pointer-events: none; background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--xc-surface-raised) 72%, transparent) 22%, var(--xc-surface-raised) 100%); }
 .tie-line-page__map-wrap { position: absolute; inset: 0; z-index: 1; min-width: 0; min-height: 0; overflow: visible; background: transparent; }
-.tie-line-page__detail { position: absolute; top: 138px; right: var(--xc-gutter-x); bottom: var(--xc-space-5); z-index: 20; width: clamp(360px, 29vw, 420px); min-width: 0; }
+.tie-line-page__detail { position: absolute; top: 138px; right: var(--xc-gutter-x); bottom: var(--xc-space-5); z-index: 20; width: var(--tl-detail-width); min-width: 0; }
 .tie-line-page :deep(.china-tie-line-map__signature) { top: 138px; left: var(--xc-gutter-x); }
-.tie-line-page :deep(.china-tie-line-map__tools) { top: 96px; right: calc(clamp(360px, 29vw, 420px) + 52px); }
-.tie-line-page :deep(.china-tie-line-map__list) { top: 140px; right: calc(clamp(360px, 29vw, 420px) + 52px); }
+.tie-line-page :deep(.china-tie-line-map__tools) { top: 96px; right: calc(var(--tl-detail-width) + 52px); }
+.tie-line-page :deep(.china-tie-line-map__list) { top: 140px; right: calc(var(--tl-detail-width) + 52px); }
 .tie-line-page :deep(.china-tie-line-map__legend),
 .tie-line-page :deep(.china-tie-line-map__note) { left: var(--xc-gutter-x); }
 .tie-line-page__state { position: absolute; inset: 0; z-index: var(--xc-z-raised); display: grid; place-content: center; justify-items: center; gap: var(--xc-space-3); padding: var(--xc-space-7); color: var(--xc-text-mute); text-align: center; }
@@ -161,7 +161,7 @@ onBeforeUnmount(() => {
   .tie-line-page__heading { max-width: 360px; }
 }
 @media (max-width: 1180px) {
-  .tie-line-page { min-height: 1040px; overflow-y: auto; }
+  .tie-line-page { --tl-detail-width: auto; min-height: 1040px; overflow-y: auto; }
   .tie-line-page__header { right: var(--xc-gutter-x); grid-template-columns: 1fr; align-items: start; gap: var(--xc-space-3); }
   .tie-line-page__filters { justify-self: stretch; }
   .tie-line-page__notice-row { top: 220px; right: var(--xc-gutter-x); }

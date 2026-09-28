@@ -249,7 +249,7 @@ function formatPublishedAt(value) { if (!value) return '—'; const date = new D
 .pm-date-range-popper .el-date-table th { border-bottom: 1px solid var(--xc-border-soft) !important; color: var(--xc-text-mute) !important; }
 .pm-date-range-popper .el-date-table td { color: var(--xc-text-soft) !important; }
 .pm-date-range-popper .el-date-table td.available:hover { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
-.pm-date-range-popper .el-date-table td.in-range .el-date-table-cell { background: rgba(84, 198, 214, .14) !important; }
+.pm-date-range-popper .el-date-table td.in-range .el-date-table-cell { background: color-mix(in srgb, var(--xc-accent-blue) 14%, transparent) !important; }
 .pm-date-range-popper .el-date-table td.start-date .el-date-table-cell, .pm-date-range-popper .el-date-table td.end-date .el-date-table-cell { background: var(--pm-accent, var(--xc-accent-blue)) !important; color: #101719 !important; }
 .pm-date-range-popper .el-date-table td.prev-month, .pm-date-range-popper .el-date-table td.next-month { color: var(--xc-text-faint) !important; }
 .pm-date-range-popper .el-date-table td.today .el-date-table-cell__text { color: var(--pm-accent, var(--xc-accent-blue)) !important; }
