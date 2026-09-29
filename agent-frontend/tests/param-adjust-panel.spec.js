@@ -328,9 +328,13 @@ describe('ParamAdjustPanel', () => {
     expect(nodeSelect.props('remote')).toBe(true)
     expect(nodeSelect.props('loading')).toBe(false)
     expect(nodeSelect.props('noDataText')).toBe('节点目录暂不可用')
-    expect(wrapper.emitted('station-open')?.[0][0]).toEqual({
-      province: '甘肃', selectedNode: '祥泰站',
-    })
+    // 已有节点候选时，打开选择器不应再次查询并清空当前候选。
+    expect(wrapper.emitted('station-open')).toBeUndefined()
+
+    // 远程下拉展开会自动以空关键词触发 remoteMethod，同样不应发起查询。
+    nodeSelect.props('remoteMethod')('')
+    await new Promise((resolve) => setTimeout(resolve, 320))
+    expect(wrapper.emitted('station-search')).toBeUndefined()
 
     nodeSelect.props('remoteMethod')('新')
     await new Promise((resolve) => setTimeout(resolve, 320))

@@ -433,13 +433,16 @@ export const useCalculationStore = defineStore('calculation', {
       const sequence = ++this.stationRequestSequence
       const controller = new AbortController()
       this.stationController = controller
+      const isRepeatQuery = this.stationProvince === province && this.stationKeyword === normalizedKeyword
       this.stationProvince = province
       this.stationKeyword = normalizedKeyword
       this.stationCursor = null
       this.stationHasMore = false
       this.stationLoading = true
       this.stationError = ''
-      this.stationOptions = uniqueStations([], selectedNode)
+      this.stationOptions = isRepeatQuery
+        ? uniqueStations(this.stationOptions, selectedNode)
+        : uniqueStations([], selectedNode)
 
       try {
         const cached = this.stationCache.get(queryKey)
@@ -464,7 +467,10 @@ export const useCalculationStore = defineStore('calculation', {
         const page = await promise
         if (sequence !== this.stationRequestSequence) return
         this.stationCache.set(queryKey, { savedAt: Date.now(), page })
-        this.stationOptions = uniqueStations(page.items || [], selectedNode)
+        const pageStations = isRepeatQuery
+          ? [...this.stationOptions, ...(page.items || [])]
+          : (page.items || [])
+        this.stationOptions = uniqueStations(pageStations, selectedNode)
         this.stationCursor = page.nextCursor || null
         this.stationHasMore = !!page.hasMore
       } catch (error) {

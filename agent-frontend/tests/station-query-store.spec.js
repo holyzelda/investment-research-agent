@@ -72,6 +72,22 @@ describe('calculation station remote query', () => {
     expect(store.stationError).toBe('')
   })
 
+  it('keeps existing options when the same query is requested again', async () => {
+    const pending = deferred()
+    api.getStations.mockReturnValueOnce(pending.promise)
+    const store = useCalculationStore()
+    store.stationProvince = '甘肃'
+    store.stationKeyword = ''
+    store.stationOptions = ['节点01']
+
+    const search = store.searchStations({ province: '甘肃' })
+
+    expect(store.stationOptions).toEqual(['节点01'])
+    pending.resolve({ data: { items: ['节点02', '节点03'], hasMore: false, nextCursor: null } })
+    await search
+    expect(store.stationOptions).toEqual(['节点01', '节点02', '节点03'])
+  })
+
   it('deduplicates an in-flight query and serves a subsequent query from cache', async () => {
     const pending = deferred()
     api.getStations.mockReturnValueOnce(pending.promise)

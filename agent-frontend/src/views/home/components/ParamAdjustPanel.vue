@@ -523,14 +523,21 @@ const nodeOptions = computed(() => [...new Set([
 ].filter(Boolean))])
 
 async function focusNodeEditor() {
-  emit('station-open', {
-    province: localValues.province || props.seedInput?.province,
-    selectedNode: localValues.node_name || null,
-  })
+  // 已有当前省份的候选项时直接使用，避免打开选择器又触发一次查询。
+  // 父组件查询开始时会清空候选列表，导致下拉内容闪现后消失。
+  if (!hasStationData(props.stationOptions)) {
+    emit('station-open', {
+      province: localValues.province || props.seedInput?.province,
+      selectedNode: localValues.node_name || null,
+    })
+  }
   await nextTick()
   nodeSelect.value?.focus?.()
 }
 function searchNodes(keyword) {
+  // 打开远程下拉时 ElSelect 会以空关键词触发一次 remoteMethod；
+  // 已有当前候选项时无需再查询，避免 store 清空列表导致候选一闪而过。
+  if (!String(keyword || '').trim() && hasStationData(props.stationOptions)) return
   clearTimeout(nodeSearchTimer)
   nodeSearchTimer = setTimeout(() => {
     emit('station-search', {
