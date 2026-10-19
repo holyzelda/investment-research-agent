@@ -6,7 +6,7 @@
 
 `main` 的 [Ruleset #25407955](https://github.com/holyzelda/investment-research-agent/rules/25407955) 要求拉取请求、至少一名独立审查者批准，以及以下五项来自 GitHub Actions 的成功检查：`frontend-test`、`frontend-build`、`backend-unit`、`mysql-integration`、`gitleaks-pull_request`。合并前候选分支必须基于最新 `main` 重新测试。新提交会使旧批准失效；强推、删除和绕过均被禁止。
 
-`gitleaks-push` 只在推送到 `main` 后运行，用于合并后复核，不应作为拉取请求的必需检查。
+`gitleaks-push` 在推送事件运行（包括特性分支与 `main`），用于每次推送后的复核；拉取请求使用 `gitleaks-pull_request`，因此只将后者设为合并前的必需检查。
 
 ## 审查与操作职责
 
