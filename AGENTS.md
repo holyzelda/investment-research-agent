@@ -5,14 +5,14 @@
 ## 安全边界
 
 - 默认云端环境验证不连接真实飞书、中台、Nacos、现货或持久数据库服务，不读取或提交真实凭据。
-- 本仓库的 `scripts/cloud-check.sh` 固定关闭外部服务，并使用内存 SQLite。`agent-backend/tests/db/` 只允许由 `business-ci.yml` 在一次性 MySQL 服务上运行；夹具必须先验证专用回环地址、合成凭据及外部服务关闭状态，不得回退读取 `application.yml` 或连接现有数据库。
+- 本仓库的 `scripts/cloud-check.sh` 固定关闭外部服务、覆盖前端网关为同域路径并将开发代理指向回环地址、清空前端测试 Token，后端使用内存 SQLite。`agent-backend/tests/db/` 只允许由 `business-ci.yml` 在一次性 MySQL 服务上运行；夹具必须先验证专用回环地址、合成凭据及外部服务关闭状态，不得回退读取 `application.yml` 或连接现有数据库。
 - 不修改业务逻辑、测试断言或锁文件来使环境验证通过；已知身份请求头差异应如实记录并单独处理。
 - 不合并、部署、调整权限或重写 Git 历史。提交与发布仅在任务明确授权时执行。
 
 ## 受支持的 Linux 工具链
 
 - Python 3.13（由根目录 `.python-version` 声明）。后端命令只使用 `agent-backend/.venv/bin/python`。
-- Node.js 22（由根目录 `.nvmrc` 声明）及 `agent-frontend/package.json` 声明的 npm。前端只使用 npm。
+- Node.js 22（由根目录 `.nvmrc` 声明）及 `agent-frontend/package.json` 声明的 npm 10.5.0。脚本通过 `npx --yes npm@10.5.0` 调用固定版本；前端只使用 npm。
 - 从仓库根目录运行 `./scripts/cloud-init.sh`，只从 `requirements.txt` 和 `package-lock.json` 安装依赖。
 
 ## 云端验证
@@ -31,6 +31,11 @@ IR_FEISHU_ENABLED=false
 IR_SPOT_ENABLED=false
 IR_SPOT_DAILY_UPDATE_ENABLED=false
 IR_DB_URL=sqlite+aiosqlite:///:memory:
+VITE_APP_BASE_API=/gateway/ir-agent/
+VITE_DEV_BACKEND=http://127.0.0.1:9
+VITE_ECENTER_BACKEND=http://127.0.0.1:9
+VITE_GATEWAY_BACKEND=http://127.0.0.1:9
+VITE_API_TOKEN=
 ```
 
 若需单独排查，可使用脚本中的原始命令。后端检查从 `agent-backend/` 执行，范围仅为 `tests/unit`，不得擅自扩大到 `tests/db`。

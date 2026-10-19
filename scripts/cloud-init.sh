@@ -17,6 +17,10 @@ if ! command -v node >/dev/null 2>&1 || [[ "$(node -p 'process.versions.node.spl
   exit 1
 fi
 
-"$python_bin" -m venv "$repo_root/agent-backend/.venv"
+if [[ -L "$repo_root/agent-backend/.venv" ]]; then
+  printf 'error: refusing to clear a symlinked backend virtualenv\n' >&2
+  exit 1
+fi
+"$python_bin" -m venv --clear "$repo_root/agent-backend/.venv"
 "$repo_root/agent-backend/.venv/bin/python" -m pip install -r "$repo_root/agent-backend/requirements.txt"
-npm --prefix "$repo_root/agent-frontend" ci
+npx --yes npm@10.5.0 --prefix "$repo_root/agent-frontend" ci
