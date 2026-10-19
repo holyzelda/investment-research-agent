@@ -50,4 +50,4 @@ Windows 对应命令使用项目虚拟环境的解释器，并保留 `sys.stdout
 - 报告任务以 task 为幂等边界，内容写不可变 JSON 快照；服务启动时把中断的 generating 任务标记 failed。进度由 SSE 推送，规则化数据和图表不因 AI 降级文本失败而丢失。
 - 现货预计算、每日调度和政策咨询预热由应用 lifespan 管理，不要在 Router 导入时启动后台任务；中台代理只维护 SSE/session 映射，不复制测算参数解析。
 - 配置优先级为代码默认值 → `configs/application.yml` → `IR_*` 环境变量 → Nacos 业务节点；应用、日志、CORS、Nacos 自身配置不由 Nacos 反向覆盖。修改 `settings.py` 的路径逻辑可能使服务静默回退到默认值。
-- 修改 ORM 时同时更新 `sql/ir_agent_schema.sql`、`sql/` 下对应的增量 SQL、快照读写和历史兼容。普通测试使用内存 SQLite；`tests/db/` 会连接真实测试数据库并写记录，不能当作纯单元测试运行。
+- 修改 ORM 时同时更新 `sql/ir_agent_schema.sql`、`sql/` 下对应的增量 SQL、快照读写和历史兼容。普通测试使用内存 SQLite；`tests/db/` 仅由 GitHub Actions 的一次性 MySQL 服务运行，夹具在建表前校验精确 CI 地址和隔离开关。它会写入合成记录，不能当作纯单元测试运行，也不得连接现有数据库。
