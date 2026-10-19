@@ -1,0 +1,22 @@
+title = "Public repository secret scanning"
+
+[extend]
+useDefault = true
+
+[[rules]]
+id = "application-secret"
+description = "Application secrets, API credentials, and sharing keys"
+regex = '''(?i)(?:app_secret|client_secret|api_key|tavily_api_key|share_fernet_key)\s*[:=]\s*["']([A-Za-z0-9_+/=-]{16,})["']'''
+secretGroup = 1
+[[rules.allowlists]]
+regexTarget = "secret"
+regexes = ['''(?i)^(?:example|test|dummy|mock|fake|your_|placeholder)''', '''^A+=?$''']
+
+[[rules]]
+id = "database-password"
+description = "Passwords in database connection URLs"
+regex = '''(?i)(?:mysql(?:\+[a-z]+)?|postgres(?:ql)?(?:\+[a-z]+)?|redis)://[^\s:@/"'<>]+:([^\s@/"'<>]{8,})@'''
+secretGroup = 1
+[[rules.allowlists]]
+regexTarget = "secret"
+regexes = ['''(?i)^(?:example|test|dummy|mock|fake|your_|password|placeholder)''']

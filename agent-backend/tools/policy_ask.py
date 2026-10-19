@@ -45,7 +45,7 @@ for _province in _REQUIRED_PROVINCES:
     _token = _policy_ask.feishu.province_tokens.get(_province)
     PROVINCES[_province] = _required_config_value(_token, f"feishu.province_tokens.{_province}")
 CROSS_PROVINCE_TOKEN = str(_policy_ask.feishu.cross_province_token or "").strip()
-FEISHU_DOMAIN = str(_policy_ask.feishu.domain or "example-value-0071").strip()
+FEISHU_DOMAIN = str(_policy_ask.feishu.domain or "example.feishu.cn").strip()
 
 ANYSEARCH_API_KEY = str(_policy_ask.anysearch.api_key or "").strip()
 TAVILY_API_KEY = str(_policy_ask.anysearch.tavily_api_key or "").strip()

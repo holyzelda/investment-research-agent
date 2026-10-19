@@ -44,4 +44,28 @@ my_projects
 hooks
 docs/manual
 
+# 私有配置、访问令牌和工具运行缓存不进入公开仓库
+.env
+.env.*
+!.env.example
+!agent-backend/.env.test
+!agent-backend/.env.prod
+!agent-frontend/.env
+!agent-frontend/.env.development
+!agent-frontend/.env.example
+!agent-frontend/.env.production
+!agent-frontend/.env.staging
+**/.superpowers/
+**/.playwright-mcp/
+**/.playwright-cli/
+**/.vite/
+**/tools/_cache/
+**/tools/_tmp_download/
+**/tools/_feishu_poc_out.txt
+**/.shanxi_scan.json
+*.pem
+*.p12
+*.pfx
+*.key
+
 

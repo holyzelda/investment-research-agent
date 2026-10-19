@@ -31,3 +31,13 @@ investment-research-agent/
 | 后端 | FastAPI · 异步 SQLAlchemy 2 · httpx/tenacity · APScheduler · Nacos |
 | 数据 | MySQL 库 `ir_agent`（快照 JSON 存储；建表 DDL 见 `agent-backend/sql/ir_agent_schema.sql`） |
 | 计算 | 飞书底稿副本（方案A 独立接口区 API_INPUT/OUTPUT/META） |
+
+## 公开仓库与本地配置
+
+GitHub 仓库保持公开。当前文件与完整提交历史中的真实凭据、飞书资源 token 和内部服务地址已脱敏，工具下载缓存和调试截图不随代码发布。提交历史的作者、提交说明和合并关系保留；脱敏会改变提交哈希。
+
+后端默认使用本地 SQLite，飞书、现货数据源和 Nacos 默认关闭。部署前通过现有 `IR_*` 环境变量或私有 Nacos 配置提供数据库、飞书、中台和分享加密密钥。政策咨询配置可通过私有 Nacos 的 `policy_ask` 节点提供。不要将真实配置写回已跟踪的 `configs/application.yml` 或 `.env.test` / `.env.prod`。
+
+前端的个人代理设置只写入被忽略的 `agent-frontend/.env.local`。任何 `VITE_*` 值都会进入前端构建产物，服务端密钥不得放入其中。
+
+推送前运行 `gitleaks git . --log-opts=HEAD --redact`。GitHub 的推送和拉取请求也会扫描完整历史。原 GitLab 历史未做改写，不能直接合并或镜像推送到公开仓库；需要先脱敏并重新扫描。原始历史备份只保留在本地 `.git/pre-github-sync-20261019.bundle`，不得上传。

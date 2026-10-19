@@ -112,9 +112,9 @@ class LogConfig(BaseModel):
 
 
 class DatabaseConfig(BaseModel):
-    # 主数据源 ir_agent。应用默认连测试库（见 configs/application.yml，mysql+aiomysql）。
+    # 主数据源 ir_agent；公开配置默认使用本地 SQLite，部署时通过 IR_DB_URL/Nacos 注入。
     # 纯单元测试由 tests/conftest.py 用 IR_DB_URL 覆盖为内存 sqlite。
-    url: str = "mysql+aiomysql://root:<PASSWORD>@internal-3-60.example.invalid:3306/ir_agent"
+    url: str = "sqlite+aiosqlite:///./ir_agent_dev.db"
     echo: bool = False
     pool_size: int = 10
     max_overflow: int = 20
@@ -143,9 +143,9 @@ class MiddlePlatformConfig(BaseModel):
     app_id: str = "ir_agent"
     app_secret: str = ""
     # 各中台服务地址独立（不同端口），均配置完整 URL。
-    chat_url: str = "http://internal-2-58.example.invalid:8089/api/v1/chat/diag"
-    auth_token_url: str = "http://internal-2-58.example.invalid:8089/api/v1/auth/token"
-    report_model_url: str = "http://internal-2-58.example.invalid:8180/gateway/agent-middle/api/v1/model-pool/chat"
+    chat_url: str = "http://127.0.0.1:8089/api/v1/chat/diag"
+    auth_token_url: str = "http://127.0.0.1:8089/api/v1/auth/token"
+    report_model_url: str = "http://127.0.0.1:8180/gateway/agent-middle/api/v1/model-pool/chat"
     report_model_name: str = "qwen-plus"
     report_model_timeout_seconds: float = 30.0
     report_model_concurrency: int = Field(default=5, ge=1)
@@ -242,7 +242,7 @@ class PolicyAskFeishuConfig(BaseModel):
     index_token: str = ""
     province_tokens: dict[str, str] = Field(default_factory=dict)
     cross_province_token: str = ""
-    domain: str = "example-value-0071"
+    domain: str = "example.feishu.cn"
 
 
 class PolicyAskLlmConfig(BaseModel):
