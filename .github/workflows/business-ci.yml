@@ -1,0 +1,98 @@
+name: Business CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: business-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NACOS_ENABLED: "false"
+  IR_FEISHU_ENABLED: "false"
+  IR_SPOT_ENABLED: "false"
+  IR_SPOT_DAILY_UPDATE_ENABLED: "false"
+
+jobs:
+  frontend-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend ci --no-audit --no-fund
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend test -- --reporter=verbose
+
+  frontend-build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend ci --no-audit --no-fund
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend run build
+
+  backend-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      IR_DB_URL: "sqlite+aiosqlite:///:memory:"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version-file: .python-version
+      - run: python -m venv agent-backend/.venv
+      - run: agent-backend/.venv/bin/python -m pip install --disable-pip-version-check -r agent-backend/requirements.txt
+      - run: cd agent-backend && .venv/bin/python -m pytest tests/unit -q -ra -o asyncio_mode=auto
+
+  mysql-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: ir_agent_ci
+          MYSQL_USER: ci_runner
+          MYSQL_PASSWORD: test-ci-only-1234
+          MYSQL_ROOT_PASSWORD: test-root-ci-1234
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    env:
+      IR_TEST_MYSQL_URL: "mysql+aiomysql://ci_runner:test-ci-only-1234@127.0.0.1:3306/ir_agent_ci"
+      IR_DB_URL: "mysql+aiomysql://ci_runner:test-ci-only-1234@127.0.0.1:3306/ir_agent_ci"
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version-file: .python-version
+      - run: python -m venv agent-backend/.venv
+      - run: agent-backend/.venv/bin/python -m pip install --disable-pip-version-check -r agent-backend/requirements.txt
+      - name: Initialize disposable MySQL schema
+        run: |
+          docker exec -i "${{ job.services.mysql.id }}" mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/ir_agent_schema.sql
+          docker exec -i "${{ job.services.mysql.id }}" mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/spot_precompute_schema.sql
+      - run: cd agent-backend && .venv/bin/python -m pytest tests/db -q -ra -o asyncio_mode=auto
