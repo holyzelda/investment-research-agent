@@ -11,7 +11,9 @@
 
 /agent-frontend/src/permission.js @7tyhk7rc84-source
 /agent-frontend/src/store/modules/permission.js @7tyhk7rc84-source
+/agent-frontend/src/store/modules/session.js @7tyhk7rc84-source
 /agent-frontend/src/utils/auth.js @7tyhk7rc84-source
 /agent-frontend/src/utils/request.js @7tyhk7rc84-source
 /agent-frontend/src/api/auth.js @7tyhk7rc84-source
+/agent-frontend/src/api/session.js @7tyhk7rc84-source
 /agent-frontend/src/views/login.vue @7tyhk7rc84-source
