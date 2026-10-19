@@ -20,7 +20,8 @@
 ## 工程约束
 
 - 前端只使用 npm：初始化用 `npm ci`，依赖变更用 `npm install` / `npm uninstall`，同步维护 `package.json` 与 `package-lock.json`；不用 pnpm/yarn。
-- 后端依赖只经 `agent-backend/requirements.txt` 管理。Python 命令优先使用 `agent-backend/.venv\\Scripts\\python.exe`，不要调用 PATH 中的 `python` / `python3`。
+- 后端依赖只经 `agent-backend/requirements.txt` 管理。Linux 使用 `agent-backend/.venv/bin/python`，Windows 使用 `agent-backend/.venv\\Scripts\\python.exe`；创建虚拟环境后不要再调用 PATH 中的 `python` / `python3`。
+- Linux 云端使用根目录声明的 Python 3.13 与 Node.js 22；从根目录运行 `./scripts/cloud-init.sh` 安装声明依赖，运行 `./scripts/cloud-check.sh` 执行隔离的三项验证。
 - 改 ORM 时同步检查手工 DDL、增量 migration、快照读写与历史兼容；具体约束见后端 `CLAUDE.md`。
 - 未经用户明确要求，不执行 `git add`、`git commit`、`git push` 等 Git 写操作。
 - 不要建 worktree，就在当前分支上直接修改。

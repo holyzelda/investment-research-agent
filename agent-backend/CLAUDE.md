@@ -6,18 +6,25 @@
 
 从 `agent-backend/` 执行。依赖只通过 `requirements.txt` 管理；不要调用 `python` / `python3`，优先使用项目虚拟环境。
 
+Linux 使用 `.venv/bin/python`，Windows 将它替换为 `.venv\\Scripts\\python.exe`：
+
 ```bash
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m app.main
-.venv\Scripts\python.exe run.py  # 读取 ENV_FILE，默认 .env.test；默认端口 9089
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m app.main
+.venv/bin/python run.py  # 读取 ENV_FILE，默认 .env.test；默认端口 9089
 ```
 
-当前环境启动 Python 时 `sys.stdout` 可能为 `None`，且仓库没有 pytest 配置文件；测试统一使用包装并显式启用 async 模式：
+Windows 环境启动 Python 时 `sys.stdout` 可能为 `None`，需使用包装并显式启用 async 模式。Linux 云端只运行 `tests/unit`，不得运行会连接数据库的 `tests/db`：
 
 ```bash
-.venv\Scripts\python.exe -c "import sys, pytest; sys.stdout = sys.stderr; raise SystemExit(pytest.main(['-q', '-o', 'asyncio_mode=auto']))"
-.venv\Scripts\python.exe -c "import sys, pytest; sys.stdout = sys.stderr; raise SystemExit(pytest.main(['tests/unit/calculation/test_param_dictionary.py', '-q', '-o', 'asyncio_mode=auto']))"
-.venv\Scripts\python.exe -c "import sys, pytest; sys.stdout = sys.stderr; raise SystemExit(pytest.main(['tests/unit/calculation/test_param_dictionary.py::test_dictionary_loads', '-q', '-o', 'asyncio_mode=auto']))"
+.venv/bin/python -m pytest tests/unit -q -o asyncio_mode=auto
+.venv/bin/python -m pytest tests/unit/calculation/test_param_dictionary.py -q -o asyncio_mode=auto
+```
+
+Windows 对应命令使用项目虚拟环境的解释器，并保留 `sys.stdout` 包装：
+
+```powershell
+.venv\Scripts\python.exe -c "import sys, pytest; sys.stdout = sys.stderr; raise SystemExit(pytest.main(['tests/unit', '-q', '-o', 'asyncio_mode=auto']))"
 ```
 
 虚拟环境不可用时才使用 `C:\Users\JDPC0200\AppData\Local\Programs\Python\Python313\python.exe`。当前没有独立 lint 配置或 lint 命令。
