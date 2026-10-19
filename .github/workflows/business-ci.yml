@@ -29,8 +29,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
-      - run: npm --prefix agent-frontend ci --no-audit --no-fund
-      - run: npm --prefix agent-frontend test -- --reporter=verbose
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend ci --no-audit --no-fund
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend test -- --reporter=verbose
 
   frontend-build:
     runs-on: ubuntu-24.04
@@ -42,8 +42,8 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version-file: .nvmrc
-      - run: npm --prefix agent-frontend ci --no-audit --no-fund
-      - run: npm --prefix agent-frontend run build
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend ci --no-audit --no-fund
+      - run: npx --yes npm@10.5.0 --prefix agent-frontend run build
 
   backend-unit:
     runs-on: ubuntu-24.04
