@@ -58,13 +58,13 @@ jobs:
             -e MYSQL_ROOT_PASSWORD=test-root-ci-1234 \
             mysql:8.0
           for attempt in $(seq 1 60); do
-            status="$(docker inspect --format '{{.State.Health.Status}}' zhu10-mysql)"
-            if [ "$status" = healthy ]; then break; fi
+            if docker exec zhu10-mysql mysql -h 127.0.0.1 -uroot -ptest-root-ci-1234 \
+              ir_agent_ci -e 'SELECT 1' >/dev/null 2>&1; then break; fi
             if [ "$attempt" -eq 60 ]; then docker logs zhu10-mysql; exit 1; fi
             sleep 2
           done
-          docker exec -i zhu10-mysql mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/ir_agent_schema.sql
-          docker exec -i zhu10-mysql mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/spot_precompute_schema.sql
+          docker exec -i zhu10-mysql mysql -h 127.0.0.1 -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/ir_agent_schema.sql
+          docker exec -i zhu10-mysql mysql -h 127.0.0.1 -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/spot_precompute_schema.sql
       - name: Verify backend health and missing-identity denial without network egress
         run: |
           docker run -d --name zhu10-backend --network zhu10-smoke \
