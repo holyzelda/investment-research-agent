@@ -2,14 +2,6 @@ name: Container smoke (isolated)
 
 on:
   pull_request:
-    paths:
-      - agent-backend/Dockerfile
-      - agent-backend/.dockerignore
-      - agent-backend/container-entrypoint.sh
-      - agent-frontend/Dockerfile
-      - agent-frontend/.dockerignore
-      - agent-frontend/nginx.conf
-      - .github/workflows/container-smoke.yml
   workflow_dispatch:
 
 permissions:
@@ -46,6 +38,8 @@ jobs:
           persist-credentials: false
       - name: Build backend image without local configuration files
         run: docker build --pull -t zhu10-backend:ci agent-backend
+      - name: Verify non-root runtime directories
+        run: docker run --rm --entrypoint sh zhu10-backend:ci -ec 'test "$(id -u)" = 10001 && test -w "$HOME" && test -w /srv/ir-agent/logs/nacos'
       - name: Start disposable internal MySQL and initialize synthetic schema
         run: |
           docker network create --internal zhu10-smoke
@@ -70,6 +64,7 @@ jobs:
           docker run -d --name zhu10-backend --network zhu10-smoke \
             --cap-drop=ALL --security-opt=no-new-privileges \
             -e IR_DB_URL=mysql+aiomysql://ci_runner:test-ci-only-1234@zhu10-mysql:3306/ir_agent_ci \
+            -e APP_PORT=19089 \
             -e NACOS_ENABLED=false -e IR_FEISHU_ENABLED=false \
             -e IR_SPOT_ENABLED=false -e IR_SPOT_DAILY_UPDATE_ENABLED=false \
             zhu10-backend:ci
@@ -81,7 +76,7 @@ jobs:
 
           for attempt in range(60):
               try:
-                  with urlopen('http://127.0.0.1:9089/health', timeout=2) as response:
+                  with urlopen('http://127.0.0.1:19089/health', timeout=2) as response:
                       payload = json.load(response)
                       assert response.status == 200 and payload['data']['status'] == 'up'
                   break
@@ -90,7 +85,7 @@ jobs:
           else:
               raise RuntimeError('Backend did not become healthy')
 
-          request = Request('http://127.0.0.1:9089/ir/chat/diag', data=b'{}',
+          request = Request('http://127.0.0.1:19089/ir/chat/diag', data=b'{}',
                             headers={'Content-Type': 'application/json'}, method='POST')
           try:
               urlopen(request, timeout=3)

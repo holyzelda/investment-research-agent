@@ -4,9 +4,9 @@
 
 ## 构建边界
 
-- 后端镜像仅复制运行必需的 `app/`、政策问答模块和依赖清单。构建上下文采用白名单 `.dockerignore`；本地 `.env*`、`configs/application.yml`、现有数据库、日志、测试产物及凭据文件均不进入构建上下文。容器以非 root 身份运行，启动时要求外部明确注入 `IR_DB_URL`；Nacos、飞书和现货集成默认关闭。
+- 后端镜像仅复制运行必需的 `app/`、政策问答模块和依赖清单。构建上下文采用白名单 `.dockerignore`；本地 `.env*`、`configs/application.yml`、现有数据库、日志、测试产物及凭据文件均不进入构建上下文。容器以非 root 身份运行，只为应用日志、Nacos SDK 日志/缓存及政策问答缓存预留可写目录；启动时要求外部明确注入 `IR_DB_URL`，并把实际监听端口同步给应用配置。Nacos、飞书和现货集成默认关闭。
 - 前端镜像仅复制源码、构建配置和锁文件，不复制 `.env*`。构建时固定同域 API 路径 `/gateway/ir-agent/` 且 `VITE_API_TOKEN` 为空；静态服务仅处理 `/investment/` 和健康检查。未配置可信网关的 `/gateway/` 路由返回 503，不代转未经认证的身份头。
-- [容器烟测](../../.github/workflows/container-smoke.yml) 在 GitHub 标准 runner 上构建两张镜像。后端仅连接同一内部 Docker 网络上的一次性 MySQL，使用合成凭据和仓库内 DDL；无对外监听端口，也无容器网络出口。烟测验证 `/health` 和无身份头的 401；前端验证静态页、SPA 回退与未配置网关的 503。工作流不推送镜像、不部署、不读取仓库机密。
+- [容器烟测](../../.github/workflows/container-smoke.yml) 对每张 PR 在 GitHub 标准 runner 上构建两张镜像，避免源码、依赖或 SQL 变更绕过镜像验证。后端仅连接同一内部 Docker 网络上的一次性 MySQL，使用合成凭据和仓库内 DDL；无对外监听端口，也无容器网络出口。烟测用非默认端口验证 `/health`、无身份头的 401 和非 root 可写目录；前端验证静态页、SPA 回退与未配置网关的 503。工作流不推送镜像、不部署、不读取仓库机密。
 
 ## 进入真实 staging 前的决策
 
