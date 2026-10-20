@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>图形选择验证码交互原型</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+        color: #1d2939;
+        background: #eef3f8;
+      }
+
+      * { box-sizing: border-box; }
+      body { min-width: 320px; margin: 0; }
+      button, input { font: inherit; }
+      button { cursor: pointer; }
+      button:focus-visible, input:focus-visible {
+        outline: 3px solid rgba(0, 110, 184, .28);
+        outline-offset: 2px;
+      }
+
+      .prototype-note {
+        padding: 10px 20px;
+        color: #46576c;
+        background: #fff8e7;
+        border-bottom: 1px solid #f4dfa9;
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .page {
+        min-height: calc(100vh - 39px);
+        display: grid;
+        grid-template-columns: minmax(420px, 1fr) minmax(430px, 560px);
+        background:
+          radial-gradient(circle at 17% 20%, rgba(0, 146, 190, .26), transparent 28%),
+          linear-gradient(135deg, #06375b 0%, #07557c 52%, #0b7791 100%);
+      }
+
+      .brand-panel {
+        padding: clamp(44px, 7vw, 104px);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        color: white;
+      }
+
+      .brand { display: flex; align-items: center; gap: 12px; font-size: 18px; font-weight: 650; }
+      .brand-mark {
+        width: 38px; height: 38px; display: grid; place-items: center;
+        border-radius: 11px; background: rgba(255,255,255,.16); border: 1px solid rgba(255,255,255,.25);
+      }
+      .brand-panel h1 { max-width: 620px; margin: 0 0 18px; font-size: clamp(36px, 4.4vw, 62px); line-height: 1.1; letter-spacing: -.04em; }
+      .brand-panel p { max-width: 550px; margin: 0; color: rgba(255,255,255,.74); font-size: 17px; line-height: 1.8; }
+      .trust { display: flex; gap: 22px; color: rgba(255,255,255,.72); font-size: 13px; }
+
+      .login-panel { display: grid; place-items: center; padding: 28px; background: rgba(247,250,252,.96); }
+      .login-card { width: min(100%, 440px); }
+      .eyebrow { margin: 0 0 8px; color: #087aa5; font-size: 13px; font-weight: 700; letter-spacing: .08em; }
+      h2 { margin: 0; color: #14263b; font-size: 30px; }
+      .welcome { margin: 10px 0 28px; color: #687789; font-size: 14px; }
+      .field { display: block; margin-bottom: 18px; color: #344054; font-size: 14px; font-weight: 600; }
+      .field input { width: 100%; height: 46px; margin-top: 8px; padding: 0 13px; border: 1px solid #cdd6df; border-radius: 9px; color: #172b3d; background: white; }
+      .field input:hover { border-color: #98a8b8; }
+
+      .captcha {
+        margin-top: 22px; padding: 17px; border: 1px solid #d5dee7; border-radius: 12px;
+        background: white; box-shadow: 0 7px 24px rgba(36, 65, 88, .07);
+      }
+      .captcha-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .captcha-title { display: flex; align-items: center; gap: 9px; font-weight: 700; }
+      .shield { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: #087aa5; background: #e8f5fa; }
+      .link-button { min-height: 36px; padding: 0 6px; border: 0; color: #08749d; background: transparent; font-size: 13px; }
+      .link-button:hover { text-decoration: underline; }
+      .link-button:disabled { cursor: not-allowed; opacity: .48; }
+      .prompt { margin: 15px 0 5px; color: #182b3f; font-size: 15px; font-weight: 650; }
+      .helper { min-height: 20px; margin: 0 0 12px; color: #69798a; font-size: 12px; }
+
+      .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+      .tile {
+        position: relative; aspect-ratio: 1; min-width: 44px; overflow: hidden; padding: 0;
+        border: 0; border-radius: 7px; background: #dce8ec;
+      }
+      .tile svg { width: 100%; height: 100%; display: block; transition: transform .2s ease; }
+      .tile:hover svg { transform: scale(1.035); }
+      .tile::after { content: ""; position: absolute; inset: 0; border: 3px solid transparent; border-radius: 7px; transition: border-color .13s ease; }
+      .tile[aria-pressed="true"]::after { border-color: #087ea8; }
+      .check {
+        position: absolute; top: 6px; right: 6px; width: 24px; height: 24px;
+        display: grid; place-items: center; z-index: 1; border: 2px solid white; border-radius: 50%;
+        color: white; background: #087ea8; box-shadow: 0 1px 5px rgba(0,0,0,.3); opacity: 0; transform: scale(.7);
+        transition: opacity .13s ease, transform .13s ease;
+      }
+      .tile[aria-pressed="true"] .check { opacity: 1; transform: scale(1); }
+
+      .captcha-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; }
+      .verify-button { min-width: 94px; min-height: 40px; padding: 0 19px; border: 0; border-radius: 8px; color: white; background: #087ca5; font-weight: 650; }
+      .verify-button:hover { background: #066b91; }
+      .verify-button:disabled { cursor: not-allowed; color: #91a0ae; background: #e8edf1; }
+      .message { min-height: 20px; margin: 10px 0 -3px; color: #b42318; font-size: 13px; }
+
+      .verified { display: none; align-items: center; gap: 12px; padding: 12px 2px 3px; }
+      .verified-icon { width: 38px; height: 38px; display: grid; flex: 0 0 auto; place-items: center; border-radius: 50%; color: #067647; background: #dcfae6; font-size: 20px; }
+      .verified strong { display: block; color: #067647; font-size: 14px; }
+      .verified span { color: #687789; font-size: 12px; }
+      .verified .link-button { margin-left: auto; }
+      .captcha.is-verified .challenge { display: none; }
+      .captcha.is-verified .verified { display: flex; }
+
+      .login-button { width: 100%; height: 48px; margin-top: 22px; border: 0; border-radius: 9px; color: white; background: linear-gradient(90deg, #087aa5, #07678f); font-weight: 700; }
+      .login-button:disabled { cursor: not-allowed; color: #9aa8b5; background: #dfe5ea; }
+      .legal { margin-top: 18px; color: #8a98a8; font-size: 12px; text-align: center; }
+
+      @media (max-width: 820px) {
+        .page { display: block; min-height: calc(100vh - 39px); background: #f5f8fa; }
+        .brand-panel { min-height: 150px; padding: 28px 24px; justify-content: flex-start; background: linear-gradient(135deg, #06466e, #0782a1); }
+        .brand-panel h1, .brand-panel p, .trust { display: none; }
+        .login-panel { display: block; padding: 30px 20px 44px; }
+        .login-card { margin: 0 auto; }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { scroll-behavior: auto !important; transition: none !important; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype-note">交互原型 · 使用合成插画，不代表最终验证码素材</div>
+    <main class="page">
+      <section class="brand-panel" aria-label="产品介绍">
+        <div class="brand"><span class="brand-mark">◈</span>朱雀投研智能体</div>
+        <div>
+          <h1>洞见能源价值，<br />辅助投资决策</h1>
+          <p>连接数据、模型与行业知识，为新能源项目提供可信、可追溯的投资分析。</p>
+        </div>
+        <div class="trust"><span>✓ 数据安全保护</span><span>✓ 企业级身份认证</span></div>
+      </section>
+
+      <section class="login-panel">
+        <form class="login-card" id="login-form">
+          <p class="eyebrow">WELCOME BACK</p>
+          <h2>登录</h2>
+          <p class="welcome">请输入平台账号，继续进入投研工作台</p>
+          <label class="field">账号<input id="account" autocomplete="username" value="demo.user" /></label>
+          <label class="field">密码<input id="password" type="password" autocomplete="current-password" value="prototype" /></label>
+
+          <section class="captcha" id="captcha" aria-labelledby="captcha-heading">
+            <div class="captcha-header">
+              <div class="captcha-title" id="captcha-heading"><span class="shield">✓</span>安全验证</div>
+              <button class="link-button" id="refresh" type="button">↻ 刷新</button>
+            </div>
+            <div class="challenge">
+              <p class="prompt" id="prompt" tabindex="-1">请选择所有包含输电塔的图片</p>
+              <p class="helper" id="selection-count">选择后点击“验证”</p>
+              <div class="tiles" role="group" aria-describedby="prompt selection-count">
+                <!-- 图片为设计评审用的抽象合成场景；生产实现只消费平台返回的无语义 URL。 -->
+              </div>
+              <p class="message" id="message" role="status" aria-live="polite"></p>
+              <div class="captcha-actions">
+                <button class="link-button" id="alternative" type="button">◖ 换一个验证方式</button>
+                <button class="verify-button" id="verify" type="button" disabled>验证</button>
+              </div>
+            </div>
+            <div class="verified" role="status">
+              <span class="verified-icon">✓</span>
+              <div><strong>安全验证已通过</strong><span id="expiry">有效期还剩 02:00</span></div>
+              <button class="link-button" id="reset" type="button">重新验证</button>
+            </div>
+          </section>
+
+          <button class="login-button" id="login" type="submit" disabled>登录</button>
+          <p class="legal">登录即表示您同意平台安全与隐私规范</p>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const tileKinds = ["tower", "solar", "tower", "wind", "dam", "tower", "factory", "field", "tower"];
+      const labels = ["验证图片 1", "验证图片 2", "验证图片 3", "验证图片 4", "验证图片 5", "验证图片 6", "验证图片 7", "验证图片 8", "验证图片 9"];
+      const scenes = {
+        tower: '<svg viewBox="0 0 100 100" aria-hidden="true"><defs><linearGradient id="a" y2="1"><stop stop-color="#a9d7e4"/><stop offset="1" stop-color="#e8d7a5"/></linearGradient></defs><rect width="100" height="100" fill="url(#a)"/><path d="M0 72 Q28 57 53 70 T100 65V100H0Z" fill="#738d72"/><g fill="none" stroke="#344b55" stroke-width="2"><path d="M50 17 35 91M50 17 65 91M39 72h22M42 56h16M45 39h10M28 43h44M22 49l6-6M78 49l-6-6"/><path d="M0 45q25-6 28 0M72 45q14-4 28 0" stroke-width="1"/></g></svg>',
+        solar: '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#b9dce7"/><circle cx="76" cy="22" r="9" fill="#f8d26c"/><path d="M0 63Q30 48 100 60V100H0Z" fill="#779769"/><path d="m16 61 61-4 10 27-68 4Z" fill="#234e68" stroke="#d7eef4"/><g stroke="#83b5c8"><path d="m36 60 5 26M58 59l5 25M18 70l63-3M21 80l64-3"/></g></svg>',
+        wind: '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#b9dfea"/><path d="M0 68q27-14 52-4t48-3v39H0Z" fill="#80a273"/><g stroke="#f7fbfc" stroke-width="3" fill="none"><path d="M52 38v52"/><circle cx="52" cy="36" r="3"/><path d="m52 36-4-27M52 36l25 10M52 36 34 57"/></g></svg>',
+        dam: '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#b7dbe3"/><path d="M0 52h100v48H0Z" fill="#559bb2"/><path d="m20 27 65 8-11 43-48-5Z" fill="#798f98"/><path d="M29 73q20 14 43 5l-2 8q-22 11-42-4Z" fill="#ebf6f7"/></svg>',
+        factory: '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#c6d9dd"/><path d="M0 74h100v26H0Z" fill="#788d76"/><path d="M18 48h64v33H18Z" fill="#607984"/><path d="m18 49 20-13v13l21-13v13" fill="#718a92"/><path d="M68 20h8v28h-8Z" fill="#546974"/><path d="M72 18q15-7 5-16" fill="none" stroke="#e9eeee" stroke-width="5"/></svg>',
+        field: '<svg viewBox="0 0 100 100" aria-hidden="true"><rect width="100" height="100" fill="#b6dbe5"/><path d="M0 57q30-18 55-4t45-5v52H0Z" fill="#91a96c"/><g fill="none" stroke="#d9bc62" stroke-width="3"><path d="M8 96q25-37 43-42M37 100q12-31 42-48M70 100q9-20 30-34"/></g></svg>'
+      };
+
+      const captcha = document.querySelector("#captcha");
+      const tiles = document.querySelector(".tiles");
+      const verify = document.querySelector("#verify");
+      const login = document.querySelector("#login");
+      const message = document.querySelector("#message");
+      const count = document.querySelector("#selection-count");
+      let selected = new Set();
+      let version = 0;
+
+      function renderTiles(offset = 0) {
+        tiles.replaceChildren();
+        tileKinds.forEach((kind, index) => {
+          const button = document.createElement("button");
+          button.className = "tile";
+          button.type = "button";
+          button.setAttribute("aria-label", labels[index]);
+          button.setAttribute("aria-pressed", "false");
+          button.dataset.id = String((index + offset) % tileKinds.length);
+          button.innerHTML = scenes[kind] + '<span class="check" aria-hidden="true">✓</span>';
+          button.addEventListener("click", () => toggle(button));
+          button.addEventListener("keydown", event => moveFocus(event, index));
+          tiles.append(button);
+        });
+      }
+
+      function moveFocus(event, index) {
+        const moves = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -3, ArrowDown: 3 };
+        if (!(event.key in moves)) return;
+        event.preventDefault();
+        const buttons = [...tiles.querySelectorAll(".tile")];
+        const next = (index + moves[event.key] + buttons.length) % buttons.length;
+        buttons[next].focus();
+      }
+
+      function toggle(button) {
+        const id = button.dataset.id;
+        selected.has(id) ? selected.delete(id) : selected.add(id);
+        button.setAttribute("aria-pressed", String(selected.has(id)));
+        message.textContent = "";
+        count.textContent = selected.size ? `已选择 ${selected.size} 张图片` : "选择后点击“验证”";
+        verify.disabled = selected.size === 0;
+      }
+
+      function resetChallenge(announce = "") {
+        version += 1;
+        selected.clear();
+        captcha.classList.remove("is-verified");
+        login.disabled = true;
+        verify.disabled = true;
+        count.textContent = "选择后点击“验证”";
+        message.textContent = announce;
+        renderTiles(version);
+      }
+
+      verify.addEventListener("click", () => {
+        if (!selected.size) { message.textContent = "请至少选择一张图片"; return; }
+        verify.disabled = true;
+        verify.textContent = "验证中…";
+        tiles.querySelectorAll(".tile").forEach(tile => { tile.disabled = true; });
+        document.querySelector("#refresh").disabled = true;
+        document.querySelector("#alternative").disabled = true;
+        window.setTimeout(() => {
+          verify.textContent = "验证";
+          document.querySelector("#refresh").disabled = false;
+          document.querySelector("#alternative").disabled = false;
+          captcha.classList.add("is-verified");
+          login.disabled = false;
+          login.focus();
+        }, 500);
+      });
+      document.querySelector("#refresh").addEventListener("click", () => { resetChallenge("已为你更换一组图片"); document.querySelector("#prompt").focus(); });
+      document.querySelector("#reset").addEventListener("click", () => resetChallenge());
+      document.querySelector("#alternative").addEventListener("click", () => { message.textContent = "原型提示：平台将加载等强度的音频挑战"; });
+      document.querySelector("#account").addEventListener("input", () => { if (captcha.classList.contains("is-verified")) resetChallenge("账号已修改，请重新完成安全验证"); });
+      document.querySelector("#login-form").addEventListener("submit", event => { event.preventDefault(); login.textContent = "登录中…"; login.disabled = true; });
+      renderTiles();
+    </script>
+  </body>
+</html>
