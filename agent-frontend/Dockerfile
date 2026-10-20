@@ -8,9 +8,8 @@ COPY index.html vite.config.js postcss.config.js tailwind.config.js ./
 COPY src/ ./src/
 COPY public/ ./public/
 
-ENV VITE_APP_BASE_API=/gateway/ir-agent/ \
-    VITE_API_TOKEN=
-RUN npx --yes npm@10.5.0 run build
+ENV VITE_APP_BASE_API=/gateway/ir-agent/
+RUN VITE_API_TOKEN= npx --yes npm@10.5.0 run build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
