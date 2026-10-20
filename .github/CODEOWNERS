@@ -1,0 +1,19 @@
+# ZHU-9 pilot: independent review for security-critical delivery paths.
+# The code owner has demonstrated write access by approving PR #12.
+# Authors cannot approve their own pull requests.
+
+/.github/CODEOWNERS @7tyhk7rc84-source
+/.github/workflows/ @7tyhk7rc84-source
+
+/agent-backend/app/modules/platform_access/ @7tyhk7rc84-source
+/agent-backend/migrations/ @7tyhk7rc84-source
+/agent-backend/sql/ @7tyhk7rc84-source
+
+/agent-frontend/src/permission.js @7tyhk7rc84-source
+/agent-frontend/src/store/modules/permission.js @7tyhk7rc84-source
+/agent-frontend/src/store/modules/session.js @7tyhk7rc84-source
+/agent-frontend/src/utils/auth.js @7tyhk7rc84-source
+/agent-frontend/src/utils/request.js @7tyhk7rc84-source
+/agent-frontend/src/api/auth.js @7tyhk7rc84-source
+/agent-frontend/src/api/session.js @7tyhk7rc84-source
+/agent-frontend/src/views/login.vue @7tyhk7rc84-source
