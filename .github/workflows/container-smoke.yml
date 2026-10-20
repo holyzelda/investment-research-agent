@@ -8,6 +8,21 @@ permissions:
   contents: read
 
 jobs:
+  prototype-screenshots:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Capture graphical captcha prototype states
+        run: ./scripts/capture-prototype-screenshots.sh
+      - name: Verify screenshot outputs
+        run: |
+          test -s docs/superpowers/prototypes/screenshots/desktop-selected.png
+          test -s docs/superpowers/prototypes/screenshots/mobile-verified.png
+          file docs/superpowers/prototypes/screenshots/*.png | grep -c 'PNG image data' | grep -q '^2$'
+
   frontend-image:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
