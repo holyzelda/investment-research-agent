@@ -95,6 +95,85 @@ jobs:
           else:
               raise AssertionError('Missing identity was accepted')
           PY
+      - name: Verify CI-only synthetic gateway rejects missing auth and overwrites identity
+        run: |
+          set -euo pipefail
+          CI_PASSWORD="$(openssl rand -hex 24)"
+          printf 'ci:%s\n' "$(printf '%s' "$CI_PASSWORD" | openssl passwd -apr1 -stdin)" > "$RUNNER_TEMP/zhu16-htpasswd"
+          cat > "$RUNNER_TEMP/zhu16-gateway.conf" <<'NGINX'
+          server {
+              listen 8080;
+              server_name _;
+              location = /healthz {
+                  return 200 "ok";
+              }
+              location = /gateway/ir-agent/ir/me {
+                  auth_basic "isolated CI";
+                  auth_basic_user_file /etc/nginx/ci-htpasswd;
+                  proxy_set_header Authorization "";
+                  proxy_set_header userId "zhu16-ci";
+                  proxy_set_header username "Synthetic%20Tester";
+                  proxy_pass http://zhu10-backend:19089/ir/me;
+              }
+              location / {
+                  return 404;
+              }
+          }
+          NGINX
+          docker run -d --name zhu16-gateway --network zhu10-smoke \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            -v "$RUNNER_TEMP/zhu16-gateway.conf:/etc/nginx/conf.d/default.conf:ro" \
+            -v "$RUNNER_TEMP/zhu16-htpasswd:/etc/nginx/ci-htpasswd:ro" \
+            nginxinc/nginx-unprivileged:stable-alpine
+          docker exec -i -e CI_PASSWORD="$CI_PASSWORD" zhu10-backend python - <<'PY'
+          import base64
+          import json
+          import os
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          base = "http://zhu16-gateway:8080"
+          for attempt in range(30):
+              try:
+                  with urlopen(base + "/healthz", timeout=2) as response:
+                      assert response.status == 200
+                  break
+              except (URLError, TimeoutError):
+                  time.sleep(1)
+          else:
+              raise RuntimeError("CI gateway did not become healthy")
+
+          def fetch(path, headers=None):
+              request = Request(base + path, headers=headers or {})
+              try:
+                  with urlopen(request, timeout=3) as response:
+                      return response.status, json.load(response)
+              except HTTPError as error:
+                  return error.code, error.read()
+
+          path = "/gateway/ir-agent/ir/me"
+          assert fetch(path)[0] == 401
+          wrong = base64.b64encode(b"ci:wrong").decode("ascii")
+          assert fetch(path, {"Authorization": "Basic " + wrong})[0] == 401
+
+          password = os.environ["CI_PASSWORD"]
+          credential = base64.b64encode(("ci:" + password).encode()).decode("ascii")
+          headers = {
+              "Authorization": "Basic " + credential,
+              "userId": "forged-user",
+              "username": "Forged%20User",
+          }
+          status, payload = fetch(path, headers)
+          assert status == 200, (status, payload)
+          assert payload["data"] == {
+              "userId": "zhu16-ci",
+              "username": "Synthetic Tester",
+          }, payload
+          assert fetch("/gateway/ir-agent/ir/chat/diag", headers)[0] == 404
+          PY
       - name: Show container logs on failure
         if: failure()
-        run: docker logs zhu10-backend || true
+        run: |
+          docker logs zhu10-backend || true
+          docker logs zhu16-gateway || true
