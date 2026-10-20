@@ -1,0 +1,105 @@
+name: Container smoke (isolated)
+
+on:
+  pull_request:
+    paths:
+      - agent-backend/Dockerfile
+      - agent-backend/.dockerignore
+      - agent-backend/container-entrypoint.sh
+      - agent-frontend/Dockerfile
+      - agent-frontend/.dockerignore
+      - agent-frontend/nginx.conf
+      - .github/workflows/container-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build static frontend image
+        run: docker build --pull -t zhu10-frontend:ci agent-frontend
+      - name: Verify SPA and reject unconfigured gateway routes
+        run: |
+          docker run -d --name zhu10-frontend -p 127.0.0.1:18080:8080 zhu10-frontend:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz >/dev/null; then break; fi
+            if [ "$attempt" -eq 30 ]; then docker logs zhu10-frontend; exit 1; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/investment/ | grep -q '<div id="app"></div>'
+          curl --fail --silent http://127.0.0.1:18080/investment/offline-route | grep -q '<div id="app"></div>'
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18080/gateway/ir-agent/health)" = 503
+
+  backend-image:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Build backend image without local configuration files
+        run: docker build --pull -t zhu10-backend:ci agent-backend
+      - name: Start disposable internal MySQL and initialize synthetic schema
+        run: |
+          docker network create --internal zhu10-smoke
+          docker run -d --name zhu10-mysql --network zhu10-smoke \
+            --health-cmd='mysqladmin ping -h localhost -uroot -ptest-root-ci-1234' \
+            --health-interval=5s --health-timeout=3s --health-retries=20 \
+            -e MYSQL_DATABASE=ir_agent_ci \
+            -e MYSQL_USER=ci_runner \
+            -e MYSQL_PASSWORD=test-ci-only-1234 \
+            -e MYSQL_ROOT_PASSWORD=test-root-ci-1234 \
+            mysql:8.0
+          for attempt in $(seq 1 60); do
+            status="$(docker inspect --format '{{.State.Health.Status}}' zhu10-mysql)"
+            if [ "$status" = healthy ]; then break; fi
+            if [ "$attempt" -eq 60 ]; then docker logs zhu10-mysql; exit 1; fi
+            sleep 2
+          done
+          docker exec -i zhu10-mysql mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/ir_agent_schema.sql
+          docker exec -i zhu10-mysql mysql -uroot -ptest-root-ci-1234 ir_agent_ci < agent-backend/sql/spot_precompute_schema.sql
+      - name: Verify backend health and missing-identity denial without network egress
+        run: |
+          docker run -d --name zhu10-backend --network zhu10-smoke \
+            --cap-drop=ALL --security-opt=no-new-privileges \
+            -e IR_DB_URL=mysql+aiomysql://ci_runner:test-ci-only-1234@zhu10-mysql:3306/ir_agent_ci \
+            -e NACOS_ENABLED=false -e IR_FEISHU_ENABLED=false \
+            -e IR_SPOT_ENABLED=false -e IR_SPOT_DAILY_UPDATE_ENABLED=false \
+            zhu10-backend:ci
+          docker exec -i zhu10-backend python - <<'PY'
+          import json
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.request import Request, urlopen
+
+          for attempt in range(60):
+              try:
+                  with urlopen('http://127.0.0.1:9089/health', timeout=2) as response:
+                      payload = json.load(response)
+                      assert response.status == 200 and payload['data']['status'] == 'up'
+                  break
+              except (URLError, TimeoutError):
+                  time.sleep(2)
+          else:
+              raise RuntimeError('Backend did not become healthy')
+
+          request = Request('http://127.0.0.1:9089/ir/chat/diag', data=b'{}',
+                            headers={'Content-Type': 'application/json'}, method='POST')
+          try:
+              urlopen(request, timeout=3)
+          except HTTPError as error:
+              payload = json.load(error)
+              assert error.code == 401 and payload['code'] == 401
+          else:
+              raise AssertionError('Missing identity was accepted')
+          PY
+      - name: Show container logs on failure
+        if: failure()
+        run: docker logs zhu10-backend || true
