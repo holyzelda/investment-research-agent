@@ -8,6 +8,9 @@
 /agent-backend/app/modules/platform_access/ @7tyhk7rc84-source
 /agent-backend/migrations/ @7tyhk7rc84-source
 /agent-backend/sql/ @7tyhk7rc84-source
+/agent-backend/Dockerfile @7tyhk7rc84-source
+/agent-backend/.dockerignore @7tyhk7rc84-source
+/agent-backend/container-entrypoint.sh @7tyhk7rc84-source
 
 /agent-frontend/src/permission.js @7tyhk7rc84-source
 /agent-frontend/src/store/modules/permission.js @7tyhk7rc84-source
@@ -17,3 +20,8 @@
 /agent-frontend/src/api/auth.js @7tyhk7rc84-source
 /agent-frontend/src/api/session.js @7tyhk7rc84-source
 /agent-frontend/src/views/login.vue @7tyhk7rc84-source
+/agent-frontend/Dockerfile @7tyhk7rc84-source
+/agent-frontend/.dockerignore @7tyhk7rc84-source
+/agent-frontend/nginx.conf @7tyhk7rc84-source
+
+/docs/cloud-runs/container-prep.md @7tyhk7rc84-source

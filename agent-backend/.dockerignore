@@ -1,0 +1,11 @@
+*
+!Dockerfile
+!.dockerignore
+!requirements.txt
+!container-entrypoint.sh
+!app/
+!app/**
+!tools/
+!tools/policy_ask.py
+!tools/policy_refs.py
+!tools/source_cache.py
