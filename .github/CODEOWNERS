@@ -1,6 +1,7 @@
 # ZHU-9 pilot: independent review for security-critical delivery paths.
 # The code owner has demonstrated write access by approving PR #12.
 # Authors cannot approve their own pull requests.
+# Gate probe: this comment is for rule verification and must not be merged.
 
 /.github/CODEOWNERS @7tyhk7rc84-source
 /.github/workflows/ @7tyhk7rc84-source
