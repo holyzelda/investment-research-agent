@@ -100,10 +100,6 @@
         </div>
 
         <div class="form-tools">
-          <label>
-            <input v-model="rememberMe" type="checkbox" />
-            <span>记住我</span>
-          </label>
           <a href="javascript:void(0)">忘记密码?</a>
         </div>
 
@@ -207,7 +203,6 @@ const session = useSessionStore()
 const permission = usePermissionStore()
 const loading = ref(false)
 const showPassword = ref(false)
-const rememberMe = ref(true)
 const codeUrl = ref('')
 const captchaEnabled = ref(true)
 const captchaError = ref(false)
@@ -710,22 +705,7 @@ onBeforeUnmount(() => {
 .form-tools {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-}
-
-.form-tools label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.form-tools input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--blue);
+  justify-content: flex-end;
 }
 
 .form-tools a {
