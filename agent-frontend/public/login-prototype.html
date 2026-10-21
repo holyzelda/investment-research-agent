@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>eTrader 2.0 · 登录页视觉原型</title>
+  <style>
+    :root{--gold:#d8b878;--cyan:#67e5dc;--text:#eff7f5;--muted:#91a6a7;--line:rgba(216,184,120,.18);font-family:Inter,"PingFang SC","Microsoft YaHei",sans-serif;color-scheme:dark}
+    *{box-sizing:border-box}html,body{margin:0;min-height:100%;background:#050b0e;color:var(--text)}button,input{font:inherit}
+    body{min-height:100vh;overflow:hidden;background:radial-gradient(circle at 20% 48%,#123b3b 0,transparent 31%),radial-gradient(circle at 84% 18%,#173139 0,transparent 28%),linear-gradient(125deg,#05090d,#09171a 52%,#071116)}
+    body:before{content:"";position:fixed;inset:0;opacity:.2;background-image:linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.025) 1px,transparent 1px);background-size:72px 72px;mask-image:linear-gradient(#000,transparent 90%);pointer-events:none}
+    .orb{position:fixed;border:1px solid rgba(103,229,220,.14);border-radius:50%;box-shadow:inset 0 0 100px rgba(103,229,220,.05),0 0 100px rgba(103,229,220,.04);animation:breathe 7s ease-in-out infinite;pointer-events:none}.orb.a{width:42vw;height:42vw;left:-18vw;top:21%}.orb.b{width:28vw;height:28vw;right:-10vw;bottom:-14vw;animation-delay:-3s}
+    .grid{position:fixed;left:-8%;bottom:-30%;width:76%;height:62%;opacity:.2;background-image:linear-gradient(90deg,rgba(103,229,220,.35) 1px,transparent 1px),linear-gradient(rgba(103,229,220,.28) 1px,transparent 1px);background-size:76px 58px;transform:perspective(520px) rotateX(64deg);transform-origin:bottom;mask-image:linear-gradient(to top,#000,transparent 82%);pointer-events:none}
+    .beam{position:fixed;top:-30%;left:40%;width:1px;height:150%;background:linear-gradient(transparent,rgba(216,184,120,.45),transparent);box-shadow:0 0 55px 14px rgba(216,184,120,.06);transform:rotate(24deg);animation:sweep 10s ease-in-out infinite;pointer-events:none}
+    .shell{position:relative;z-index:2;width:min(1760px,92vw);margin:auto}.topbar{height:94px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
+    .brand{display:flex;align-items:center;gap:13px}.mark{position:relative;width:47px;height:47px;border:1px solid var(--line);border-radius:13px;background:rgba(255,255,255,.03);display:grid;place-items:center}.mark svg{width:29px;filter:drop-shadow(0 0 10px rgba(103,229,220,.45))}.brand strong{display:block;font-size:19px;letter-spacing:.4px}.brand strong i{color:var(--gold);font-size:9px;font-style:normal}.brand small{display:block;margin-top:4px;color:#768b8c;font-size:10px;letter-spacing:2px}
+    nav{display:flex;align-items:center;gap:28px;color:#91a4a5;font-size:12px}nav a{color:inherit;text-decoration:none;transition:.2s}nav a:hover{color:var(--gold)}nav span{width:1px;height:19px;background:rgba(255,255,255,.12)}nav button{padding:9px 13px;border:1px solid var(--line);border-radius:3px;color:inherit;background:rgba(255,255,255,.02);cursor:pointer}
+    main{min-height:calc(100vh - 150px);display:grid;grid-template-columns:minmax(510px,1.15fr) minmax(420px,530px);align-items:center;gap:clamp(60px,9vw,170px);padding:30px 5vw 65px}.hero{animation:rise .8s ease-out both}.eyebrow{display:flex;align-items:center;gap:13px;color:var(--gold);font-size:10px;letter-spacing:4px}.eyebrow:before{content:"";width:38px;height:1px;background:var(--gold);box-shadow:0 0 10px var(--gold)}
+    h1{margin:25px 0 21px;font-family:"Songti SC","Noto Serif SC",serif;font-size:clamp(48px,5.1vw,78px);font-weight:500;line-height:1.2;letter-spacing:5px}h1 em{color:transparent;font-style:normal;background:linear-gradient(100deg,#fff,#e0c58f 58%,#b28c4e);background-clip:text;-webkit-background-clip:text}.lead{margin:0;color:#94a8a9;font-size:15px;line-height:2;letter-spacing:2px}
+    .features{display:grid;grid-template-columns:repeat(3,1fr);max-width:780px;margin-top:52px;border-top:1px solid var(--line);background:linear-gradient(90deg,rgba(21,48,49,.5),transparent)}.feature{position:relative;display:grid;grid-template-columns:40px 1fr;gap:12px;padding:24px 22px 22px 0}.feature+.feature{padding-left:22px;border-left:1px solid rgba(255,255,255,.07)}.feature .icon{width:40px;height:40px;display:grid;place-items:center;border:1px solid rgba(103,229,220,.24);border-radius:11px;color:var(--cyan);background:rgba(103,229,220,.06)}.feature svg{width:20px}.feature strong{font-size:13px}.feature p{margin:6px 0 0;color:#708586;font-size:10px;line-height:1.5}.feature b{position:absolute;right:12px;top:7px;color:rgba(216,184,120,.15);font:29px Georgia;font-weight:400}
+    .status{display:flex;align-items:center;gap:8px;margin-top:18px;color:#718687;font-size:9px;letter-spacing:1.5px}.status i{width:6px;height:6px;border-radius:50%;background:#67d7a0;box-shadow:0 0 9px #67d7a0;animation:pulse 1.8s infinite}.status span{margin-left:14px;color:#506364;letter-spacing:2px}
+    .right{position:relative;animation:rise .8s .12s ease-out both}.right:before{content:"";position:absolute;inset:10% -10%;background:rgba(103,229,220,.07);filter:blur(80px)}.card{position:relative;padding:42px;border:1px solid var(--line);border-radius:4px;background:linear-gradient(145deg,rgba(15,37,40,.88),rgba(5,18,23,.93));box-shadow:0 30px 90px rgba(0,0,0,.4);backdrop-filter:blur(24px);overflow:hidden}.card:before{content:"";position:absolute;left:0;top:0;width:78px;height:2px;background:var(--gold);box-shadow:0 0 18px var(--gold)}.card:after{content:"";position:absolute;right:0;bottom:0;width:50px;height:50px;border-right:1px solid rgba(216,184,120,.5);border-bottom:1px solid rgba(216,184,120,.5)}
+    .head{display:flex;justify-content:space-between;align-items:start;margin-bottom:29px}.kicker{color:var(--gold);font-size:9px;letter-spacing:3px}.head h2{margin:9px 0 6px;font-size:23px;font-weight:500;letter-spacing:1px}.head p{margin:0;color:#718687;font-size:11px}.safe{padding:6px 8px;border:1px solid rgba(103,215,160,.16);color:#68ca9b;background:rgba(103,215,160,.05);font-size:8px;white-space:nowrap}
+    label{display:block;margin:17px 0 8px;color:#a6b4b5;font-size:11px}.field{position:relative}.field svg{position:absolute;left:15px;top:17px;width:16px;color:#63787a}.field input{width:100%;height:50px;padding:0 44px;border:1px solid rgba(255,255,255,.1);border-radius:2px;outline:0;color:#edf5f3;background:rgba(2,10,13,.38);font-size:12px;transition:.25s}.field input:focus{border-color:rgba(216,184,120,.55);box-shadow:0 0 0 3px rgba(216,184,120,.06)}.field input::placeholder{color:#4d6163}.password-label{display:flex;justify-content:space-between;align-items:end}.password-label a{color:#a38b5d;font-size:10px;text-decoration:none}
+    .verify{display:grid;grid-template-columns:1fr 112px;gap:9px}.code{height:50px;border:1px solid rgba(255,255,255,.1);border-radius:2px;background:repeating-linear-gradient(155deg,rgba(103,229,220,.08) 0 8px,transparent 8px 15px),#dbe6df;color:#173a3a;display:flex;align-items:center;justify-content:center;gap:4px;font:italic 21px Georgia;letter-spacing:4px;cursor:pointer}.code small{display:none}
+    .submit{width:100%;height:54px;margin-top:27px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;border:1px solid #d9bc82;border-radius:2px;color:#101713;background:linear-gradient(105deg,#c4a15e,#ebd197 52%,#bd9650);box-shadow:0 12px 35px rgba(192,153,83,.2);font-size:13px;font-weight:600;letter-spacing:1px;cursor:pointer;transition:.25s}.submit:hover{transform:translateY(-2px);box-shadow:0 16px 42px rgba(192,153,83,.35)}.submit svg{width:17px}
+    .trust{display:flex;align-items:center;gap:11px;margin:23px 0 16px;color:#617577;font-size:8px}.trust:before,.trust:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,transparent,rgba(255,255,255,.1))}.trust:after{transform:scaleX(-1)}.security{display:flex;justify-content:center;gap:21px;color:#687c7d;font-size:8px}.security span:before{content:"✓";margin-right:5px;color:#9b8354}
+    .quick{position:relative;margin-top:11px;padding:13px 15px;display:flex;align-items:center;border:1px solid rgba(255,255,255,.08);background:rgba(9,27,31,.67);font-size:9px}.quick>span{padding-right:15px;color:#6e8384;border-right:1px solid rgba(255,255,255,.08)}.quick a{flex:1;text-align:center;color:#839697;text-decoration:none;transition:.2s}.quick a:hover{color:var(--gold)}
+    footer{position:fixed;z-index:3;left:4vw;right:4vw;bottom:18px;display:flex;justify-content:space-between;color:#506365;font-size:9px}footer .values{display:flex;gap:13px;letter-spacing:3px}.values i{width:2px;height:2px;margin-top:4px;border-radius:50%;background:var(--gold)}
+    .prototype{position:fixed;right:18px;top:112px;z-index:4;padding:7px 10px;border:1px solid rgba(216,184,120,.22);color:#9d8659;background:rgba(5,12,15,.65);font-size:8px;letter-spacing:2px;writing-mode:vertical-rl}
+    @keyframes rise{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:none}}@keyframes breathe{50%{transform:scale(1.08);opacity:.62}}@keyframes sweep{50%{transform:translateX(18vw) rotate(24deg)}}@keyframes pulse{50%{opacity:.3}}
+    @media(max-width:1000px){body{overflow:auto}main{grid-template-columns:1fr;max-width:650px}.hero{text-align:center}.eyebrow,.status{justify-content:center}.right{margin-bottom:80px}footer{position:absolute}.prototype{display:none}}
+    @media(max-width:620px){.shell{width:calc(100% - 28px)}.topbar{height:75px}.brand small,nav a,nav span{display:none}main{padding:35px 0 100px}.hero h1{font-size:39px}.features{display:none}.status{margin:28px 0}.card{padding:28px 22px}.safe{display:none}.quick{display:none}footer{display:block;position:relative;left:auto;right:auto;padding:0 18px 20px;text-align:center}.values{justify-content:center;margin-bottom:8px}}
+    @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <div class="orb a"></div><div class="orb b"></div><div class="grid"></div><div class="beam"></div><div class="prototype">INTERACTIVE PROTOTYPE · ZHU-20</div>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 32 32" fill="none"><path d="M16 3 28 10v12L16 29 4 22V10L16 3Z" stroke="#67e5dc"/><path d="m10 19 5-9 2 7 5-4" stroke="#d8b878" stroke-width="2"/></svg></div><div><strong>eTrader <i>2.0</i></strong><small>玄策电力交易智慧决策平台</small></div></div>
+      <nav><a href="#">市场公告</a><a href="#">安全保障</a><a href="#">帮助中心</a><span></span><button>简体中文⌄</button></nav>
+    </header>
+    <main>
+      <section class="hero">
+        <div class="eyebrow">AI POWER TRADING INTELLIGENCE</div>
+        <h1>洞见能源未来<br><em>智启交易新境</em></h1>
+        <p class="lead">以数据洞察市场，以智能驱动决策。<br>让每一次交易，都更具远见。</p>
+        <div class="features">
+          <article class="feature"><b>01</b><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="3"/><path d="M12 2v4m0 12v4M2 12h4m12 0h4M5 5l3 3m8 8 3 3m0-14-3 3M8 16l-3 3"/></svg></div><div><strong>AI 智能决策引擎</strong><p>多源数据融合与策略优化</p></div></article>
+          <article class="feature"><b>02</b><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 18V9m5 9V5m5 13v-7m5 7V3"/></svg></div><div><strong>全域市场洞察</strong><p>捕捉市场变化与交易先机</p></div></article>
+          <article class="feature"><b>03</b><div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3 20 6v6c0 5-4 8-8 9-4-1-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg></div><div><strong>全流程交易辅助</strong><p>专业风控护航每次决策</p></div></article>
+        </div>
+        <div class="status"><i></i>智能策略引擎在线 <span>POWERED BY XUANCE AI</span></div>
+      </section>
+      <section class="right">
+        <div class="card">
+          <div class="head"><div><div class="kicker">WELCOME BACK</div><h2>登录智慧交易平台</h2><p>欢迎回来，请验证您的账户信息</p></div><div class="safe">♢ 安全连接</div></div>
+          <form onsubmit="event.preventDefault();demoLogin()">
+            <label for="user">账号</label><div class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><input id="user" placeholder="请输入账号" autocomplete="username"></div>
+            <div class="password-label"><label for="password">密码</label><a href="#">忘记密码？</a></div><div class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg><input id="password" type="password" placeholder="请输入密码" autocomplete="current-password"></div>
+            <label for="verify">安全验证</label><div class="verify"><div class="field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8V4h4m8 0h4v4M4 16v4h4m8 0h4v-4"/></svg><input id="verify" placeholder="请输入验证码"></div><button class="code" type="button" onclick="refreshCode(this)">7 K 2 M<small>刷新</small></button></div>
+            <button id="submit" class="submit" type="submit"><span>进入智慧交易平台</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
+          </form>
+          <div class="trust">◇ 国密级数据传输保护</div><div class="security"><span>统一身份认证</span><span>安全会话</span><span>动态权限管控</span></div>
+        </div>
+        <div class="quick"><span>快速入口</span><a href="#">新手引导</a><a href="#">产品文档</a><a href="#">常见问题</a><a href="#">联系我们</a></div>
+      </section>
+    </main>
+  </div>
+  <footer><div class="values"><span>专注</span><i></i><span>精进</span><i></i><span>开放</span><i></i><span>贡献</span></div><div>西安玄策电力交易辅助中心 版权所有 © 2026 · 陕ICP备20010223号-3</div></footer>
+  <script>
+    function refreshCode(el){const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';el.textContent=Array.from({length:4},()=>chars[Math.floor(Math.random()*chars.length)]).join(' ')}
+    function demoLogin(){const button=document.querySelector('#submit');button.querySelector('span').textContent='正在安全登录…';button.disabled=true;setTimeout(()=>{button.querySelector('span').textContent='原型演示 · 登录成功';button.style.filter='hue-rotate(35deg)';setTimeout(()=>{button.querySelector('span').textContent='进入智慧交易平台';button.disabled=false;button.style.filter=''},1600)},900)}
+  </script>
+</body>
+</html>

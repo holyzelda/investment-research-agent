@@ -1,5 +1,9 @@
 <template>
   <div class="login-stage" :style="{ '--login-bg-image': `url(${loginBackgroundUrl})` }">
+    <div class="ambient-orb ambient-orb--one" aria-hidden="true"></div>
+    <div class="ambient-orb ambient-orb--two" aria-hidden="true"></div>
+    <div class="horizon-grid" aria-hidden="true"></div>
+    <div class="scan-beam" aria-hidden="true"></div>
     <main
       class="login-page"
       :style="{ transform: `translate(-50%, -50%) scale(${pageScale})` }"
@@ -36,11 +40,13 @@
     </nav>
 
     <section class="hero" aria-label="平台介绍">
+      <div class="hero-eyebrow"><i></i>AI POWER TRADING INTELLIGENCE</div>
       <h1 class="hero-title">
         <span>玄策电力交易智慧决策</span>
         <span>平台</span>
       </h1>
       <p class="hero-sub">让稳定的<em>清洁电力</em>惠及每一个人</p>
+      <div class="engine-status"><i></i> 智能策略引擎在线 <span>POWERED BY XUANCE AI</span></div>
     </section>
 
     <section class="capability-card glass-card" aria-label="平台核心能力">
@@ -57,6 +63,7 @@
     </section>
 
     <section class="login-card glass-card" aria-label="用户登录">
+      <div class="card-kicker">WELCOME BACK</div>
       <header>
         <UserRoundIcon aria-hidden="true" />
         <h2>用户登录</h2>
@@ -118,6 +125,7 @@
           {{ auth.label }}
         </span>
       </div>
+      <p class="encrypted-note"><ShieldCheckIcon aria-hidden="true" /> 国密级数据传输保护</p>
     </section>
 
     <section class="quick-card glass-card" aria-label="快速入口">
@@ -919,6 +927,62 @@ onBeforeUnmount(() => {
   color: rgba(206, 224, 250, 0.68);
   text-decoration: none;
 }
+
+/* ZHU-20 premium prototype: restrained gold, energy cyan and spatial motion. */
+.login-stage::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: radial-gradient(circle at 20% 44%, rgba(28, 105, 101, 0.28), transparent 32%),
+    linear-gradient(108deg, rgba(2, 8, 14, 0.18), rgba(2, 9, 13, 0.58));
+  content: "";
+  pointer-events: none;
+}
+
+.login-canvas { z-index: 3; }
+.ambient-orb, .horizon-grid, .scan-beam { position: absolute; z-index: 2; pointer-events: none; }
+.ambient-orb { border: 1px solid rgba(96, 229, 218, 0.15); border-radius: 50%; box-shadow: inset 0 0 100px rgba(96, 229, 218, 0.06), 0 0 100px rgba(96, 229, 218, 0.05); animation: orb-breathe 7s ease-in-out infinite; }
+.ambient-orb--one { top: 23%; left: -13%; width: 42vw; height: 42vw; }
+.ambient-orb--two { right: -8%; bottom: -18%; width: 30vw; height: 30vw; animation-delay: -3s; }
+.horizon-grid { left: -10%; bottom: -26%; width: 78%; height: 60%; opacity: 0.18; background-image: linear-gradient(90deg, rgba(96, 229, 218, 0.35) 1px, transparent 1px), linear-gradient(rgba(96, 229, 218, 0.28) 1px, transparent 1px); background-size: 76px 58px; transform: perspective(520px) rotateX(64deg); transform-origin: bottom; mask-image: linear-gradient(to top, #000, transparent 82%); }
+.scan-beam { top: -30%; left: 42%; width: 1px; height: 150%; background: linear-gradient(transparent, rgba(222, 188, 119, 0.48), transparent); box-shadow: 0 0 55px 14px rgba(222, 188, 119, 0.06); transform: rotate(24deg); animation: beam-sweep 10s ease-in-out infinite; }
+
+.login-page { --cyan: #62e0d7; --blue: #b99555; --blue-light: #d9b875; --panel-bg: linear-gradient(145deg, rgba(13, 35, 39, 0.86), rgba(5, 18, 24, 0.9)); --line: rgba(219, 190, 130, 0.17); }
+.brand-logo img { filter: drop-shadow(0 0 17px rgba(98, 224, 215, 0.42)); }
+.brand-text span { color: rgba(184, 202, 203, 0.74); letter-spacing: 2px; }
+.top-nav a, .lang-btn { color: rgba(192, 207, 208, 0.78); }
+.lang-btn { border-color: rgba(217, 184, 117, 0.2); border-radius: 4px; }
+.hero { animation: prototype-rise 0.9s ease-out both; }
+.hero-eyebrow { display: flex; align-items: center; gap: 13px; margin-bottom: 19px; color: #d9b875; font-size: 11px; letter-spacing: 4px; }
+.hero-eyebrow i { width: 40px; height: 1px; background: #d9b875; box-shadow: 0 0 12px #d9b875; }
+.hero-title { font-family: "Songti SC", "Noto Serif SC", serif; font-weight: 500; letter-spacing: 5px; }
+.hero-title span:last-child { color: transparent; background: linear-gradient(100deg, #fff 4%, #e0c58f 55%, #b28c4e); background-clip: text; -webkit-background-clip: text; }
+.hero-sub { color: rgba(188, 207, 207, 0.79); letter-spacing: 2px; }
+.hero-sub em { color: #d9b875; text-shadow: 0 0 22px rgba(217, 184, 117, 0.32); }
+.engine-status { display: flex; align-items: center; gap: 8px; margin-top: 22px; color: #8aa09f; font-size: 11px; letter-spacing: 1px; }
+.engine-status i { width: 7px; height: 7px; border-radius: 50%; background: #65d59e; box-shadow: 0 0 11px #65d59e; animation: status-pulse 1.8s infinite; }
+.engine-status span { margin-left: 13px; color: #596d6e; letter-spacing: 2px; }
+.glass-card { border-color: rgba(217, 184, 117, 0.16); backdrop-filter: blur(20px); }
+.capability-card { background: linear-gradient(120deg, rgba(18, 48, 49, 0.72), rgba(7, 22, 28, 0.6)); }
+.capability-icon { color: #62e0d7; background: linear-gradient(160deg, rgba(98, 224, 215, 0.16), rgba(217, 184, 117, 0.08)); border-color: rgba(98, 224, 215, 0.3); }
+.login-card { overflow: hidden; border-radius: 5px; animation: prototype-rise 0.9s 0.15s ease-out both; }
+.login-card::before { position: absolute; top: 0; left: 0; width: 90px; height: 2px; background: #d9b875; box-shadow: 0 0 18px #d9b875; content: ""; }
+.login-card::after { position: absolute; right: 0; bottom: 0; width: 55px; height: 55px; border-right: 1px solid rgba(217, 184, 117, 0.52); border-bottom: 1px solid rgba(217, 184, 117, 0.52); content: ""; }
+.card-kicker { margin-bottom: 9px; color: #d9b875; font-size: 10px; letter-spacing: 3px; }
+.login-card header h2 { font-weight: 500; letter-spacing: 1px; }
+.login-form input { border-color: rgba(255, 255, 255, 0.1); border-radius: 3px; background: rgba(2, 11, 15, 0.47); }
+.login-form input:focus { border-color: rgba(217, 184, 117, 0.58); box-shadow: 0 0 0 3px rgba(217, 184, 117, 0.07); }
+.login-submit { border-radius: 3px; color: #111914; background: linear-gradient(105deg, #c3a05d, #ead095 52%, #bd9650); box-shadow: 0 12px 38px rgba(192, 153, 83, 0.2); letter-spacing: 2px; transition: transform 0.25s ease, box-shadow 0.25s ease; }
+.login-submit:hover { transform: translateY(-2px); box-shadow: 0 16px 42px rgba(192, 153, 83, 0.34); }
+.encrypted-note { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 20px 0 0; color: rgba(133, 156, 157, 0.62); font-size: 10px; }
+.encrypted-note svg { width: 12px; height: 12px; color: #a68a56; }
+.quick-card { border-radius: 4px; background: rgba(8, 27, 31, 0.72); animation: prototype-rise 0.9s 0.25s ease-out both; }
+.quick-entry:hover { border-color: rgba(217, 184, 117, 0.46); color: #d9b875; background: rgba(217, 184, 117, 0.06); }
+
+@keyframes prototype-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes orb-breathe { 50% { opacity: 0.62; transform: scale(1.07); } }
+@keyframes beam-sweep { 50% { transform: translateX(18vw) rotate(24deg); } }
+@keyframes status-pulse { 50% { opacity: 0.35; } }
 
 @media (prefers-reduced-motion: reduce) {
   *,
