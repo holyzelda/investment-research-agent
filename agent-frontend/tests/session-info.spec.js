@@ -7,7 +7,7 @@ const removeUserIdentity = vi.fn()
 const removeToken = vi.fn()
 
 vi.mock('@/api/session', () => ({ getUserInfo }))
-vi.mock('@/api/auth', () => ({ login: vi.fn() }))
+vi.mock('@/api/auth', () => ({ login: vi.fn(), loginBySms: vi.fn() }))
 vi.mock('@/utils/auth', () => ({
   getToken: () => 'platform-token',
   setToken: vi.fn(),

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { login as loginRequest, logout as logoutRequest } from '@/api/auth'
+import { login as loginRequest, loginBySms as loginBySmsRequest, logout as logoutRequest } from '@/api/auth'
 import { getUserInfo } from '@/api/session'
 import { getToken, removeToken, removeUserIdentity, setToken, setUserIdentity } from '@/utils/auth'
 
@@ -33,8 +33,7 @@ export const useSessionStore = defineStore('session', {
     loaded: false,
   }),
   actions: {
-    async login(form) {
-      const res = await loginRequest(form)
+    establishSession(res) {
       const data = res?.data || {}
       const token = data.access_token || data.token
       if (!token) throw new Error('登录成功但未返回 Token')
@@ -46,6 +45,14 @@ export const useSessionStore = defineStore('session', {
       this.nickname = ''
       this.loaded = false
       return data
+    },
+    async login(form) {
+      const res = await loginRequest(form)
+      return this.establishSession(res)
+    },
+    async loginBySms(form) {
+      const res = await loginBySmsRequest(form)
+      return this.establishSession(res)
     },
     async loadUserInfo({ force = false } = {}) {
       if (this.loaded && !force) return Boolean(this.username)

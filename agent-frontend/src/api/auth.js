@@ -24,6 +24,31 @@ export function getCodeImg() {
   })
 }
 
+// ecenter 手机验证码登录接口。国家区号固定为中国大陆，避免客户端传入任意地区。
+export function sendSmsCode(mobile) {
+  return request({
+    url: '/gateway/ecenter/system/auth/sms/send',
+    method: 'post',
+    headers: { isToken: false },
+    data: { mobile: String(mobile || '').trim(), countryCode: '86', scene: 'login' },
+  })
+}
+
+export function loginBySms(data) {
+  const { mobile = '', code = '', requestId } = data || {}
+  return request({
+    url: '/gateway/ecenter/system/auth/sms/login',
+    method: 'post',
+    headers: { isToken: false },
+    data: {
+      mobile: mobile.trim(),
+      code: code.trim(),
+      requestId,
+      countryCode: '86',
+    },
+  })
+}
+
 export function logout() {
   return request({
     url: '/gateway/ecenter/system/auth/logout',
