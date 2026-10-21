@@ -94,12 +94,13 @@ service.interceptors.response.use(
     if (code === 200) {
       return body
     }
+    const error = Object.assign(new Error(msg), { code, data: body.data, response: res })
     if (code === 401) {
       handleUnauthorized(res.config, msg)
-      return Promise.reject(new Error(msg || '未授权'))
+      return Promise.reject(error)
     }
-    ElMessage.error(msg)
-    return Promise.reject(new Error(msg))
+    if (!res.config?.__silentError) ElMessage.error(msg)
+    return Promise.reject(error)
   },
   (error) => {
     const cancelled = error?.code === 'ERR_CANCELED'
@@ -118,7 +119,11 @@ service.interceptors.response.use(
     else if (message?.includes('Request failed with status code')) {
       message = `系统接口异常 ${message.slice(-3)}`
     }
-    if (error.response?.status !== 401) ElMessage.error(message)
+    if (error.response?.data?.code !== undefined) {
+      error.code = error.response.data.code
+      error.data = error.response.data.data
+    }
+    if (error.response?.status !== 401 && !error.config?.__silentError) ElMessage.error(message)
     return Promise.reject(error)
   },
 )

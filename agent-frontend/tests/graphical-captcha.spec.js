@@ -1,5 +1,5 @@
-import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import GraphicalCaptcha from '@/components/GraphicalCaptcha.vue'
 
 const { createCaptchaChallenge, verifyCaptchaChallenge } = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const { createCaptchaChallenge, verifyCaptchaChallenge } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/auth', () => ({ createCaptchaChallenge, verifyCaptchaChallenge }))
+enableAutoUnmount(afterEach)
 
 const challenge = {
   captchaEnabled: true,
@@ -65,7 +66,7 @@ describe('GraphicalCaptcha', () => {
     const wrapper = mount(GraphicalCaptcha)
     await flushPromises()
     expect(wrapper.text()).toContain('验证内容加载失败，请重试')
-    expect(wrapper.emitted('enabled-change')).toBeUndefined()
+    expect(wrapper.emitted('enabled-change').every(([enabled]) => enabled === true)).toBe(true)
   })
 
   it('supports the migration-period character challenge', async () => {

@@ -18,6 +18,7 @@ export function login(data) {
 
 export function createCaptchaChallenge({ scene = 'password_login', preferredMode = 'image_selection' } = {}) {
   return request({
+    __silentError: true,
     url: '/gateway/ecenter/system/auth/captcha/challenges',
     method: 'post',
     headers: { isToken: false },
@@ -27,6 +28,7 @@ export function createCaptchaChallenge({ scene = 'password_login', preferredMode
 
 export function verifyCaptchaChallenge(challengeId, tileIds) {
   return request({
+    __silentError: true,
     url: `/gateway/ecenter/system/auth/captcha/challenges/${encodeURIComponent(challengeId)}/verify`,
     method: 'post',
     headers: { isToken: false },
