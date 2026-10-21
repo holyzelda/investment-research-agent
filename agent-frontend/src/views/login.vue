@@ -1,9 +1,6 @@
 <template>
   <div class="login-stage" :style="{ '--login-bg-image': `url(${loginBackgroundUrl})` }">
-    <main
-      class="login-page"
-      :style="{ transform: `translate(-50%, -50%) scale(${pageScale})` }"
-    >
+    <main class="login-page">
     <div class="login-canvas">
 
     <header class="brand-bar">
@@ -79,31 +76,18 @@
             <component :is="showPassword ? EyeIcon : EyeOffIcon" aria-hidden="true" />
           </button>
         </label>
-        <div v-if="captchaEnabled" class="captcha-row">
-          <label class="captcha-field">
-            <ShieldCheckIcon aria-hidden="true" />
-            <input v-model="form.code" type="text" autocomplete="off" maxlength="6" placeholder="请输入验证码" />
-          </label>
-          <button
-            class="captcha-image"
-            :class="{ 'is-error': captchaError }"
-            type="button"
-            aria-label="刷新验证码"
-            @click="getCode"
-          >
-            <img v-if="codeUrl && !captchaError" :src="codeUrl" alt="验证码" @error="captchaError = true" />
-            <span v-else class="captcha-refresh">
-              <RefreshCwIcon aria-hidden="true" />
-              点击刷新
-            </span>
-          </button>
-        </div>
+        <GraphicalCaptcha
+          ref="captchaRef"
+          @verified="onCaptchaVerified"
+          @invalidated="onCaptchaInvalidated"
+          @enabled-change="captchaEnabled = $event"
+        />
 
         <div class="form-tools">
           <a href="javascript:void(0)">忘记密码?</a>
         </div>
 
-        <button class="login-submit" type="submit" :disabled="loading">
+        <button class="login-submit" type="submit" :disabled="!canLogin">
           {{ loading ? '登录中...' : '登录平台' }}
         </button>
       </form>
@@ -165,7 +149,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -183,7 +167,6 @@ import {
   LockKeyhole as LockKeyholeIcon,
   Megaphone as MegaphoneIcon,
   Network as NetworkIcon,
-  RefreshCw as RefreshCwIcon,
   Route as RouteIcon,
   Settings2 as Settings2Icon,
   ShieldCheck as ShieldCheckIcon,
@@ -192,7 +175,7 @@ import {
 } from '@lucide/vue'
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
-import { getCodeImg } from '@/api/auth'
+import GraphicalCaptcha from '@/components/GraphicalCaptcha.vue'
 import { clearLoginRequired } from '@/utils/auth'
 import loginBackgroundUrl from '@/assets/images/login_bg.png'
 import loginLogoUrl from '@/assets/images/eTrader_logo2.png'
@@ -203,11 +186,14 @@ const session = useSessionStore()
 const permission = usePermissionStore()
 const loading = ref(false)
 const showPassword = ref(false)
-const codeUrl = ref('')
 const captchaEnabled = ref(true)
-const captchaError = ref(false)
-const pageScale = ref(1)
-const form = reactive({ username: '', password: '', code: '', uuid: '' })
+const captchaVerified = ref(false)
+const captchaRef = ref(null)
+const captchaExpiresAt = ref(0)
+const form = reactive({ username: '', password: '', captchaToken: '', code: undefined, uuid: undefined })
+const canLogin = computed(() => Boolean(
+  form.username.trim() && form.password && (!captchaEnabled.value || (captchaVerified.value && (!captchaExpiresAt.value || Date.now() < captchaExpiresAt.value))) && !loading.value,
+))
 
 const capabilities = [
   {
@@ -245,33 +231,42 @@ const authMethods = [
   { icon: Settings2Icon, label: '权限动态管控' },
 ]
 
-const DESIGN_WIDTH = 2560
-const DESIGN_HEIGHT = 1440
-
-function updateScale() {
-  pageScale.value = Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT)
+function onCaptchaVerified({ captchaToken, code, uuid, expiresAt }) {
+  captchaExpiresAt.value = expiresAt || 0
+  form.captchaToken = captchaToken || ''
+  form.code = code
+  form.uuid = uuid
+  captchaVerified.value = true
 }
 
-async function getCode() {
-  captchaError.value = false
-  try {
-    const res = await getCodeImg()
-    captchaEnabled.value = res?.captchaEnabled === undefined ? true : res.captchaEnabled
-    if (captchaEnabled.value) {
-      if (!res?.img) throw new Error('验证码为空')
-      codeUrl.value = `data:image/gif;base64,${res.img}`
-      form.uuid = res.uuid
-    }
-  } catch (error) {
-    captchaError.value = true
-    codeUrl.value = ''
-    ElMessage.error(error.message || '验证码获取失败')
+function onCaptchaInvalidated() {
+  captchaExpiresAt.value = 0
+  form.captchaToken = ''
+  form.code = undefined
+  form.uuid = undefined
+  captchaVerified.value = false
+}
+
+function checkCaptchaExpiry() {
+  if (captchaExpiresAt.value && Date.now() >= captchaExpiresAt.value) {
+    onCaptchaInvalidated()
+    captchaRef.value?.reset('token-expired')
   }
 }
 
+function onResume() {
+  if (document.visibilityState !== 'hidden') checkCaptchaExpiry()
+}
+
 async function onLogin() {
-  if (captchaEnabled.value && !form.code) {
-    ElMessage.warning('请输入验证码')
+  if (loading.value) return
+  checkCaptchaExpiry()
+  if (!form.username.trim() || !form.password) {
+    ElMessage.warning('请输入账号和密码')
+    return
+  }
+  if (captchaEnabled.value && !captchaVerified.value) {
+    ElMessage.warning('请先完成安全验证')
     return
   }
   loading.value = true
@@ -287,20 +282,27 @@ async function onLogin() {
     router.push(route.query.redirect || '/home')
   } catch (error) {
     ElMessage.error(error.message || '登录失败')
-    getCode()
+    form.password = ''
+    captchaRef.value?.reset('login-failed')
   } finally {
     loading.value = false
   }
 }
 
 onMounted(() => {
-  updateScale()
-  window.addEventListener('resize', updateScale)
-  getCode()
+  window.addEventListener('focus', onResume)
+  document.addEventListener('visibilitychange', onResume)
 })
 
+watch(() => form.username, () => {
+  onCaptchaInvalidated()
+  captchaEnabled.value = true
+  captchaRef.value?.reset('account-changed')
+}, { flush: 'sync' })
+
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateScale)
+  window.removeEventListener('focus', onResume)
+  document.removeEventListener('visibilitychange', onResume)
 })
 </script>
 
@@ -311,9 +313,7 @@ onBeforeUnmount(() => {
 }
 
 .login-stage {
-  position: fixed;
-  inset: 0;
-  overflow: hidden;
+  min-height: 100dvh;
   background-color: #050b1a;
   background-image:
     linear-gradient(90deg, rgba(4, 10, 26, 0.35), rgba(4, 10, 26, 0.05) 42%, rgba(4, 10, 26, 0.28)),
@@ -333,34 +333,25 @@ onBeforeUnmount(() => {
   --panel-bg: rgba(11, 27, 56, 0.55);
   --line: rgba(96, 150, 240, 0.2);
   --shadow: 0 18px 60px rgba(2, 10, 30, 0.4);
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  width: 2560px;
-  height: 1440px;
-  padding: 0;
-  transform-origin: center center;
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 28px;
+  box-sizing: border-box;
   color: var(--text);
   font-family: "Inter", "PingFang SC", "Microsoft YaHei", Arial, sans-serif;
 }
 
-/* 内容层：按 1920×1080 版式定位，等比放大铺满 2560×1440 画布 */
 .login-canvas {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 1920px;
-  height: 1080px;
-  transform-origin: top left;
-  transform: scale(1.33333);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+  grid-template-areas: "brand nav" "hero login" "capabilities login" "quick quick" "footer footer";
+  gap: 32px;
+  align-items: start;
 }
 
 /* ---------- 品牌 ---------- */
 .brand-bar {
-  position: absolute;
-  top: 44px;
-  left: 30px;
-  z-index: 5;
+  grid-area: brand;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -396,13 +387,12 @@ onBeforeUnmount(() => {
 
 /* ---------- 顶部导航 ---------- */
 .top-nav {
-  position: absolute;
-  top: 52px;
-  right: 30px;
-  z-index: 5;
+  grid-area: nav;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
 }
 
 .top-nav a,
@@ -417,7 +407,8 @@ onBeforeUnmount(() => {
 }
 
 .top-nav a {
-  padding-right: 24px;
+  padding-right: 12px;
+  min-height: 44px;
   border-right: 1px solid rgba(255, 255, 255, 0.16);
 }
 
@@ -427,7 +418,7 @@ onBeforeUnmount(() => {
 }
 
 .top-nav svg,
-.login-card header svg,
+.login-card > header svg,
 .security-row svg {
   width: 22px;
   height: 22px;
@@ -450,16 +441,13 @@ onBeforeUnmount(() => {
 
 /* ---------- 左侧主视觉 ---------- */
 .hero {
-  position: absolute;
-  top: 120px;
-  left: 30px;
-  width: 820px;
-  z-index: 3;
+  grid-area: hero;
+  padding-top: 28px;
 }
 
 .hero-title {
   margin: 0;
-  font-size: 58px;
+  font-size: clamp(30px, 3.5vw, 50px);
   font-weight: 600;
   line-height: 1.24;
   letter-spacing: 2px;
@@ -494,10 +482,7 @@ onBeforeUnmount(() => {
 
 /* ---------- 平台核心能力 ---------- */
 .capability-card {
-  position: absolute;
-  left: 30px;
-  top: 660px;
-  width: 830px;
+  grid-area: capabilities;
   box-sizing: border-box;
   padding: 22px 26px 28px;
   z-index: 4;
@@ -556,17 +541,15 @@ onBeforeUnmount(() => {
 
 /* ---------- 登录卡片 ---------- */
 .login-card {
-  position: absolute;
-  top: 145px;
-  right: 30px;
-  width: 560px;
+  grid-area: login;
+  min-width: 0;
   box-sizing: border-box;
-  padding: 34px 40px 32px;
+  padding: 24px;
   border-radius: 20px;
   z-index: 4;
 }
 
-.login-card header {
+.login-card > header {
   display: flex;
   align-items: center;
   gap: 12px;
@@ -631,8 +614,8 @@ onBeforeUnmount(() => {
   right: 16px;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   border: 0;
   background: transparent;
   color: rgba(206, 224, 250, 0.72);
@@ -644,64 +627,6 @@ onBeforeUnmount(() => {
   height: 20px;
 }
 
-.captcha-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 122px;
-  gap: 12px;
-  align-items: center;
-}
-
-.captcha-field input {
-  padding-right: 18px;
-}
-
-.captcha-image {
-  display: block;
-  width: 122px;
-  height: 54px;
-  padding: 0;
-  border: 1px solid rgba(96, 150, 240, 0.28);
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(6, 16, 38, 0.5);
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.captcha-image:hover {
-  border-color: rgba(77, 155, 255, 0.55);
-}
-
-.captcha-image img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.captcha-image.is-error {
-  border-style: dashed;
-  border-color: rgba(255, 118, 132, 0.55);
-}
-
-.captcha-refresh {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 100%;
-  color: rgba(255, 150, 162, 0.92);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.captcha-refresh svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2;
-}
-
 .form-tools {
   display: flex;
   align-items: center;
@@ -709,6 +634,9 @@ onBeforeUnmount(() => {
 }
 
 .form-tools a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--blue-light);
   font-size: 14px;
   text-decoration: none;
@@ -784,10 +712,7 @@ onBeforeUnmount(() => {
 
 /* ---------- 快速入口 ---------- */
 .quick-card {
-  position: absolute;
-  top: 740px;
-  right: 30px;
-  width: 560px;
+  grid-area: quick;
   box-sizing: border-box;
   padding: 22px 28px 26px;
   z-index: 4;
@@ -882,10 +807,7 @@ onBeforeUnmount(() => {
 
 /* ---------- 页脚 ---------- */
 .login-footer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 30px;
+  grid-area: footer;
   display: grid;
   place-items: center;
   gap: 10px;
@@ -918,6 +840,24 @@ onBeforeUnmount(() => {
 .login-footer a {
   color: rgba(206, 224, 250, 0.68);
   text-decoration: none;
+}
+
+@media (max-width: 900px) {
+  .login-page { padding: 20px 16px; }
+  .login-canvas {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "brand" "hero" "login" "capabilities" "quick" "footer";
+    gap: 24px;
+  }
+  .top-nav { display: none; }
+  .brand-text strong { font-size: 20px; }
+  .brand-text span { font-size: 13px; }
+  .hero { padding-top: 0; }
+  .hero-sub { font-size: 18px; margin-top: 14px; }
+  .login-card { width: 100%; max-width: 480px; justify-self: center; padding: 20px 16px; }
+  .capability-card, .quick-card { padding: 20px 16px; }
+  .capability-grid, .quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px 16px; }
+  .login-footer p { font-size: 12px; line-height: 1.8; }
 }
 
 @media (prefers-reduced-motion: reduce) {
