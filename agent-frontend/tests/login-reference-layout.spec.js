@@ -19,13 +19,14 @@ describe('province chooser reference login layout', () => {
     expect(loginSource).not.toContain('class="notice-card glass-card"')
   })
 
-  it('keeps the current project login flow unchanged', () => {
+  it('keeps the project login flow and delegates captcha interaction', () => {
     expect(loginSource).toContain('await session.login(form)')
     expect(loginSource).toContain('clearLoginRequired()')
     expect(loginSource).toContain('permission.resetRoutes()')
     expect(loginSource).toContain('await session.loadUserInfo({ force: true })')
     expect(loginSource).toContain("router.push(route.query.redirect || '/home')")
     expect(loginSource).toContain('@submit.prevent="onLogin"')
-    expect(loginSource).toContain('@click="getCode"')
+    expect(loginSource).toContain('<GraphicalCaptcha')
+    expect(loginSource).toContain('@verified="onCaptchaVerified"')
   })
 })

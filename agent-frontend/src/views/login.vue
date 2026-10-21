@@ -79,31 +79,19 @@
             <component :is="showPassword ? EyeIcon : EyeOffIcon" aria-hidden="true" />
           </button>
         </label>
-        <div v-if="captchaEnabled" class="captcha-row">
-          <label class="captcha-field">
-            <ShieldCheckIcon aria-hidden="true" />
-            <input v-model="form.code" type="text" autocomplete="off" maxlength="6" placeholder="请输入验证码" />
-          </label>
-          <button
-            class="captcha-image"
-            :class="{ 'is-error': captchaError }"
-            type="button"
-            aria-label="刷新验证码"
-            @click="getCode"
-          >
-            <img v-if="codeUrl && !captchaError" :src="codeUrl" alt="验证码" @error="captchaError = true" />
-            <span v-else class="captcha-refresh">
-              <RefreshCwIcon aria-hidden="true" />
-              点击刷新
-            </span>
-          </button>
-        </div>
+        <GraphicalCaptcha
+          ref="captchaRef"
+          :account-revision="accountRevision"
+          @verified="onCaptchaVerified"
+          @invalidated="onCaptchaInvalidated"
+          @enabled-change="captchaEnabled = $event"
+        />
 
         <div class="form-tools">
           <a href="javascript:void(0)">忘记密码?</a>
         </div>
 
-        <button class="login-submit" type="submit" :disabled="loading">
+        <button class="login-submit" type="submit" :disabled="!canLogin">
           {{ loading ? '登录中...' : '登录平台' }}
         </button>
       </form>
@@ -165,7 +153,7 @@
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -183,7 +171,6 @@ import {
   LockKeyhole as LockKeyholeIcon,
   Megaphone as MegaphoneIcon,
   Network as NetworkIcon,
-  RefreshCw as RefreshCwIcon,
   Route as RouteIcon,
   Settings2 as Settings2Icon,
   ShieldCheck as ShieldCheckIcon,
@@ -192,7 +179,7 @@ import {
 } from '@lucide/vue'
 import { useSessionStore } from '@/store/modules/session'
 import { usePermissionStore } from '@/store/modules/permission'
-import { getCodeImg } from '@/api/auth'
+import GraphicalCaptcha from '@/components/GraphicalCaptcha.vue'
 import { clearLoginRequired } from '@/utils/auth'
 import loginBackgroundUrl from '@/assets/images/login_bg.png'
 import loginLogoUrl from '@/assets/images/eTrader_logo2.png'
@@ -203,11 +190,15 @@ const session = useSessionStore()
 const permission = usePermissionStore()
 const loading = ref(false)
 const showPassword = ref(false)
-const codeUrl = ref('')
 const captchaEnabled = ref(true)
-const captchaError = ref(false)
+const captchaVerified = ref(false)
+const captchaRef = ref(null)
+const accountRevision = ref(0)
 const pageScale = ref(1)
-const form = reactive({ username: '', password: '', code: '', uuid: '' })
+const form = reactive({ username: '', password: '', captchaToken: '', code: undefined, uuid: undefined })
+const canLogin = computed(() => Boolean(
+  form.username.trim() && form.password && (!captchaEnabled.value || captchaVerified.value) && !loading.value,
+))
 
 const capabilities = [
   {
@@ -252,26 +243,27 @@ function updateScale() {
   pageScale.value = Math.min(window.innerWidth / DESIGN_WIDTH, window.innerHeight / DESIGN_HEIGHT)
 }
 
-async function getCode() {
-  captchaError.value = false
-  try {
-    const res = await getCodeImg()
-    captchaEnabled.value = res?.captchaEnabled === undefined ? true : res.captchaEnabled
-    if (captchaEnabled.value) {
-      if (!res?.img) throw new Error('验证码为空')
-      codeUrl.value = `data:image/gif;base64,${res.img}`
-      form.uuid = res.uuid
-    }
-  } catch (error) {
-    captchaError.value = true
-    codeUrl.value = ''
-    ElMessage.error(error.message || '验证码获取失败')
-  }
+function onCaptchaVerified({ captchaToken, code, uuid }) {
+  form.captchaToken = captchaToken || ''
+  form.code = code
+  form.uuid = uuid
+  captchaVerified.value = true
+}
+
+function onCaptchaInvalidated() {
+  form.captchaToken = ''
+  form.code = undefined
+  form.uuid = undefined
+  captchaVerified.value = false
 }
 
 async function onLogin() {
-  if (captchaEnabled.value && !form.code) {
-    ElMessage.warning('请输入验证码')
+  if (!form.username.trim() || !form.password) {
+    ElMessage.warning('请输入账号和密码')
+    return
+  }
+  if (captchaEnabled.value && !captchaVerified.value) {
+    ElMessage.warning('请先完成安全验证')
     return
   }
   loading.value = true
@@ -287,7 +279,8 @@ async function onLogin() {
     router.push(route.query.redirect || '/home')
   } catch (error) {
     ElMessage.error(error.message || '登录失败')
-    getCode()
+    form.password = ''
+    captchaRef.value?.reset('login-failed')
   } finally {
     loading.value = false
   }
@@ -296,7 +289,10 @@ async function onLogin() {
 onMounted(() => {
   updateScale()
   window.addEventListener('resize', updateScale)
-  getCode()
+})
+
+watch(() => form.username, (username, previous) => {
+  if (captchaVerified.value && previous !== undefined && username !== previous) accountRevision.value += 1
 })
 
 onBeforeUnmount(() => {
@@ -642,64 +638,6 @@ onBeforeUnmount(() => {
 .ghost-eye svg {
   width: 20px;
   height: 20px;
-}
-
-.captcha-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 122px;
-  gap: 12px;
-  align-items: center;
-}
-
-.captcha-field input {
-  padding-right: 18px;
-}
-
-.captcha-image {
-  display: block;
-  width: 122px;
-  height: 54px;
-  padding: 0;
-  border: 1px solid rgba(96, 150, 240, 0.28);
-  border-radius: 12px;
-  overflow: hidden;
-  background: rgba(6, 16, 38, 0.5);
-  cursor: pointer;
-  transition: border-color 0.2s ease;
-}
-
-.captcha-image:hover {
-  border-color: rgba(77, 155, 255, 0.55);
-}
-
-.captcha-image img {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.captcha-image.is-error {
-  border-style: dashed;
-  border-color: rgba(255, 118, 132, 0.55);
-}
-
-.captcha-refresh {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 100%;
-  color: rgba(255, 150, 162, 0.92);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.captcha-refresh svg {
-  width: 16px;
-  height: 16px;
-  stroke-width: 2;
 }
 
 .form-tools {
